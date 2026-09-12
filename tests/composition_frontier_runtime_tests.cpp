@@ -43,9 +43,48 @@ laplace_composition_known_entity Atom(
     return result;
 }
 
+laplace_composition_status ResolveAllNovel(
+    void*,
+    const laplace_composition_entity_candidate*,
+    const std::size_t entity_candidate_count,
+    const laplace_persistence_physicality_record*,
+    const std::size_t physicality_candidate_count,
+    std::uint8_t* entity_dispositions,
+    std::uint8_t* physicality_dispositions,
+    laplace_composition_presence_provider_result* result) {
+    if (result == nullptr ||
+        (entity_candidate_count != 0U && entity_dispositions == nullptr) ||
+        (physicality_candidate_count != 0U && physicality_dispositions == nullptr)) {
+        return LAPLACE_COMPOSITION_PRESENCE_INVALID;
+    }
+    for (std::size_t index = 0U; index < entity_candidate_count; ++index) {
+        entity_dispositions[index] = LAPLACE_COMPOSITION_NOVEL;
+    }
+    for (std::size_t index = 0U; index < physicality_candidate_count; ++index) {
+        physicality_dispositions[index] = LAPLACE_COMPOSITION_NOVEL;
+    }
+    *result = laplace_composition_presence_provider_result{};
+    Fill(result->provider_fingerprint, 0x51U);
+    Fill(result->provider_receipt_id, 0x71U);
+    result->returned_entity_count = entity_candidate_count;
+    result->returned_physicality_count = physicality_candidate_count;
+    result->entity_round_count = entity_candidate_count == 0U ? 0U : 1U;
+    result->physicality_round_count = physicality_candidate_count == 0U ? 0U : 1U;
+    return LAPLACE_COMPOSITION_OK;
+}
+
+laplace_composition_presence_provider_v1 AllNovelPresenceProvider() {
+    laplace_composition_presence_provider_v1 provider{};
+    provider.resolve = ResolveAllNovel;
+    provider.abi_major = LAPLACE_COMPOSITION_PRESENCE_PROVIDER_ABI;
+    provider.abi_minor = LAPLACE_COMPOSITION_ABI_MINOR;
+    return provider;
+}
+
 struct ScenarioResult final {
     laplace_composition_frontier_execution_plan preflight{};
     laplace_composition_working_set_summary summary{};
+    laplace_composition_presence_receipt presence{};
     std::vector<laplace_composition_result> results;
     std::vector<laplace_execution_work_receipt> receipts;
 };
@@ -123,10 +162,19 @@ ScenarioResult Scenario(
     if (create_status != LAPLACE_COMPOSITION_OK || working_set == nullptr) {
         return result;
     }
+
+    const auto presence_provider = AllNovelPresenceProvider();
+    EXPECT_EQ(
+        laplace_composition_working_set_resolve_presence(
+            working_set, &presence_provider, &result.presence),
+        LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(result.presence.status, LAPLACE_COMPOSITION_OK);
+
     EXPECT_EQ(
         laplace_composition_working_set_summary_get(
             working_set, &result.summary),
         LAPLACE_COMPOSITION_OK);
+    EXPECT_EQ(result.summary.presence_applied, 1U);
 
     std::size_t result_count = 0U;
     const auto* results =
@@ -226,6 +274,9 @@ void ExpectSameSemanticWorkingSet(
     const ScenarioResult& actual) {
     ASSERT_EQ(expected.results.size(), RequestCount);
     ASSERT_EQ(actual.results.size(), RequestCount);
+    EXPECT_TRUE(SameDigest(
+        expected.presence.semantic_receipt_id,
+        actual.presence.semantic_receipt_id));
     EXPECT_TRUE(SameDigest(
         expected.summary.receipt_id,
         actual.summary.receipt_id));
