@@ -95,6 +95,7 @@
       "bin/laplace-cognition-service",
       "bin/laplace-cognition-core-service",
       "bin/laplace-openai-api",
+      "bin/laplace-openai-api-core",
       "bin/laplace-model-export",
       "bin/laplace_resource_observe",
       "bin/laplace_cognition_firmware_compile",
