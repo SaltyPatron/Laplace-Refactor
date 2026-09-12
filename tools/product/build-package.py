@@ -1007,11 +1007,11 @@ def create_plan(
     return plan
 
 
-def create_private_directory(path: Path) -> None:
+def create_shared_directory(path: Path) -> None:
     path.mkdir(parents=True)
-    os.chmod(path, 0o700)
-    if stat.S_IMODE(path.stat().st_mode) != 0o700:
-        raise ProductPackageError(f"private directory mode differs: {path}")
+    os.chmod(path, 0o2770)
+    if stat.S_IMODE(path.stat().st_mode) != 0o2770:
+        raise ProductPackageError(f"shared directory mode differs: {path}")
 
 
 def tree_fingerprint(root: Path) -> dict[str, tuple[Any, ...]]:
@@ -1459,8 +1459,8 @@ def execute_plan(
     stage_directory = Path(plan["stage_directory"])
     if build_directory.exists() or stage_directory.exists():
         raise ProductPackageError("product build and stage destinations must be absent")
-    create_private_directory(build_directory)
-    create_private_directory(stage_directory)
+    create_shared_directory(build_directory)
+    create_shared_directory(stage_directory)
     staged_prefix = Path(plan["staged_prefix"])
     staged_prefix.parent.mkdir(parents=True)
     _, postgresql_receipt = verify_postgresql_publication(
@@ -1656,10 +1656,11 @@ def product_plan_lock_path(plan: Mapping[str, Any]) -> Path:
     if build_directory.parent.parent != stage_directory.parent.parent:
         raise ProductPackageError("product build and stage destinations do not share a product root")
     lock_root = build_directory.parent.parent / "locks"
-    lock_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock_root.mkdir(parents=True, exist_ok=True, mode=0o2770)
     if not lock_root.is_dir() or lock_root.is_symlink():
         raise ProductPackageError("product plan lock root is not a physical directory")
-    os.chmod(lock_root, 0o700)
+    if lock_root.stat().st_uid == os.geteuid():
+        os.chmod(lock_root, 0o2770)
     return lock_root / f"{plan_id}.lock"
 
 
@@ -1686,7 +1687,7 @@ def select_or_build_product(
     descriptor = os.open(
         lock_path,
         os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
-        0o600,
+        0o660,
     )
     built_new = False
     with os.fdopen(descriptor, "a+b") as lock_stream:
