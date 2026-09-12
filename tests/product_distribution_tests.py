@@ -156,6 +156,32 @@ class ProductDistributionTests(unittest.TestCase):
             ).is_file()
         )
 
+    def test_repeated_build_reuses_sealed_bundle_and_discards_its_copy(self) -> None:
+        first, bundle = self.build_bundle()
+        source = bundle / "payload/sources/unicode"
+        before = {str(p.relative_to(bundle)): p.lstat().st_mode
+                  for p in bundle.rglob("*")}
+        self.assertEqual(source.stat().st_mode & 0o222, 0)
+        second, selected = self.build_bundle()
+        self.assertEqual(first, second)
+        self.assertEqual(bundle, selected)
+        self.assertEqual(before, {str(p.relative_to(bundle)): p.lstat().st_mode
+                                  for p in bundle.rglob("*")})
+        self.assertEqual(list(self.output.glob(".laplace-installer.*")), [])
+        distribution.verify_bundle(bundle / "installer-manifest.json")
+
+    def test_discard_does_not_change_a_symlink_target(self) -> None:
+        outside = self.root / "retained-source"
+        outside.mkdir()
+        outside.chmod(0o555)
+        disposable = self.root / ".laplace-installer.test"
+        disposable.mkdir()
+        (disposable / "source").symlink_to(outside, target_is_directory=True)
+        disposable.chmod(0o555)
+        distribution.discard_build_directory(disposable)
+        self.assertFalse(disposable.exists())
+        self.assertEqual(outside.stat().st_mode & 0o777, 0o555)
+
     def test_materialization_is_exact_and_replayable(self) -> None:
         result, bundle = self.build_bundle()
         first = distribution.materialize(bundle / "installer-manifest.json", self.root / "host")
