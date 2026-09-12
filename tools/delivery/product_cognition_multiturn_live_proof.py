@@ -162,15 +162,14 @@ def prove(output: Path) -> None:
         raise RuntimeError("active package identity is invalid")
 
     receipt_root = Path(cluster["instance"]["receipt_directory"])
-    completed = base.u.load_json(
-        receipt_root / "cluster-activation" / package_id / "activation-complete.json"
-    )
+    package_receipt_root = receipt_root / "cluster-activation" / package_id
+    completed = base.u.load_json(package_receipt_root / "activation-complete.json")
     plan = base.u.load_json(Path(completed["cluster_plan_path"]))
     base.r.clusterctl.validate_plan(plan, cluster)
     loaded = base.r.clusterctl.observe_loaded_live(plan, cluster, Path("/"))
     base.r.clusterctl.verify_loaded(plan, cluster, loaded)
 
-    unicode_receipt = base.u.load_json(receipt_root / "unicode-product-activation.json")
+    unicode_receipt = base.u.load_json(package_receipt_root / "unicode-product-activation.json")
     identities = base.h.load_unicode_identities(
         cluster, unicode_contract, unicode_receipt, Path("/")
     )
