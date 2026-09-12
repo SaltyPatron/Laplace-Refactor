@@ -1,0 +1,83 @@
+name: one-shot-composition-physical-identity-mutant
+
+on:
+  push:
+    branches:
+      - product/installed-cognition-surface
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Prove physical execution plan cannot enter composition identity'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: product/installed-cognition-surface
+          fetch-depth: 0
+      - name: Add physical-plan semantic-identity mutant
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          composition = Path('engine/src/composition_legacy.inc')
+          text = composition.read_text(encoding='utf-8')
+          old = '''    blake3_hasher_update(\n        &hasher, state.summary.presence_receipt_id.bytes,\n        sizeof(state.summary.presence_receipt_id.bytes));\n    HashU64(hasher, state.summary.novel_entity_count);\n'''
+          new = '''    blake3_hasher_update(\n        &hasher, state.summary.presence_receipt_id.bytes,\n        sizeof(state.summary.presence_receipt_id.bytes));\n#if defined(LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT)\n    for (const auto& execution_receipt : state.frontier_execution_receipts) {\n        blake3_hasher_update(\n            &hasher, execution_receipt.plan_fingerprint.bytes,\n            sizeof(execution_receipt.plan_fingerprint.bytes));\n    }\n#endif\n    HashU64(hasher, state.summary.novel_entity_count);\n'''
+          if text.count(old) != 1:
+              raise SystemExit(f'publication fingerprint insertion point count={text.count(old)}')
+          composition.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          cmake = Path('tests/composition_occurrence.cmake')
+          text = cmake.read_text(encoding='utf-8')
+          marker = '''include("${CMAKE_CURRENT_SOURCE_DIR}/tests/source_structural_witness.cmake")\n'''
+          block = r'''add_library(laplace_composition_physical_plan_identity_mutant STATIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/src/composition.cpp")
+target_include_directories(laplace_composition_physical_plan_identity_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/engine/include"
+    "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_composition_physical_plan_identity_mutant PRIVATE
+    Laplace::Engine BLAKE3::blake3)
+target_compile_definitions(laplace_composition_physical_plan_identity_mutant PRIVATE
+    LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT=1)
+target_compile_options(laplace_composition_physical_plan_identity_mutant PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+
+add_executable(laplace_composition_physical_plan_identity_mutation_probe
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_runtime_tests.cpp")
+target_include_directories(laplace_composition_physical_plan_identity_mutation_probe PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+target_link_libraries(laplace_composition_physical_plan_identity_mutation_probe PRIVATE
+    laplace_composition_physical_plan_identity_mutant
+    Laplace::Engine
+    GTest::gtest_main)
+target_compile_options(laplace_composition_physical_plan_identity_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(
+    NAME composition.mutation-physical-plan-semantic-identity-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_composition_physical_plan_identity_mutation_probe>"
+        "-DFILTER=CompositionFrontierRuntime.WorkerGrantAndChunkPlanCannotAlterCanonicalSemanticIdentity"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/expect_gtest_failure.cmake")
+set_tests_properties(
+    composition.mutation-physical-plan-semantic-identity-detected PROPERTIES
+    LABELS "implementation;composition;execution;identity;receipt;determinism;mutation")
+
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('composition CMake insertion marker drifted')
+          cmake.write_text(text.replace(marker, block + marker, 1), encoding='utf-8')
+          PY
+
+          grep -F 'LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT' engine/src/composition_legacy.inc
+          grep -F 'composition.mutation-physical-plan-semantic-identity-detected' tests/composition_occurrence.cmake
+
+          git config user.name 'laplace-ci'
+          git config user.email 'laplace-ci@users.noreply.github.com'
+          git add engine/src/composition_legacy.inc tests/composition_occurrence.cmake
+          git commit -m 'Prove physical execution plan cannot enter composition identity'
+          git push origin HEAD:product/installed-cognition-surface
