@@ -22,6 +22,31 @@ void CopyBytes(void* output, const std::array<std::uint8_t, Size>& input) {
     std::memcpy(output, input.data(), input.size());
 }
 
+int HexNibble(char value) {
+    if (value >= '0' && value <= '9') {
+        return value - '0';
+    }
+    if (value >= 'a' && value <= 'f') {
+        return value - 'a' + 10;
+    }
+    return -1;
+}
+
+bool ParseDigest256(const char* text, laplace_digest256* output) {
+    if (text == nullptr || output == nullptr || std::strlen(text) != 64u) {
+        return false;
+    }
+    for (std::size_t index = 0u; index < 32u; ++index) {
+        const int high = HexNibble(text[index * 2u]);
+        const int low = HexNibble(text[index * 2u + 1u]);
+        if (high < 0 || low < 0) {
+            return false;
+        }
+        output->bytes[index] = static_cast<std::uint8_t>((high << 4) | low);
+    }
+    return true;
+}
+
 void PrintHex(const char* name, const std::uint8_t* bytes, std::size_t count) {
     std::printf("%s=", name);
     for (std::size_t index = 0u; index < count; ++index) {
@@ -53,7 +78,7 @@ struct RuntimeProfile {
     laplace_tabular_source_input input{};
     std::string error;
 
-    bool Load(const std::string& source_root) {
+    bool Load(const std::string& source_root, const laplace_digest256& geometry_epoch) {
         declaration.coordinate.kind = Profile::coordinate_kind;
         CopyBytes(declaration.coordinate.authority.bytes, Profile::authority);
         CopyBytes(declaration.coordinate.release.bytes, Profile::release);
@@ -178,7 +203,7 @@ struct RuntimeProfile {
             return false;
         }
         input.profile_declaration = declaration;
-        CopyBytes(input.geometry_epoch.bytes, Profile::native_geometry_fixture);
+        input.geometry_epoch = geometry_epoch;
         CopyBytes(
             input.occurrence_context_fingerprint.bytes,
             Profile::occurrence_context);
@@ -194,9 +219,13 @@ struct RuntimeProfile {
 };
 
 template <typename Profile>
-int RunProfile(const char* profile_name, const char* source_root, const char* unicode_root) {
+int RunProfile(
+    const char* profile_name,
+    const char* source_root,
+    const char* unicode_root,
+    const laplace_digest256& geometry_epoch) {
     RuntimeProfile<Profile> runtime;
-    if (!runtime.Load(source_root)) {
+    if (!runtime.Load(source_root, geometry_epoch)) {
         std::fprintf(stderr, "%s\n", runtime.error.c_str());
         return 65;
     }
@@ -332,26 +361,31 @@ int RunProfile(const char* profile_name, const char* source_root, const char* un
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
+    if (argc != 5) {
         std::fprintf(
             stderr,
-            "usage: %s PROFILE SOURCE-ROOT UNICODE-SOURCE-ROOT\n"
+            "usage: %s PROFILE SOURCE-ROOT UNICODE-SOURCE-ROOT GEOMETRY-EPOCH-HEX\n"
             "profiles: iso-639-3-20260415, cili-pwn-mappings-20240611, cili-pwn-mappings-20260903\n",
             argv[0]);
+        return 64;
+    }
+    laplace_digest256 geometry_epoch{};
+    if (!ParseDigest256(argv[4], &geometry_epoch)) {
+        std::fprintf(stderr, "geometry epoch must be 64 lowercase hexadecimal characters\n");
         return 64;
     }
     const std::string profile = argv[1];
     if (profile == "iso-639-3-20260415") {
         return RunProfile<laplace::generated::iso_639_3_20260415::Profile>(
-            argv[1], argv[2], argv[3]);
+            argv[1], argv[2], argv[3], geometry_epoch);
     }
     if (profile == "cili-pwn-mappings-20240611") {
         return RunProfile<laplace::generated::cili_pwn_mappings_20240611::Profile>(
-            argv[1], argv[2], argv[3]);
+            argv[1], argv[2], argv[3], geometry_epoch);
     }
     if (profile == "cili-pwn-mappings-20260903") {
         return RunProfile<laplace::generated::cili_pwn_mappings_20260903::Profile>(
-            argv[1], argv[2], argv[3]);
+            argv[1], argv[2], argv[3], geometry_epoch);
     }
     std::fprintf(stderr, "unsupported source profile: %s\n", argv[1]);
     return 64;
