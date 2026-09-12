@@ -17,6 +17,7 @@ permissions:
 
 concurrency:
   group: product-path-${{ github.ref }}
+  queue: max
   cancel-in-progress: false
 
 jobs:
@@ -102,6 +103,7 @@ jobs:
       - avx2
     concurrency:
       group: laplace-physical-product-proof
+      queue: max
       cancel-in-progress: false
     timeout-minutes: 30
     steps:
@@ -130,8 +132,8 @@ jobs:
             --receipt "$publication" >/dev/null
 
   # Every selected physical proof shares mutable self-hosted product resources.
-  # Serialize recovery -> custom-stack -> PostgreSQL-product -> package-product so
-  # reusable-workflow concurrency cannot replace an older pending proof.
+  # Serialize recovery -> custom-stack -> PostgreSQL-product -> package-product and
+  # retain every pending proof in the shared queue instead of replacing older work.
   custom-stack-proof:
     needs:
       - classify
@@ -328,6 +330,7 @@ jobs:
       - avx2
     concurrency:
       group: laplace-physical-product-proof
+      queue: max
       cancel-in-progress: false
     timeout-minutes: 10
     steps:
