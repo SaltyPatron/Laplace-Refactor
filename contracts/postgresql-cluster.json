@@ -14,6 +14,8 @@
     "required_files": [
       "bin/laplace-cognition",
       "bin/laplace-cognition-service",
+      "bin/laplace-cognition-core-service",
+      "bin/laplace-openai-api",
       "bin/laplace_resource_observe",
       "bin/laplace_cognition_firmware_compile",
       "bin/laplace_source_profile_compile",
