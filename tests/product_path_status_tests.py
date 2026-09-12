@@ -117,36 +117,28 @@ class ProductPathGitStatusTests(unittest.TestCase):
             "  dev-bat-deployment:\n    needs: product-path\n",
             workflow,
         )
-        deployment = workflow[workflow.index("  dev-bat-deployment:"):]
+        start = workflow.index("  dev-bat-deployment:")
+        end = workflow.index("\n  dev-bat-live-substrate:", start)
+        deployment = workflow[start:end]
         self.assertIn("      always() &&\n      github.event_name == 'push'", deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deployment)
         self.assertIn("needs.product-path.result == 'success'", deployment)
-        self.assertIn("    permissions:\n      actions: write\n      contents: read\n", deployment)
-        self.assertIn("    timeout-minutes: 360\n", deployment)
+        self.assertIn("    uses: ./.github/workflows/product-activation.yml\n", deployment)
+        self.assertIn("    with:\n      expected_sha: ${{ github.sha }}\n", deployment)
+        self.assertNotIn("runs-on:", deployment)
+        self.assertNotIn("actions/workflows/product-activation.yml/dispatches", deployment)
+        self.assertNotIn("GH_TOKEN", deployment)
+        self.assertNotIn("gh run watch", deployment)
+        self.assertNotIn("ref=main", deployment)
         top_level_permissions = workflow[
             workflow.index("permissions:\n"):workflow.index("\nconcurrency:")
         ]
         self.assertNotIn("actions: write", top_level_permissions)
-        self.assertIn("actions/workflows/product-activation.yml/dispatches", deployment)
-        self.assertIn("inputs[expected_sha]=$EXPECTED_SHA", deployment)
-        self.assertIn("EXPECTED_SHA: ${{ github.sha }}", deployment)
-        self.assertIn("LAPLACE_ACTIVATION_DISPATCHED_AT", deployment)
-        self.assertIn("gh api --method GET", deployment)
-        self.assertIn("actions/workflows/product-activation.yml/runs", deployment)
-        self.assertIn('-f "head_sha=$EXPECTED_SHA"', deployment)
-        self.assertIn("-f event=workflow_dispatch", deployment)
-        self.assertIn('--arg sha "$EXPECTED_SHA"', deployment)
-        self.assertIn('--arg since "$LAPLACE_ACTIVATION_DISPATCHED_AT"', deployment)
-        self.assertIn(".head_sha == $sha", deployment)
-        self.assertIn(".created_at >= $since", deployment)
-        self.assertIn("gh run watch \"$run_id\"", deployment)
-        self.assertIn("--exit-status", deployment)
-        self.assertIn("gh run view \"$run_id\"", deployment)
-        self.assertIn('test "$conclusion" = success', deployment)
-        self.assertIn("Accepted-main CI is green only after", deployment)
+
+        self.assertIn("  workflow_call:\n", activation)
         self.assertIn("  workflow_dispatch:\n", activation)
-        self.assertIn("      expected_sha:\n", activation)
-        self.assertIn("        required: true\n", activation)
+        self.assertGreaterEqual(activation.count("      expected_sha:\n"), 2)
+        self.assertGreaterEqual(activation.count("        required: true\n"), 2)
         self.assertNotIn("  pull_request:\n", activation)
         self.assertNotIn("  push:\n", activation)
         literal_sha_gate = "test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'"
@@ -156,6 +148,11 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertGreaterEqual(
             activation.count(literal_sha_gate) + activation.count(diagnostic_sha_gate),
             3,
+        )
+        self.assertGreaterEqual(
+            activation.count("push|workflow_dispatch) ;;"),
+            3,
+            "activation must accept only authoritative main-push calls or explicit manual dispatch",
         )
         self.assertIn("Verify the persistent DEV/BAT product directly", activation)
         self.assertIn("product_activation_runner.py", activation)
@@ -213,8 +210,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
             self.assertNotIn("  push:\n", workflow)
 
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("  workflow_call:\n", activation)
         self.assertIn("  workflow_dispatch:\n", activation)
-        self.assertNotIn("  workflow_call:\n", activation)
         self.assertNotIn("  pull_request:\n", activation)
         self.assertNotIn("  push:\n", activation)
 
@@ -329,32 +326,41 @@ class ProductPathGitStatusTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assert_main_push_deployment_boundary(mutant, activation, contract)
 
-    def test_deliberate_fire_and_forget_activation_defect_is_detected(self) -> None:
+    def test_deliberate_moving_main_activation_defect_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
-        start = workflow.index("      - name: Require persistent product activation")
-        end = workflow.index("\n  legacy-requirements:", start)
-        mutant = workflow[:start] + workflow[end:]
+        start = workflow.index("  dev-bat-deployment:")
+        end = workflow.index("\n  dev-bat-live-substrate:", start)
+        deployment = workflow[start:end]
+        mutant_deployment = deployment.replace(
+            "    uses: ./.github/workflows/product-activation.yml\n    with:\n      expected_sha: ${{ github.sha }}\n",
+            "    runs-on: ubuntu-24.04\n    steps:\n      - run: echo ref=main\n",
+            1,
+        )
+        mutant = workflow[:start] + mutant_deployment + workflow[end:]
         self.assertNotEqual(workflow, mutant)
         with self.assertRaises(AssertionError):
             self.assert_main_push_deployment_boundary(mutant, activation, contract)
 
-    def test_deliberate_activation_exit_status_bypass_is_detected(self) -> None:
+    def test_deliberate_missing_workflow_call_activation_defect_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
-        mutant = workflow.replace("            --exit-status \\\n", "", 1)
-        self.assertNotEqual(workflow, mutant)
+        mutant = activation.replace("  workflow_call:\n", "", 1)
+        self.assertNotEqual(activation, mutant)
         with self.assertRaises(AssertionError):
-            self.assert_main_push_deployment_boundary(mutant, activation, contract)
+            self.assert_main_push_deployment_boundary(workflow, mutant, contract)
 
-    def test_deliberate_unbound_dispatch_sha_is_detected(self) -> None:
+    def test_deliberate_unbound_activation_sha_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
         mutant = activation.replace(
             "          test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'\n",
+            "",
+        ).replace(
+            "          require_equal \"$GITHUB_SHA\" '${{ inputs.expected_sha }}' repository-sha\n",
             "",
         )
         self.assertNotEqual(activation, mutant)
