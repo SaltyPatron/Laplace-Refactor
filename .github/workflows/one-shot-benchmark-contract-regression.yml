@@ -1,0 +1,48 @@
+name: one-shot-benchmark-contract-regression
+
+on:
+  push:
+    branches:
+      - product/installed-cognition-surface
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: product/installed-cognition-surface
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/product_path_status_tests.py')
+          text = path.read_text(encoding='utf-8')
+          constant = 'BENCHMARK_COMPOSITION_PATH = REPOSITORY / ".github/workflows/benchmark-composition-frontier.yml"\n'
+          anchor = 'ACTIVATION_CONTRACT_PATH = REPOSITORY / "contracts/product-activation-gateway.json"\n'
+          if constant not in text:
+              if text.count(anchor) != 1:
+                  raise SystemExit(f'constant anchor count={text.count(anchor)}')
+              text = text.replace(anchor, anchor + constant, 1)
+
+          test_name = 'test_composition_benchmark_is_dispatch_only_exact_sha_and_shared_host'
+          if test_name not in text:
+              marker = '    def test_deliberate_defect_dropping_type_changes_is_detected(self) -> None:\n'
+              block = '''    def test_composition_benchmark_is_dispatch_only_exact_sha_and_shared_host(self) -> None:\n        workflow = BENCHMARK_COMPOSITION_PATH.read_text(encoding="utf-8")\n        self.assertIn("  workflow_dispatch:\\n", workflow)\n        self.assertNotIn("  pull_request:\\n", workflow)\n        self.assertNotIn("  push:\\n", workflow)\n        self.assertIn("      expected_sha:\\n", workflow)\n        self.assertIn("        required: true\\n", workflow)\n        self.assertIn("test \\\"$GITHUB_SHA\\\" = '${{ inputs.expected_sha }}'", workflow)\n        self.assertIn("test \\\"$(git rev-parse HEAD)\\\" = '${{ inputs.expected_sha }}'", workflow)\n        self.assertIn("group: laplace-physical-product-proof", workflow)\n        self.assertIn("queue: max", workflow)\n        self.assertIn("cancel-in-progress: false", workflow)\n        self.assertIn("taskset -c", workflow)\n        self.assertIn("physical_cores", workflow)\n        self.assertIn("hardware", workflow.lower())\n        self.assertIn("semantic receipt changed across worker grants", workflow)\n        self.assertIn("stream fingerprint changed across worker grants", workflow)\n        self.assertIn("laplace.benchmark-suite-receipt/v1", workflow)\n        self.assertIn("legacy_reference", workflow)\n        self.assertIn("directly_comparable", workflow)\n        self.assertIn("actions/upload-artifact", workflow)\n\n'''
+              if text.count(marker) != 1:
+                  raise SystemExit(f'test insertion marker count={text.count(marker)}')
+              text = text.replace(marker, block + marker, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+          python3 tests/product_path_status_tests.py
+          git config user.name laplace-ci
+          git config user.email laplace-ci@users.noreply.github.com
+          git add tests/product_path_status_tests.py
+          git commit -m 'Prove benchmark workflow remains dispatch-only'
+          git push origin HEAD:product/installed-cognition-surface
