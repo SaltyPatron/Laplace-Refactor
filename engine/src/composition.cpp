@@ -245,16 +245,16 @@ extern "C" laplace_composition_status laplace_composition_working_set_create(
         blake3_hasher hasher{};
         blake3_hasher_init(&hasher);
         blake3_hasher_update(
-            &hasher, (*working_set)->summary.receipt_id.bytes,
-            sizeof((*working_set)->summary.receipt_id.bytes));
+            &hasher, (*working_set)->summary.input_fingerprint.bytes,
+            sizeof((*working_set)->summary.input_fingerprint.bytes));
         for (const auto& execution_receipt : capture.receipts) {
             blake3_hasher_update(
                 &hasher, execution_receipt.plan_fingerprint.bytes,
                 sizeof(execution_receipt.plan_fingerprint.bytes));
         }
         blake3_hasher_finalize(
-            &hasher, (*working_set)->summary.receipt_id.bytes,
-            sizeof((*working_set)->summary.receipt_id.bytes));
+            &hasher, (*working_set)->summary.input_fingerprint.bytes,
+            sizeof((*working_set)->summary.input_fingerprint.bytes));
     }
 #endif
     try {
