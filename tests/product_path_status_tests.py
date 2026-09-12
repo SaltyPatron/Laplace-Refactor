@@ -18,6 +18,7 @@ POSTGRESQL_PRODUCT_PATH = REPOSITORY / ".github/workflows/postgresql-product.yml
 PACKAGE_PRODUCT_PATH = REPOSITORY / ".github/workflows/package-product.yml"
 PRODUCT_ACTIVATION_PATH = REPOSITORY / ".github/workflows/product-activation.yml"
 ACTIVATION_CONTRACT_PATH = REPOSITORY / "contracts/product-activation-gateway.json"
+BENCHMARK_COMPOSITION_PATH = REPOSITORY / ".github/workflows/benchmark-composition-frontier.yml"
 SPEC = importlib.util.spec_from_file_location("laplace_product_path_status_tests", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("cannot load product-path module")
@@ -250,6 +251,30 @@ class ProductPathGitStatusTests(unittest.TestCase):
     def test_legacy_required_contexts_are_subordinate_to_product_path(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assert_legacy_branch_protection_bridge(workflow)
+
+    def test_composition_benchmark_is_dispatch_only_exact_sha_and_shared_host(self) -> None:
+        workflow = BENCHMARK_COMPOSITION_PATH.read_text(encoding="utf-8")
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertNotIn("  pull_request:\n", workflow)
+        self.assertNotIn("  push:\n", workflow)
+        self.assertIn("      expected_sha:\n", workflow)
+        self.assertIn("        required: true\n", workflow)
+        self.assertIn("inputs.expected_sha", workflow)
+        self.assertIn("test \"$GITHUB_SHA\" =", workflow)
+        self.assertIn("test \"$(git rev-parse HEAD)\" =", workflow)
+        self.assertIn("group: laplace-physical-product-proof", workflow)
+        self.assertIn("queue: max", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        self.assertIn("taskset -c", workflow)
+        self.assertIn("physical_cores", workflow)
+        self.assertIn("logical_threads", workflow)
+        self.assertIn("candidates = [1, 2, 3, 4, physical, selected_smt, logical]", workflow)
+        self.assertIn("semantic receipt changed across worker grants", workflow)
+        self.assertIn("stream fingerprint changed across worker grants", workflow)
+        self.assertIn("laplace.benchmark-suite-receipt/v1", workflow)
+        self.assertIn("legacy_reference", workflow)
+        self.assertIn("directly_comparable", workflow)
+        self.assertIn("actions/upload-artifact", workflow)
 
     def test_deliberate_defect_dropping_type_changes_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
