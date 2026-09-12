@@ -1,0 +1,42 @@
+-- Preserve the complete generic decomposition coordinates required by runtime
+-- semantic recipes. Existing 1.0.2 rows predate these fields and therefore receive
+-- explicit zero/unknown values; all 1.0.3 writes bind the real native coordinates.
+ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness
+    ADD COLUMN grammar_kind numeric(20, 0) NOT NULL DEFAULT 0
+        CHECK (grammar_kind BETWEEN 0 AND 18446744073709551615),
+    ADD COLUMN field_kind numeric(20, 0) NOT NULL DEFAULT 0
+        CHECK (field_kind BETWEEN 0 AND 18446744073709551615),
+    ADD COLUMN sibling_ordinal numeric(20, 0) NOT NULL DEFAULT 0
+        CHECK (sibling_ordinal BETWEEN 0 AND 18446744073709551615),
+    ADD COLUMN syntax_flags numeric(20, 0) NOT NULL DEFAULT 0
+        CHECK (syntax_flags BETWEEN 0 AND 4294967295);
+
+ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness
+    ALTER COLUMN grammar_kind DROP DEFAULT,
+    ALTER COLUMN field_kind DROP DEFAULT,
+    ALTER COLUMN sibling_ordinal DROP DEFAULT,
+    ALTER COLUMN syntax_flags DROP DEFAULT;
+
+DO $laplace_source_structural_witness_103$
+DECLARE
+    missing integer;
+BEGIN
+    SELECT count(*) INTO missing
+      FROM (VALUES ('grammar_kind'),('field_kind'),('sibling_ordinal'),('syntax_flags')) AS expected(name)
+     WHERE NOT EXISTS (
+        SELECT 1
+          FROM pg_catalog.pg_attribute a
+          JOIN pg_catalog.pg_class c ON c.oid=a.attrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+         WHERE n.nspname='@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@'
+           AND c.relname='source_structural_witness'
+           AND a.attname=expected.name
+           AND a.attnum>0
+           AND NOT a.attisdropped
+           AND a.attnotnull
+     );
+    IF missing <> 0 THEN
+        RAISE EXCEPTION 'Laplace 1.0.3 structural witness migration is incomplete: % columns missing', missing;
+    END IF;
+END
+$laplace_source_structural_witness_103$;
