@@ -1,0 +1,61 @@
+name: apply-postgresql-1-0-3
+
+on:
+  push:
+    branches:
+      - delivery/laplace-live-product-20260911
+    paths:
+      - 'tools/live_product/enable_postgresql_1_0_3.py'
+      - 'integrations/postgresql/extension/source_structural_witness_1_0_2.sql.in'
+      - 'integrations/postgresql/extension/source_structural_witness_1_0_2_to_1_0_3.sql.in'
+      - '.github/workflows/apply-postgresql-1-0-3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-postgresql-1-0-3
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Apply additive extension migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/live_product/enable_postgresql_1_0_3.py
+          git diff --check
+          grep -F "default_version = '1.0.3'" integrations/postgresql/extension/laplace.control.in
+          grep -F 'laplace--1.0.2--1.0.3.sql' integrations/postgresql/extension/CMakeLists.txt
+          grep -F "ALTER EXTENSION laplace UPDATE TO '1.0.3';" integrations/postgresql/extension/product_cognition_upgrade_prefix.sql
+          python3 - <<'PY'
+          import json
+          p=json.load(open('contracts/product-package.json'))
+          r=p['package']['required_files']
+          assert 'pgsql-18/share/extension/laplace--1.0.3.sql' in r
+          assert 'pgsql-18/share/extension/laplace--1.0.2--1.0.3.sql' in r
+          PY
+          python3 tests/product_cluster_upgrade_tests.py
+      - name: Commit migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo '1.0.3 migration already present'
+            exit 0
+          fi
+          git config user.name 'laplace-delivery'
+          git config user.email 'laplace-delivery@users.noreply.github.com'
+          git add \
+            integrations/postgresql/extension/CMakeLists.txt \
+            integrations/postgresql/extension/laplace.control.in \
+            integrations/postgresql/extension/product_cognition_upgrade_prefix.sql \
+            tools/delivery/product_activation_reconcile.py \
+            contracts/product-package.json
+          git commit -m 'Publish structural witness ABI as PostgreSQL 1.0.3'
+          git push origin HEAD:delivery/laplace-live-product-20260911
