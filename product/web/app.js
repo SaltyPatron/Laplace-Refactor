@@ -16,6 +16,7 @@
         ["Checkpoint", value.next_checkpoint_fingerprint],
         ["Program", value.program_id], ["Package", value.package_id],
         ["Discourse", value.discourse_fingerprint], ["Ordinal", value.turn_ordinal ?? value.ordinal],
+        ["Result", value.result_sha256], ["Job", value.job_id], ["Plan", value.plan_id],
       ].filter(([, v]) => v !== undefined && v !== null && v !== "");
       if (!fields.length && value.execution && typeof value.execution === "object") return ReceiptPanel.render(value.execution);
       if (!fields.length) return "";
@@ -51,10 +52,20 @@
   }
 
   const connection = new ConnectionState();
-  const state = { token: sessionStorage.getItem("laplace.apiToken") || "", session: localStorage.getItem("laplace.session") || randomSession(), workspace: "graph", events: null, eventsPaused: false };
+  const state = {
+    token: sessionStorage.getItem("laplace.apiToken") || "",
+    session: localStorage.getItem("laplace.session") || randomSession(),
+    workspace: "graph",
+    events: null,
+    eventsPaused: false,
+    sourcePlan: null,
+    sourceJobId: localStorage.getItem("laplace.sourceJobId") || null,
+    sourcePoll: null,
+  };
   localStorage.setItem("laplace.session", state.session);
 
-  function randomSession() { const bytes = new Uint8Array(10); crypto.getRandomValues(bytes); return "web-" + Array.from(bytes, b => b.toString(16).padStart(2, "0")).join(""); }
+  function randomToken(prefix = "web") { const bytes = new Uint8Array(10); crypto.getRandomValues(bytes); return `${prefix}-` + Array.from(bytes, b => b.toString(16).padStart(2, "0")).join(""); }
+  function randomSession() { return randomToken("web"); }
   function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]); }
   function renderCell(value) { if (value === null || value === undefined) return '<span class="muted">null</span>'; if (typeof value === "object") return `<code>${escapeHtml(JSON.stringify(value))}</code>`; const text = String(value); return text.length > 96 ? `<code title="${escapeHtml(text)}">${escapeHtml(text.slice(0, 92))}…</code>` : `<code>${escapeHtml(text)}</code>`; }
   function toast(message, kind = "info") { const node = document.createElement("div"); node.className = `toast ${kind}`; node.textContent = message; $("#toast-region").append(node); setTimeout(() => node.remove(), 5000); }
@@ -113,18 +124,109 @@
   }
   function schemaLabel(value) { return value?.schema ? `Loaded ${value.schema}` : "Loaded"; }
 
-  async function refreshSources() {
-    try { const value = await api("/api/v1/sources?limit=100"); mountResult("#sources-result", ResourceTable.render(value, { onRow: row => showDetail("#sources-result", row) })); }
-    catch (error) { mountResult("#sources-result", `<div class="error-panel">${escapeHtml(error.message)}</div>`); }
+  function populateSourceSelection(catalog) {
+    const select = $("#source-selection");
+    const previous = select.value;
+    select.replaceChildren();
+    const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = "Select a configured source"; select.append(placeholder);
+    for (const row of catalog.rows || []) {
+      const option = document.createElement("option");
+      option.value = row.source_id;
+      option.disabled = row.preflight_available !== true;
+      const readiness = row.preflight_available === true ? "ready for preflight" : row.profile_available ? "physical/profile prerequisites incomplete" : "profile unavailable";
+      option.textContent = `${row.source_id} — ${row.state} — ${readiness}`;
+      select.append(option);
+    }
+    if ([...select.options].some(option => option.value === previous && !option.disabled)) select.value = previous;
   }
 
-  async function admitSource(event) {
-    event.preventDefault(); const status = $("#source-admit-status"); const result = $("#source-admit-result"); setBusy(status, true, "Compiling and admitting source estate…"); result.hidden = true;
+  async function refreshAdmittedSources() {
     try {
-      const body = { profile: $("#source-profile").value, source_root: $("#source-root").value.trim() }; const unicodeRoot = $("#unicode-root").value.trim(); if (unicodeRoot) body.unicode_root = unicodeRoot;
-      const value = await api("/api/v1/sources/admit", { method: "POST", body: JSON.stringify(body) });
-      result.textContent = JSON.stringify(value, null, 2); result.hidden = false; setBusy(status, false, "Persisted and read back."); await refreshSources();
+      const value = await api("/api/v1/sources?limit=100");
+      mountResult("#sources-result", ResourceTable.render(value, { onRow: row => showDetail("#sources-result", row) }));
+    } catch (error) {
+      mountResult("#sources-result", `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+    }
+  }
+
+  async function refreshSources() {
+    const status = $("#sources-status"); setBusy(status, true, "Loading configured source boundary…");
+    try {
+      const catalog = await api("/api/v1/source-catalog");
+      mountResult("#source-catalog", ResourceTable.render(catalog, { onRow: row => showDetail("#source-catalog", row) }));
+      populateSourceSelection(catalog);
+      setBusy(status, false, `${catalog.row_count} configured source obligations; boundary ${String(catalog.boundary_sha256).slice(0, 12)}…`);
+    } catch (error) {
+      setBusy(status, false, error.message); mountResult("#source-catalog", `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+    }
+    await refreshAdmittedSources();
+    if (state.sourceJobId) resumeSourceJob();
+  }
+
+  async function preflightSource() {
+    const status = $("#source-admit-status"); const result = $("#source-plan-result"); const sourceId = $("#source-selection").value;
+    state.sourcePlan = null; $("#source-submit").disabled = true; result.hidden = true;
+    if (!sourceId) { setBusy(status, false, "Select a source whose prerequisites are ready."); return; }
+    setBusy(status, true, "Hashing and binding the selected artifact graph…");
+    try {
+      const plan = await api("/api/v1/sources/preflight", { method: "POST", body: JSON.stringify({ source_id: sourceId }) });
+      state.sourcePlan = plan;
+      result.textContent = JSON.stringify(plan, null, 2); result.hidden = false; $("#source-submit").disabled = false;
+      setBusy(status, false, `Reviewed plan ${plan.plan_id.slice(0, 12)}…; no ingestion has run.`);
     } catch (error) { setBusy(status, false, error.message); toast(error.message, "error"); }
+  }
+
+  function sourceIdempotencyKey(planId) {
+    const storageKey = `laplace.sourceIdempotency.${planId}`;
+    let value = localStorage.getItem(storageKey);
+    if (!value) { value = randomToken("browser-ingest"); localStorage.setItem(storageKey, value); }
+    return value;
+  }
+
+  function renderSourceJob(job) {
+    const result = $("#source-job-result"); result.textContent = JSON.stringify(job, null, 2); result.hidden = false;
+    const stateLabel = job.state || "unknown"; const suffix = job.result_sha256 ? ` result=${job.result_sha256.slice(0, 12)}…` : "";
+    $("#source-job-status").textContent = `job=${job.job_id} state=${stateLabel}${suffix}`;
+  }
+
+  function scheduleSourcePoll() {
+    if (state.sourcePoll) clearTimeout(state.sourcePoll);
+    state.sourcePoll = setTimeout(() => pollSourceJob(), 2000);
+  }
+
+  async function pollSourceJob() {
+    if (!state.sourceJobId) return;
+    try {
+      const job = await api(`/api/v1/source-jobs/${encodeURIComponent(state.sourceJobId)}`);
+      renderSourceJob(job);
+      if (["queued", "running", "interrupted"].includes(job.state)) {
+        scheduleSourcePoll();
+      } else {
+        if (state.sourcePoll) clearTimeout(state.sourcePoll); state.sourcePoll = null;
+        if (job.state === "succeeded") await refreshAdmittedSources();
+      }
+    } catch (error) {
+      $("#source-job-status").textContent = error.message;
+      if (error.message.includes("not found")) { localStorage.removeItem("laplace.sourceJobId"); state.sourceJobId = null; }
+      else scheduleSourcePoll();
+    }
+  }
+
+  function resumeSourceJob() { if (state.sourceJobId) pollSourceJob(); }
+
+  async function submitSource() {
+    const status = $("#source-admit-status");
+    if (!state.sourcePlan) { setBusy(status, false, "Preflight the selected source before submission."); return; }
+    const plan = state.sourcePlan; const key = sourceIdempotencyKey(plan.plan_id);
+    setBusy(status, true, "Persisting durable ingestion job…"); $("#source-submit").disabled = true;
+    try {
+      const job = await api("/api/v1/sources/admit", {
+        method: "POST",
+        body: JSON.stringify({ source_id: plan.source_id, plan_id: plan.plan_id, idempotency_key: key }),
+      });
+      state.sourceJobId = job.job_id; localStorage.setItem("laplace.sourceJobId", job.job_id); renderSourceJob(job);
+      setBusy(status, false, `Durable job ${job.job_id.slice(0, 12)}… submitted.`); scheduleSourcePoll();
+    } catch (error) { $("#source-submit").disabled = false; setBusy(status, false, error.message); toast(error.message, "error"); }
   }
 
   function renderConversationMessage(role, content, metadata = null) {
@@ -181,7 +283,9 @@
     $$(".nav-item").forEach(button => button.addEventListener("click", () => showWorkspace(button.dataset.workspace)));
     $("#auth-button").addEventListener("click", configureAuth); $("#graph-refresh").addEventListener("click", runGraphQuery);
     $("#graph-collection").addEventListener("change", () => { const detail = $("#graph-collection").value === "entity"; $("#graph-id-label").hidden = !detail; $("#graph-limit").disabled = detail || $("#graph-collection").value === "summary"; });
-    $("#sources-refresh").addEventListener("click", refreshSources); $("#source-admit-form").addEventListener("submit", admitSource); $("#cognition-form").addEventListener("submit", executeCognition); $("#new-session").addEventListener("click", newCognitionSession); $("#sql-run").addEventListener("click", runSql);
+    $("#sources-refresh").addEventListener("click", refreshSources); $("#source-preflight").addEventListener("click", preflightSource); $("#source-submit").addEventListener("click", submitSource);
+    $("#source-selection").addEventListener("change", () => { state.sourcePlan = null; $("#source-submit").disabled = true; $("#source-plan-result").hidden = true; });
+    $("#cognition-form").addEventListener("submit", executeCognition); $("#new-session").addEventListener("click", newCognitionSession); $("#sql-run").addEventListener("click", runSql);
     $("#events-toggle").addEventListener("click", () => { state.eventsPaused = !state.eventsPaused; $("#events-toggle").textContent = state.eventsPaused ? "Resume" : "Pause"; if (state.eventsPaused) stopEvents(); else startEvents(); $("#event-connection").textContent = state.eventsPaused ? "Paused" : "Connecting…"; });
     $("#events-clear").addEventListener("click", () => $("#event-feed").replaceChildren()); $("#admin-refresh").addEventListener("click", refreshAdmin); $("#session-name").textContent = state.session;
   }
