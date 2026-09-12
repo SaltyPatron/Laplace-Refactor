@@ -171,6 +171,14 @@ void TargetScopeIdentifyRequest(
     HashDigest(&hasher, request.target_contract_fingerprint);
     HashDigest(&hasher, request.context_fingerprint);
     HashDigest(&hasher, receipt->slot_set_fingerprint);
+    HashU64(&hasher, static_cast<std::uint64_t>(request.field_count));
+    for (std::size_t index = 0U; index < request.field_count; ++index) {
+        HashField(&hasher, request.fields[index]);
+    }
+    HashU64(&hasher, static_cast<std::uint64_t>(request.constraint_count));
+    for (std::size_t index = 0U; index < request.constraint_count; ++index) {
+        HashConstraint(&hasher, request.constraints[index]);
+    }
     HashF64(&hasher, request.numeric_tolerance);
     HashU32(&hasher, request.operator_program_flags);
     HashU32(&hasher, request.target_compile_flags);
