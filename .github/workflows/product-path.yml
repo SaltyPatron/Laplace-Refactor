@@ -45,15 +45,24 @@ jobs:
         id: classify
         shell: bash
         env:
-          BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          REQUESTED_BASE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.base_sha || github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           PROOF_PROFILE: physical
         run: |
           set -euo pipefail
-          test -n "$BASE_SHA"
           test -n "$HEAD_SHA"
-          git cat-file -e "$BASE_SHA^{commit}"
           git cat-file -e "$HEAD_SHA^{commit}"
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            test -n "$BASE_REF"
+            base_remote="refs/remotes/origin/$BASE_REF"
+            git show-ref --verify --quiet "$base_remote"
+            BASE_SHA=$(git merge-base "$base_remote" "$HEAD_SHA")
+          else
+            BASE_SHA="$REQUESTED_BASE_SHA"
+          fi
+          test -n "$BASE_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
           changed="$RUNNER_TEMP/laplace-product-path-changed.status"
           result="$RUNNER_TEMP/laplace-product-path.json"
           git diff --name-status -z -M --diff-filter=ACMRTD "$BASE_SHA" "$HEAD_SHA" > "$changed"

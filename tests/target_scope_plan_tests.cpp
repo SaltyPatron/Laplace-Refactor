@@ -157,6 +157,34 @@ TEST(TargetScopePlan, GeneratesDistinctQkVoJobsFromOneTypedEstate) {
     EXPECT_FALSE(ScopeSame(qk.matrix_fingerprint, vo.matrix_fingerprint));
 }
 
+TEST(TargetScopePlan, RejectsRoleOnlyQkVoDistinctionOverSameTypedOperator) {
+    const std::vector fields{ScopeField(40U, 0U), ScopeField(41U, 1U)};
+    const std::vector constraints{ScopeConstraint(50U, 11U, 0U, 1U, 2.0)};
+    const std::array<std::uint32_t, 1> families{{11U}};
+    std::array<laplace_target_scope_slot_spec, 2> slots{};
+    slots[0].target_role = LAPLACE_TARGET_ROLE_COMPATIBILITY_QK;
+    slots[0].layer_index = 1U;
+    slots[0].head_index = 2U;
+    slots[0].eligible_relation_families = families.data();
+    slots[0].eligible_relation_family_count = families.size();
+    slots[0].eligible_source_mask = 1U;
+    slots[0].head_rank = 1U;
+    slots[1] = slots[0];
+    slots[1].target_role = LAPLACE_TARGET_ROLE_CONTRIBUTION_VO;
+
+    auto request = ScopeRequest(fields, constraints, slots.data(), slots.size());
+    ScopeCompileHandle result;
+    laplace_target_compile_receipt compile{};
+    laplace_target_scope_plan_receipt scope{};
+    EXPECT_EQ(
+        laplace_target_scope_plan_compile(&request, &result.value, &compile, &scope),
+        LAPLACE_TARGET_SCOPE_PLAN_TARGET_COMPILE_FAILURE);
+    EXPECT_EQ(result.value, nullptr);
+    EXPECT_EQ(scope.compile_status, LAPLACE_TARGET_COMPILE_FLATTENED_OPERATOR);
+    EXPECT_EQ(compile.status, LAPLACE_TARGET_COMPILE_FLATTENED_OPERATOR);
+    EXPECT_EQ(compile.version, LAPLACE_TARGET_COMPILE_VERSION);
+}
+
 TEST(TargetScopePlan, CanonicalizesRelationFamilySetBeforeProgramIdentity) {
     const std::vector fields{ScopeField(40U, 0U), ScopeField(41U, 1U)};
     const std::vector constraints{

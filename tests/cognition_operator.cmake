@@ -4,6 +4,7 @@ add_executable(laplace_cognition_operator_tests
     "${PROJECT_SOURCE_DIR}/tests/cognition_operator_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/target_compile_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/target_scope_plan_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/target_scope_identity_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/target_factorization_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/target_attention_projection_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/target_package_tests.cpp"

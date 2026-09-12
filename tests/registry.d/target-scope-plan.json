@@ -7,6 +7,11 @@
       "covered_dimensions": ["one typed field and constraint estate is selected by declarative target slots", "native code generates operator programs and consumer role identities", "QK and VO retain independently selected relation planes without caller-authored target jobs"]
     },
     {
+      "ctest_name": "TargetScopePlan.RejectsRoleOnlyQkVoDistinctionOverSameTypedOperator",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
+      "covered_dimensions": ["consumer role labels and generated program identities cannot make one numerical operator count as distinct QK and VO semantics", "the anti-flattening gate compares the materialized operator rather than provenance labels alone"]
+    },
+    {
       "ctest_name": "TargetScopePlan.CanonicalizesRelationFamilySetBeforeProgramIdentity",
       "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
       "covered_dimensions": ["relation-family selectors are sets rather than caller enumeration order", "generated operator program and target compile receipts are canonical"]
@@ -20,6 +25,11 @@
       "ctest_name": "TargetScopePlan.TargetRankChangesScopeReceiptWithoutRewritingOperator",
       "evidence_targets": ["LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION", "LP-TEST-TYPED-INCIDENCE-OPERATOR"],
       "covered_dimensions": ["consumer target rank is receipted separately from native operator semantics", "changing target capacity does not rewrite the compiled substrate operator"]
+    },
+    {
+      "ctest_name": "TargetScopeIdentity.RequestFingerprintBindsTypedEstateValues",
+      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
+      "covered_dimensions": ["scope request identity includes the actual typed field and constraint estate rather than selectors alone", "changing an operator-bearing constraint changes the scope request fingerprint and receipt"]
     }
   ]
 }

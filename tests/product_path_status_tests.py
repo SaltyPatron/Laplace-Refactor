@@ -199,7 +199,12 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertIn("  pull_request:\n", product_path_workflow)
         self.assertIn("  push:\n    branches:\n      - main\n", product_path_workflow)
         self.assertIn("github.event.before", product_path_workflow)
-        self.assertIn("github.event.pull_request.base.sha", product_path_workflow)
+        self.assertIn("BASE_REF: ${{ github.base_ref }}", product_path_workflow)
+        self.assertIn(
+            'BASE_SHA=$(git merge-base "$base_remote" "$HEAD_SHA")',
+            product_path_workflow,
+        )
+        self.assertNotIn("github.event.pull_request.base.sha", product_path_workflow)
 
         for path in (
             CLEAN_ROOM_PATH,
@@ -217,6 +222,16 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertNotIn("  workflow_call:\n", activation)
         self.assertNotIn("  pull_request:\n", activation)
         self.assertNotIn("  push:\n", activation)
+
+    def test_pull_request_classification_rejects_stale_event_base(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn("BASE_REF: ${{ github.base_ref }}", workflow)
+        self.assertIn('git show-ref --verify --quiet "$base_remote"', workflow)
+        self.assertIn(
+            'BASE_SHA=$(git merge-base "$base_remote" "$HEAD_SHA")',
+            workflow,
+        )
+        self.assertNotIn("github.event.pull_request.base.sha", workflow)
 
     def test_main_push_is_dev_bat_deployment_boundary(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")

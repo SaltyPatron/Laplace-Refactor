@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "laplace/cognition_forward_pass.h"
+#include "laplace/cognition_operator.h"
 #include "laplace/export.h"
 #include "laplace/identity.h"
 #include "laplace/observation_query.h"
@@ -203,6 +204,19 @@ typedef struct laplace_cognition_observation_answer {
 typedef struct laplace_cognition_observation_result
     laplace_cognition_observation_result;
 
+/* Borrowed, immutable view of the exact typed operator estate generated and
+ * executed for one retained observation answer. Pointers remain valid until the
+ * parent observation result is destroyed. The program's relation-family pointer
+ * refers to the same retained estate; callers must not free or mutate it. */
+typedef struct laplace_cognition_observation_operator_view {
+    laplace_digest256 path_id;
+    laplace_cognition_operator_program program;
+    const laplace_cognition_operator_field* fields;
+    size_t field_count;
+    const laplace_cognition_operator_constraint* constraints;
+    size_t constraint_count;
+} laplace_cognition_observation_operator_view;
+
 typedef enum laplace_cognition_observation_request_status {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_OK = 0,
     LAPLACE_COGNITION_OBSERVATION_REQUEST_INVALID_ARGUMENT = 1,
@@ -260,6 +274,12 @@ laplace_cognition_observation_result_answer(
     const laplace_cognition_observation_result* result,
     size_t answer_index,
     laplace_cognition_observation_answer* answer);
+
+LAPLACE_API laplace_cognition_observation_request_status
+laplace_cognition_observation_result_operator_view(
+    const laplace_cognition_observation_result* result,
+    size_t answer_index,
+    laplace_cognition_observation_operator_view* view);
 
 LAPLACE_API void
 laplace_cognition_observation_result_destroy(
