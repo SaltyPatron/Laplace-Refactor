@@ -1,0 +1,53 @@
+name: apply-source-architecture-repairs
+
+on:
+  push:
+    branches:
+      - delivery/laplace-live-product-20260911
+    paths:
+      - 'tools/live_product/preserve_structural_syntax_coordinates.py'
+      - '.github/workflows/apply-source-architecture-repairs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-source-architecture-repairs
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Preserve generic syntax coordinates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/live_product/preserve_structural_syntax_coordinates.py
+          git diff --check
+          grep -F 'uint64_t grammar_kind;' engine/include/laplace/tabular_source.h
+          grep -F 'witness.grammar_kind = span.grammar_kind;' engine/src/tabular_source_recursive_merge.hpp
+          grep -F 'witness.grammar_kind = span.grammar_kind;' engine/src/tabular_source.cpp
+          grep -F 'grammar_kind numeric(20, 0)' integrations/postgresql/extension/source_structural_witness.sql.in
+          grep -F 's.grammar_kind<>i.grammar_kind' integrations/postgresql/extension/src/source_structural_witness_pg.c
+      - name: Commit the architectural repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'repair already present'
+            exit 0
+          fi
+          git config user.name 'laplace-delivery'
+          git config user.email 'laplace-delivery@users.noreply.github.com'
+          git add \
+            engine/include/laplace/tabular_source.h \
+            engine/src/tabular_source_recursive_merge.hpp \
+            engine/src/tabular_source.cpp \
+            integrations/postgresql/extension/source_structural_witness.sql.in \
+            integrations/postgresql/extension/src/source_structural_witness_pg.c
+          git commit -m 'Preserve generic syntax coordinates through source admission'
+          git push origin HEAD:delivery/laplace-live-product-20260911
