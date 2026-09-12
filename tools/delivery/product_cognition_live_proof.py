@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Execute one real installed Laplace cognition program against the persistent product.
+"""Execute one real installed Laplace cognition program through its packaged surface.
 
-This is not a fixture path. It uses the active package's firmware compiler, active
-Unicode/context identities, installed PostgreSQL extension, persistent prompt
-admission, production indexed cognition providers, exact witnessed realization and
-production materialization. The proof intentionally uses `AA` with a CONSTITUENT
-program: two distinct prompt occurrences converge to one canonical `A` entity, so
-firmware must resolve the repeated structural evidence without an expected-answer
-field or goal injected by this harness.
+This is not a fixture path. It verifies the active package and persistent product,
+then invokes the installed ``laplace-cognition`` command. That command binds the
+active product epochs, persists the exact prompt, executes production indexed native
+cognition, performs exact witnessed realization and materializes the result. The
+proof intentionally uses ``AA`` with a CONSTITUENT program: two prompt occurrences
+converge to one canonical ``A`` entity, so the machine must resolve structural
+evidence without an expected-answer field or harness-supplied semantic goal.
 """
 from __future__ import annotations
 
@@ -33,12 +33,6 @@ h = r.highwayctl
 
 HEX256 = re.compile(r"^[0-9a-f]{64}$")
 HEXBYTES = re.compile(r"^[0-9a-f]*$")
-
-
-def bytea_literal(hex_value: str) -> str:
-    if not HEXBYTES.fullmatch(hex_value) or len(hex_value) % 2:
-        raise RuntimeError("invalid hex byte string")
-    return f"decode('{hex_value}','hex')"
 
 
 def bytea_hex(value: Any, field: str) -> str:
@@ -129,99 +123,42 @@ WHERE u.singleton AND h.singleton;
     return state, command
 
 
-def context_sql(
-    identities: dict[str, Any],
-    program_id: str,
-    perfcache_epoch: str,
-    numeric_epoch: str,
-) -> str:
-    epoch_values = [
-        ("source_epoch", identities["source_epoch"]),
-        ("identity_epoch", identities["identity_epoch"]),
-        ("geometry_epoch", identities["geometry_epoch"]),
-        ("evidence_epoch", identities["evidence_epoch"]),
-        ("firmware_epoch", program_id),
-        ("dependency_epoch", identities["dependency_epoch"]),
-        ("database_epoch", identities["database_epoch"]),
-        ("perfcache_epoch", perfcache_epoch),
-        ("numeric_epoch", numeric_epoch),
-        ("package_epoch", identities["package_epoch"]),
-    ]
-    epochs: list[str] = []
-    for name, value in epoch_values:
-        if not isinstance(value, str) or HEX256.fullmatch(value) is None:
-            raise RuntimeError(f"invalid execution epoch: {name}")
-        epochs.append(bytea_literal(value))
-    authority = identities["authority_fingerprint"]
-    if not isinstance(authority, str) or HEX256.fullmatch(authority) is None:
-        raise RuntimeError("invalid authority fingerprint")
-    return (
-        "ROW(ARRAY[" + ",".join(epochs) + "]::bytea[],"
-        + bytea_literal(authority)
-        + ",1073741824::bigint,6,2,1023::bigint,1::smallint,6::smallint,1)"
-        "::laplace.execution_context"
+def execute_installed_surface(
+    executable: Path, prompt: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not executable.is_file() or executable.is_symlink():
+        raise RuntimeError("installed laplace-cognition command is absent")
+    command = [str(executable), prompt, "--relation", "constituent", "--json"]
+    completed = subprocess.run(
+        command,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=300,
     )
-
-
-def prompt_scope_sql(identities: dict[str, Any]) -> str:
-    values = [
-        identities["source_epoch"],
-        identities["identity_epoch"],
-        identities["geometry_epoch"],
-        identities["geometry_epoch"],
-        identities["request_fingerprint"],
-        identities["package_epoch"],
-        identities["database_epoch"],
-        identities["dependency_epoch"],
-        identities["source_epoch"],
-        identities["numeric_epoch"],
-    ]
-    for value in values:
-        if not isinstance(value, str) or HEX256.fullmatch(value) is None:
-            raise RuntimeError("invalid prompt-scope fingerprint")
-    return (
-        "ROW("
-        + ",".join(bytea_literal(value) for value in values)
-        + ",0::numeric,0,1::numeric,1048576::numeric)::laplace.cognition_prompt_scope"
-    )
-
-
-def request_sql(identities: dict[str, Any], program_id: str) -> str:
-    evidence = identities["evidence_epoch"]
-    result_contract = identities["request_fingerprint"]
-    for value in (evidence, result_contract, program_id):
-        if not isinstance(value, str) or HEX256.fullmatch(value) is None:
-            raise RuntimeError("invalid firmware request fingerprint")
-    search = (
-        "ROW(64::numeric,256::numeric,128::numeric,64::numeric,1048576::numeric,"
-        "64::numeric,64::numeric,64::numeric,8,1,8,64)"
-        "::laplace.cognition_observation_search_budget"
-    )
-    forward = (
-        "ROW(16::numeric,32::numeric,32::numeric,32::numeric,16::numeric,8192::numeric,"
-        "128::numeric,128::numeric,4,4)::laplace.cognition_observation_forward_limits"
-    )
-    materialization = (
-        "ROW(64::numeric,64::numeric,4096::numeric,16,1)"
-        "::laplace.cognition_firmware_materialization_limits"
-    )
-    return (
-        "ROW("
-        + bytea_literal(program_id)
-        + ","
-        + bytea_literal(evidence)
-        + ","
-        + bytea_literal(result_contract)
-        + ","
-        + bytea_literal("00" * 32)
-        + ",false,"
-        + search
-        + ","
-        + forward
-        + ","
-        + materialization
-        + ",4096::numeric,8192::numeric,0,1)::laplace.cognition_firmware_product_request"
-    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "installed laplace-cognition command failed: "
+            f"exit={completed.returncode} stderr={completed.stderr.strip()}"
+        )
+    lines = [line for line in completed.stdout.splitlines() if line.strip()]
+    if len(lines) != 1:
+        raise RuntimeError(
+            f"installed laplace-cognition returned {len(lines)} non-empty output lines"
+        )
+    try:
+        document = json.loads(lines[0])
+    except json.JSONDecodeError as error:
+        raise RuntimeError("installed laplace-cognition returned invalid JSON") from error
+    if not isinstance(document, dict):
+        raise RuntimeError("installed laplace-cognition returned a non-object")
+    return document, {
+        "argv": command,
+        "exit_code": completed.returncode,
+        "stdout": completed.stdout.strip(),
+        "stderr": completed.stderr.strip(),
+    }
 
 
 def prove(output: Path) -> None:
@@ -256,33 +193,25 @@ def prove(output: Path) -> None:
     )
     program_id = firmware["program_id"]
     prompt = "AA"
-    prompt_hex = prompt.encode("utf-8").hex()
-    sql = f"""
-SELECT pg_catalog.row_to_json(result)::text
-FROM laplace.cognition_firmware_execute_product(
-    {context_sql(identities, program_id, runtime_epochs['perfcache_epoch'], runtime_epochs['numeric_epoch'])},
-    {bytea_literal(firmware['image_hex'])},
-    pg_catalog.convert_from({bytea_literal(prompt_hex)}, 'UTF8'),
-    {prompt_scope_sql(identities)},
-    {request_sql(identities, program_id)},
-    decode('','hex'),
-    8388608::bigint
-) AS result;
-"""
-    result, command_receipt = r.runner_sql(
-        plan,
-        cluster,
-        sql,
-        "installed-product-cognition-falsification",
-        "laplace-runner",
-        cluster["instance"]["admin_role"],
-        300,
+    surface, command_receipt = execute_installed_surface(
+        active / "bin/laplace-cognition", prompt
     )
+    if surface.get("schema") != "laplace.installed-cognition-command/v1":
+        raise RuntimeError("installed cognition command returned the wrong receipt schema")
+    if surface.get("package_id") != package_id:
+        raise RuntimeError("installed cognition command executed a different package")
+    if surface.get("relation") != "constituent":
+        raise RuntimeError("installed cognition command executed a different relation program")
+    if surface.get("program_id") != program_id:
+        raise RuntimeError("installed cognition command used different native firmware")
+    if surface.get("output_utf8") != "A" or surface.get("output_hex") != "41":
+        raise RuntimeError("installed cognition command did not materialize canonical A")
+    result = surface.get("execution")
     if not isinstance(result, dict):
-        raise RuntimeError("installed cognition route did not return one JSON result")
+        raise RuntimeError("installed cognition command omitted its native execution receipt")
 
     print(
-        json.dumps({"installed_cognition_raw_result": result}, sort_keys=True),
+        json.dumps({"installed_cognition_surface_result": surface}, sort_keys=True),
         flush=True,
     )
     status = result.get("status")
@@ -340,6 +269,7 @@ FROM laplace.cognition_firmware_execute_product(
         "expected_structural_result_utf8": "A",
         "observed_output_utf8": observed_output.decode("utf-8"),
         "execution": result,
+        "surface_receipt": surface,
         "command_receipt": command_receipt,
     }
     proof["proof_sha256"] = u.sha256_bytes(u.canonical_bytes(proof))
