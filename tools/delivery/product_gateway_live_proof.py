@@ -117,8 +117,8 @@ def require_native_success(value: dict[str, Any], label: str) -> None:
 
 def prove_explore() -> dict[str, Any]:
     summary = json_http("GET", "/api/v1/summary", timeout=30.0)
-    if summary.get("schema") != "laplace.inspect.summary/v2":
-        raise RuntimeError(f"Explore summary is not the v2 world summary: {summary.get('schema')}")
+    if summary.get("schema") != "laplace.inspect.summary/v1":
+        raise RuntimeError(f"Explore summary is not the compatible world summary: {summary.get('schema')}")
     counts = summary.get("counts")
     if not isinstance(counts, dict):
         raise RuntimeError("Explore summary returned no counts")
@@ -283,8 +283,8 @@ def prove(output: Path, package_id: str) -> None:
     query = json_http("POST", "/mcp", {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "laplace.query", "arguments": {"collection": "summary"}}}, timeout=60.0)
     result = query.get("result")
     structured = result.get("structuredContent") if isinstance(result, dict) else None
-    if not isinstance(structured, dict) or structured.get("schema") != "laplace.inspect.summary/v2":
-        raise RuntimeError("MCP laplace.query did not return live v2 canonical substrate state")
+    if not isinstance(structured, dict) or structured.get("schema") != "laplace.inspect.summary/v1":
+        raise RuntimeError("MCP laplace.query did not return live canonical substrate state")
 
     source_ingestion = prove_source_ingestion(package_id)
     proof = {
