@@ -1081,6 +1081,7 @@ def execute_cluster_activation(
     recorder: Any = None,
     executor: Any = None,
     readiness: Any = None,
+    existing_system_identifier: str | None = None,
 ) -> dict[str, Any]:
     require_fixture_or_root(root, authorize_system_root)
     validate_plan(plan, contract)
@@ -1089,20 +1090,26 @@ def execute_cluster_activation(
     observe = observer or observe_loaded_live
     record = recorder or (lambda _stem, _document: None)
 
-    for label, command, timeout in (
-        ("initialize-cluster", _initdb_command(plan), 1800),
-        ("start-candidate-postmaster", _pg_ctl_command(plan, "start"), 300),
-    ):
+    commands = []
+    if existing_system_identifier is None:
+        commands.append(("initialize-cluster", _initdb_command(plan), 1800))
+    elif not str(existing_system_identifier).isdigit() or int(existing_system_identifier) <= 0:
+        raise _core.ClusterError("preserved cluster requires its actual system identifier")
+    commands.append(("start-candidate-postmaster", _pg_ctl_command(plan, "start"), 300))
+    for label, command, timeout in commands:
         receipt = execute(label, command, timeout)
         command_receipts.append(receipt)
 
     ready = readiness_runner("candidate-readiness", plan["commands"]["probe_readiness"], 300)
     command_receipts.append(ready)
-    bootstrap = execute("bootstrap-product-database", _bootstrap_command(plan), 1800)
-    command_receipts.append(bootstrap)
+    if existing_system_identifier is None:
+        bootstrap = execute("bootstrap-product-database", _bootstrap_command(plan), 1800)
+        command_receipts.append(bootstrap)
 
     loaded_initial = observe(plan, contract, root)
     verify_loaded(plan, contract, loaded_initial)
+    if existing_system_identifier is not None and str(loaded_initial["system_identifier"]) != str(existing_system_identifier):
+        raise _core.ClusterError("preserved cluster system identity changed during activation")
     record("loaded-initial", loaded_initial)
 
     stopped = execute(
