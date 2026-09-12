@@ -1,0 +1,78 @@
+name: one-shot-composition-identity-owner
+
+on:
+  push:
+    branches:
+      - product/installed-cognition-surface
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: product/installed-cognition-surface
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          legacy = Path('engine/src/composition_legacy.inc')
+          text = legacy.read_text(encoding='utf-8')
+          bad = '\n'.join([
+              '#if defined(LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT)',
+              '    for (const auto& execution_receipt : state.frontier_execution_receipts) {',
+              '        blake3_hasher_update(',
+              '            &hasher, execution_receipt.plan_fingerprint.bytes,',
+              '            sizeof(execution_receipt.plan_fingerprint.bytes));',
+              '    }',
+              '#endif',
+              '',
+          ])
+          if bad in text:
+              legacy.write_text(text.replace(bad, '', 1), encoding='utf-8')
+
+          wrapper = Path('engine/src/composition.cpp')
+          text = wrapper.read_text(encoding='utf-8')
+          macro = 'LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT'
+          if macro not in text:
+              marker = '    try {\n        std::lock_guard<std::mutex> lock(frontier_receipt_mutex);\n'
+              lines = [
+                  '#if defined(LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT)',
+                  '    {',
+                  '        blake3_hasher hasher{};',
+                  '        blake3_hasher_init(&hasher);',
+                  '        blake3_hasher_update(',
+                  '            &hasher, (*working_set)->summary.receipt_id.bytes,',
+                  '            sizeof((*working_set)->summary.receipt_id.bytes));',
+                  '        for (const auto& execution_receipt : capture.receipts) {',
+                  '            blake3_hasher_update(',
+                  '                &hasher, execution_receipt.plan_fingerprint.bytes,',
+                  '                sizeof(execution_receipt.plan_fingerprint.bytes));',
+                  '        }',
+                  '        blake3_hasher_finalize(',
+                  '            &hasher, (*working_set)->summary.receipt_id.bytes,',
+                  '            sizeof((*working_set)->summary.receipt_id.bytes));',
+                  '    }',
+                  '#endif',
+                  '',
+              ]
+              block = '\n'.join(lines)
+              if text.count(marker) != 1:
+                  raise SystemExit(f'wrapper insertion marker count={text.count(marker)}')
+              wrapper.write_text(text.replace(marker, block + marker, 1), encoding='utf-8')
+          PY
+
+          if git diff --quiet -- engine/src/composition.cpp engine/src/composition_legacy.inc; then
+            exit 0
+          fi
+          git config user.name laplace-ci
+          git config user.email laplace-ci@users.noreply.github.com
+          git add engine/src/composition.cpp engine/src/composition_legacy.inc
+          git commit -m 'Move physical-identity mutant to execution receipt owner'
+          git push origin HEAD:product/installed-cognition-surface
