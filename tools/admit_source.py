@@ -90,7 +90,9 @@ def selected_tool_release(explicit: Path | None, active_release: Path) -> Path:
 
 
 def load_activation_state(receipt_root: Path, package_id: str) -> dict[str, Any]:
-    receipt = load_json(receipt_root / "unicode-product-activation.json")
+    package_id = require_hex(package_id, "active package id")
+    generation_root = receipt_root / "cluster-activation" / package_id
+    receipt = load_json(generation_root / "unicode-product-activation.json")
     if receipt.get("schema") != "laplace.unicode-product-activation-receipt/v1":
         raise AdmissionError("Unicode activation receipt has the wrong schema")
     if receipt.get("phase") != "product-activated" or receipt.get("package_id") != package_id:
