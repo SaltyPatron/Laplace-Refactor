@@ -98,6 +98,10 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-cognition)
 
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/inspect.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-inspect)
+
 if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(
