@@ -1317,6 +1317,13 @@ void RefreshPublicationFingerprints(laplace_composition_working_set& state) {
     blake3_hasher_update(
         &hasher, state.summary.presence_receipt_id.bytes,
         sizeof(state.summary.presence_receipt_id.bytes));
+#if defined(LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT)
+    for (const auto& execution_receipt : state.frontier_execution_receipts) {
+        blake3_hasher_update(
+            &hasher, execution_receipt.plan_fingerprint.bytes,
+            sizeof(execution_receipt.plan_fingerprint.bytes));
+    }
+#endif
     HashU64(hasher, state.summary.novel_entity_count);
     HashU64(hasher, state.summary.novel_physicality_count);
     HashU64(hasher, state.summary.novel_trajectory_vertex_count);
