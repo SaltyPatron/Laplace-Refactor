@@ -113,6 +113,9 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_client.py"
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_service.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-cognition-service)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_service.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-openai-api)
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/laplace_inspect.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-inspect)
