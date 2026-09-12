@@ -21,6 +21,12 @@ void Fill(laplace_digest256& digest, const std::uint8_t seed) {
     }
 }
 
+bool SameDigest(
+    const laplace_digest256& left,
+    const laplace_digest256& right) {
+    return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) == 0;
+}
+
 laplace_composition_known_entity Atom(
     const std::uint32_t position,
     const laplace_point4d& point,
@@ -40,10 +46,14 @@ laplace_composition_known_entity Atom(
 struct ScenarioResult final {
     laplace_composition_frontier_execution_plan preflight{};
     laplace_composition_working_set_summary summary{};
+    std::vector<laplace_composition_result> results;
     std::vector<laplace_execution_work_receipt> receipts;
 };
 
-ScenarioResult Scenario(const bool chain, const std::uint32_t cpu_slots) {
+ScenarioResult Scenario(
+    const bool chain,
+    const std::uint32_t cpu_slots,
+    const laplace_execution_runtime_provider_v1* const execution_provider = nullptr) {
     auto context = laplace_test_context(0x31U);
     context.resource_grant.memory_bytes = UINT64_C(64) * 1024U * 1024U;
     context.resource_grant.cpu_slots = cpu_slots;
@@ -105,8 +115,10 @@ ScenarioResult Scenario(const bool chain, const std::uint32_t cpu_slots) {
         LAPLACE_COMPOSITION_OK);
 
     laplace_composition_working_set* working_set = nullptr;
-    const auto create_status =
-        laplace_composition_working_set_create(&input, &working_set);
+    const auto create_status = execution_provider == nullptr
+        ? laplace_composition_working_set_create(&input, &working_set)
+        : laplace_composition_working_set_create_with_provider(
+              &input, execution_provider, &working_set);
     EXPECT_EQ(create_status, LAPLACE_COMPOSITION_OK);
     if (create_status != LAPLACE_COMPOSITION_OK || working_set == nullptr) {
         return result;
@@ -115,6 +127,14 @@ ScenarioResult Scenario(const bool chain, const std::uint32_t cpu_slots) {
         laplace_composition_working_set_summary_get(
             working_set, &result.summary),
         LAPLACE_COMPOSITION_OK);
+
+    std::size_t result_count = 0U;
+    const auto* results =
+        laplace_composition_working_set_results(working_set, &result_count);
+    EXPECT_NE(results, nullptr);
+    if (results != nullptr) {
+        result.results.assign(results, results + result_count);
+    }
 
     std::size_t receipt_count = 0U;
     const auto* receipts =
@@ -199,4 +219,51 @@ TEST(
     EXPECT_NE(wide.receipts.size(), deep.receipts.size());
     EXPECT_EQ(wide.summary.semantic_calculation_count, RequestCount);
     EXPECT_EQ(deep.summary.semantic_calculation_count, RequestCount);
+}
+
+TEST(
+    CompositionFrontierRuntime,
+    CallerSelectedProviderIsReceiptedWithoutChangingSemanticOutput) {
+    laplace_execution_runtime_provider_v1 serial_provider{};
+    ASSERT_EQ(
+        laplace_execution_serial_provider(&serial_provider),
+        LAPLACE_EXECUTION_OK);
+    Fill(serial_provider.provider_fingerprint, 0xE1U);
+
+    const auto automatic = Scenario(false, 4U);
+    const auto explicit_serial = Scenario(false, 4U, &serial_provider);
+
+    ASSERT_EQ(automatic.results.size(), RequestCount);
+    ASSERT_EQ(explicit_serial.results.size(), RequestCount);
+    ASSERT_EQ(explicit_serial.receipts.size(), 1U);
+    EXPECT_TRUE(SameDigest(
+        automatic.summary.receipt_id,
+        explicit_serial.summary.receipt_id));
+    EXPECT_TRUE(SameDigest(
+        automatic.summary.stream_fingerprint,
+        explicit_serial.summary.stream_fingerprint));
+    EXPECT_EQ(
+        std::memcmp(
+            automatic.results.data(),
+            explicit_serial.results.data(),
+            automatic.results.size() * sizeof(laplace_composition_result)),
+        0);
+    EXPECT_TRUE(SameDigest(
+        explicit_serial.receipts[0].provider_fingerprint,
+        serial_provider.provider_fingerprint));
+    EXPECT_EQ(explicit_serial.receipts[0].completed_items, RequestCount);
+    EXPECT_EQ(explicit_serial.summary.semantic_calculation_count, RequestCount);
+}
+
+TEST(
+    CompositionFrontierRuntime,
+    ProviderBoundCreateRejectsMissingProviderWithoutFallback) {
+    laplace_composition_working_set* working_set =
+        reinterpret_cast<laplace_composition_working_set*>(
+            static_cast<std::uintptr_t>(1U));
+    EXPECT_EQ(
+        laplace_composition_working_set_create_with_provider(
+            nullptr, nullptr, &working_set),
+        LAPLACE_COMPOSITION_INVALID_ARGUMENT);
+    EXPECT_EQ(working_set, nullptr);
 }
