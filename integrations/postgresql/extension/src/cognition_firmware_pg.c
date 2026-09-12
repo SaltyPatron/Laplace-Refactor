@@ -304,6 +304,7 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     laplace_digest256 program_id;
     laplace_cognition_firmware_status status;
     uint32_t physical_relation_mask = 0u;
+    uint32_t first_provider_step = UINT32_MAX;
     uint32_t step;
     bool need_physical = false;
     bool need_semantic = false;
@@ -361,6 +362,11 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
                 step,
                 0u);
         }
+        if (step_semantic || step_structural != 0u) {
+            if (first_provider_step == UINT32_MAX) {
+                first_provider_step = step;
+            }
+        }
         if (step_semantic) {
             need_semantic = true;
         }
@@ -368,6 +374,21 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
             need_physical = true;
             physical_relation_mask |= step_structural;
         }
+    }
+
+    /* Native firmware always composes the admitted prompt-structure provider with
+     * this one routed durable provider. Exact cross-provider enumeration therefore
+     * needs at least one transition slot for each participating provider class.
+     * Reject an impossible grant before creating a PostgreSQL provider or opening
+     * SPI so a finite resource limit cannot escape as a database exception or do
+     * partial provider I/O. */
+    if ((need_physical || need_semantic) &&
+        request->search_budget.transition_batch_capacity < 2u) {
+        return firmware_host_error(
+            error,
+            LAPLACE_COGNITION_FIRMWARE_LIMIT,
+            first_provider_step,
+            0u);
     }
 
     if (laplace_cognition_prompt_admission_view_get(admission, &input) !=

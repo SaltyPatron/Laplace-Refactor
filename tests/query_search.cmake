@@ -15,6 +15,7 @@ add_executable(laplace_observation_query_tests
     "${PROJECT_SOURCE_DIR}/tests/cognition_observation_request_policy_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_observation_dynamic_request_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_observation_external_provider_tests.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/cognition_observation_operator_view_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_observation_provider_set_capacity_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_semantic_act_tests.cpp"
     "${PROJECT_SOURCE_DIR}/tests/cognition_discourse_tests.cpp"

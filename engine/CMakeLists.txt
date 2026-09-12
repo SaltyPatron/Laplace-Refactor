@@ -73,6 +73,7 @@ add_library(laplace_engine SHARED
     src/cognition_forward_pass.cpp
     src/cognition_firmware.cpp
     src/observation_query.cpp
+    src/target_observation_compile.cpp
     src/perfcache.c
     src/perfcache_modules.c
     src/perfcache_registry.cpp)

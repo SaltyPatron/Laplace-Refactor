@@ -20,7 +20,9 @@ from typing import Any
 HEX_128 = re.compile(r"^[0-9a-f]{32}$")
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
 DEFAULT_ACTIVE = Path("/opt/laplace/current")
-DEFAULT_RECEIPT = Path("/opt/laplace/receipts/postgresql/refactor/unicode-product-activation.json")
+DEFAULT_RECEIPT_ROOT = Path(
+    "/opt/laplace/receipts/postgresql/refactor/cluster-activation"
+)
 DEFAULT_SOCKET = Path("/opt/laplace/runtime/postgresql/refactor")
 DEFAULT_PORT = 55433
 DEFAULT_DATABASE = "laplace_refactor"
@@ -188,7 +190,12 @@ def main() -> int:
     parser.add_argument("text", nargs="?", default="", help="Unicode text to inspect in exact occurrence order")
     parser.add_argument("--codepoint", action="append", default=[], help="decimal or 0x-prefixed codepoint; repeat or comma-separate")
     parser.add_argument("--active", type=Path, default=DEFAULT_ACTIVE)
-    parser.add_argument("--receipt", type=Path, default=DEFAULT_RECEIPT)
+    parser.add_argument(
+        "--receipt",
+        type=Path,
+        default=None,
+        help="explicit Unicode activation receipt; defaults to the selected package evidence",
+    )
     parser.add_argument("--socket", type=Path, default=DEFAULT_SOCKET)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--database", default=DEFAULT_DATABASE)
@@ -198,7 +205,12 @@ def main() -> int:
     try:
         positions = parse_codepoints(args.text, args.codepoint)
         package_id, release = selected_package(args.active)
-        epoch_id, epoch_fingerprint = activation_identity(args.receipt, package_id)
+        receipt = (
+            args.receipt
+            if args.receipt is not None
+            else DEFAULT_RECEIPT_ROOT / package_id / "unicode-product-activation.json"
+        )
+        epoch_id, epoch_fingerprint = activation_identity(receipt, package_id)
         result = execute(
             release / "pgsql-18/bin/psql",
             args.socket,

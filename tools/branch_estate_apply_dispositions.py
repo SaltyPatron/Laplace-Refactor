@@ -4,14 +4,16 @@
 Disposition files are intentionally not wildcard ignore lists. Every entry names:
 - repository label,
 - exact branch name,
-- exact 40-hex live tip,
+- exact 40-hex reviewed tip,
 - terminal semantic disposition,
 - rationale and evidence.
 
-If the live branch moved, the audit fails. If a later mechanical proof already absorbs
-that exact unchanged branch, the manual disposition becomes redundant and is retained as
-review metadata without overwriting the stronger mechanical classification. Everything
-not explicitly dispositioned remains unresolved.
+If a live branch moved, the audit fails. If a reviewed branch is no longer live, its
+exact-tip disposition is retained as retired historical review metadata and cannot
+classify or clear any live candidate. If a later mechanical proof already absorbs an
+exact unchanged live branch, the manual disposition becomes redundant and is retained
+without overwriting the stronger mechanical classification. Everything not explicitly
+dispositioned remains unresolved.
 """
 
 from __future__ import annotations
@@ -53,8 +55,10 @@ def validate_dispositions(document: dict[str, Any]) -> list[dict[str, Any]]:
         disposition = entry.get("disposition")
         rationale = entry.get("rationale")
         evidence = entry.get("evidence")
-        if not all(isinstance(value, str) and value.strip() for value in
-                   (repository, branch, tip, disposition, rationale)):
+        if not all(
+            isinstance(value, str) and value.strip()
+            for value in (repository, branch, tip, disposition, rationale)
+        ):
             raise RuntimeError(f"disposition entry {index} has a missing string field")
         if HEX40.fullmatch(tip) is None:
             raise RuntimeError(f"disposition entry {index} has invalid tip {tip!r}")
@@ -100,7 +104,9 @@ def recompute(repo: dict[str, Any]) -> None:
         for patch in branch.get("missing_patches") or []:
             key = patch["key"]
             patch_to_branches[key].add(branch["branch"])
-            patch_details.setdefault(key, {k: v for k, v in patch.items() if k != "branches"})
+            patch_details.setdefault(
+                key, {k: v for k, v in patch.items() if k != "branches"}
+            )
 
     repo["missing_patch_signature_groups"] = [
         {
@@ -121,7 +127,9 @@ def recompute(repo: dict[str, Any]) -> None:
         }
         for key in sorted(patch_details)
     ]
-    repo["missing_patch_signature_group_count"] = len(repo["missing_patch_signature_groups"])
+    repo["missing_patch_signature_group_count"] = len(
+        repo["missing_patch_signature_groups"]
+    )
     repo["unique_missing_patch_count"] = len(repo["missing_patches"])
 
     counts = collections.Counter(branch["classification"] for branch in branches)
@@ -142,12 +150,25 @@ def recompute(repo: dict[str, Any]) -> None:
     )
 
 
+def disposition_proof(entry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "repository": entry["repository"],
+        "branch": entry["branch"],
+        "disposition": entry["disposition"],
+        "rationale": entry["rationale"],
+        "evidence": list(entry["evidence"]),
+        "exact_tip": entry["tip"],
+    }
+
+
 def apply(
     report: dict[str, Any],
     entries: list[dict[str, Any]],
 ) -> dict[str, Any]:
     if report.get("schema") != "laplace.branch-estate-live-audit/v5":
-        raise RuntimeError(f"expected v5 branch-estate ledger, got {report.get('schema')!r}")
+        raise RuntimeError(
+            f"expected v5 branch-estate ledger, got {report.get('schema')!r}"
+        )
 
     repositories = {repo["repository"]: repo for repo in report["repositories"]}
     branches_by_repo = {
@@ -157,6 +178,7 @@ def apply(
 
     applied = 0
     redundant = 0
+    retired: list[dict[str, Any]] = []
     for entry in entries:
         label = entry["repository"]
         name = entry["branch"]
@@ -164,26 +186,29 @@ def apply(
             raise RuntimeError(f"semantic disposition names unknown repository {label!r}")
         branch = branches_by_repo[label].get(name)
         if branch is None:
-            raise RuntimeError(f"semantic disposition names missing live branch {label}:{name}")
+            retired.append(
+                {
+                    **disposition_proof(entry),
+                    "status": "REVIEWED_BRANCH_NO_LONGER_LIVE",
+                }
+            )
+            continue
         if branch["tip"] != entry["tip"]:
             raise RuntimeError(
                 f"semantic disposition is stale for {label}:{name}: "
                 f"ledger tip={entry['tip']} live tip={branch['tip']}"
             )
 
-        proof = {
-            "disposition": entry["disposition"],
-            "rationale": entry["rationale"],
-            "evidence": list(entry["evidence"]),
-            "exact_tip": entry["tip"],
-        }
+        proof = disposition_proof(entry)
         if branch["classification"] != CANDIDATE:
             branch.setdefault("redundant_semantic_dispositions", []).append(proof)
             redundant += 1
             continue
 
         branch["pre_semantic_classification"] = branch["classification"]
-        branch["pre_semantic_missing_patch_count"] = branch.get("missing_patch_count", 0)
+        branch["pre_semantic_missing_patch_count"] = branch.get(
+            "missing_patch_count", 0
+        )
         branch["classification"] = TERMINAL
         branch["semantic_disposition"] = entry["disposition"]
         branch["semantic_disposition_rationale"] = entry["rationale"]
@@ -197,14 +222,17 @@ def apply(
 
     report["schema"] = "laplace.branch-estate-live-audit/v6"
     report["semantic_disposition_rule"] = (
-        "Manual semantic dispositions apply only to exact repository/branch/tip SHA entries "
-        "from the supplied semantic-disposition ledgers. A moved tip fails the audit. A "
-        "mechanically resolved unchanged branch keeps the stronger mechanical classification "
-        "and records manual review as redundant. Every unlisted maximal candidate remains "
-        "unresolved."
+        "Manual semantic dispositions classify only exact live repository/branch/tip SHA "
+        "entries from the supplied ledgers. A moved live tip fails the audit. A reviewed "
+        "branch that is no longer live is retained as retired historical review metadata "
+        "and cannot classify or clear any live candidate. A mechanically resolved unchanged "
+        "live branch keeps the stronger mechanical classification and records manual review "
+        "as redundant. Every unlisted maximal live candidate remains unresolved."
     )
     report["semantic_dispositions_applied"] = applied
     report["semantic_dispositions_redundant"] = redundant
+    report["semantic_dispositions_retired"] = retired
+    report["semantic_dispositions_retired_count"] = len(retired)
     return report
 
 
@@ -212,12 +240,20 @@ def print_summary(report: dict[str, Any]) -> None:
     print("BRANCH_ESTATE_LIVE_AUDIT_V6")
     print(f"  semantic dispositions applied: {report['semantic_dispositions_applied']}")
     print(f"  semantic dispositions redundant: {report['semantic_dispositions_redundant']}")
+    print(f"  semantic dispositions retired: {report['semantic_dispositions_retired_count']}")
     for repo in report["repositories"]:
         print(f"\n{repo['repository']}")
-        print(f"  unresolved maximal candidate branches: {repo['candidate_branch_count']}")
-        print(f"  semantic dispositions: {repo.get('semantic_disposition_count', 0)}")
+        print(
+            f"  unresolved maximal candidate branches: {repo['candidate_branch_count']}"
+        )
+        print(
+            f"  semantic dispositions: {repo.get('semantic_disposition_count', 0)}"
+        )
         print(f"  unique missing patches: {repo['unique_missing_patch_count']}")
-        print(f"  missing-patch signature groups: {repo['missing_patch_signature_group_count']}")
+        print(
+            "  missing-patch signature groups: "
+            f"{repo['missing_patch_signature_group_count']}"
+        )
         for key, value in repo.get("semantic_disposition_counts", {}).items():
             print(f"  disposition {key}: {value}")
 

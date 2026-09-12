@@ -1,8 +1,9 @@
 -- Public PostgreSQL runtime surface for native cognition operator construction and solve.
--- Typed target compilation accepts whole QK/VO job sets, derives consumer weights,
--- and can emit the exact projected E/Q/K/V/O SafeTensors artifact.  The scoped
--- surface lets clients declare one shared typed estate plus target selectors; native
--- code generates target jobs and operator/program identities from that scope.
+-- Typed target compilation accepts whole typed operator estates, derives target-neutral
+-- consumer operators, and can emit deterministic target-neutral SafeTensors. The
+-- attention compatibility surface additionally projects paired QK/VO jobs into
+-- consumer E/Q/K/V/O tensors. Scoped surfaces let clients declare one shared typed
+-- estate plus target selectors; native code generates target jobs and program identities.
 
 CREATE TYPE laplace.cognition_operator_program AS (
     program_id bytea,
@@ -97,7 +98,7 @@ CREATE TYPE laplace.cognition_packet_result AS (
     request_word_count bigint
 );
 
--- Universal managed/PostgreSQL transport.  This carries one generated typed ISA
+-- Universal managed/PostgreSQL transport. This carries one generated typed ISA
 -- operation as native bytes and metadata; PostgreSQL does not select or
 -- reimplement operation semantics.
 CREATE TYPE laplace.isa_batch_transport_result AS (
@@ -224,6 +225,29 @@ CREATE TYPE laplace.target_attention_scoped_export_result AS (
     codec_status integer
 );
 
+CREATE TYPE laplace.target_safetensors_scoped_export_result AS (
+    artifact bytea,
+    artifact_id bytea,
+    target_package_id bytea,
+    scope_receipt_id bytea,
+    scope_request_fingerprint bytea,
+    scope_slot_set_fingerprint bytea,
+    compile_receipt_id bytea,
+    compile_request_fingerprint bytea,
+    byte_count numeric(20, 0),
+    header_byte_count numeric(20, 0),
+    data_byte_count numeric(20, 0),
+    tensor_count numeric(20, 0),
+    slot_count numeric(20, 0),
+    field_count numeric(20, 0),
+    selected_constraint_count numeric(20, 0),
+    source_mask_union integer,
+    scope_status integer,
+    compile_status integer,
+    package_status integer,
+    codec_status integer
+);
+
 CREATE FUNCTION laplace.execution_context_fingerprint(
     laplace.execution_context)
 RETURNS bytea
@@ -312,6 +336,22 @@ RETURNS laplace.target_attention_scoped_export_result
 AS 'MODULE_PATHNAME', 'laplace_pg_target_attention_export_scoped'
 LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 
+CREATE FUNCTION laplace.target_safetensors_export_scoped(
+    laplace.execution_context,
+    bytea,
+    bytea,
+    bytea,
+    bytea,
+    laplace.cognition_operator_field[],
+    laplace.cognition_operator_constraint[],
+    laplace.target_scope_slot[],
+    double precision,
+    integer,
+    integer)
+RETURNS laplace.target_safetensors_scoped_export_result
+AS 'MODULE_PATHNAME', 'laplace_pg_target_safetensors_export_scoped'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
 REVOKE EXECUTE ON FUNCTION laplace.execution_context_fingerprint(
     laplace.execution_context)
 FROM PUBLIC;
@@ -386,8 +426,22 @@ REVOKE EXECUTE ON FUNCTION laplace.target_attention_export_scoped(
     boolean)
 FROM PUBLIC;
 
+REVOKE EXECUTE ON FUNCTION laplace.target_safetensors_export_scoped(
+    laplace.execution_context,
+    bytea,
+    bytea,
+    bytea,
+    bytea,
+    laplace.cognition_operator_field[],
+    laplace.cognition_operator_constraint[],
+    laplace.target_scope_slot[],
+    double precision,
+    integer,
+    integer)
+FROM PUBLIC;
+
 -- The installed product contract currently names laplace_app as the sole runtime
--- application role.  Fresh product clusters create that role before CREATE EXTENSION.
+-- application role. Fresh product clusters create that role before CREATE EXTENSION.
 -- Disposable/test clusters intentionally omit it and retain owner-only execution.
 DO $laplace_model_export_application_grant$
 BEGIN
@@ -396,6 +450,7 @@ BEGIN
         EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.isa_execute_batch(bytea, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bytea, bigint, bigint, boolean) TO laplace_app';
         EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.target_attention_export(laplace.execution_context, bytea, bytea, bytea, bytea, laplace.target_operator_job[], numeric, double precision, boolean) TO laplace_app';
         EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.target_attention_export_scoped(laplace.execution_context, bytea, bytea, bytea, bytea, laplace.cognition_operator_field[], laplace.cognition_operator_constraint[], laplace.target_scope_slot[], double precision, integer, numeric, double precision, boolean) TO laplace_app';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION laplace.target_safetensors_export_scoped(laplace.execution_context, bytea, bytea, bytea, bytea, laplace.cognition_operator_field[], laplace.cognition_operator_constraint[], laplace.target_scope_slot[], double precision, integer, integer) TO laplace_app';
     END IF;
 END
 $laplace_model_export_application_grant$;

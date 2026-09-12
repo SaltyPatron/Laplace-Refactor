@@ -86,6 +86,19 @@ static void semantic_read_digest_datum(
     memcpy(digest->bytes, VARDATA_ANY(value), sizeof(digest->bytes));
 }
 
+static bool semantic_digest_is_zero(const laplace_digest256* digest) {
+    size_t index;
+    if (digest == NULL) {
+        return true;
+    }
+    for (index = 0u; index < sizeof(digest->bytes); ++index) {
+        if (digest->bytes[index] != 0u) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static uint32_t semantic_read_u32_attribute(
     HeapTupleHeader tuple,
     int attribute,
@@ -616,6 +629,7 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
     laplace_digest256 request_fingerprint;
     laplace_cognition_observation_request_status request_status;
     size_t answer_count;
+    uint32_t required_answer_flags;
     Datum result_values[21];
     bool result_nulls[21] = {false};
     HeapTuple result_tuple;
@@ -703,6 +717,23 @@ Datum laplace_pg_cognition_semantic_execute(PG_FUNCTION_ARGS) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_EXCEPTION),
                  errmsg("Laplace live semantic cognition produced no readable terminal answer")));
+    }
+
+    required_answer_flags =
+        LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT |
+        LAPLACE_COGNITION_OBSERVATION_ANSWER_OPERATOR_EXECUTED;
+    if ((primary_answer.flags & required_answer_flags) != required_answer_flags ||
+        semantic_digest_is_zero(&primary_answer.operator_receipt_id) ||
+        semantic_digest_is_zero(&primary_answer.solver_receipt_id) ||
+        semantic_digest_is_zero(&primary_answer.solver_output_fingerprint)) {
+        const uint32_t answer_flags = primary_answer.flags;
+        laplace_cognition_observation_result_destroy(&observation_result);
+        laplace_cognition_forward_result_destroy(&forward_result);
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("Laplace live semantic cognition did not execute the typed semantic operator"),
+                 errdetail("answer_flags=%u required_flags=%u",
+                           answer_flags, required_answer_flags)));
     }
 
     result_values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(

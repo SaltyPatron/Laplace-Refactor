@@ -18,6 +18,7 @@ POSTGRESQL_PRODUCT_PATH = REPOSITORY / ".github/workflows/postgresql-product.yml
 PACKAGE_PRODUCT_PATH = REPOSITORY / ".github/workflows/package-product.yml"
 PRODUCT_ACTIVATION_PATH = REPOSITORY / ".github/workflows/product-activation.yml"
 ACTIVATION_CONTRACT_PATH = REPOSITORY / "contracts/product-activation-gateway.json"
+BENCHMARK_COMPOSITION_PATH = REPOSITORY / ".github/workflows/benchmark-composition-frontier.yml"
 SPEC = importlib.util.spec_from_file_location("laplace_product_path_status_tests", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("cannot load product-path module")
@@ -48,6 +49,42 @@ class ProductPathGitStatusTests(unittest.TestCase):
                 workflow,
                 f"{name} may cancel an in-flight physical proof",
             )
+
+    def assert_physical_orchestration_serialization(self, orchestration: str) -> None:
+        custom = orchestration.index("  custom-stack-proof:")
+        postgres = orchestration.index("  postgresql-product-proof:")
+        package = orchestration.index("  package-product-proof:")
+        product_path_job = orchestration.index("  product-path:", package)
+        blocks = {
+            "custom": orchestration[custom:postgres],
+            "postgres": orchestration[postgres:package],
+            "package": orchestration[package:product_path_job],
+        }
+        for name, block in blocks.items():
+            self.assertIn("      - classify", block, f"{name} lost classification dependency")
+            self.assertIn("      - hosted-proof", block, f"{name} lost hosted proof dependency")
+            self.assertIn(
+                "needs.hosted-proof.result == 'success'",
+                block,
+                f"{name} can run before hosted proof succeeds",
+            )
+        self.assertIn(
+            "      - custom-stack-proof",
+            blocks["postgres"],
+            "postgresql proof can become the replaceable pending member of the shared concurrency group",
+        )
+        self.assertIn(
+            "      - custom-stack-proof",
+            blocks["package"],
+            "package proof does not wait for custom-stack host ownership",
+        )
+        self.assertIn(
+            "      - postgresql-product-proof",
+            blocks["package"],
+            "package proof can become the third concurrent member and cancel a pending proof",
+        )
+        self.assertIn("      always() &&", blocks["postgres"])
+        self.assertIn("      always() &&", blocks["package"])
 
     def assert_legacy_branch_protection_bridge(self, workflow: str) -> None:
         aliases = {
@@ -81,41 +118,42 @@ class ProductPathGitStatusTests(unittest.TestCase):
             "  dev-bat-deployment:\n    needs: product-path\n",
             workflow,
         )
-        deployment = workflow[workflow.index("  dev-bat-deployment:"):]
+        start = workflow.index("  dev-bat-deployment:")
+        end = workflow.index("\n  dev-bat-live-substrate:", start)
+        deployment = workflow[start:end]
         self.assertIn("      always() &&\n      github.event_name == 'push'", deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deployment)
         self.assertIn("needs.product-path.result == 'success'", deployment)
-        self.assertIn("    permissions:\n      actions: write\n      contents: read\n", deployment)
-        self.assertIn("    timeout-minutes: 360\n", deployment)
+        self.assertIn("    uses: ./.github/workflows/product-activation.yml\n", deployment)
+        self.assertIn("    with:\n      expected_sha: ${{ github.sha }}\n", deployment)
+        self.assertNotIn("runs-on:", deployment)
+        self.assertNotIn("actions/workflows/product-activation.yml/dispatches", deployment)
+        self.assertNotIn("GH_TOKEN", deployment)
+        self.assertNotIn("gh run watch", deployment)
+        self.assertNotIn("ref=main", deployment)
         top_level_permissions = workflow[
             workflow.index("permissions:\n"):workflow.index("\nconcurrency:")
         ]
         self.assertNotIn("actions: write", top_level_permissions)
-        self.assertIn("actions/workflows/product-activation.yml/dispatches", deployment)
-        self.assertIn("inputs[expected_sha]=$EXPECTED_SHA", deployment)
-        self.assertIn("EXPECTED_SHA: ${{ github.sha }}", deployment)
-        self.assertIn("LAPLACE_ACTIVATION_DISPATCHED_AT", deployment)
-        self.assertIn("gh api --method GET", deployment)
-        self.assertIn("actions/workflows/product-activation.yml/runs", deployment)
-        self.assertIn('-f "head_sha=$EXPECTED_SHA"', deployment)
-        self.assertIn("-f event=workflow_dispatch", deployment)
-        self.assertIn('--arg sha "$EXPECTED_SHA"', deployment)
-        self.assertIn('--arg since "$LAPLACE_ACTIVATION_DISPATCHED_AT"', deployment)
-        self.assertIn(".head_sha == $sha", deployment)
-        self.assertIn(".created_at >= $since", deployment)
-        self.assertIn("gh run watch \"$run_id\"", deployment)
-        self.assertIn("--exit-status", deployment)
-        self.assertIn("gh run view \"$run_id\"", deployment)
-        self.assertIn('test "$conclusion" = success', deployment)
-        self.assertIn("Accepted-main CI is green only after", deployment)
+
+        self.assertIn("  workflow_call:\n", activation)
         self.assertIn("  workflow_dispatch:\n", activation)
-        self.assertIn("      expected_sha:\n", activation)
-        self.assertIn("        required: true\n", activation)
+        self.assertGreaterEqual(activation.count("      expected_sha:\n"), 2)
+        self.assertGreaterEqual(activation.count("        required: true\n"), 2)
         self.assertNotIn("  pull_request:\n", activation)
         self.assertNotIn("  push:\n", activation)
+        literal_sha_gate = "test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'"
+        diagnostic_sha_gate = (
+            "require_equal \"$GITHUB_SHA\" '${{ inputs.expected_sha }}' repository-sha"
+        )
         self.assertGreaterEqual(
-            activation.count("test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'"),
+            activation.count(literal_sha_gate) + activation.count(diagnostic_sha_gate),
             3,
+        )
+        self.assertGreaterEqual(
+            activation.count("push|workflow_dispatch) ;;"),
+            3,
+            "activation must accept only authoritative main-push calls or explicit manual dispatch",
         )
         self.assertIn("Verify the persistent DEV/BAT product directly", activation)
         self.assertIn("product_activation_runner.py", activation)
@@ -159,7 +197,12 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertIn("  pull_request:\n", product_path_workflow)
         self.assertIn("  push:\n    branches:\n      - main\n", product_path_workflow)
         self.assertIn("github.event.before", product_path_workflow)
-        self.assertIn("github.event.pull_request.base.sha", product_path_workflow)
+        self.assertIn("BASE_REF: ${{ github.base_ref }}", product_path_workflow)
+        self.assertIn(
+            'BASE_SHA=$(git merge-base "$base_remote" "$HEAD_SHA")',
+            product_path_workflow,
+        )
+        self.assertNotIn("github.event.pull_request.base.sha", product_path_workflow)
 
         for path in (
             CLEAN_ROOM_PATH,
@@ -173,10 +216,20 @@ class ProductPathGitStatusTests(unittest.TestCase):
             self.assertNotIn("  push:\n", workflow)
 
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
+        self.assertIn("  workflow_call:\n", activation)
         self.assertIn("  workflow_dispatch:\n", activation)
-        self.assertNotIn("  workflow_call:\n", activation)
         self.assertNotIn("  pull_request:\n", activation)
         self.assertNotIn("  push:\n", activation)
+
+    def test_pull_request_classification_rejects_stale_event_base(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        self.assertIn("BASE_REF: ${{ github.base_ref }}", workflow)
+        self.assertIn('git show-ref --verify --quiet "$base_remote"', workflow)
+        self.assertIn(
+            'BASE_SHA=$(git merge-base "$base_remote" "$HEAD_SHA")',
+            workflow,
+        )
+        self.assertNotIn("github.event.pull_request.base.sha", workflow)
 
     def test_main_push_is_dev_bat_deployment_boundary(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -184,39 +237,44 @@ class ProductPathGitStatusTests(unittest.TestCase):
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
         self.assert_main_push_deployment_boundary(workflow, activation, contract)
 
-    def test_physical_product_proofs_share_host_ownership_but_route_in_parallel(self) -> None:
+    def test_physical_product_proofs_share_host_ownership_and_serialize_execution(self) -> None:
         workflows = {
             "custom-stack": CUSTOM_STACK_PATH.read_text(encoding="utf-8"),
             "postgresql-product": POSTGRESQL_PRODUCT_PATH.read_text(encoding="utf-8"),
             "package-product": PACKAGE_PRODUCT_PATH.read_text(encoding="utf-8"),
         }
         self.assert_physical_resource_serialization(workflows)
-
-        orchestration = WORKFLOW_PATH.read_text(encoding="utf-8")
-        custom = orchestration.index("  custom-stack-proof:")
-        postgres = orchestration.index("  postgresql-product-proof:")
-        package = orchestration.index("  package-product-proof:")
-        product_path_job = orchestration.index("  product-path:", package)
-        blocks = {
-            "custom": orchestration[custom:postgres],
-            "postgres": orchestration[postgres:package],
-            "package": orchestration[package:product_path_job],
-        }
-        for name, block in blocks.items():
-            self.assertIn("      - classify", block, f"{name} lost classification dependency")
-            self.assertIn("      - hosted-proof", block, f"{name} lost hosted proof dependency")
-            self.assertIn(
-                "needs.hosted-proof.result == 'success'",
-                block,
-                f"{name} can run before hosted proof succeeds",
-            )
-        self.assertNotIn("      - custom-stack-proof", blocks["postgres"])
-        self.assertNotIn("      - custom-stack-proof", blocks["package"])
-        self.assertNotIn("      - postgresql-product-proof", blocks["package"])
+        self.assert_physical_orchestration_serialization(
+            WORKFLOW_PATH.read_text(encoding="utf-8")
+        )
 
     def test_legacy_required_contexts_are_subordinate_to_product_path(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assert_legacy_branch_protection_bridge(workflow)
+
+    def test_composition_benchmark_is_dispatch_only_exact_sha_and_shared_host(self) -> None:
+        workflow = BENCHMARK_COMPOSITION_PATH.read_text(encoding="utf-8")
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertNotIn("  pull_request:\n", workflow)
+        self.assertNotIn("  push:\n", workflow)
+        self.assertIn("      expected_sha:\n", workflow)
+        self.assertIn("        required: true\n", workflow)
+        self.assertIn("inputs.expected_sha", workflow)
+        self.assertIn("test \"$GITHUB_SHA\" =", workflow)
+        self.assertIn("test \"$(git rev-parse HEAD)\" =", workflow)
+        self.assertIn("group: laplace-physical-product-proof", workflow)
+        self.assertIn("queue: max", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        self.assertIn("taskset -c", workflow)
+        self.assertIn("physical_cores", workflow)
+        self.assertIn("logical_threads", workflow)
+        self.assertIn("candidates = [1, 2, 3, 4, physical, selected_smt, logical]", workflow)
+        self.assertIn("semantic receipt changed across worker grants", workflow)
+        self.assertIn("stream fingerprint changed across worker grants", workflow)
+        self.assertIn("laplace.benchmark-suite-receipt/v1", workflow)
+        self.assertIn("legacy_reference", workflow)
+        self.assertIn("directly_comparable", workflow)
+        self.assertIn("actions/upload-artifact", workflow)
 
     def test_deliberate_defect_dropping_type_changes_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -224,7 +282,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertNotEqual(workflow, mutant)
         self.assertNotIn("--diff-filter=ACMRTD", mutant)
 
-    def test_deliberate_parallel_physical_proof_defect_is_detected(self) -> None:
+    def test_deliberate_shared_host_ownership_defect_is_detected(self) -> None:
         workflows = {
             "custom-stack": CUSTOM_STACK_PATH.read_text(encoding="utf-8"),
             "postgresql-product": POSTGRESQL_PRODUCT_PATH.read_text(encoding="utf-8"),
@@ -238,6 +296,17 @@ class ProductPathGitStatusTests(unittest.TestCase):
         )
         with self.assertRaises(AssertionError):
             self.assert_physical_resource_serialization(mutant)
+
+    def test_deliberate_parallel_physical_orchestration_defect_is_detected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        mutant = workflow.replace(
+            "      - custom-stack-proof\n    if: >-\n      always() &&\n      needs.classify.outputs.requires_postgresql_product",
+            "    if: >-\n      always() &&\n      needs.classify.outputs.requires_postgresql_product",
+            1,
+        )
+        self.assertNotEqual(workflow, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_physical_orchestration_serialization(mutant)
 
     def test_deliberate_duplicate_pr_trigger_defect_is_detected(self) -> None:
         clean_room = CLEAN_ROOM_PATH.read_text(encoding="utf-8")
@@ -297,32 +366,41 @@ class ProductPathGitStatusTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assert_main_push_deployment_boundary(mutant, activation, contract)
 
-    def test_deliberate_fire_and_forget_activation_defect_is_detected(self) -> None:
+    def test_deliberate_moving_main_activation_defect_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
-        start = workflow.index("      - name: Require persistent product activation")
-        end = workflow.index("\n  legacy-requirements:", start)
-        mutant = workflow[:start] + workflow[end:]
+        start = workflow.index("  dev-bat-deployment:")
+        end = workflow.index("\n  dev-bat-live-substrate:", start)
+        deployment = workflow[start:end]
+        mutant_deployment = deployment.replace(
+            "    uses: ./.github/workflows/product-activation.yml\n    with:\n      expected_sha: ${{ github.sha }}\n",
+            "    runs-on: ubuntu-24.04\n    steps:\n      - run: echo ref=main\n",
+            1,
+        )
+        mutant = workflow[:start] + mutant_deployment + workflow[end:]
         self.assertNotEqual(workflow, mutant)
         with self.assertRaises(AssertionError):
             self.assert_main_push_deployment_boundary(mutant, activation, contract)
 
-    def test_deliberate_activation_exit_status_bypass_is_detected(self) -> None:
+    def test_deliberate_missing_workflow_call_activation_defect_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
-        mutant = workflow.replace("            --exit-status \\\n", "", 1)
-        self.assertNotEqual(workflow, mutant)
+        mutant = activation.replace("  workflow_call:\n", "", 1)
+        self.assertNotEqual(activation, mutant)
         with self.assertRaises(AssertionError):
-            self.assert_main_push_deployment_boundary(mutant, activation, contract)
+            self.assert_main_push_deployment_boundary(workflow, mutant, contract)
 
-    def test_deliberate_unbound_dispatch_sha_is_detected(self) -> None:
+    def test_deliberate_unbound_activation_sha_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
         mutant = activation.replace(
             "          test \"$GITHUB_SHA\" = '${{ inputs.expected_sha }}'\n",
+            "",
+        ).replace(
+            "          require_equal \"$GITHUB_SHA\" '${{ inputs.expected_sha }}' repository-sha\n",
             "",
         )
         self.assertNotEqual(activation, mutant)

@@ -155,11 +155,11 @@ REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prom
     text,
     @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope) FROM PUBLIC;
 
--- Installed product cognition route. The caller supplies exact firmware bytes plus
--- independent execution/resource/provenance scope. The route admits and persists the
--- complete prompt trunk, executes indexed physical/semantic providers, selects only
--- exact witnessed realization when no language/register obligation is present, and
--- materializes canonical output through the production PostgreSQL readback provider.
+-- Installed product cognition routes. Explicit relation-chain firmware remains an
+-- exact compatibility/debug path. Automatic product cognition uses the existing
+-- native prompt-conversation processor: whole prompt trunk, finite typed provider
+-- vocabulary, guidance-selected operation execution, semantic act, witnessed
+-- realization/materialization, and one immutable next discourse frame.
 
 CREATE TYPE @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_materialization_limits AS (
     maximum_nodes numeric(20,0),
@@ -232,6 +232,25 @@ LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
 REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_execute_product(
     @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
     bytea,
+    text,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_request,
+    bytea,
+    bigint) FROM PUBLIC;
+
+CREATE FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_conversation_execute_product(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
+    text,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope,
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_request,
+    bytea,
+    bigint)
+RETURNS @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_result
+AS 'MODULE_PATHNAME', 'laplace_pg_cognition_conversation_product_execute'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE EXECUTE ON FUNCTION @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_conversation_execute_product(
+    @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.execution_context,
     text,
     @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_prompt_scope,
     @LAPLACE_OBSERVATION_COGNITION_SCHEMA@.cognition_firmware_product_request,

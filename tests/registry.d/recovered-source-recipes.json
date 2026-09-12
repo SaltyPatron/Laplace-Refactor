@@ -10,16 +10,6 @@
       "ctest_name": "cili-source.current-recipe-reconstruction-and-mutation",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY"],
       "covered_dimensions": ["both pinned current CILI mapping members reconstruct exactly through the generic native recipe", "a changed source byte is rejected before plan publication", "an unavailable source mount is reported as skipped"]
-    },
-    {
-      "ctest_name": "CognitionOperator.DerivedCalculationUsesReceiptWithoutManufacturingEvidenceRoot",
-      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR"],
-      "covered_dimensions": ["derived constraints retain their calculation receipt without manufacturing testimony evidence roots"]
-    },
-    {
-      "ctest_name": "CognitionOperator.TestimonyStillRequiresIndependentEvidenceRoot",
-      "evidence_targets": ["LP-TEST-TYPED-INCIDENCE-OPERATOR"],
-      "covered_dimensions": ["a testimony constraint without its independent evidence root is rejected"]
     }
   ]
 }

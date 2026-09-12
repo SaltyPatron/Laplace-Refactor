@@ -102,6 +102,25 @@ class PublicReadbackBindings(unittest.TestCase):
             with self.assertRaisesRegex(runner.RunnerActivationError,'result differs'):
                 runner.reconcile_public_readback(self.plan,self.contract,self.package)
 
+    def test_materialization_route_is_compiled_and_reconciled(self):
+        cmake = (ROOT/'integrations/postgresql/extension/CMakeLists.txt').read_text()
+        route = (ROOT/'integrations/postgresql/extension/cognition_materialization_route.sql').read_text()
+        wrapper = (ROOT/'integrations/postgresql/extension/src/cognition_materialization_route_pg.c').read_text()
+        self.assertIn('src/cognition_materialization_route_pg.c', cmake)
+        self.assertIn('cognition_materialization_route.sql', cmake)
+        self.assertIn('${cognition_materialization_route}\\n${public_readback_reconcile_bindings}', cmake)
+        self.assertIn('file(APPEND "${product_cognition_upgrade_sql}"', cmake)
+        self.assertIn('laplace.cognition_realization_materialize_utf8(', route)
+        self.assertIn("'laplace_pg_cognition_realization_materialize_utf8'", route)
+        self.assertIn('ALTER EXTENSION laplace ADD FUNCTION', route)
+        self.assertIn('REVOKE ALL ON FUNCTION', route)
+        self.assertNotIn('GRANT ', route)
+        self.assertIn('laplace_pg_materialization_provider_create', wrapper)
+        self.assertIn('laplace_cognition_realization_materialize_utf8(', wrapper)
+        self.assertIn('laplace_pg_materialization_provider_take_error', wrapper)
+        self.assertNotIn('SELECT physicality_id', wrapper)
+        self.assertNotIn('laplace_pg_perfcache_pin_active', wrapper)
+
     def test_migration_is_before_unicode_and_highway_activation(self):
         import inspect
         program=inspect.getsource(runner.execute)

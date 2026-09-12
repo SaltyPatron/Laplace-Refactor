@@ -33,14 +33,30 @@ AS $id$
     SELECT decode(repeat(lpad(to_hex(byte_value), 2, '0'), 16), 'hex')
 $id$;
 
-CREATE FUNCTION pg_temp.operator_program(seed integer)
+CREATE TEMP TABLE target_attention_oracle AS
+SELECT
+    decode(:'context_fingerprint', 'hex') AS context_fingerprint,
+    decode(:'compile_receipt_id', 'hex') AS compile_receipt_id,
+    decode(:'projection_id', 'hex') AS projection_id,
+    decode(:'embedding_fingerprint', 'hex') AS embedding_fingerprint,
+    decode(:'head_receipt_id', 'hex') AS head_receipt_id,
+    decode(:'scoped_scope_receipt_id', 'hex') AS scoped_scope_receipt_id,
+    decode(:'scoped_scope_request_fingerprint', 'hex') AS scoped_scope_request_fingerprint,
+    decode(:'scoped_slot_set_fingerprint', 'hex') AS scoped_slot_set_fingerprint,
+    decode(:'scoped_compile_receipt_id', 'hex') AS scoped_compile_receipt_id,
+    decode(:'scoped_projection_id', 'hex') AS scoped_projection_id,
+    decode(:'scoped_embedding_fingerprint', 'hex') AS scoped_embedding_fingerprint;
+
+CREATE FUNCTION pg_temp.operator_program(
+    seed integer,
+    context_fingerprint_value bytea)
 RETURNS laplace.cognition_operator_program
 LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
 AS $program$
     SELECT ROW(
         pg_temp.digest(seed),
         pg_temp.digest(176),
-        decode(:'context_fingerprint', 'hex'),
+        context_fingerprint_value,
         pg_temp.digest(177),
         pg_temp.digest(seed + 2),
         ARRAY[11, 12]::integer[],
@@ -81,7 +97,7 @@ AS $constraint$
         pg_temp.digest(seed + 20),
         pg_temp.digest(seed + 40),
         pg_temp.digest(seed + 60),
-        pg_temp.digest(seed + 70),
+        pg_temp.digest(0),
         pg_temp.digest(seed + 80),
         source_index,
         target_index,
@@ -97,13 +113,14 @@ AS $constraint$
     )::laplace.cognition_operator_constraint
 $constraint$;
 
-CREATE FUNCTION pg_temp.jobs()
+CREATE FUNCTION pg_temp.jobs(context_fingerprint_value bytea)
 RETURNS laplace.target_operator_job[]
-LANGUAGE SQL IMMUTABLE PARALLEL SAFE
+LANGUAGE SQL IMMUTABLE STRICT PARALLEL SAFE
 AS $jobs$
     SELECT ARRAY[
         ROW(
-            1, 2, 5, 0, pg_temp.digest(70), pg_temp.operator_program(20),
+            1, 2, 5, 0, pg_temp.digest(70),
+            pg_temp.operator_program(20, context_fingerprint_value),
             ARRAY[
                 pg_temp.field(40, 0), pg_temp.field(41, 1),
                 pg_temp.field(42, 2), pg_temp.field(43, 3)
@@ -112,7 +129,8 @@ AS $jobs$
             1::numeric
         )::laplace.target_operator_job,
         ROW(
-            2, 2, 5, 0, pg_temp.digest(71), pg_temp.operator_program(30),
+            2, 2, 5, 0, pg_temp.digest(71),
+            pg_temp.operator_program(30, context_fingerprint_value),
             ARRAY[
                 pg_temp.field(40, 0), pg_temp.field(41, 1),
                 pg_temp.field(42, 2), pg_temp.field(43, 3)
@@ -130,7 +148,7 @@ SELECT (laplace.target_attention_compile(
     pg_temp.digest(177),
     pg_temp.digest(80),
     pg_temp.digest(81),
-    pg_temp.jobs(),
+    pg_temp.jobs((SELECT context_fingerprint FROM target_attention_oracle)),
     2::numeric,
     1e-10::double precision,
     true
@@ -138,11 +156,11 @@ SELECT (laplace.target_attention_compile(
 
 DO $verify$
 DECLARE
-    result laplace.target_attention_compile_result;
+    result record;
+    expected record;
 BEGIN
-    SELECT ROW(t.*)::laplace.target_attention_compile_result
-      INTO result
-      FROM first_projection t;
+    SELECT * INTO result FROM first_projection;
+    SELECT * INTO expected FROM target_attention_oracle;
 
     IF result.compile_status <> 0 OR result.projection_status <> 0 THEN
         RAISE EXCEPTION 'target attention status mismatch compile=% projection=%',
@@ -178,10 +196,10 @@ BEGIN
             result.qk_relative_residuals[1],
             result.vo_relative_residuals[1];
     END IF;
-    IF encode(result.compile_receipt_id, 'hex') <> :'compile_receipt_id' OR
-       encode(result.projection_id, 'hex') <> :'projection_id' OR
-       encode(result.embedding_fingerprint, 'hex') <> :'embedding_fingerprint' OR
-       encode(result.head_receipt_ids[1], 'hex') <> :'head_receipt_id' THEN
+    IF result.compile_receipt_id <> expected.compile_receipt_id OR
+       result.projection_id <> expected.projection_id OR
+       result.embedding_fingerprint <> expected.embedding_fingerprint OR
+       result.head_receipt_ids[1] <> expected.head_receipt_id THEN
         RAISE EXCEPTION 'PostgreSQL target attention output diverged from native oracle';
     END IF;
 END
@@ -194,7 +212,7 @@ SELECT (laplace.target_attention_compile(
     pg_temp.digest(177),
     pg_temp.digest(80),
     pg_temp.digest(81),
-    pg_temp.jobs(),
+    pg_temp.jobs((SELECT context_fingerprint FROM target_attention_oracle)),
     2::numeric,
     1e-10::double precision,
     true
@@ -221,7 +239,10 @@ $deterministic$;
 DO $insufficient_width$
 DECLARE
     message_text text;
+    context_fingerprint_value bytea;
 BEGIN
+    SELECT context_fingerprint INTO context_fingerprint_value
+      FROM target_attention_oracle;
     BEGIN
         PERFORM laplace.target_attention_compile(
             pg_temp.execution_context(),
@@ -229,7 +250,7 @@ BEGIN
             pg_temp.digest(177),
             pg_temp.digest(80),
             pg_temp.digest(81),
-            pg_temp.jobs(),
+            pg_temp.jobs(context_fingerprint_value),
             1::numeric,
             1e-12::double precision,
             true

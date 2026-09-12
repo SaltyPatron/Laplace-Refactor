@@ -1,0 +1,309 @@
+name: benchmark-composition-frontier
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact repository commit to measure
+        required: true
+        type: string
+      request_count:
+        description: Independent semantic composition requests per iteration
+        required: true
+        default: "32768"
+        type: string
+      iterations:
+        description: Measured iterations after one warmup
+        required: true
+        default: "5"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: laplace-physical-product-proof
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  composition-frontier-scaling:
+    runs-on:
+      - self-hosted
+      - Linux
+      - X64
+      - laplace-refactor
+      - oneapi
+      - avx2
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Bind exact source and measured runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_SHA" = '${{ inputs.expected_sha }}'
+          test "$(git rev-parse HEAD)" = '${{ inputs.expected_sha }}'
+          git diff --quiet
+          git diff --cached --quiet
+          test -w "$RUNNER_TEMP"
+          grep -qm1 -w avx2 /proc/cpuinfo
+
+          request_count='${{ inputs.request_count }}'
+          iterations='${{ inputs.iterations }}'
+          [[ "$request_count" =~ ^[1-9][0-9]*$ ]]
+          [[ "$iterations" =~ ^[1-9][0-9]*$ ]]
+          printf 'LAPLACE_BENCHMARK_REQUEST_COUNT=%s\n' "$request_count" >> "$GITHUB_ENV"
+          printf 'LAPLACE_BENCHMARK_ITERATIONS=%s\n' "$iterations" >> "$GITHUB_ENV"
+
+      - name: Verify exact toolchain and dependency estate
+        shell: bash
+        run: |
+          set -euo pipefail
+          LAPLACE_ICX=$(jq -r '.toolchain.c_compiler' contracts/postgresql-build.json)
+          LAPLACE_ICPX=$(jq -r '.toolchain.cxx_compiler' contracts/postgresql-build.json)
+          expected_icx_sha=$(jq -r '.toolchain.c_compiler_sha256' contracts/postgresql-build.json)
+          expected_icpx_sha=$(jq -r '.toolchain.cxx_compiler_sha256' contracts/postgresql-build.json)
+          test -x "$LAPLACE_ICX"
+          test -x "$LAPLACE_ICPX"
+          test "$(sha256sum "$LAPLACE_ICX" | awk '{print $1}')" = "$expected_icx_sha"
+          test "$(sha256sum "$LAPLACE_ICPX" | awk '{print $1}')" = "$expected_icpx_sha"
+
+          python3 tools/dependencies/verify-installed-lock.py --verify-files
+          lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
+          dependency_root="/opt/laplace/external/source-generations/$lock_sha"
+          test -d "$dependency_root"
+          ./tools/dependencies/verify-lock.sh "$dependency_root"
+
+          test -d /vault/Data/UCD/Public/UCD/latest
+          test -d /vault/Data/ISO639
+          test -d /vault/Data/CILI
+          printf 'LAPLACE_ICX=%s\n' "$LAPLACE_ICX" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ICPX=%s\n' "$LAPLACE_ICPX" >> "$GITHUB_ENV"
+          printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
+
+      - name: Configure and build only the benchmark target
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_directory="$RUNNER_TEMP/laplace-benchmark-composition-frontier/build"
+          c_flags=$(jq -r '.build.c_flags | join(" ")' contracts/postgresql-build.json)
+          cxx_flags=$(jq -r '.build.cxx_flags | join(" ")' contracts/postgresql-build.json)
+          linker_flags=$(jq -r '.build.linker_flags | join(" ")' contracts/postgresql-build.json)
+          cmake -S . -B "$build_directory" -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER="$LAPLACE_ICX" \
+            -DCMAKE_CXX_COMPILER="$LAPLACE_ICPX" \
+            -DCMAKE_C_FLAGS_RELWITHDEBINFO="$c_flags" \
+            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="$cxx_flags" \
+            -DCMAKE_EXE_LINKER_FLAGS="$linker_flags" \
+            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
+            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
+            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
+            -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            -DLAPLACE_SOURCE_ESTATE_ROOT=/vault/Data \
+            -DLAPLACE_UNICODE_SOURCE_ROOT=/vault/Data/UCD/Public/UCD/latest \
+            -DLAPLACE_ISO_639_SOURCE_ROOT=/vault/Data/ISO639 \
+            -DLAPLACE_CILI_SOURCE_ROOT=/vault/Data/CILI \
+            -DLAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON \
+            -DBUILD_TESTING=ON
+          cmake --build "$build_directory" \
+            --target laplace_composition_frontier_benchmark \
+            --parallel 6
+          benchmark="$build_directory/laplace_composition_frontier_benchmark"
+          test -x "$benchmark"
+          printf 'LAPLACE_BENCHMARK_BINARY=%s\n' "$benchmark" >> "$GITHUB_ENV"
+
+      - name: Capture topology and physical-core-first affinity order
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/laplace-benchmark-composition-frontier/evidence"
+          mkdir -p "$evidence/points"
+          lscpu --json > "$evidence/lscpu.json"
+          lscpu -p=CPU,CORE,SOCKET > "$evidence/lscpu-topology.csv"
+          uname -a > "$evidence/uname.txt"
+          cat /proc/loadavg > "$evidence/loadavg-before.txt"
+          ps -eo pid,ppid,psr,pcpu,pmem,comm --sort=-pcpu > "$evidence/processes-before.txt"
+          "$LAPLACE_ICX" --version > "$evidence/icx-version.txt"
+          "$LAPLACE_ICPX" --version > "$evidence/icpx-version.txt"
+          sha256sum "$LAPLACE_BENCHMARK_BINARY" > "$evidence/benchmark.sha256"
+          git rev-parse HEAD > "$evidence/repository-sha.txt"
+
+          python3 - "$evidence/lscpu-topology.csv" "$evidence/topology.json" <<'PY'
+          import csv
+          import json
+          import sys
+          from collections import defaultdict
+
+          source, output = sys.argv[1:]
+          rows = []
+          with open(source, encoding="utf-8") as stream:
+              for raw in stream:
+                  if raw.startswith("#") or not raw.strip():
+                      continue
+                  cpu, core, socket = (int(value) for value in raw.strip().split(","))
+                  rows.append((socket, core, cpu))
+          by_core = defaultdict(list)
+          for socket, core, cpu in rows:
+              by_core[(socket, core)].append(cpu)
+          cores = sorted(by_core)
+          for key in cores:
+              by_core[key].sort()
+          order = [by_core[key][0] for key in cores]
+          sibling_index = 1
+          while len(order) < len(rows):
+              added = False
+              for key in cores:
+                  siblings = by_core[key]
+                  if sibling_index < len(siblings):
+                      order.append(siblings[sibling_index])
+                      added = True
+              if not added:
+                  break
+              sibling_index += 1
+          physical = len(cores)
+          logical = len(rows)
+          selected_smt = physical + max(1, (logical - physical) // 2) if logical > physical else physical
+          candidates = [1, 2, 3, 4, physical, selected_smt, logical]
+          points = sorted({value for value in candidates if 1 <= value <= logical})
+          document = {
+              "schema": "laplace.benchmark-host-topology/v1",
+              "logical_threads": logical,
+              "physical_cores": physical,
+              "affinity_order": order,
+              "worker_points": points,
+          }
+          with open(output, "w", encoding="utf-8") as stream:
+              json.dump(document, stream, indent=2)
+              stream.write("\n")
+          PY
+          cat "$evidence/topology.json"
+          printf 'LAPLACE_BENCHMARK_EVIDENCE=%s\n' "$evidence" >> "$GITHUB_ENV"
+
+      - name: Measure scalar physical-core and SMT scaling points
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$LAPLACE_BENCHMARK_EVIDENCE"
+          mapfile -t points < <(jq -r '.worker_points[]' "$evidence/topology.json")
+          for workers in "${points[@]}"; do
+            cpus=$(jq -r --argjson workers "$workers" \
+              '.affinity_order[:$workers] | map(tostring) | join(",")' \
+              "$evidence/topology.json")
+            test -n "$cpus"
+            taskset -c "$cpus" \
+              "$LAPLACE_BENCHMARK_BINARY" \
+              "$workers" \
+              "$LAPLACE_BENCHMARK_REQUEST_COUNT" \
+              "$LAPLACE_BENCHMARK_ITERATIONS" \
+              > "$evidence/points/workers-$workers.json"
+            jq -e \
+              --argjson workers "$workers" \
+              --argjson requests "$LAPLACE_BENCHMARK_REQUEST_COUNT" \
+              --argjson iterations "$LAPLACE_BENCHMARK_ITERATIONS" '
+                .schema == "laplace.composition-frontier-benchmark-point/v1" and
+                .workers == $workers and
+                .request_count == $requests and
+                .iterations == $iterations and
+                .wall_time_ns > 0 and
+                .completed_items == ($requests * $iterations) and
+                (.semantic_receipt | test("^[0-9a-f]{64}$")) and
+                (.stream_fingerprint | test("^[0-9a-f]{64}$")) and
+                (.provider_fingerprint | test("^[0-9a-f]{64}$"))
+              ' "$evidence/points/workers-$workers.json" >/dev/null
+          done
+          cat /proc/loadavg > "$evidence/loadavg-after.txt"
+          ps -eo pid,ppid,psr,pcpu,pmem,comm --sort=-pcpu > "$evidence/processes-after.txt"
+
+      - name: Compose immutable scaling receipt and prove semantic parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$LAPLACE_BENCHMARK_EVIDENCE"
+          python3 - "$evidence" "$GITHUB_SHA" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          source_sha = sys.argv[2]
+          topology = json.loads((root / "topology.json").read_text(encoding="utf-8"))
+          points = []
+          for workers in topology["worker_points"]:
+              path = root / "points" / f"workers-{workers}.json"
+              point = json.loads(path.read_text(encoding="utf-8"))
+              point["raw_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+              points.append(point)
+
+          baseline = points[0]
+          semantic_receipt = baseline["semantic_receipt"]
+          stream_fingerprint = baseline["stream_fingerprint"]
+          for point in points:
+              if point["semantic_receipt"] != semantic_receipt:
+                  raise SystemExit("semantic receipt changed across worker grants")
+              if point["stream_fingerprint"] != stream_fingerprint:
+                  raise SystemExit("stream fingerprint changed across worker grants")
+
+          scalar = baseline["throughput_items_per_second"]
+          for point in points:
+              speedup = point["throughput_items_per_second"] / scalar
+              point["speedup_vs_one_worker"] = speedup
+              point["scaling_efficiency_vs_one_worker"] = speedup / point["workers"]
+
+          binary_sha = (root / "benchmark.sha256").read_text(encoding="utf-8").split()[0]
+          receipt = {
+              "schema": "laplace.benchmark-suite-receipt/v1",
+              "suite": "core-composition-frontier-scaling/v1",
+              "repository": "SaltyPatron/Laplace-Refactor",
+              "repository_commit": source_sha,
+              "benchmark_binary_sha256": binary_sha,
+              "request_count": int(points[0]["request_count"]),
+              "iterations": int(points[0]["iterations"]),
+              "topology": topology,
+              "semantic_receipt": semantic_receipt,
+              "stream_fingerprint": stream_fingerprint,
+              "points": points,
+              "legacy_reference": {
+                  "metric": "four-character-BPE-equivalent-tokens-per-second",
+                  "single_thread_floor": 465000,
+                  "directly_comparable": False,
+                  "reason": "This first refactor family measures native composition requests, not the legacy mixed-text codepoint/BPE-equivalent workload. No cross-workload speedup claim is emitted.",
+              },
+          }
+          output = root / "composition-frontier-scaling-receipt.json"
+          output.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+          (root / "composition-frontier-scaling-receipt.sha256").write_text(
+              hashlib.sha256(output.read_bytes()).hexdigest() + "  " + output.name + "\n",
+              encoding="utf-8",
+          )
+          PY
+          jq -e '
+            .schema == "laplace.benchmark-suite-receipt/v1" and
+            .suite == "core-composition-frontier-scaling/v1" and
+            .repository_commit == env.GITHUB_SHA and
+            (.points | length) >= 4 and
+            .legacy_reference.directly_comparable == false
+          ' "$evidence/composition-frontier-scaling-receipt.json" >/dev/null
+          {
+            echo '## Composition frontier scaling evidence'
+            echo '```json'
+            jq '{repository_commit, request_count, iterations, topology, semantic_receipt, points: [.points[] | {workers, throughput_items_per_second, speedup_vs_one_worker, scaling_efficiency_vs_one_worker, wall_time_ns, core_time_ns, parallel_efficiency}], legacy_reference}' \
+              "$evidence/composition-frontier-scaling-receipt.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload raw benchmark evidence and receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: laplace-composition-frontier-benchmark-${{ github.sha }}
+          path: ${{ env.LAPLACE_BENCHMARK_EVIDENCE }}
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 90

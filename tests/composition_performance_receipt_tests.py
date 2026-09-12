@@ -9,16 +9,29 @@ import pathlib
 import sys
 
 
+# The physical measurement fixture builds four square frontiers with widths
+# 2, 4, 16 and 256.  Every diagonal request repeats the same child twice with
+# identical relationship metadata.  The canonical trajectory law therefore
+# coalesces exactly one adjacent operand boundary in each diagonal request.
+# Keep the receipt validator bound to that structural law instead of treating
+# an input operand boundary as a required physical carrier boundary.
+FRONTIER_WIDTHS = (2, 4, 16, 256)
+EXPECTED_COALESCED_ADJACENT_OPERAND_PAIRS = sum(FRONTIER_WIDTHS)
 EXPECTED = {
     "known_entities": 2,
     "requests": 65_812,
     "operands": 131_624,
     "entities": 65_814,
     "physicalities": 65_812,
-    "trajectory_vertices": 131_624,
+    "trajectory_vertices": 131_624 - EXPECTED_COALESCED_ADJACENT_OPERAND_PAIRS,
     "occurrences": 65_812,
-    "stream_records": 329_062,
 }
+EXPECTED["stream_records"] = (
+    EXPECTED["entities"]
+    + EXPECTED["physicalities"]
+    + EXPECTED["trajectory_vertices"]
+    + EXPECTED["occurrences"]
+)
 
 
 def require(condition: bool, message: str) -> None:

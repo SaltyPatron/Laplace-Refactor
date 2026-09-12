@@ -3,8 +3,17 @@
 #include <cmath>
 #include <set>
 
+struct laplace_cognition_observation_operator_estate_storage {
+    laplace_digest256 path_id{};
+    laplace_cognition_operator_program program{};
+    std::vector<std::uint32_t> families;
+    std::vector<laplace_cognition_operator_field> fields;
+    std::vector<laplace_cognition_operator_constraint> constraints;
+};
+
 struct laplace_cognition_observation_result {
     std::vector<laplace_cognition_observation_answer> answers;
+    std::vector<laplace_cognition_observation_operator_estate_storage> operator_estates;
 };
 
 namespace laplace_cognition_observation_candidate_provider_detail {
@@ -70,6 +79,7 @@ struct ProviderState final {
     laplace_query_search_program search_program{};
     std::map<DigestKey, IdKey> coordinate_to_entity;
     std::vector<laplace_cognition_observation_answer> answers;
+    std::vector<laplace_cognition_observation_operator_estate_storage> operator_estates;
 };
 
 bool ProviderValid(
@@ -645,8 +655,9 @@ bool ExecutePathMathematics(
     const ProviderState& state,
     const laplace_query_search_path_summary& path,
     const std::vector<laplace_query_search_transition>& steps,
-    laplace_cognition_observation_answer* const answer) {
-    if (answer == nullptr || steps.empty() ||
+    laplace_cognition_observation_answer* const answer,
+    laplace_cognition_observation_operator_estate_storage* const estate) {
+    if (answer == nullptr || estate == nullptr || steps.empty() ||
         steps.size() + 1U >
             static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max())) {
         return false;
@@ -800,6 +811,14 @@ bool ExecutePathMathematics(
     answer->solver_final_residual_l2 = runtime_result.solver_receipt.final_residual_l2;
     answer->solver_final_energy = runtime_result.solver_receipt.final_energy;
     answer->flags |= LAPLACE_COGNITION_OBSERVATION_ANSWER_OPERATOR_EXECUTED;
+
+    estate->path_id = path.path_id;
+    estate->program = operator_program;
+    estate->families = std::move(families);
+    estate->fields = std::move(fields);
+    estate->constraints = std::move(constraints);
+    estate->program.eligible_relation_families = nullptr;
+    estate->program.eligible_relation_family_count = estate->families.size();
     return true;
 }
 
@@ -807,8 +826,10 @@ bool CaptureAnswers(
     ProviderState* const state,
     const laplace_query_search_result* const search_result) {
     state->answers.clear();
+    state->operator_estates.clear();
     const std::size_t path_count = laplace_query_search_result_path_count(search_result);
     state->answers.reserve(path_count);
+    state->operator_estates.reserve(path_count);
     for (std::size_t index = 0U; index < path_count; ++index) {
         laplace_query_search_path_summary path{};
         if (laplace_query_search_result_path(
@@ -846,11 +867,13 @@ bool CaptureAnswers(
         if ((last.flags & LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT) != 0U) {
             answer.flags |= LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT;
         }
+        laplace_cognition_observation_operator_estate_storage estate{};
         if (!ResolveEntity(*state, terminal_coordinate, &answer.entity_id) ||
-            !ExecutePathMathematics(*state, path, steps, &answer)) {
+            !ExecutePathMathematics(*state, path, steps, &answer, &estate)) {
             return false;
         }
         state->answers.push_back(answer);
+        state->operator_estates.push_back(std::move(estate));
     }
     return true;
 }
@@ -1058,6 +1081,7 @@ laplace_cognition_observation_request_execute_with_candidate_provider(
         } else {
             auto* retained = new laplace_cognition_observation_result{};
             retained->answers = std::move(state.answers);
+            retained->operator_estates = std::move(state.operator_estates);
             *observation_result = retained;
         }
     } catch (const std::bad_alloc&) {
@@ -1089,6 +1113,31 @@ laplace_cognition_observation_result_answer(
         return LAPLACE_COGNITION_OBSERVATION_REQUEST_RESULT_RANGE;
     }
     *answer = result->answers[answer_index];
+    return LAPLACE_COGNITION_OBSERVATION_REQUEST_OK;
+}
+
+extern "C" laplace_cognition_observation_request_status
+laplace_cognition_observation_result_operator_view(
+    const laplace_cognition_observation_result* const result,
+    const size_t answer_index,
+    laplace_cognition_observation_operator_view* const view) {
+    if (view != nullptr) *view = laplace_cognition_observation_operator_view{};
+    if (result == nullptr || view == nullptr) {
+        return LAPLACE_COGNITION_OBSERVATION_REQUEST_INVALID_ARGUMENT;
+    }
+    if (answer_index >= result->answers.size() ||
+        answer_index >= result->operator_estates.size()) {
+        return LAPLACE_COGNITION_OBSERVATION_REQUEST_RESULT_RANGE;
+    }
+    const auto& estate = result->operator_estates[answer_index];
+    view->path_id = estate.path_id;
+    view->program = estate.program;
+    view->program.eligible_relation_families = estate.families.data();
+    view->program.eligible_relation_family_count = estate.families.size();
+    view->fields = estate.fields.data();
+    view->field_count = estate.fields.size();
+    view->constraints = estate.constraints.data();
+    view->constraint_count = estate.constraints.size();
     return LAPLACE_COGNITION_OBSERVATION_REQUEST_OK;
 }
 

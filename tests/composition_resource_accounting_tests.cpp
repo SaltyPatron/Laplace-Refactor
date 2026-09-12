@@ -152,7 +152,7 @@ TEST(
     EXPECT_EQ(chain.planned_occurrence_upper_bound, 0U);
     EXPECT_EQ(observed_duplicate.planned_occurrence_upper_bound, RequestCount);
 
-    EXPECT_EQ(
+    EXPECT_GT(
         duplicate.estimated_peak_working_bytes,
         chain.estimated_peak_working_bytes);
     EXPECT_LT(

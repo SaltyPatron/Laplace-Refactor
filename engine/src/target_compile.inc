@@ -173,21 +173,34 @@ laplace_target_compile_status CompileTargetSlot(
     return LAPLACE_TARGET_COMPILE_OK;
 }
 
-bool TargetFlattenedQkVo(
-    const std::vector<laplace_target_compile_slot_receipt>& slots) {
+bool TargetSameMaterializedOperator(
+    const laplace_target_compile_result& result,
+    const std::size_t left_index,
+    const std::size_t right_index) {
+    if (left_index >= result.matrices.size() || right_index >= result.matrices.size() ||
+        left_index >= result.rhs.size() || right_index >= result.rhs.size()) {
+        return false;
+    }
+    return result.matrices[left_index] == result.matrices[right_index] &&
+        result.rhs[left_index] == result.rhs[right_index];
+}
+
+bool TargetFlattenedQkVo(const laplace_target_compile_result& result) {
     bool has_qk = false;
     bool has_vo = false;
-    for (const auto& left : slots) {
-        if (left.target_role == LAPLACE_TARGET_ROLE_COMPATIBILITY_QK) has_qk = true;
-        if (left.target_role == LAPLACE_TARGET_ROLE_CONTRIBUTION_VO) has_vo = true;
+    for (const auto& slot : result.slots) {
+        if (slot.target_role == LAPLACE_TARGET_ROLE_COMPATIBILITY_QK) has_qk = true;
+        if (slot.target_role == LAPLACE_TARGET_ROLE_CONTRIBUTION_VO) has_vo = true;
     }
     if (!has_qk || !has_vo) return true;
-    for (const auto& qk : slots) {
+    for (std::size_t qk_index = 0U; qk_index < result.slots.size(); ++qk_index) {
+        const auto& qk = result.slots[qk_index];
         if (qk.target_role != LAPLACE_TARGET_ROLE_COMPATIBILITY_QK) continue;
-        for (const auto& vo : slots) {
+        for (std::size_t vo_index = 0U; vo_index < result.slots.size(); ++vo_index) {
+            const auto& vo = result.slots[vo_index];
             if (vo.target_role != LAPLACE_TARGET_ROLE_CONTRIBUTION_VO) continue;
             if (Same(qk.operator_id, vo.operator_id) ||
-                Same(qk.matrix_fingerprint, vo.matrix_fingerprint)) {
+                TargetSameMaterializedOperator(result, qk_index, vo_index)) {
                 return true;
             }
         }
@@ -249,48 +262,55 @@ extern "C" laplace_target_compile_status laplace_target_compile_execute(
     }
     *result = nullptr;
     *receipt = laplace_target_compile_receipt{};
-    if (!TargetRequestValid(*request)) return LAPLACE_TARGET_COMPILE_INVALID_REQUEST;
+    receipt->version = LAPLACE_TARGET_COMPILE_VERSION;
+    const auto fail = [receipt](const laplace_target_compile_status status) {
+        receipt->status = static_cast<std::uint32_t>(status);
+        return status;
+    };
+    if (!TargetRequestValid(*request)) {
+        return fail(LAPLACE_TARGET_COMPILE_INVALID_REQUEST);
+    }
 
     std::vector<const laplace_target_compile_job*> jobs;
     try {
         jobs.reserve(request->job_count);
         for (std::size_t index = 0U; index < request->job_count; ++index) {
             if (!TargetJobValid(*request, request->jobs[index])) {
-                return LAPLACE_TARGET_COMPILE_INVALID_JOB;
+                return fail(LAPLACE_TARGET_COMPILE_INVALID_JOB);
             }
             jobs.push_back(&request->jobs[index]);
         }
         std::sort(jobs.begin(), jobs.end(), TargetJobLess);
         for (std::size_t index = 1U; index < jobs.size(); ++index) {
             if (TargetSameCoordinate(*jobs[index - 1U], *jobs[index])) {
-                return LAPLACE_TARGET_COMPILE_INVALID_JOB;
+                return fail(LAPLACE_TARGET_COMPILE_INVALID_JOB);
             }
         }
     } catch (const std::bad_alloc&) {
-        return LAPLACE_TARGET_COMPILE_MEMORY_FAILURE;
+        return fail(LAPLACE_TARGET_COMPILE_MEMORY_FAILURE);
     }
 
     auto compiled = std::unique_ptr<laplace_target_compile_result>(
         new (std::nothrow) laplace_target_compile_result());
-    if (!compiled) return LAPLACE_TARGET_COMPILE_MEMORY_FAILURE;
+    if (!compiled) return fail(LAPLACE_TARGET_COMPILE_MEMORY_FAILURE);
     try {
         compiled->slots.resize(jobs.size());
         compiled->matrices.resize(jobs.size());
         compiled->rhs.resize(jobs.size());
     } catch (const std::bad_alloc&) {
-        return LAPLACE_TARGET_COMPILE_MEMORY_FAILURE;
+        return fail(LAPLACE_TARGET_COMPILE_MEMORY_FAILURE);
     }
 
     for (std::size_t index = 0U; index < jobs.size(); ++index) {
         const auto status = CompileTargetSlot(
             *jobs[index], &compiled->slots[index], &compiled->matrices[index],
             &compiled->rhs[index]);
-        if (status != LAPLACE_TARGET_COMPILE_OK) return status;
+        if (status != LAPLACE_TARGET_COMPILE_OK) return fail(status);
     }
 
     if ((request->flags & LAPLACE_TARGET_COMPILE_REQUIRE_DISTINCT_QK_VO) != 0U &&
-        TargetFlattenedQkVo(compiled->slots)) {
-        return LAPLACE_TARGET_COMPILE_FLATTENED_OPERATOR;
+        TargetFlattenedQkVo(*compiled)) {
+        return fail(LAPLACE_TARGET_COMPILE_FLATTENED_OPERATOR);
     }
 
     std::set<DigestKey> distinct_operators;
@@ -302,7 +322,7 @@ extern "C" laplace_target_compile_status laplace_target_compile_execute(
                 slot.matrix_value_count ||
             rhs_values > std::numeric_limits<std::uint64_t>::max() -
                 slot.rhs_value_count) {
-            return LAPLACE_TARGET_COMPILE_INVALID_REQUEST;
+            return fail(LAPLACE_TARGET_COMPILE_INVALID_REQUEST);
         }
         matrix_values += slot.matrix_value_count;
         rhs_values += slot.rhs_value_count;
@@ -319,7 +339,6 @@ extern "C" laplace_target_compile_status laplace_target_compile_execute(
     receipt->rhs_value_count = rhs_values;
     receipt->flags = request->flags;
     receipt->status = LAPLACE_TARGET_COMPILE_OK;
-    receipt->version = LAPLACE_TARGET_COMPILE_VERSION;
     IdentifyTargetCompilation(*request, *compiled, receipt);
 
     *result = compiled.release();

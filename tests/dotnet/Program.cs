@@ -32,11 +32,11 @@ internal static class Program
         Require(LaplaceIsaContract.ReceiptDigestAlgorithm == "BLAKE3-256" &&
             LaplaceIsaContract.ReceiptDigestBytes == 32,
             "generated receipt descriptor differs");
-        Require(LaplaceIsaContract.Minor == 13,
+        Require(LaplaceIsaContract.Minor == 14,
             "generated ISA minor version differs");
         Require(LaplaceIsaContract.ValueTypes.Length == 23,
             "generated value type inventory differs");
-        Require(LaplaceIsaContract.Operations.Length == 13,
+        Require(LaplaceIsaContract.Operations.Length == 14,
             "generated operation inventory differs");
         Require(IdentityCodepointBatch.Descriptor == LaplaceIsaContract.Operations[0],
             "generated identity declaration differs from descriptor inventory");
@@ -65,6 +65,8 @@ internal static class Program
             "generated stock-catalog declaration differs from descriptor inventory");
         Require(CognitionSolvePacket.Descriptor == LaplaceIsaContract.Operations[12],
             "generated cognition declaration differs from descriptor inventory");
+        Require(UniversalAstApplyPacket.Descriptor == LaplaceIsaContract.Operations[13],
+            "generated universal AST declaration differs from descriptor inventory");
         Require(LaplaceHighwayContract.Version == 2U &&
             LaplaceHighwayContract.KindLanguage == 3U &&
             LaplaceHighwayContract.KindOperation == 14U &&
