@@ -184,31 +184,7 @@ jobs:
       - name: Configure outside the repository
         shell: bash
         run: |
-          set -euo pipefail
-          build_directory="$RUNNER_TEMP/laplace-output/postgresql-native"
-          c_flags=$(jq -r '.build.c_flags | join(" ")' contracts/postgresql-build.json)
-          cxx_flags=$(jq -r '.build.cxx_flags | join(" ")' contracts/postgresql-build.json)
-          linker_flags=$(jq -r '.build.linker_flags | join(" ")' contracts/postgresql-build.json)
-          cmake -S . -B "$build_directory" -G Ninja \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_C_COMPILER="$LAPLACE_ICX" \
-            -DCMAKE_CXX_COMPILER="$LAPLACE_ICPX" \
-            -DCMAKE_C_FLAGS_RELWITHDEBINFO="$c_flags" \
-            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="$cxx_flags" \
-            -DCMAKE_EXE_LINKER_FLAGS="$linker_flags" \
-            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
-            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
-            -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
-            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
-            -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
-            -DLAPLACE_SOURCE_ESTATE_ROOT="$LAPLACE_SOURCE_ESTATE_ROOT" \
-            -DLAPLACE_UNICODE_SOURCE_ROOT="$LAPLACE_UNICODE_SOURCE_ROOT" \
-            -DLAPLACE_ISO_639_SOURCE_ROOT="$LAPLACE_ISO_639_SOURCE_ROOT" \
-            -DLAPLACE_CILI_SOURCE_ROOT="$LAPLACE_CILI_SOURCE_ROOT" \
-            -DLAPLACE_ENABLE_DOTNET_BINDINGS=ON \
-            -DLAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER=ON \
-            -DLAPLACE_PG_CONFIG="$LAPLACE_PG_CONFIG"
-          printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
+          bash tools/tests/configure-custom-stack.sh
       - name: Build native engine PostgreSQL extension and managed bindings
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 6
       - name: Execute selected custom-stack QA fail-fast
