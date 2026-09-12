@@ -153,7 +153,11 @@ jobs:
             .openai_chat.roles == ["system","user","assistant","user"] and
             .openai_chat.object == "chat.completion" and
             .openai_chat.model == "laplace-native" and
-            (.openai_chat.assistant_content | type == "string") and
+            (.openai_chat.assistant_content | type == "string" and length > 0) and
+            .openai_chat.streaming.done == true and
+            .openai_chat.streaming.finished == true and
+            .openai_chat.streaming.chunk_count >= 2 and
+            (.openai_chat.streaming.assistant_content | type == "string" and length > 0) and
             (.mcp.tools | index("laplace.query")) != null and
             (.mcp.tools | index("laplace.cognition")) != null and
             (.mcp.tools | index("laplace.source_admit")) != null and
