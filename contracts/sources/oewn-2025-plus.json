@@ -1,0 +1,240 @@
+{
+  "schema": "laplace.runtime-source-recipe/v1",
+  "profile": {
+    "name": "Open English WordNet 2025+ WN-LMF",
+    "version": 1,
+    "source_class": "foundational_seed",
+    "evidence_source_type": "curated_dataset",
+    "reconstruction_class": "exact",
+    "purpose": [
+      "admit the selected Open English WordNet 2025+ WN-LMF release through the common source decomposition, universal composition, reference, testimony, persistence and world-close machine",
+      "retain lexical entries, lemmas, senses, synsets, definitions, examples, pronunciations, syntactic behaviours and typed sense/synset relations as source-scoped witnessed structure",
+      "exercise the same runtime recipe mechanism that other XML sources use without a WordNet-named parser, scheduler, persistence path or identity law"
+    ],
+    "prohibited_authority": [
+      "Princeton WordNet 3.0 compatibility identity",
+      "CILI identity or cross-release equivalence not asserted by this source",
+      "surface-string equality as sense or synset identity",
+      "source truth beyond exact OEWN 2025+ testimony",
+      "a WordNet-specific ingestion engine"
+    ]
+  },
+  "coordinate": {
+    "kind": 17,
+    "authority": "Open English WordNet",
+    "release": "2025+",
+    "namespace": "https://en-word.net/",
+    "local_identifier": "english-wordnet-2025-plus",
+    "version": 1,
+    "scope_identity_algorithm": "first-128-bits-of-SHA-256 over laplace-source-profile-scope-v1, field name, and exact UTF-8 value"
+  },
+  "authority_and_release": {
+    "publisher": "Open English WordNet Team",
+    "release_date": "2025-12-31",
+    "release_tag": "2025-edition",
+    "selected_variant": "2025+",
+    "format": "WN-LMF XML",
+    "selected_at": "2026-09-03",
+    "release_url": "https://github.com/globalwordnet/english-wordnet/releases/tag/2025-edition"
+  },
+  "license": {
+    "identity": "Princeton WordNet License plus Creative Commons Attribution 4.0 International for Open English WordNet contributions",
+    "authority_file": "LICENSE.md@2025-edition",
+    "cc_uri": "http://creativecommons.org/licenses/by/4.0/",
+    "attribution": [
+      "Princeton WordNet",
+      "Open English WordNet Team"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "english-wordnet-2025-plus.xml.gz",
+      "local_discovery_path": ".refresh-20260903/OpenEnglishWordNet-2025-plus/english-wordnet-2025-plus.xml.gz",
+      "media_type": "application/gzip",
+      "byte_count": 12925887,
+      "sha256": "31f4af16c54b532fd5484d4cc33aee588a31bb5b70683ae8197842fde5b586bc",
+      "roles": [
+        "container",
+        "authority-release-artifact",
+        "exact-hashed-provenance"
+      ],
+      "codec": {
+        "provider": "gzip",
+        "output_media_type": "application/xml",
+        "member_identity": "SHA-256 of exact decoded byte stream",
+        "member_size": "exact decoded byte count"
+      },
+      "acquisition": {
+        "transport": "https",
+        "url": "https://github.com/globalwordnet/english-wordnet/releases/download/2025-edition/english-wordnet-2025-plus.xml.gz"
+      }
+    }
+  ],
+  "syntax_authority": {
+    "provider": "laplace-decomposition-xml-v1",
+    "grammar": "generic XML 1.x structural decomposition",
+    "universal_ast_recipe": "lossless-generic-xml-ast-v1",
+    "encoding": "XML-declared UTF-8 source bytes",
+    "error_recovery": "none; malformed XML fails before publication",
+    "source_named_dispatch": false
+  },
+  "recipe_program": {
+    "coordinate": "laplace.recipe/runtime-structured-source/1",
+    "stages": [
+      "verify-authority-artifact",
+      "decode-container",
+      "generic-decomposition",
+      "lower-universal-ast",
+      "compose",
+      "presence",
+      "deposit",
+      "semantic-select",
+      "reference-topology",
+      "reference-mapping",
+      "lineage",
+      "testimony",
+      "world-close",
+      "readback"
+    ],
+    "runtime_data_only": true,
+    "source_named_semantic_dispatch": false,
+    "canonical_identity_excludes_source_metadata": true
+  },
+  "generic_provider_bindings": [
+    {
+      "provider": "gzip",
+      "applies_to_media_type": "application/gzip",
+      "effect": "decode exact child byte stream without changing authority artifact identity"
+    },
+    {
+      "provider": "laplace-decomposition-xml-v1",
+      "applies_to_media_type": "application/xml",
+      "kind_base": "0x584d4c0000000000",
+      "effect": "emit exact XML structural spans and field coordinates"
+    },
+    {
+      "provider": "laplace-decomposition-uax29",
+      "applies_to": "redispatched textual XML spans",
+      "effect": "lower exact Unicode textual content through the active product Unicode authority"
+    }
+  ],
+  "semantic_rules": [
+    {
+      "id": "lexical-entry-identity",
+      "match": {"element": "LexicalEntry", "attribute": "id"},
+      "emit": {"kind": "source-reference", "namespace": "https://en-word.net/id/", "role": "lexical-entry"}
+    },
+    {
+      "id": "lemma-written-form",
+      "match": {"element": "Lemma", "attribute": "writtenForm"},
+      "emit": {"kind": "typed-observation", "role": "lemma-written-form", "subject": "ancestor:LexicalEntry@id", "value": "attribute-value"}
+    },
+    {
+      "id": "lemma-part-of-speech",
+      "match": {"element": "Lemma", "attribute": "partOfSpeech"},
+      "emit": {"kind": "typed-testimony", "relation": "part-of-speech", "subject": "ancestor:LexicalEntry@id", "object": "attribute-value"}
+    },
+    {
+      "id": "sense-identity",
+      "match": {"element": "Sense", "attribute": "id"},
+      "emit": {"kind": "source-reference", "namespace": "https://en-word.net/id/", "role": "sense"}
+    },
+    {
+      "id": "sense-to-synset",
+      "match": {"element": "Sense", "attribute": "synset"},
+      "emit": {"kind": "typed-reference", "relation": "sense-synset", "subject": "sibling-attribute:id", "object_namespace": "https://en-word.net/id/", "object": "attribute-value"}
+    },
+    {
+      "id": "synset-identity",
+      "match": {"element": "Synset", "attribute": "id"},
+      "emit": {"kind": "source-reference", "namespace": "https://en-word.net/id/", "role": "synset"}
+    },
+    {
+      "id": "synset-ili",
+      "match": {"element": "Synset", "attribute": "ili"},
+      "emit": {"kind": "typed-reference", "relation": "interlingual-index", "subject": "sibling-attribute:id", "object_namespace": "http://globalwordnet.org/ili/", "object": "attribute-value", "allow_empty": true}
+    },
+    {
+      "id": "definition",
+      "match": {"element": "Definition", "text": true},
+      "emit": {"kind": "typed-testimony", "relation": "definition", "subject": "ancestor:Synset@id", "object": "text-content"}
+    },
+    {
+      "id": "example",
+      "match": {"element": "Example", "text": true},
+      "emit": {"kind": "typed-testimony", "relation": "example", "subject": "ancestor:Synset@id", "object": "text-content", "preserve_attributes": ["source"]}
+    },
+    {
+      "id": "sense-relation",
+      "match": {"element": "SenseRelation", "attributes": ["relType", "target"]},
+      "emit": {"kind": "typed-relation", "relation": "attribute:relType", "subject": "ancestor:Sense@id", "object_namespace": "https://en-word.net/id/", "object": "attribute:target", "preserve_attributes": ["type"]}
+    },
+    {
+      "id": "synset-relation",
+      "match": {"element": "SynsetRelation", "attributes": ["relType", "target"]},
+      "emit": {"kind": "typed-relation", "relation": "attribute:relType", "subject": "ancestor:Synset@id", "object_namespace": "https://en-word.net/id/", "object": "attribute:target"}
+    },
+    {
+      "id": "syntactic-behaviour",
+      "match": {"element": "SyntacticBehaviour", "attributes": ["id", "subcategorizationFrame"]},
+      "emit": {"kind": "typed-observation", "role": "syntactic-behaviour", "identity": "attribute:id", "value": "attribute:subcategorizationFrame"}
+    },
+    {
+      "id": "pronunciation",
+      "match": {"element": "Pronunciation", "text": true},
+      "emit": {"kind": "typed-observation", "role": "pronunciation", "subject": "ancestor:LexicalEntry@id", "object": "text-content", "preserve_attributes": ["variety"]}
+    }
+  ],
+  "expected_structure": {
+    "element_count": 1298858,
+    "attribute_count": 2430477,
+    "elements": {
+      "Definition": 120569,
+      "Example": 49724,
+      "Form": 4474,
+      "ILIDefinition": 3213,
+      "Lemma": 161875,
+      "LexicalEntry": 161875,
+      "LexicalResource": 1,
+      "Lexicon": 1,
+      "Pronunciation": 44638,
+      "Sense": 212659,
+      "SenseRelation": 122054,
+      "Synset": 120564,
+      "SynsetRelation": 297172,
+      "SyntacticBehaviour": 39
+    },
+    "attributes": {
+      "Lemma.partOfSpeech": 161875,
+      "Lemma.writtenForm": 161875,
+      "LexicalEntry.id": 161875,
+      "Sense.id": 212659,
+      "Sense.synset": 212659,
+      "SenseRelation.relType": 122054,
+      "SenseRelation.target": 122054,
+      "Synset.id": 120564,
+      "Synset.ili": 120564,
+      "Synset.lexfile": 120564,
+      "Synset.members": 120564,
+      "Synset.partOfSpeech": 120564,
+      "SynsetRelation.relType": 297172,
+      "SynsetRelation.target": 297172,
+      "SyntacticBehaviour.id": 39,
+      "SyntacticBehaviour.subcategorizationFrame": 39
+    }
+  },
+  "completion": {
+    "requires": [
+      "authority compressed artifact SHA-256 and byte-count match",
+      "deterministic decoded XML identity receipt",
+      "generic XML structural witness count matches exact source",
+      "every semantic selector denominator reconciles",
+      "all source references are present, resolved, explicitly unresolved or externally scoped",
+      "canonical composition and physicality deposition receipts",
+      "source-profile, lineage, testimony and world-admission receipts",
+      "cold readback of selected lexical entry, sense, synset, definition and relation",
+      "replay changes no canonical identity or semantic cardinality"
+    ],
+    "nonexemplar": "completion proves only this OEWN 2025+ profile and never generic source admission or complete Laplace"
+  }
+}
