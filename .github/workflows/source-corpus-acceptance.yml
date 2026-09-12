@@ -1,0 +1,48 @@
+name: Manual source corpus acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      build_directory:
+        description: Existing configured custom-stack build on the build drive
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  source-acceptance:
+    runs-on: [self-hosted, laplace-refactor]
+    env:
+      TMPDIR: /build/laplace/work/refactor-scratch
+      TMP: /build/laplace/work/refactor-scratch
+      TEMP: /build/laplace/work/refactor-scratch
+      SELECTED_BUILD: ${{ inputs.build_directory }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Execute explicitly requested corpus acceptance using the existing build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mountpoint -q /build
+          mountpoint -q /vault
+          build=$(realpath -e "$SELECTED_BUILD")
+          [[ "$build" == /build/laplace/build/* ]]
+          test -f "$build/CTestTestfile.cmake"
+          work=$(mktemp -d "$TMPDIR/source-acceptance.XXXXXXXX")
+          python3 - "$build" "$work" <<'PY'
+          import importlib.util, json, pathlib, sys
+          root = pathlib.Path.cwd()
+          spec = importlib.util.spec_from_file_location('qa', root / 'tools/tests/custom_stack_qa.py')
+          qa = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(qa)
+          contract = json.loads((root / 'contracts/custom-stack-qa.json').read_text())
+          plan = qa.build_plan(contract, root, ['.github/workflows/custom-stack.yml'],
+                               include_source_acceptance=True)
+          plan['core_tests'] = []
+          plan['core_test_count'] = 0
+          plan['selected_physical_tests'] = plan['manual_source_acceptance_tests']
+          plan['selected_physical_test_count'] = len(plan['selected_physical_tests'])
+          work = pathlib.Path(sys.argv[2])
+          qa.write_json_atomic(work / 'plan.json', plan)
+          raise SystemExit(qa.execute_plan(plan, pathlib.Path(sys.argv[1]), work,
+                                           work / 'result.json', 'ctest'))
+          PY

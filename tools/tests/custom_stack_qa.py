@@ -239,6 +239,7 @@ def build_plan(
     repo_root: Path,
     changed_paths: Sequence[str],
     head_sha: str | None = None,
+    include_source_acceptance: bool = False,
 ) -> dict[str, Any]:
     validate_contract(contract, repo_root)
     canonical = sorted({canonical_path(path) for path in changed_paths})
@@ -263,6 +264,7 @@ def build_plan(
             row
             for row in isolated_rows
             if str(row["profile"]) in selected_profiles
+            and (include_source_acceptance or not row.get("manual_only", False))
         ),
         key=lambda row: int(row["order"]),
     )
@@ -274,6 +276,8 @@ def build_plan(
         "changed_paths": canonical,
         "selected_rules": selected_rules,
         "selected_profiles": sorted(selected_profiles),
+        "source_acceptance_authorized": include_source_acceptance,
+        "manual_source_acceptance_tests": [str(row["ctest_name"]) for row in isolated_rows if row.get("manual_only", False)],
         "registry_profile": registry_profile,
         "hosted_antecedent_required": True,
         "core_parallel_jobs": int(contract["execution"]["core_parallel_jobs"]),
@@ -703,6 +707,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     select.add_argument("--git-name-status-z", type=Path, required=True)
     select.add_argument("--head-sha")
     select.add_argument("--output", type=Path, required=True)
+    select.add_argument("--include-source-acceptance", action="store_true")
     execute = subparsers.add_parser("execute")
     execute.add_argument("--plan", type=Path, required=True)
     execute.add_argument("--build-directory", type=Path, required=True)
@@ -724,6 +729,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             repo_root,
             read_git_name_status_z(arguments.git_name_status_z),
             arguments.head_sha,
+            include_source_acceptance=arguments.include_source_acceptance,
         )
         write_json_atomic(arguments.output, plan)
         print(json.dumps(plan, indent=2, sort_keys=True))

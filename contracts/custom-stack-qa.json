@@ -6,7 +6,7 @@
   "execution": {
     "hosted_antecedent": "the product-path hosted proof must succeed before this workflow is invoked",
     "core": "only tests whose registry row explicitly names the custom-stack provider profile, excluding isolated physical-boundary tests; profile-less tests already succeeded in the hosted antecedent and are not repeated",
-    "selected_physical": "only isolated tests whose QA profile is selected by the exact changed paths",
+    "selected_physical": "bounded isolated tests selected by changed paths; full corpus acceptance is manual-only",
     "stop_on_failure": true,
     "core_parallel_jobs": 6,
     "selected_physical_parallel_jobs": 1,
@@ -41,21 +41,24 @@
       "profile": "unicode-hot-performance",
       "order": 15,
       "resource_class": "full-unicode-perfcache-performance",
-      "reason": "full generated Unicode planes and measured hot lookup are rebuilt only when their implementation or contract changes"
+      "reason": "full generated Unicode planes and measured hot lookup are rebuilt only when their implementation or contract changes",
+      "manual_only": true
     },
     {
       "ctest_name": "postgres.mutation-unicode-access-expected-epoch-detected",
       "profile": "unicode-access-epoch",
       "order": 16,
       "resource_class": "full-unicode-postgresql-mutation",
-      "reason": "the full Unicode root is rebuilt for this mutation only when the public epoch access implementation or its contract changes"
+      "reason": "the full Unicode root is rebuilt for this mutation only when the public epoch access implementation or its contract changes",
+      "manual_only": true
     },
     {
       "ctest_name": "postgres.source-admission-suite-whole-route-contract",
       "profile": "source-admission-suite",
       "order": 20,
       "resource_class": "postgresql-unicode-and-source-admission-suite",
-      "reason": "one Unicode generation followed by generic ISO 639 and CILI whole-route proofs in the same physical PostgreSQL boundary"
+      "reason": "one Unicode generation followed by generic ISO 639 and CILI whole-route proofs in the same physical PostgreSQL boundary",
+      "manual_only": true
     }
   ],
   "selection_rules": [
@@ -72,7 +75,9 @@
         "tests/unicode_identity_reverse_tests.cpp",
         "tests/unicode_tier0_tests.cpp"
       ],
-      "profiles": ["unicode-hot-performance"]
+      "profiles": [
+        "unicode-hot-performance"
+      ]
     },
     {
       "id": "unicode-access-epoch",
@@ -82,7 +87,9 @@
         "tests/postgres/unicode_access_epoch_mutation.sql",
         "tests/expect_postgres_unicode_access_mutation_failure.cmake"
       ],
-      "profiles": ["unicode-access-epoch"]
+      "profiles": [
+        "unicode-access-epoch"
+      ]
     },
     {
       "id": "composition-boundary",
@@ -95,7 +102,9 @@
         "tests/composition_tests.cpp",
         "tests/postgres/composition_*"
       ],
-      "profiles": ["composition-boundary"]
+      "profiles": [
+        "composition-boundary"
+      ]
     },
     {
       "id": "unicode-root-boundary",
@@ -110,7 +119,9 @@
         "tests/postgres/unicode_*",
         "tools/postgresql/unicodectl.py"
       ],
-      "profiles": ["source-admission-suite"]
+      "profiles": [
+        "source-admission-suite"
+      ]
     },
     {
       "id": "source-admission-generic",
@@ -140,7 +151,9 @@
         "tools/contracts/generate-tabular-source-profile.py",
         "tools/sources/acquire-tabular-source.py"
       ],
-      "profiles": ["source-admission-suite"]
+      "profiles": [
+        "source-admission-suite"
+      ]
     },
     {
       "id": "source-iso639",
@@ -149,7 +162,9 @@
         "tests/iso_639_*",
         "tests/postgres/iso_639_*"
       ],
-      "profiles": ["source-admission-suite"]
+      "profiles": [
+        "source-admission-suite"
+      ]
     },
     {
       "id": "source-cili",
@@ -158,7 +173,9 @@
         "tests/cili_*",
         "tests/postgres/cili_*"
       ],
-      "profiles": ["source-admission-suite"]
+      "profiles": [
+        "source-admission-suite"
+      ]
     }
   ],
   "fail_closed": {

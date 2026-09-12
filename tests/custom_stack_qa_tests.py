@@ -80,7 +80,7 @@ class CustomStackQaTests(unittest.TestCase):
         )
         self.assertEqual(
             plan["selected_physical_tests"],
-            ["perfcache.hot-lookup-receipt-contract-and-mutation"],
+            [],
         )
 
     def test_unicode_access_change_selects_epoch_and_public_source_boundaries(self) -> None:
@@ -91,10 +91,7 @@ class CustomStackQaTests(unittest.TestCase):
         )
         self.assertEqual(
             plan["selected_physical_tests"],
-            [
-                "postgres.mutation-unicode-access-expected-epoch-detected",
-                "postgres.source-admission-suite-whole-route-contract",
-            ],
+            [],
         )
 
     def test_generic_source_admission_change_selects_real_source_regressions(
@@ -106,7 +103,7 @@ class CustomStackQaTests(unittest.TestCase):
         )
         self.assertEqual(
             plan["selected_physical_tests"],
-            ["postgres.source-admission-suite-whole-route-contract"],
+            [],
         )
 
     def test_iso_profile_change_does_not_select_cili(self) -> None:
@@ -114,8 +111,16 @@ class CustomStackQaTests(unittest.TestCase):
         self.assertEqual(plan["selected_profiles"], ["source-admission-suite"])
         self.assertEqual(
             plan["selected_physical_tests"],
-            ["postgres.source-admission-suite-whole-route-contract"],
+            [],
         )
+
+    def test_full_source_acceptance_requires_explicit_selection(self):
+        plan = qa.build_plan(self.contract, ROOT, ["contracts/sources/cili-pwn-mappings-20240611.json"],
+                             "candidate-sha", include_source_acceptance=True)
+        self.assertIn("postgres.source-admission-suite-whole-route-contract", plan["selected_physical_tests"])
+        automatic = self.plan("contracts/sources/cili-pwn-mappings-20240611.json")
+        self.assertTrue(set(automatic["manual_source_acceptance_tests"]).isdisjoint(
+            automatic["core_tests"] + automatic["selected_physical_tests"]))
 
     def test_missing_isolated_registry_test_fails_closed(self) -> None:
         broken = copy.deepcopy(self.contract)
