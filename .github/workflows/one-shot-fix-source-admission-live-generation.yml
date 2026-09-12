@@ -25,18 +25,19 @@ jobs:
           guard = Path('tools/admit_source_guard.py')
           text = guard.read_text(encoding='utf-8')
 
-          def replace_once(old: str, new: str, label: str) -> None:
-              global text
-              count = text.count(old)
+          def replace_once(value: str, old: str, new: str, label: str) -> str:
+              count = value.count(old)
               if count != 1:
                   raise SystemExit(f'{label}: expected 1 anchor, found {count}')
-              text = text.replace(old, new, 1)
+              return value.replace(old, new, 1)
 
-          replace_once(
+          text = replace_once(
+              text,
               'DEFAULT_ACTIVE = Path("/opt/laplace/current")\n',
               'DEFAULT_ACTIVE = Path("/opt/laplace/current")\n'
               'DEFAULT_RELEASE_ROOT = Path("/opt/laplace/releases")\n',
-              'release root constant')
+              'release root constant',
+          )
 
           old_sql = '''    sql = """
           SELECT pg_catalog.json_build_object(
@@ -79,7 +80,7 @@ jobs:
             AND hg.unicode_activation_epoch_fingerprint=u.epoch_fingerprint;
           """
           '''
-          replace_once(old_sql, new_sql, 'live runtime SQL')
+          text = replace_once(text, old_sql, new_sql, 'live runtime SQL')
 
           old_match = '''        if (
                       identities.get("schema") == "laplace.unicode-activation-identities/v1"
@@ -97,14 +98,16 @@ jobs:
                   ):
                       matches.append(generation)
           '''
-          replace_once(old_match, new_match, 'generation match predicate')
+          text = replace_once(text, old_match, new_match, 'generation match predicate')
 
-          replace_once(
+          text = replace_once(
+              text,
               '    active_path: Path = DEFAULT_ACTIVE,\n    live_state: dict[str, str] | None = None,\n',
               '    active_path: Path = DEFAULT_ACTIVE,\n'
               '    release_root: Path = DEFAULT_RELEASE_ROOT,\n'
               '    live_state: dict[str, str] | None = None,\n',
-              'bind signature')
+              'bind signature',
+          )
 
           old_bind = '''    values.extend(["--active", str(matches[0])])
               return values
@@ -134,26 +137,24 @@ jobs:
               values.extend(["--active", str(selected_release)])
               return values
           '''
-          replace_once(old_bind, new_bind, 'active release binding')
+          text = replace_once(text, old_bind, new_bind, 'active release binding')
           guard.write_text(text, encoding='utf-8')
 
           core = Path('tools/admit_source.py')
           core_text = core.read_text(encoding='utf-8')
-          old_geometry = '''                "SELECT pg_catalog.encode(geometry_epoch,'hex') "
-                              "FROM laplace.unicode_root_generation "
-                              "ORDER BY recorded_at DESC LIMIT 1;\\n",
-          '''
-          new_geometry = '''                "SELECT pg_catalog.encode(g.geometry_epoch,'hex') "
-                              "FROM laplace.perfcache_active_control AS a "
-                              "JOIN laplace.unicode_root_generation AS g "
-                              "ON g.activation_epoch_id=a.activation_epoch_id "
-                              "AND g.activation_epoch_fingerprint=a.epoch_fingerprint "
-                              "WHERE a.singleton AND a.active_present;\\n",
-          '''
-          count = core_text.count(old_geometry)
-          if count != 1:
-              raise SystemExit(f'core geometry query: expected 1 anchor, found {count}')
-          core_text = core_text.replace(old_geometry, new_geometry, 1)
+          old_geometry = '''"SELECT pg_catalog.encode(geometry_epoch,'hex') "
+                          "FROM laplace.unicode_root_generation "
+                          "ORDER BY recorded_at DESC LIMIT 1;\\n",'''
+          new_geometry = '''"SELECT pg_catalog.encode(g.geometry_epoch,'hex') "
+                          "FROM laplace.perfcache_active_control AS a "
+                          "JOIN laplace.unicode_root_generation AS g "
+                          "ON g.activation_epoch_id=a.activation_epoch_id "
+                          "AND g.activation_epoch_fingerprint=a.epoch_fingerprint "
+                          "WHERE a.singleton AND a.active_present;\\n",'''
+          core_text = replace_once(
+              core_text, old_geometry, new_geometry, 'core geometry query'
+          )
+
           old_checks = '''        if perfcache_epoch != identities["perfcache_epoch"]:
                       raise AdmissionError("live Unicode perfcache epoch differs from active product receipt")
                   if numeric_epoch != identities["numeric_epoch"]:
@@ -163,37 +164,37 @@ jobs:
                   # generations. They intentionally advance beyond the Unicode activation
                   # request's original framework context after Unicode/Highway activation.
           '''
-          count = core_text.count(old_checks)
-          if count != 1:
-              raise SystemExit(f'core live epoch checks: expected 1 anchor, found {count}')
-          core_text = core_text.replace(old_checks, new_checks, 1)
+          core_text = replace_once(
+              core_text, old_checks, new_checks, 'core live epoch checks'
+          )
           core.write_text(core_text, encoding='utf-8')
 
           tests = Path('tests/source_admission_guard_tests.py')
           test_text = tests.read_text(encoding='utf-8')
-          test_text = test_text.replace(
+          test_text = replace_once(
+              test_text,
               '        self.receipts = self.root / "receipts"\n',
               '        self.receipts = self.root / "receipts"\n'
               '        self.releases = self.root / "releases"\n'
               '        self.releases.mkdir()\n',
-              1,
+              'test release root',
           )
-          test_text = test_text.replace(
+          test_text = replace_once(
+              test_text,
               '                    "perfcache_epoch": self.live["perfcache_epoch"],\n'
               '                    "numeric_epoch": numeric_epoch or self.live["numeric_epoch"],\n',
               '                    "perfcache_epoch": "66" * 32,\n'
               '                    "numeric_epoch": numeric_epoch or "77" * 32,\n',
-              1,
+              'test predecessor epochs',
           )
-          old_return = '''        return generation
-          '''
-          new_return = '''        release = self.releases / package
-                  release.mkdir()
-                  return generation
-          '''
-          if test_text.count(old_return) < 1:
-              raise SystemExit('generation return anchor absent')
-          test_text = test_text.replace(old_return, new_return, 1)
+          test_text = replace_once(
+              test_text,
+              '        return generation\n',
+              '        release = self.releases / package\n'
+              '        release.mkdir()\n'
+              '        return generation\n',
+              'test release creation',
+          )
           test_text = test_text.replace(
               '            self.argv(), active_path=self.active, live_state=self.live\n',
               '            self.argv(), active_path=self.active, release_root=self.releases, live_state=self.live\n',
@@ -205,10 +206,11 @@ jobs:
               '            ["--active", str((self.releases / generation.name).resolve())],\n'
               '        )\n',
           )
-          test_text = test_text.replace(
+          test_text = replace_once(
+              test_text,
               '        self.add_generation("c", "d", numeric_epoch="55" * 32)\n',
               '        self.add_generation("c", "d", geometry_epoch="55" * 32)\n',
-              1,
+              'nonmatching generation test',
           )
           tests.write_text(test_text, encoding='utf-8')
           PY
