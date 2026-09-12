@@ -98,7 +98,28 @@ jobs:
           product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
           physical_release=$(jq -er '.physical_root' "$product_receipt")
           inspect="$physical_release/bin/laplace-inspect"
+          pg_isready="$physical_release/pgsql-18/bin/pg_isready"
           test -x "$inspect"
+          test -x "$pg_isready"
+
+          /usr/bin/sudo -n /usr/bin/systemctl start laplace-refactor-postgresql.service
+          ready=0
+          for _attempt in $(seq 1 30); do
+            if "$pg_isready" \
+              --host /opt/laplace/runtime/postgresql/refactor \
+              --port 55433 \
+              --dbname laplace_refactor \
+              --username laplace_admin >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            /usr/bin/systemctl --no-pager --full status laplace-refactor-postgresql.service || true
+            echo 'persistent Laplace PostgreSQL service did not become ready' >&2
+            exit 1
+          fi
 
           summary="$RUNNER_TEMP/laplace-live-summary.json"
           entities="$RUNNER_TEMP/laplace-live-entities.json"
