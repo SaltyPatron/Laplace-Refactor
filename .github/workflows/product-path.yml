@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: product-path-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   classify:
@@ -39,6 +39,7 @@ jobs:
         run: |
           python3 tests/product_path_tests.py
           python3 tests/product_path_status_tests.py
+          python3 tests/product_path_concurrency_tests.py
       - name: Classify exact changed paths
         id: classify
         shell: bash
