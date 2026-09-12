@@ -25,26 +25,18 @@ jobs:
           from pathlib import Path
           path = Path('engine/src/composition_legacy.inc')
           text = path.read_text(encoding='utf-8')
-          old = """    blake3_hasher_update(
-              &hasher, state.summary.presence_receipt_id.bytes,
-              sizeof(state.summary.presence_receipt_id.bytes));
-          HashU64(hasher, state.summary.novel_entity_count);
-          """
-          new = """    blake3_hasher_update(
-              &hasher, state.summary.presence_receipt_id.bytes,
-              sizeof(state.summary.presence_receipt_id.bytes));
-          #if defined(LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT)
-              for (const auto& execution_receipt : state.frontier_execution_receipts) {
-                  blake3_hasher_update(
-                      &hasher, execution_receipt.plan_fingerprint.bytes,
-                      sizeof(execution_receipt.plan_fingerprint.bytes));
-              }
-          #endif
-              HashU64(hasher, state.summary.novel_entity_count);
-          """
-          if text.count(old) != 1:
-              raise SystemExit(f'insertion point count={text.count(old)}')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          marker = '    HashU64(hasher, state.summary.novel_entity_count);\n'
+          block = '''#if defined(LAPLACE_TEST_COMPOSITION_PHYSICAL_PLAN_IN_SEMANTIC_RECEIPT)
+    for (const auto& execution_receipt : state.frontier_execution_receipts) {
+        blake3_hasher_update(
+            &hasher, execution_receipt.plan_fingerprint.bytes,
+            sizeof(execution_receipt.plan_fingerprint.bytes));
+    }
+#endif
+'''
+          if text.count(marker) != 1:
+              raise SystemExit(f'insertion marker count={text.count(marker)}')
+          path.write_text(text.replace(marker, block + marker, 1), encoding='utf-8')
           PY
           git config user.name laplace-ci
           git config user.email laplace-ci@users.noreply.github.com
