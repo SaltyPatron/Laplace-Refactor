@@ -55,13 +55,99 @@ Not yet justified as direct causal lineage:
 
 Those require explicit bridging evidence.
 
-## 2. CIEDigital — June 2016
+## 2. Shape2Sql — February 2016
+
+**Classification:** IMPLEMENTATION EVIDENCE.
+
+Repository created `2016-02-28T11:35:28Z`, before Hartstone and CIEDigital. The repository description states that the console application creates a batch file for processing **multiple shape files into Microsoft SQL Server**.
+
+This matters to chronology because spatial/database processing was not a late GISParser-only interest. A distinct shapefile-to-database automation stage already existed in February 2016.
+
+Supported recurring-practice evidence:
+
+- automate repeated external-file processing rather than handle each source manually;
+- bridge formal spatial file structures into relational storage;
+- treat source-estate processing as a repeatable pipeline.
+
+Not established from metadata alone:
+
+- generic/reflection details inside Shape2Sql;
+- exact geometry semantics;
+- any direct causal connection to modern GeometryZM.
+
+Those require source/commit inspection.
+
+## 3. Hartstone — March 2016
+
+**Classification:** IMPLEMENTATION EVIDENCE. Board/game-state ancestry is now code-evidenced rather than an inferred side note.
+
+### Dated evidence
+
+Repository `AHartTN/Hartstone` created `2016-03-02T08:24:22Z`; repository description is `Technical assessment for Blizzard`.
+
+### Explicit game/world state
+
+`HartStone/Classes/Game.cs` carries state such as:
+
+- `IsRunning`;
+- `CurrentTurn` / `MaxTurns`;
+- the participating `Players`;
+- `PlayerOne` / `PlayerTwo`;
+- `Winner`;
+- per-player hands and decks;
+- health, mana and fatigue mutated during play.
+
+The class implements explicit phases/transitions:
+
+```text
+Setup
+ -> InitialDraws / mulligan state
+ -> ProcessTurn
+ -> TakeTurn(player, opponent, hand, deck)
+ -> legal-action selection
+ -> PlayCard
+ -> state mutation / damage / draw / heal / death
+ -> winner / stop condition
+```
+
+`TakeAction` computes legal card choices from current hand and available mana before permitting execution; the game checks terminal conditions such as death/max turns and records a winner.
+
+`IPlayer.cs` separately abstracts the player-facing contract (`CurrentClass`, `CurrentDeck`, `Name`).
+
+### What this establishes
+
+It establishes that **explicit persistent game state, actors, turn progression, legal action filtering, action execution and consequences** were implemented before the 2025 D&D/Hartonomous research and before CIEDigital.
+
+This is useful ancestry for understanding why later game/world systems repeatedly separate state, actor, operation and consequence.
+
+### What it does not establish
+
+Do not overclaim:
+
+- Hartstone is not proof of modern OODA;
+- it does not contain the modern Laplace ISA;
+- a turn loop is not automatically a cognition loop;
+- `IPlayer` is not evidence that all later provider interfaces directly descend from it.
+
+Those are possible recurring-practice/lineage questions, not facts established by this source.
+
+## 4. TMS — May 2016
+
+**Classification:** IMPLEMENTATION EVIDENCE; relevance still under review.
+
+Repository `AHartTN/TMS` was created `2016-05-07T22:22:27Z`, before CIEDigital. The current tree contains a substantial ASP.NET application with administration areas, attributes, configuration and other shared application infrastructure.
+
+No stronger Laplace-lineage claim is made yet. It is recorded because a chronology that jumps from Hartstone directly to CIEDigital without reviewing contemporaneous framework/application work would repeat the same convenient-example failure.
+
+## 5. CIEDigital — June 2016
 
 **Classification:** IMPLEMENTATION EVIDENCE. It is **not** the beginning of the generic/reuse lineage and is **not** UX authority for Laplace.
 
 ### Dated evidence
 
 Repository created `2016-06-19T21:03:30Z`. Repository description states it was a technical assessment for CIE Digital written while the Hartstone technical assessment for Blizzard was being written.
+
+That description is itself useful chronology: CIEDigital and Hartstone are explicitly related in work context, but Hartstone's repository predates CIEDigital by more than three months.
 
 ### Reusable mechanisms
 
@@ -92,7 +178,25 @@ central reusable mechanics
 
 The UX lesson is **not** “copy the old MVC screens.” The engineering lesson is that common mechanics should be implemented once and specialized behavior kept thin.
 
-## 3. GISParser — December 2016
+## 6. Shp2Sql — June 2016
+
+**Classification:** IMPLEMENTATION EVIDENCE.
+
+Repository created `2016-06-19T22:22:17Z`. Its description states that it is a C# interpretation of **manually parsing raw `.shp` files and inserting them into a database**.
+
+Together with Shape2Sql, this shows two distinct 2016 spatial-ingestion approaches before GISParser:
+
+```text
+Shape2Sql
+  automate multi-file processing into SQL
+
+Shp2Sql
+  manually interpret raw shapefile structure in C# and deposit to DB
+```
+
+This is relevant to source/format decomposition and spatial-data history. It still does not authorize projecting modern GeometryZM meaning back into these projects.
+
+## 7. GISParser — December 2016
 
 **Classification:** IMPLEMENTATION EVIDENCE.
 
@@ -118,7 +222,7 @@ The method:
 - creates a `DataTable` schema dynamically;
 - projects arbitrary typed entities into rows.
 
-This is a second, independent 2016 example of **inspect the type/structure and let reusable machinery adapt** rather than hard-code every record shape.
+This is another independent example of **inspect the type/structure and let reusable machinery adapt** rather than hard-code every record shape.
 
 ### Bulk/set-oriented evidence
 
@@ -126,22 +230,25 @@ The repository's stated motivation is also relevant to later Laplace execution e
 
 This is not proof that modern vector/set execution directly descends from GISParser, but it is strong evidence that bulk/set-oriented thinking predates Hartonomous by many years.
 
-## 4. GISSchemaGenerator and adjacent spatial/schema tooling
+## 8. GISSchemaGenerator — December 2016 repository, later revisions
 
-**Classification:** IMPLEMENTATION EVIDENCE. Deep chronology still pending.
+**Classification:** IMPLEMENTATION EVIDENCE. Date provenance matters because the default-branch source contains later edits.
 
-Located `GISSchemaGenerator` code shows a pipeline that:
+Repository created `2016-12-04T00:03:24Z`, one day after GISParser. Current code walks directories/zip archives, reads DBF fields, accumulates table/column definitions, resolves data types, detects geometry presence and generates class/schema artifacts.
 
-- walks directories and zip archives;
-- reads DBF fields;
-- accumulates table/column definitions;
-- resolves data types;
-- detects geometry presence;
-- generates class/schema artifacts from discovered source structure.
+However, the repository was pushed/updated years later as well. Therefore the current code must not be described as entirely December-2016 behavior without commit/file-specific dates.
 
-This combines spatial source handling with schema discovery and generation. It must be researched alongside GISParser, Census-Data-Parser, Shape2Sql/Shp2Sql and other AHartTN spatial/database repositories before any claim is made about the origin of later geometry/schema ideas.
+This combines spatial source handling with schema discovery/generation and remains important ancestry evidence after date separation.
 
-## 5. D&D / TTRPG autonomous-system research — July/August 2025
+## 9. SQL_Scripts — repository created 2017, contents described as older accumulated work
+
+**Classification:** IMPLEMENTATION EVIDENCE with ambiguous artifact-age semantics.
+
+Repository created `2017-10-08T00:03:02Z`. Its description says it contains “various SQL scripts I have written over the years.” Therefore repository creation is **not** a trustworthy first-authorship date for every script inside.
+
+This repo must be dated at file/commit level before using it to establish pre-2017 chronology.
+
+## 10. D&D / TTRPG autonomous-system research — July/August 2025
 
 **Classification:** HISTORICAL INVENTOR EVIDENCE. Some implementation choices are historical/superseded; mechanism ancestry is still being mapped.
 
@@ -200,11 +307,29 @@ The TTRPG corpus repeatedly treats the game as persistent state that changes bec
 
 Modern Laplace's world/effect/occurrence/receipt architecture may have conceptual continuity with these concerns, but the exact causal mapping is currently **SYNTHESIS**, not direct law.
 
+### Relation to the much older Hartstone evidence
+
+The 2025 D&D research is not the first game-state work in the located estate. Hartstone in 2016 already implements explicit turn/player/action/consequence state. The D&D corpus is materially more ambitious: persistent social/world state, formal primitive operation contracts, composite tasks, autonomous control strategies and self-improvement.
+
+This gives the chronology a more defensible progression without claiming a single straight causal chain:
+
+```text
+2016 Hartstone
+  explicit board/card-game state + legal actions + consequences
+
+2025 D&D/TTRPG research
+  persistent living worlds + formal primitive/composite operations
+  + adjudication + multi-scale decision/control + self-building
+
+2025+ Hartonomous
+  general autonomous software/knowledge architecture
+```
+
 ### Superseded implementation ideas
 
 The historical D&D material often uses conventional LLM agents, Neo4j/vector stores or other then-current architecture. Those choices are historical evidence, not modern Laplace authority.
 
-## 6. Early Hartonomous transition — August 2025 onward
+## 11. Early Hartonomous transition — August 2025 onward
 
 **Classification:** HISTORICAL INVENTOR EVIDENCE; many concrete stack choices later superseded.
 
@@ -231,26 +356,50 @@ The importance for reconstruction is not to preserve that stack. It is to trace 
 - schema/data ownership;
 - source/world integration.
 
-## 7. Current synthesis — recurring practice before Laplace
+## 12. Current synthesis — recurring practice before Laplace
 
 The evidence already supports one bounded synthesis:
 
-> Long before Laplace, the engineering record repeatedly favors making shared mechanics generic, typed, metadata/schema-driven and reusable, while retaining domain-specific structure outside those mechanics. It also repeatedly favors bulk/set processing over tedious record-at-a-time execution and explicit state/operations/control in game/autonomous-system work.
+> Long before Laplace, the engineering record repeatedly favors making shared mechanics generic, typed, metadata/schema-driven and reusable; automating repeated source-estate work; preserving explicit domain/world state; and using bulk/set processing rather than tedious record-at-a-time execution where possible.
+
+The chronology now supports this with multiple distinct examples rather than one convenient repository:
+
+```text
+2015/Jan-2016 Census
+  metadata/schema-driven generic ETL + generated bindings
+
+Feb-Jun 2016 Shape2Sql/Shp2Sql
+  automated/manual spatial format -> database processing
+
+Mar 2016 Hartstone
+  explicit game state, players, turns, legal actions, consequences
+
+Jun 2016 CIEDigital
+  reusable generic application/query machinery + sports domain model
+
+Dec 2016 GISParser/GISSchemaGenerator
+  bulk spatial estate processing + reflection/schema generation
+
+Jul-Aug 2025 D&D
+  persistent living worlds + primitive/composite operations + control loops
+```
 
 This is **not yet** equivalent to:
 
-> “Laplace directly derives from Census/GIS/D&D code.”
+> “Laplace directly derives from Census/GIS/Hartstone/D&D code.”
 
 That stronger statement requires explicit bridging evidence and will not be asserted merely because the design tendencies rhyme.
 
-## 8. Required next ancestry research
+## 13. Required next ancestry research
 
 P0 backlog:
 
-1. enumerate older AHartTN repositories preceding Dec 2015 and inspect relevant code rather than assuming Census-Data-Parser is the beginning;
-2. date and inspect Hartstone and other board/game repositories;
-3. date GISSchemaGenerator, Shape2Sql/Shp2Sql, SQL_Scripts and spatial tooling;
-4. reconstruct D&D document/revision ordering, not just file creation dates;
-5. map D&D operation/composite/orchestration/control/self-improvement vocabulary into later Hartonomous documents with explicit first-appearance dates;
-6. trace Sep–Dec 2025 Hartonomous transition from agent-factory architecture toward universal knowledge/substrate architecture;
-7. only then map 2026 Hartonomous repository mechanisms to original Laplace and current Refactor.
+1. enumerate older AHartTN repositories preceding/overlapping Dec 2015 and inspect source/commit dates rather than assuming Census-Data-Parser is the beginning;
+2. inspect Hartstone commit history/technical-assessment material and separate implementation convenience from reusable game-state principles;
+3. inspect Shape2Sql/Shp2Sql/GISParser/GISSchemaGenerator commit history and source evolution rather than relying on repository dates;
+4. review TMS and other 2016 generic/application-framework repositories for relevant reusable mechanisms without promoting unrelated work;
+5. date file-level SQL_Scripts content because the repository explicitly aggregates scripts written “over the years”;
+6. reconstruct D&D document/revision ordering, not just file creation dates;
+7. map D&D operation/composite/orchestration/control/self-improvement vocabulary into later Hartonomous documents with explicit first-appearance dates;
+8. trace Sep–Dec 2025 Hartonomous transition from agent-factory architecture toward universal knowledge/substrate architecture;
+9. only then map 2026 Hartonomous repository mechanisms to original Laplace and current Refactor.
