@@ -118,9 +118,6 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_surface_service.py"
     RENAME laplace-cognition-service)
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_service.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
-    RENAME laplace-openai-api-core)
-install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_compat.py"
-    DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-openai-api)
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/laplace_inspect.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
@@ -155,12 +152,6 @@ if(BUILD_TESTING)
             "${CMAKE_CURRENT_SOURCE_DIR}/admit_source_guard.py")
     set_tests_properties(product.source-admission-estate-boundary PROPERTIES
         LABELS "product;source-admission;authority;security;mutation")
-    add_test(
-        NAME product.openai-chat-history
-        COMMAND "${Python3_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/openai_chat_compat_tests.py")
-    set_tests_properties(product.openai-chat-history PROPERTIES
-        LABELS "product;openai;chat;conversation;compatibility")
 endif()
 
 add_executable(laplace_unicode_artifact_verify unicode_artifact_verify.cpp)
