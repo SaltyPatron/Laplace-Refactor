@@ -6,6 +6,15 @@
   <meta name="color-scheme" content="dark light">
   <title>Laplace</title>
   <link rel="stylesheet" href="/styles.css">
+  <style>
+    .product-shell .workspace-nav{gap:8px}.world-search{margin:0 0 18px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+    .world-search-row{display:grid;grid-template-columns:minmax(240px,1fr) auto;gap:10px;align-items:end}.world-search-label{grid-column:1/-1}.world-search-note{margin:10px 0 0;font-size:.76rem;line-height:1.45}
+    .world-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin:0 0 16px}.metric-card{padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}.metric-card span{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em}.metric-card strong{display:block;margin-top:5px;font-size:1.35rem;font-variant-numeric:tabular-nums}
+    .facet-bar{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 10px}.facet-button{border:1px solid var(--line);border-radius:999px;padding:7px 12px;background:var(--panel);color:var(--muted)}.facet-button:hover,.facet-button:focus-visible{color:var(--text);border-color:#4d607a;outline:none}.facet-button.active{color:var(--accent-strong);border-color:#446d9e;background:#132944}
+    .entity-world{margin-top:18px}.entity-world h3{overflow-wrap:anywhere}.entity-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:16px 0}.entity-summary>div{min-width:0;padding:11px;border:1px solid rgba(54,80,111,.7);border-radius:8px;background:#0c121a}.entity-summary dt{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.07em}.entity-summary dd{margin:5px 0 0;overflow-wrap:anywhere}.entity-summary code{font-size:.72rem}.entity-facets{display:grid;gap:16px}.entity-facet{min-width:0}.entity-facet h4{margin:0 0 8px;color:#c8d5e5;font-size:.85rem}
+    .operator-section{margin:0 0 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}.operator-section>summary{padding:14px 16px;cursor:pointer;font-weight:650;color:var(--text);background:#111923}.operator-section[open]>summary{border-bottom:1px solid var(--line)}.operator-body{padding:16px}.operator-body>.card:first-of-type{margin-top:10px}
+    @media(max-width:700px){.world-search-row{grid-template-columns:1fr}.world-search-row .primary-button{width:100%}.facet-bar{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.facet-button{flex:0 0 auto}}
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#workspace">Skip to workspace</a>
