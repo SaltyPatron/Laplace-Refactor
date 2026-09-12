@@ -83,6 +83,7 @@ laplace_composition_presence_provider_v1 AllNovelPresenceProvider() {
 
 struct ScenarioResult final {
     laplace_composition_frontier_execution_plan preflight{};
+    laplace_composition_frontier_execution_postflight postflight{};
     laplace_composition_working_set_summary summary{};
     laplace_composition_presence_receipt presence{};
     std::vector<laplace_composition_result> results;
@@ -163,6 +164,11 @@ ScenarioResult Scenario(
         return result;
     }
 
+    EXPECT_EQ(
+        laplace_composition_working_set_frontier_execution_postflight_get(
+            working_set, &result.postflight),
+        LAPLACE_COMPOSITION_OK);
+
     const auto presence_provider = AllNovelPresenceProvider();
     EXPECT_EQ(
         laplace_composition_working_set_resolve_presence(
@@ -213,6 +219,49 @@ std::uint64_t CompletedChunks(
         result += receipt.completed_chunks;
     }
     return result;
+}
+
+void ExpectPostflightMatchesPreflight(const ScenarioResult& result) {
+    EXPECT_TRUE(SameDigest(
+        result.preflight.plan_fingerprint,
+        result.postflight.plan_fingerprint));
+    EXPECT_EQ(result.postflight.request_count, result.preflight.request_count);
+    EXPECT_EQ(result.postflight.frontier_count, result.preflight.frontier_count);
+    EXPECT_EQ(result.postflight.dependency_depth, result.preflight.dependency_depth);
+    EXPECT_EQ(
+        result.postflight.minimum_frontier_width,
+        result.preflight.minimum_frontier_width);
+    EXPECT_EQ(
+        result.postflight.maximum_frontier_width,
+        result.preflight.maximum_frontier_width);
+    EXPECT_EQ(result.postflight.completed_items, RequestCount);
+    EXPECT_EQ(
+        result.postflight.completed_chunks,
+        result.preflight.total_planned_chunks);
+    EXPECT_EQ(
+        result.postflight.completed_items,
+        CompletedItems(result.receipts));
+    EXPECT_EQ(
+        result.postflight.completed_chunks,
+        CompletedChunks(result.receipts));
+    EXPECT_EQ(
+        result.postflight.minimum_outer_workers,
+        result.preflight.minimum_outer_workers);
+    EXPECT_EQ(
+        result.postflight.maximum_outer_workers,
+        result.preflight.maximum_outer_workers);
+    EXPECT_EQ(result.postflight.grant_cpu_slots, result.preflight.grant_cpu_slots);
+    EXPECT_EQ(
+        result.postflight.version,
+        LAPLACE_COMPOSITION_FRONTIER_EXECUTION_POSTFLIGHT_VERSION);
+    EXPECT_EQ(result.postflight.status, LAPLACE_COMPOSITION_OK);
+    EXPECT_LE(result.postflight.parallel_efficiency_ppm, 1000000U);
+    EXPECT_LE(
+        result.postflight.idle_wait_capacity_ns,
+        result.postflight.worker_capacity_ns);
+    EXPECT_GE(
+        result.postflight.worker_capacity_ns,
+        result.postflight.wall_time_ns);
 }
 
 laplace_execution_status ReversePrepare(
@@ -311,6 +360,10 @@ TEST(
         result.receipts[0].plan.outer_workers,
         result.preflight.maximum_outer_workers);
     EXPECT_EQ(result.receipts[0].status, LAPLACE_EXECUTION_OK);
+    EXPECT_EQ(result.postflight.total_frontier_width, RequestCount);
+    EXPECT_EQ(result.postflight.minimum_frontier_width, RequestCount);
+    EXPECT_EQ(result.postflight.maximum_frontier_width, RequestCount);
+    ExpectPostflightMatchesPreflight(result);
 }
 
 TEST(
@@ -331,6 +384,12 @@ TEST(
         EXPECT_EQ(receipt.plan.outer_workers, 1U);
         EXPECT_EQ(receipt.status, LAPLACE_EXECUTION_OK);
     }
+    EXPECT_EQ(result.postflight.total_frontier_width, RequestCount);
+    EXPECT_EQ(result.postflight.minimum_frontier_width, 1U);
+    EXPECT_EQ(result.postflight.maximum_frontier_width, 1U);
+    EXPECT_EQ(result.postflight.minimum_outer_workers, 1U);
+    EXPECT_EQ(result.postflight.maximum_outer_workers, 1U);
+    ExpectPostflightMatchesPreflight(result);
 }
 
 TEST(
@@ -344,6 +403,12 @@ TEST(
     EXPECT_GT(
         wide.summary.estimated_peak_working_bytes,
         deep.summary.estimated_peak_working_bytes);
+    EXPECT_GT(
+        wide.postflight.maximum_outer_workers,
+        deep.postflight.maximum_outer_workers);
+    EXPECT_GT(
+        wide.postflight.total_frontier_width / wide.postflight.frontier_count,
+        deep.postflight.total_frontier_width / deep.postflight.frontier_count);
 }
 
 TEST(
@@ -357,6 +422,8 @@ TEST(
     EXPECT_NE(wide.receipts.size(), deep.receipts.size());
     EXPECT_EQ(wide.summary.semantic_calculation_count, RequestCount);
     EXPECT_EQ(deep.summary.semantic_calculation_count, RequestCount);
+    ExpectPostflightMatchesPreflight(wide);
+    ExpectPostflightMatchesPreflight(deep);
 }
 
 TEST(
@@ -377,6 +444,7 @@ TEST(
         explicit_serial.receipts[0].provider_fingerprint,
         serial_provider.provider_fingerprint));
     EXPECT_EQ(explicit_serial.receipts[0].completed_items, RequestCount);
+    ExpectPostflightMatchesPreflight(explicit_serial);
 }
 
 TEST(
@@ -397,6 +465,7 @@ TEST(
         reversed.receipts[0].completed_chunks,
         reversed.receipts[0].plan.chunk_count);
     EXPECT_EQ(reversed.receipts[0].completed_items, RequestCount);
+    ExpectPostflightMatchesPreflight(reversed);
 }
 
 TEST(
@@ -405,12 +474,14 @@ TEST(
     const auto scalar = Scenario(false, 1U);
     ASSERT_EQ(scalar.preflight.maximum_outer_workers, 1U);
     ASSERT_EQ(scalar.preflight.total_planned_chunks, 1U);
+    ExpectPostflightMatchesPreflight(scalar);
 
     for (const std::uint32_t slots : {2U, 3U, 4U}) {
         const auto parallel = Scenario(false, slots);
         EXPECT_EQ(parallel.preflight.maximum_outer_workers, slots);
         EXPECT_GT(parallel.preflight.total_planned_chunks, 1U);
         ExpectSameSemanticWorkingSet(scalar, parallel);
+        ExpectPostflightMatchesPreflight(parallel);
     }
 }
 
@@ -425,4 +496,16 @@ TEST(
             nullptr, nullptr, &working_set),
         LAPLACE_COMPOSITION_INVALID_ARGUMENT);
     EXPECT_EQ(working_set, nullptr);
+}
+
+TEST(
+    CompositionFrontierRuntime,
+    MissingWorkingSetHasNoPhysicalPostflight) {
+    laplace_composition_frontier_execution_postflight postflight{};
+    EXPECT_EQ(
+        laplace_composition_working_set_frontier_execution_postflight_get(
+            nullptr, &postflight),
+        LAPLACE_COMPOSITION_INVALID_ARGUMENT);
+    EXPECT_EQ(postflight.version, 0U);
+    EXPECT_EQ(postflight.status, 0U);
 }
