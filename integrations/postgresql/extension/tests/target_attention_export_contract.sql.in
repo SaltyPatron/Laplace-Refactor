@@ -45,16 +45,12 @@ SELECT (laplace.target_attention_export(
 
 DO $verify_export$
 DECLARE
-    result laplace.target_attention_export_result;
-    projected laplace.target_attention_compile_result;
+    result record;
+    projected record;
     header text;
 BEGIN
-    SELECT ROW(t.*)::laplace.target_attention_export_result
-      INTO result
-      FROM first_export t;
-    SELECT ROW(t.*)::laplace.target_attention_compile_result
-      INTO projected
-      FROM first_projection t;
+    SELECT * INTO result FROM first_export;
+    SELECT * INTO projected FROM first_projection;
 
     IF result.compile_status <> 0 OR result.projection_status <> 0 OR
        result.codec_status <> 0 THEN
@@ -176,13 +172,11 @@ SELECT (laplace.target_attention_export_scoped(
 
 DO $verify_scoped_export$
 DECLARE
-    result laplace.target_attention_scoped_export_result;
+    result record;
     expected record;
     header text;
 BEGIN
-    SELECT ROW(t.*)::laplace.target_attention_scoped_export_result
-      INTO result
-      FROM first_scoped_export t;
+    SELECT * INTO result FROM first_scoped_export;
     SELECT * INTO expected FROM target_attention_oracle;
 
     IF result.scope_status <> 0 OR result.compile_status <> 0 OR
