@@ -64,8 +64,8 @@ jobs:
             .turn_1.execution.status == 0 and
             .corrupted_predecessor.expected_status_nonzero == true and
             .corrupted_predecessor.execution.status != 0 and
-            (.turn_0.execution.next_checkpoint_fingerprint | test("^\\\\x[0-9a-f]{64}$")) and
-            (.turn_1.execution.next_checkpoint_fingerprint | test("^\\\\x[0-9a-f]{64}$")) and
+            (.turn_0.execution.next_checkpoint_fingerprint | test("^\\x[0-9a-f]{64}$")) and
+            (.turn_1.execution.next_checkpoint_fingerprint | test("^\\x[0-9a-f]{64}$")) and
             .turn_0.execution.next_checkpoint_fingerprint != .turn_1.execution.next_checkpoint_fingerprint and
             (.proof_sha256 | test("^[0-9a-f]{64}$"))
           ' "$proof" >/dev/null
@@ -96,6 +96,8 @@ jobs:
             .cognition.turn_1.ordinal == 1 and
             .cognition.turn_1.continued == true and
             .cognition.turn_0.checkpoint != .cognition.turn_1.checkpoint and
+            .openai_chat.message_count == 4 and
+            .openai_chat.roles == ["system","user","assistant","user"] and
             .openai_chat.object == "chat.completion" and
             .openai_chat.model == "laplace-native" and
             (.openai_chat.assistant_content | type == "string") and
