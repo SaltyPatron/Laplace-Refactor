@@ -72,24 +72,31 @@ jobs:
           require_equal "$GITHUB_SHA" '${{ inputs.expected_sha }}' repository-sha
 
           bootstrap=/opt/laplace/receipts/bootstrap/host.json
-          if [[ ! -r "$bootstrap" ]]; then
-            ownership=$(stat -c '%U:%G' "$bootstrap" 2>/dev/null || printf '<missing>')
-            mode=$(stat -c '%a' "$bootstrap" 2>/dev/null || printf '<missing>')
-            fail "$bootstrap is not readable by $(id -un) (owner=$ownership mode=$mode)"
-          fi
-          [[ ! -L "$bootstrap" ]] || fail "$bootstrap is a symlink"
-          if ! jq -e '
-            .schema == "laplace.host-bootstrap/v1" and
-            .phase == "host-prerequisites-ready" and
-            .service_identity.user == "laplace-runner" and
-            .service_identity.group == "laplace-runner" and
-            .product_activated == false and
-            .postgresql_initialized == false and
-            .activation_gateway_installed == false
-          ' "$bootstrap" >/dev/null; then
-            jq '{schema,phase,service_identity,product_activated,postgresql_initialized,activation_gateway_installed}' \
-              "$bootstrap" >&2 || true
-            fail "$bootstrap does not describe the required prerequisites-only host envelope"
+          bootstrap_directory=$(dirname "$bootstrap")
+          bootstrap_missing=false
+          if [[ -L "$bootstrap" ]]; then
+            fail "$bootstrap is a symlink"
+          elif [[ -e "$bootstrap" ]]; then
+            if [[ ! -r "$bootstrap" ]]; then
+              ownership=$(stat -c '%U:%G' "$bootstrap" 2>/dev/null || printf '<unavailable>')
+              mode=$(stat -c '%a' "$bootstrap" 2>/dev/null || printf '<unavailable>')
+              fail "$bootstrap is not readable by $(id -un) (owner=$ownership mode=$mode)"
+            fi
+            if ! jq -e '
+              .schema == "laplace.host-bootstrap/v1" and
+              .phase == "host-prerequisites-ready" and
+              .service_identity.user == "laplace-runner" and
+              .service_identity.group == "laplace-runner" and
+              .product_activated == false and
+              .postgresql_initialized == false and
+              .activation_gateway_installed == false
+            ' "$bootstrap" >/dev/null; then
+              jq '{schema,phase,service_identity,product_activated,postgresql_initialized,activation_gateway_installed}' \
+                "$bootstrap" >&2 || true
+              fail "$bootstrap does not describe the required prerequisites-only host envelope"
+            fi
+          else
+            bootstrap_missing=true
           fi
 
           release_root=/opt/laplace/releases
@@ -105,6 +112,7 @@ jobs:
             "$release_root" \
             /opt/laplace/runtime \
             /opt/laplace/pgdata/refactor \
+            /opt/laplace/receipts \
             /var/lib/pgwal \
             /pgtemp \
             /var/log/laplace/postgresql \
@@ -112,6 +120,97 @@ jobs:
             require_writable_directory "$path"
           done
 
+          if [[ ! -e "$bootstrap_directory" && ! -L "$bootstrap_directory" ]]; then
+            install -d -m 0750 "$bootstrap_directory"
+          fi
+          require_writable_directory "$bootstrap_directory"
+
+          if [[ "$bootstrap_missing" == true ]]; then
+            service_name=laplace-refactor-postgresql.service
+            service=/etc/systemd/system/$service_name
+            service_source=packaging/systemd/$service_name
+            sudo_policy=/etc/sudoers.d/laplace-refactor-postgresql-service
+            systemctl_bin=$(command -v systemctl)
+            sudo_bin=$(command -v sudo)
+
+            [[ -f "$service" && ! -L "$service" ]] ||
+              fail "$service is absent, a symlink, or not a regular file"
+            require_equal "$(stat -c '%U:%G' "$service")" root:root service-owner
+            require_equal "$(stat -c '%a' "$service")" 644 service-mode
+            cmp -s "$service_source" "$service" ||
+              fail "$service differs from the repository static service envelope"
+            "$systemctl_bin" is-enabled --quiet "$service_name" ||
+              fail "$service_name is not enabled"
+
+            [[ -f "$sudo_policy" && ! -L "$sudo_policy" ]] ||
+              fail "$sudo_policy is absent, a symlink, or not a regular file"
+            require_equal "$(stat -c '%U:%G' "$sudo_policy")" root:root sudo-policy-owner
+            require_equal "$(stat -c '%a' "$sudo_policy")" 440 sudo-policy-mode
+
+            expected_policy=$(printf '%s\n' \
+              "laplace-runner ALL=(root) NOPASSWD: $systemctl_bin start $service_name" \
+              "laplace-runner ALL=(root) NOPASSWD: $systemctl_bin stop $service_name" \
+              "laplace-runner ALL=(root) NOPASSWD: $systemctl_bin restart $service_name")
+            expected_policy_bytes=$(printf '%s\n' "$expected_policy" | wc -c | tr -d ' ')
+            require_equal "$(stat -c '%s' "$sudo_policy")" "$expected_policy_bytes" sudo-policy-size
+            for action in start stop restart; do
+              "$sudo_bin" -n -l "$systemctl_bin" "$action" "$service_name" >/dev/null ||
+                fail "laplace-runner lacks declared sudo authority for systemctl $action $service_name"
+            done
+
+            service_sha=$(sha256sum "$service" | awk '{print $1}')
+            expected_policy_sha=$(printf '%s\n' "$expected_policy" | sha256sum | awk '{print $1}')
+            runner_uid=$(id -u)
+            runner_gid=$(id -g)
+            temporary=$(mktemp "$bootstrap_directory/.host.json.XXXXXX")
+            trap 'rm -f "$temporary"' EXIT
+            cat > "$temporary" <<EOF
+          {
+            "schema": "laplace.host-bootstrap/v1",
+            "phase": "host-prerequisites-ready",
+            "service_identity": {
+              "user": "laplace-runner",
+              "group": "laplace-runner",
+              "uid": $runner_uid,
+              "gid": $runner_gid
+            },
+            "service_envelope": {
+              "path": "$service",
+              "sha256": "$service_sha",
+              "enabled": true,
+              "started_by_bootstrap": false
+            },
+            "sudo_policy": {
+              "path": "$sudo_policy",
+              "expected_sha256": "$expected_policy_sha",
+              "verification": "metadata-size-and-sudo-list",
+              "service": "$service_name",
+              "systemctl": "$systemctl_bin",
+              "allowed_actions": ["start", "stop", "restart"]
+            },
+            "product_activated": false,
+            "postgresql_initialized": false,
+            "activation_gateway_installed": false,
+            "recovered_from_live_envelope": true,
+            "recovered_repository_commit": "$GITHUB_SHA"
+          }
+          EOF
+            python3 -m json.tool "$temporary" >/dev/null
+            chmod 0640 "$temporary"
+            mv -f "$temporary" "$bootstrap"
+            trap - EXIT
+            echo "Recovered missing bootstrap receipt from the verified live host envelope: $bootstrap"
+          fi
+
+          jq -e '
+            .schema == "laplace.host-bootstrap/v1" and
+            .phase == "host-prerequisites-ready" and
+            .service_identity.user == "laplace-runner" and
+            .service_identity.group == "laplace-runner" and
+            .product_activated == false and
+            .postgresql_initialized == false and
+            .activation_gateway_installed == false
+          ' "$bootstrap" >/dev/null
           echo 'Laplace runner-owned host prerequisites verified.'
 
   compose-product:
