@@ -18,8 +18,8 @@ class OpenAIChatCompatibilityTests(unittest.TestCase):
         sys.modules[spec.name] = cls.module
         spec.loader.exec_module(cls.module)
 
-    def payload(self, messages: list[dict[str, str]]) -> dict[str, object]:
-        return {"model": "laplace-native", "messages": messages}
+    def payload(self, messages: list[dict[str, str]], **extra: object) -> dict[str, object]:
+        return {"model": "laplace-native", "messages": messages, **extra}
 
     def test_accepts_multi_message_conversation(self) -> None:
         prompt = self.module.normalize_chat_payload(self.payload([
@@ -32,6 +32,18 @@ class OpenAIChatCompatibilityTests(unittest.TestCase):
         self.assertIn("<USER>\nWrite a Python function.", prompt)
         self.assertIn("<ASSISTANT>\ndef f():", prompt)
         self.assertTrue(prompt.endswith("<ASSISTANT>\n"))
+
+    def test_accepts_streaming_profile(self) -> None:
+        prompt = self.module.normalize_chat_payload(
+            self.payload([{"role": "user", "content": "stream this"}], stream=True)
+        )
+        self.assertIn("<USER>\nstream this", prompt)
+
+    def test_rejects_non_boolean_stream(self) -> None:
+        with self.assertRaises(self.module.ChatProfileError):
+            self.module.normalize_chat_payload(
+                self.payload([{"role": "user", "content": "hello"}], stream="true")
+            )
 
     def test_requires_at_least_one_user_message(self) -> None:
         with self.assertRaises(self.module.ChatProfileError):
