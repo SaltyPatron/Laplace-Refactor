@@ -111,10 +111,15 @@ def load_activation_state(receipt_root: Path, package_id: str) -> dict[str, Any]
 
 
 def compile_profile(
-    executable: Path, profile: str, source_root: Path, unicode_root: Path
+    executable: Path,
+    profile: str,
+    source_root: Path,
+    unicode_root: Path,
+    geometry_epoch: str,
 ) -> dict[str, str]:
     if profile not in PROFILE_NAMES:
         raise AdmissionError(f"unsupported source profile: {profile}")
+    geometry_epoch = require_hex(geometry_epoch, "live Unicode geometry epoch")
     try:
         source_root = source_root.resolve(strict=True)
         unicode_root = unicode_root.resolve(strict=True)
@@ -126,7 +131,13 @@ def compile_profile(
         raise AdmissionError(f"installed source-profile compiler is unavailable: {executable}")
     try:
         result = subprocess.run(
-            [str(executable), profile, str(source_root), str(unicode_root)],
+            [
+                str(executable),
+                profile,
+                str(source_root),
+                str(unicode_root),
+                geometry_epoch,
+            ],
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -153,6 +164,7 @@ def compile_profile(
     if (
         values.get("SCHEMA") != "laplace.source-profile-compile/v1"
         or values.get("PROFILE") != profile
+        or values.get("GEOMETRY_EPOCH") != geometry_epoch
     ):
         raise AdmissionError("native source-profile compiler output has the wrong identity")
     return values
@@ -300,6 +312,7 @@ def render_sql(values: dict[str, str], identities: dict[str, Any], source_root: 
         artifact_sql(values, index, source_root) for index in range(artifacts)
     ) + "]::laplace.tabular_source_artifact[]"
     occurrence = hex_value(values, "OCCURRENCE_CONTEXT_FINGERPRINT", 64)
+    geometry_epoch = hex_value(values, "GEOMETRY_EPOCH", 64)
     batch = number(values, "PREFERRED_BATCH_BYTES")
     return f"""BEGIN;
 SET LOCAL statement_timeout = '15min';
@@ -307,7 +320,7 @@ WITH admitted AS MATERIALIZED (
   SELECT (laplace.source_admit_tabular(
     {context_sql(identities)},
     {profile_sql(values)},
-    (SELECT geometry_epoch FROM laplace.unicode_root_generation ORDER BY recorded_at DESC LIMIT 1),
+    {bytea(geometry_epoch)},
     {bytea(occurrence)},
     {artifact_array},
     {reference_rules_sql(values)},
@@ -338,6 +351,28 @@ def psql_command(tool_release: Path, args: argparse.Namespace) -> list[str]:
         "--username", args.role, "--dbname", args.database, "--no-psqlrc",
         "--set", "ON_ERROR_STOP=1", "--quiet", "--tuples-only", "--no-align",
     ]
+
+
+def run_scalar(command: list[str], sql: str, operation: str) -> str:
+    try:
+        result = subprocess.run(
+            command,
+            input=sql,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise AdmissionError(f"{operation} could not execute: {error}") from error
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no PostgreSQL diagnostic"
+        raise AdmissionError(f"{operation} failed: {detail[-4000:]}")
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if len(lines) != 1:
+        raise AdmissionError(f"{operation} returned {len(lines)} rows; expected one")
+    return lines[0]
 
 
 def run_sql(command: list[str], sql: str) -> dict[str, Any]:
@@ -400,20 +435,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         active_package_id, active_release = selected_package(args.active)
         tool_release = selected_tool_release(args.tool_root, active_release)
         identities = load_activation_state(args.receipt_root, active_package_id)
+        command = psql_command(tool_release, args)
+        geometry_epoch = require_hex(
+            run_scalar(
+                command,
+                "SELECT pg_catalog.encode(geometry_epoch,'hex') "
+                "FROM laplace.unicode_root_generation "
+                "ORDER BY recorded_at DESC LIMIT 1;\n",
+                "live Unicode geometry read",
+            ),
+            "live Unicode geometry epoch",
+        )
         compiled = compile_profile(
             tool_release / "bin/laplace_source_profile_compile",
             args.profile,
             args.source_root,
             args.unicode_root,
+            geometry_epoch,
         )
         sql = render_sql(compiled, identities, args.source_root)
         if args.render_sql:
             sys.stdout.write(sql)
             return 0
-        result = run_sql(psql_command(tool_release, args), sql)
+        result = run_sql(command, sql)
         result["active_package_id"] = active_package_id
         result["tool_release"] = str(tool_release)
         result["profile"] = args.profile
+        result["geometry_epoch"] = geometry_epoch
         result["native_source_fingerprint"] = hex_value(compiled, "SOURCE_FINGERPRINT", 64)
         result["native_reconstruction_fingerprint"] = hex_value(
             compiled, "RECONSTRUCTION_FINGERPRINT", 64
