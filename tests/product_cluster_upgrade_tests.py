@@ -314,6 +314,7 @@ class ProductClusterUpgradeTests(unittest.TestCase):
         self.assertEqual(json.loads(receipt_path.read_text(encoding="utf-8")), legacy)
 
     def test_reconciler_routes_active_and_fresh_state_to_distinct_lifecycles(self) -> None:
+        self.contract["instance"]["data_directory"] = str(self.root / "data")
         contract_path = self.root / "contract.json"
         contract_path.write_text(json.dumps(self.contract), encoding="utf-8")
         package = self.root / "package.json"
@@ -357,6 +358,18 @@ class ProductClusterUpgradeTests(unittest.TestCase):
         adopted.assert_not_called()
         upgraded.assert_not_called()
         fresh.assert_called_once()
+
+        data = self.root / "data"
+        data.mkdir()
+        (data / "PG_VERSION").write_text("18\n")
+        with mock.patch.object(RECONCILE, "recover_preserved_cluster", return_value={"path": "preserved"}) as preserved, \
+             mock.patch.object(RECONCILE, "fresh_activate_product") as fresh:
+            result = RECONCILE.reconcile_cluster_activation(
+                contract_path, package, resource, evidence, False
+            )
+        self.assertEqual(result, {"path": "preserved"})
+        preserved.assert_called_once_with(contract_path, package, resource, evidence)
+        fresh.assert_not_called()
 
     def _resume_fixture(self) -> tuple[dict, dict]:
         _receipt, path, _legacy, initial, _restarted = self._legacy_predecessor_fixture()
