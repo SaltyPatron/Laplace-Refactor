@@ -61,14 +61,15 @@ Research and documentation proceed in this order so the reconstruction cannot be
 - `04_OPEN_QUESTIONS_AND_CONFLICTS.md` — unresolved research rather than invented answers.
 - `05_CURRENT_IMPLEMENTATION_COUNTEREXAMPLES.md` — damaged/current behavior that must not be treated as product authority.
 
-### Priority mechanism dossiers
+### Priority mechanism / evolution dossiers
 
 - `06_O_TIER_AND_PERFCACHE.md` — leaf→trunk/trunk→leaf addressability, Merkle reuse, O(tier) execution economics and modular typed perfcache/ROM planes.
 - `07_EXECUTION_CONTROL_GODEL_OODA.md` — operation vs program vs orchestration vs OODA vs feedback vs evidence learning vs Gödel, including historical terminology evolution.
 - `08_PRODUCT_INFORMATION_WORLDS.md` — faceted sports/reference-style information worlds, domain-native realization, entity-first acquisition and operator/admin separation.
 - `09_PHYSICALITY_MODALITY_GEOMETRYZM.md` — modality-derived physicality, full GeometryZM carrier family, live `coord` versus packed trajectory/address payload and typed structural metrics.
+- `10_HARTONOMOUS_EVOLUTION_2025.md` — dated transition from D&D/agent factory through deterministic substrate, database-centric unified knowledge fabric, spatial/geometric turn and Dec-13 PostgreSQL/PostGIS convergence; superseded historical claims remain explicitly marked.
 
-Next dossiers are blocked on explicit primary-source passes rather than being filled from inference: machine ontology/state classes; evidence/standing; whole-observation cognition; realization/conversation; model/AImap/target compilation; full product acceptance; exact current implementation conformance.
+Next dossiers are blocked on explicit primary-source passes rather than being filled from inference: original-Laplace invention chronology; machine ontology/state classes; evidence/standing; whole-observation cognition; realization/conversation; model/AImap/target compilation; full product acceptance; exact current implementation conformance.
 
 ## Non-negotiable reconstruction rules
 
