@@ -8,6 +8,7 @@
 #include "laplace/cognition_materialization.h"
 #include "laplace/cognition_realization.h"
 #include "laplace/cognition_turn.h"
+#include "laplace/cognition_why_not.h"
 #include "laplace/export.h"
 #include "laplace/types.h"
 
@@ -46,7 +47,8 @@ typedef enum laplace_cognition_conversation_status {
     LAPLACE_COGNITION_CONVERSATION_FRAME_FAILURE = 10,
     LAPLACE_COGNITION_CONVERSATION_CAPACITY = 11,
     LAPLACE_COGNITION_CONVERSATION_MEMORY_FAILURE = 12,
-    LAPLACE_COGNITION_CONVERSATION_ENCODING_INVALID = 13
+    LAPLACE_COGNITION_CONVERSATION_ENCODING_INVALID = 13,
+    LAPLACE_COGNITION_CONVERSATION_WHY_NOT = 14
 } laplace_cognition_conversation_status;
 
 /*
@@ -111,13 +113,17 @@ typedef struct laplace_cognition_conversation_result {
     uint64_t discourse_frame_bytes;
     uint32_t version;
     uint32_t reserved;
+    /* Present when execute returns LAPLACE_COGNITION_CONVERSATION_WHY_NOT.
+     * Appended to preserve the existing result-field layout while making the
+     * incomplete semantic outcome available to every native/public adapter. */
+    laplace_cognition_why_not_result why_not;
 } laplace_cognition_conversation_result;
 
 /*
  * Executes one admitted observation through the complete public native response
  * chain:
  *
- *   admitted observation -> finite turn -> cognition -> semantic act
+ *   admitted observation -> finite turn -> cognition -> semantic act/WHY_NOT
  *   -> evidence-bound realization -> exact Unicode materialization
  *   -> immutable next discourse state/frame.
  *
@@ -128,8 +134,9 @@ typedef struct laplace_cognition_conversation_result {
  *
  * `previous_frame` is required exactly when the turn declares
  * HAS_PREVIOUS_DISCOURSE. The caller's output and next-frame buffers are not
- * modified until every stage succeeds, including durable frame encoding. On any
- * failure both published byte counts remain zero.
+ * modified until every stage succeeds, including durable frame encoding. An
+ * incomplete finite cognition run returns WHY_NOT with zero published byte counts
+ * and an exact machine/continuation receipt rather than a generic act failure.
  */
 LAPLACE_API laplace_cognition_conversation_status
 laplace_cognition_conversation_execute(

@@ -20,7 +20,8 @@ typedef enum laplace_cognition_interpreted_conversation_status {
     LAPLACE_COGNITION_INTERPRETED_CONVERSATION_OK = 0,
     LAPLACE_COGNITION_INTERPRETED_CONVERSATION_INVALID_ARGUMENT = 1,
     LAPLACE_COGNITION_INTERPRETED_CONVERSATION_INTERPRETATION_FAILURE = 2,
-    LAPLACE_COGNITION_INTERPRETED_CONVERSATION_CONVERSATION_FAILURE = 3
+    LAPLACE_COGNITION_INTERPRETED_CONVERSATION_CONVERSATION_FAILURE = 3,
+    LAPLACE_COGNITION_INTERPRETED_CONVERSATION_WHY_NOT = 4
 } laplace_cognition_interpreted_conversation_status;
 
 /*
@@ -49,8 +50,9 @@ typedef struct laplace_cognition_interpreted_conversation_result {
 /*
  * Executes only after a unique joint interpretation has bound the goal slot.
  * Ambiguous, incompatible, exhausted, or scope-mismatched interpretation never
- * falls through to the non-interpreted conversation path. Output and discourse
- * byte counts remain zero until the complete delegated conversation succeeds.
+ * falls through to the non-interpreted conversation path. A delegated finite
+ * cognition run that cannot semantically complete returns WHY_NOT with the exact
+ * nested machine/continuation receipt and zero output/discourse byte counts.
  */
 LAPLACE_API laplace_cognition_interpreted_conversation_status
 laplace_cognition_interpreted_conversation_execute_encoded(
