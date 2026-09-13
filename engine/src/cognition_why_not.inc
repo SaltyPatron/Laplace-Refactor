@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 namespace laplace_cognition_why_not_detail {
