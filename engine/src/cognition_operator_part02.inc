@@ -94,7 +94,8 @@ extern "C" laplace_cognition_operator_status laplace_cognition_operator_create(
                     ++value->receipt.derived_constraint_count;
                     break;
                 case LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING:
-                    ++value->receipt.standing_constraint_count;
+                    /* selected_constraint_count and the constraint estate retain
+                     * standing exactly without changing the historical receipt ABI. */
                     break;
                 default:
                     break;
