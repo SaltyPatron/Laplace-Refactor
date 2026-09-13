@@ -44,20 +44,21 @@
       ]
     },
     {
-      "ctest_name": "product.openai-chat-history",
+      "ctest_name": "product.openai-chat-boundary",
       "evidence_targets": [
-        "LP-TEST-CONVERSATION-DISCOURSE-STATE",
-        "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION"
+        "LP-TEST-NO-PRIVATE-SEMANTICS",
+        "LP-TEST-COMPONENT-SUCCESS-NONPRODUCT"
       ],
       "covered_dimensions": [
-        "OpenAI-compatible transport accepts ordered system developer user and assistant message history instead of one isolated user message",
-        "conversation history is deterministically lowered into one bounded native cognition prompt without silently ignoring prior turns",
-        "stream=true is an admitted compatibility profile while malformed stream and unsupported parameters fail explicitly"
+        "the currently declared compatibility floor preserves one exact user message without adding textual role markers",
+        "client-supplied multi-message history fails explicitly instead of being flattened into prompt text and advertised as role-preserving conversation",
+        "non-user roles fail explicitly until a typed native discourse lowering exists",
+        "stream=true is tested only as transport framing for the declared single-user-message boundary while malformed stream and unsupported parameters fail explicitly"
       ],
       "defect_controls": [
-        "single-user-message-only compatibility regression",
-        "conversation without a user turn",
-        "unsupported role",
+        "transcript flattening presented as multi-message conversation",
+        "system developer or assistant role converted into ordinary prompt text",
+        "multi-message request accepted without typed native role/history state",
         "non-boolean stream mode",
         "silently accepted unsupported top-level parameter"
       ]
@@ -67,21 +68,22 @@
       "evidence_targets": [
         "LP-TEST-COMPONENT-SUCCESS-NONPRODUCT",
         "LP-TEST-INSTALL-CONVERGENCE",
-        "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION",
+        "LP-TEST-NO-PRIVATE-SEMANTICS",
         "LP-TEST-ADMISSION-READ-REACHABILITY"
       ],
       "covered_dimensions": [
-        "installed package must contain the browser gateway compatibility source-job and selected-boundary owners required by the product surface",
-        "activated acceptance requires browser HTTP multi-message nonstream and streaming chat MCP canonical query and durable source admission rather than component-only success",
+        "installed package must contain the browser gateway compatibility transport source-job and selected-boundary owners required by the selected product surface",
+        "gateway proof declares the exact compatibility boundary it exercises instead of using response shape or nonempty assistant text to claim complete conversation semantics",
         "browser source interaction cannot regress to a caller-supplied server-filesystem mutation path",
         "durable ingestion identity and successful persisted readback are required by the activated product proof"
       ],
       "defect_controls": [
         "native engine success falsely substituted for installed user-facing product success",
-        "gateway compatibility wrapper omitted from package",
+        "gateway compatibility guard or transport omitted from package",
+        "flattened role history restored as a compatibility success criterion",
         "source worker omitted from package",
         "path-based synchronous source mutation restored",
-        "activated proof drops idempotent job or streaming-chat assertions"
+        "activated proof drops idempotent job or declared-boundary assertions"
       ]
     }
   ]
