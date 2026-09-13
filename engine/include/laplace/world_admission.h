@@ -54,6 +54,43 @@ typedef struct laplace_world_admission_receipt {
     uint32_t status;
 } laplace_world_admission_receipt;
 
+/*
+ * Canonical world-admission state projected away from replaceable physical
+ * execution choices. A projection is created only from a complete, identity-valid
+ * admission record. It retains the exact source/profile/recipe/evidence/readback
+ * boundary and all semantic denominators while deliberately excluding the
+ * composition working-set, presence, producer and stream receipt identities.
+ *
+ * Those four receipt identities remain on laplace_world_admission_record and are
+ * required for auditability; they are simply not allowed to redefine semantic
+ * world state. Physical-plan conformance compares semantic_fingerprint while
+ * separately proving that the underlying physical receipts really differed.
+ */
+typedef struct laplace_world_admission_semantic_projection {
+    laplace_digest256 semantic_fingerprint;
+    laplace_digest256 source_profile_id;
+    laplace_digest256 selected_boundary_fingerprint;
+    laplace_digest256 source_profile_receipt_id;
+    laplace_digest256 recipe_receipt_id;
+    laplace_digest256 evidence_lineage_receipt_id;
+    laplace_digest256 evidence_testimony_receipt_id;
+    laplace_digest256 readback_fingerprint;
+    uint64_t profile_occurrence_count;
+    uint64_t composition_occurrence_count;
+    uint64_t profile_claim_count;
+    uint64_t evidence_node_count;
+    uint64_t testimony_count;
+    uint64_t profile_bound_testimony_count;
+    uint64_t recipe_bound_testimony_count;
+    uint64_t lineage_bound_testimony_count;
+    uint64_t closure_subject_count;
+    uint64_t closed_subject_count;
+    uint32_t reconstruction_class;
+    uint32_t flags;
+    uint32_t version;
+    uint32_t status;
+} laplace_world_admission_semantic_projection;
+
 typedef struct laplace_world_admission_error {
     uint64_t admission_index;
     uint32_t field;
@@ -80,6 +117,11 @@ typedef enum laplace_world_admission_status {
 LAPLACE_API laplace_world_admission_status laplace_world_admission_identify(
     const laplace_world_admission_record* admission,
     laplace_digest256* admission_id);
+
+LAPLACE_API laplace_world_admission_status
+laplace_world_admission_project_semantics(
+    const laplace_world_admission_record* admission,
+    laplace_world_admission_semantic_projection* projection);
 
 LAPLACE_API laplace_world_admission_status laplace_world_admission_close_batch(
     const laplace_world_admission_record* admissions,

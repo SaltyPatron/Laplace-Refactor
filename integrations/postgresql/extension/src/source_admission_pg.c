@@ -21,6 +21,7 @@
 
 #include "blake3.h"
 #include "laplace/decomposition_uax29.h"
+#include "laplace/decomposition_xml.h"
 #include "laplace/source_decomposition.h"
 #include "laplace/source_profile.h"
 #include "laplace/uax29.h"
@@ -170,14 +171,61 @@ static laplace_digest256 laplace_pg_source_uax_provider_fingerprint(
     return result;
 }
 
+static laplace_digest256 laplace_pg_source_xml_provider_fingerprint(void) {
+    static const char domain[] = "laplace-decomposition-xml-v1";
+    laplace_digest256 result;
+    blake3_hasher hasher;
+    memset(&result, 0, sizeof(result));
+    blake3_hasher_init(&hasher);
+    /* Match the existing generic XML provider identity used by the native
+     * XML/universal-AST route: length-prefixed domain plus empty payload. */
+    laplace_pg_source_hash_bytes(&hasher, domain, sizeof(domain) - 1u);
+    laplace_pg_source_hash_bytes(&hasher, NULL, 0u);
+    blake3_hasher_finalize(&hasher, result.bytes, sizeof(result.bytes));
+    return result;
+}
+
+static int laplace_pg_source_digest_zero(const laplace_digest256* value) {
+    size_t index;
+    if (value == NULL) return 1;
+    for (index = 0u; index < sizeof(value->bytes); ++index) {
+        if (value->bytes[index] != 0u) return 0;
+    }
+    return 1;
+}
+
+static laplace_tabular_source_status laplace_pg_source_runtime_artifact_graph(
+    laplace_tabular_source_input* input) {
+    laplace_digest256 graph;
+    laplace_tabular_source_status status;
+    if (input == NULL) return LAPLACE_TABULAR_SOURCE_INVALID_ARGUMENT;
+    if (!laplace_pg_source_digest_zero(
+            &input->profile_declaration.artifact_graph_fingerprint)) {
+        return LAPLACE_TABULAR_SOURCE_OK;
+    }
+    memset(&graph, 0, sizeof(graph));
+    status = laplace_tabular_source_graph_identify(
+        input->artifacts, (size_t)input->artifact_count,
+        input->reference_rules, (size_t)input->reference_rule_count,
+        input->mapping_rules, (size_t)input->mapping_rule_count,
+        &graph);
+    if (status != LAPLACE_TABULAR_SOURCE_OK) return status;
+    input->profile_declaration.artifact_graph_fingerprint = graph;
+    return LAPLACE_TABULAR_SOURCE_OK;
+}
+
 static laplace_tabular_source_status
 laplace_pg_source_decomposition_plan_create(
     const laplace_tabular_source_input* input,
     laplace_tabular_source_plan** plan) {
     laplace_uax29_tables* uax_tables = NULL;
     laplace_decomposition_uax29_provider uax_provider;
+    laplace_decomposition_xml_provider xml_provider;
+    laplace_decomposition_provider_v1 providers[2];
     laplace_pg_active_uax_authority uax_authority;
     laplace_digest256 uax_fingerprint;
+    laplace_digest256 xml_fingerprint;
+    laplace_tabular_source_input runtime_input;
     laplace_tabular_source_status status;
 
     laplace_pg_active_source_plan = NULL;
@@ -188,7 +236,17 @@ laplace_pg_source_decomposition_plan_create(
            sizeof(laplace_pg_source_uax_authority));
     laplace_pg_source_metrics_begin();
     memset(&uax_provider, 0, sizeof(uax_provider));
+    memset(&xml_provider, 0, sizeof(xml_provider));
+    memset(providers, 0, sizeof(providers));
     memset(&uax_authority, 0, sizeof(uax_authority));
+    if (input == NULL || plan == NULL) {
+        return LAPLACE_TABULAR_SOURCE_INVALID_ARGUMENT;
+    }
+    runtime_input = *input;
+    status = laplace_pg_source_runtime_artifact_graph(&runtime_input);
+    if (status != LAPLACE_TABULAR_SOURCE_OK) {
+        return status;
+    }
 
     /* Product UAX authority is derived from the active canonical Unicode atom
      * stream. No Unicode source directory is consulted on this execution path.
@@ -209,8 +267,20 @@ laplace_pg_source_decomposition_plan_create(
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
 
+    /* The generic XML provider is always present in the common provider set.
+     * Its own applicability contract restricts it to application/xml, text/xml,
+     * and +xml grammar-input spans, so non-XML source profiles are unchanged. */
+    xml_fingerprint = laplace_pg_source_xml_provider_fingerprint();
+    if (laplace_decomposition_xml_provider_init(
+            &xml_provider, UINT64_C(0x584d4c0000000000), &xml_fingerprint) !=
+        LAPLACE_DECOMPOSITION_OK) {
+        laplace_uax29_tables_destroy(&uax_tables);
+        return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
+    }
+    providers[0] = uax_provider.provider;
+    providers[1] = xml_provider.provider;
     status = laplace_source_decomposition_plan_create(
-        input, &uax_provider.provider, 1u, plan);
+        &runtime_input, providers, 2u, plan);
     laplace_uax29_tables_destroy(&uax_tables);
     if (status == LAPLACE_TABULAR_SOURCE_OK && plan != NULL && *plan != NULL) {
         laplace_pg_active_source_plan = *plan;

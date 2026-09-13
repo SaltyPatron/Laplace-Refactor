@@ -1,7 +1,7 @@
 -- Existing persistent clusters may already be at 1.0.1. Product readback
 -- reconciliation runs after the verified 1.0.0 -> 1.0.1 indexed-cognition update,
 -- so advance that same installed extension to the product cognition generation
--- before exposing any readback surface. Fresh 1.0.2 installations never execute
+-- before exposing any readback surface. Fresh 1.0.3 installations never execute
 -- the version transition below; the recurring reconciliation still installs and
 -- verifies additive native product entrypoints introduced within the 1.0.2 ABI.
 DO $laplace_product_cognition_upgrade$
@@ -17,8 +17,10 @@ BEGIN
         RAISE EXCEPTION 'product cognition update requires the extension owner';
     END IF;
     IF version = '1.0.1' THEN
-        ALTER EXTENSION laplace UPDATE TO '1.0.2';
-    ELSIF version <> '1.0.2' THEN
+        ALTER EXTENSION laplace UPDATE TO '1.0.3';
+    ELSIF version = '1.0.2' THEN
+        ALTER EXTENSION laplace UPDATE TO '1.0.3';
+    ELSIF version <> '1.0.3' THEN
         RAISE EXCEPTION 'unsupported product cognition predecessor version: %', version;
     END IF;
 

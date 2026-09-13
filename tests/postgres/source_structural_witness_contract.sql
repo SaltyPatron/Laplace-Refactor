@@ -26,14 +26,16 @@ BEGIN
     FROM laplace.source_structural_witness_receipt
     WHERE source_profile_id = first.profile_id
       AND composition_working_set_receipt =
-          first.composition_working_set_receipt_id;
+          first.composition_working_set_receipt_id
+      AND version = 2;
 
     SELECT witness_count, witness_fingerprint
     INTO STRICT replay_receipt_count, replay_witness_fingerprint
     FROM laplace.source_structural_witness_receipt
     WHERE source_profile_id = replay.profile_id
       AND composition_working_set_receipt =
-          replay.composition_working_set_receipt_id;
+          replay.composition_working_set_receipt_id
+      AND version = 2;
 
     SELECT count(*) INTO STRICT receipt_count
     FROM laplace.source_structural_witness_receipt
@@ -63,11 +65,14 @@ BEGIN
             LEFT JOIN laplace.entity AS entity
               ON entity.entity_id = witness.canonical_entity_id
             WHERE witness.source_profile_id = first.profile_id
-              AND entity.entity_id IS NULL)
+              AND (entity.entity_id IS NULL OR witness.grammar_kind IS NULL
+                   OR witness.field_kind IS NULL OR witness.sibling_ordinal IS NULL
+                   OR witness.syntax_flags IS NULL))
        OR EXISTS (
             SELECT 1
             FROM laplace.source_structural_witness_receipt AS receipt
             WHERE receipt.source_profile_id = first.profile_id
+              AND receipt.version = 2
               AND (receipt.witness_count <> durable_witness_count
                    OR receipt.witness_fingerprint <>
                       first_witness_fingerprint)) THEN
@@ -85,7 +90,7 @@ BEGIN
 
     BEGIN
         UPDATE laplace.source_structural_witness
-        SET flags = flags + 1
+        SET syntax_flags = syntax_flags + 1
         WHERE ctid = (
             SELECT ctid
             FROM laplace.source_structural_witness
@@ -106,7 +111,8 @@ BEGIN
             get_byte(witness_fingerprint, 0) # 1)
         WHERE source_profile_id = replay.profile_id
           AND composition_working_set_receipt =
-              replay.composition_working_set_receipt_id;
+              replay.composition_working_set_receipt_id
+      AND version = 2;
         PERFORM pg_temp.admit_source();
         RAISE EXCEPTION
             'structural witness receipt mutation was accepted by durable replay';

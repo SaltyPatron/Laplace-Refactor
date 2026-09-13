@@ -39,6 +39,8 @@
         "tools/dependencies/**",
         "tools/product/**",
         "tools/delivery/**",
+        "tools/admit_source.py",
+        "tools/admit_source_guard.py",
         "tools/receipt_store.cpp",
         "tests/package_product_proof_tests.py",
         "tests/receipt_store_test.cmake",

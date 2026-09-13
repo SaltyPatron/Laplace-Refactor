@@ -1,92 +1,206 @@
-# Physicality coordinate, packed trajectory, and realized curve
+# Physicality coordinate, GeometryZM trajectory carrier, and realized geometry
 
-Status: inventor-direct architecture clarification, 2026-09-02. This document corrects any wording that treats `physicality.coord`, `physicality.trajectory`, and a realized coordinate curve as interchangeable geometry.
+Status: inventor-direct architecture clarification, corrected during 2026-09-12 invention reconciliation. This document corrects wording that treated `physicality.coord`, `physicality.trajectory`, a realized curve, or one geometry metric as interchangeable with the complete physicality model. Higher inventor-direct evidence remains authoritative.
 
-## 1. Three different structural objects
+## 1. The storage class does not define the ontology
 
-Laplace intentionally uses geometry-shaped storage for more than one structural purpose. The storage type does not define the semantic type.
+Laplace intentionally uses geometry-shaped storage for multiple structural purposes. The storage type, subtype, coordinate field names, and a convenient metric do not define what the represented content *is*.
+
+The governing distinctions are:
 
 ```text
 physicality.coord
-    = the real four-component structural coordinate
+    = real four-component structural placement for the declared coordinate recipe
 
 physicality.trajectory
-    = an ordered exact mantissa-packed manifest/address carrier
-      whose vertices carry canonical identity plus structural metadata
+    = exact typed GeometryZM-family carrier for the physical realization
+      whose subtype and payload recipe are determined by the represented structure
 
-realized curve
-    = the ordered curve obtained by decoding trajectory constituent identities
-      and resolving each constituent's real physicality.coord
+realized geometry
+    = the real point / curve / branch set / region / cloud / collection / manifold view
+      produced when an operation resolves the exact carrier into the coordinate class
+      and topology that operation actually requires
 ```
 
-These three objects must never be substituted for one another.
+For the **ordered composition trajectory class**, realized geometry is commonly an ordered coordinate curve obtained by decoding constituent identities and resolving each constituent's real `physicality.coord`. That case must not be generalized into a claim that every physicality is a `LINESTRING` or that every physicality operation is a curve comparison.
 
-## 2. `physicality.coord` is the real structural coordinate
+These objects and operation classes must never be silently substituted for one another.
 
-`physicality.coord` is the canonical calculated four-component placement for that physicality recipe.
+## 2. `physicality.coord` is real structural placement
 
-- Tier 0 atoms lie on the pinned unit `S3` / glome placement generated from the Unicode/DUCET geometry recipe.
-- Higher compositions use the declared four-dimensional arithmetic centroid of their actual child `coord` values and retain radius; they may therefore lie inside the glome rather than on the unit `S3` boundary.
-- Angular/geodesic calculations, four-dimensional locality calculations, the Hilbert projection, radius, and other operations that declare the real structural coordinate consume `physicality.coord`.
-- Equality of a composite centroid does not imply equal identity or equal order; exact identity remains BLAKE3 content identity and exact order remains in composition/trajectory structure.
+`physicality.coord` is the calculated four-component placement selected by the active physicality/geometry recipe.
 
-Borsuk-Ulam applies to continuous lower-dimensional maps of the actual `S3` structural domain, not to every value stored in a geometry column and not to the packed trajectory carrier.
+- Tier-0 Unicode atoms use the pinned `S3` / glome placement generated from the Unicode/DUCET geometry recipe.
+- Higher compositions use the declared four-dimensional arithmetic centroid of their actual child coordinates with multiplicity and retain radius; they may therefore lie inside the glome rather than on the unit `S3` boundary.
+- Angular/geodesic calculations, four-dimensional locality calculations, the Hilbert projection, radius, and other operations that explicitly consume the real structural coordinate operate on `physicality.coord`.
+- Equality of centroid, radius, projection, or locality does not imply equal identity, equal constituents, equal order, equal topology, or equal meaning.
 
-## 3. `physicality.trajectory` is a packed manifest, not a spatial path
+Borsuk-Ulam applies to continuous lower-dimensional maps of the actual `S3` structural domain. It does not automatically apply to every value stored in a geometry-compatible carrier and does not govern the discrete packed trajectory payload.
 
-`physicality.trajectory` is stored in a `GeometryZM`-compatible carrier because the binary64 slots provide an indexable fixed-width transport with exploitable database geometry/index machinery. Its coordinates are payload coordinates, not the live `S3` coordinates of the constituent.
+## 3. `physicality.trajectory` uses the `GeometryZM` family
 
-For the composition trajectory class, every vertex encodes the constituent's canonical BLAKE3-128 identity and metadata required to reconstruct its structural occurrence. The design can be thought of as a hash/address coordinate in the `XYZ` mantissa lanes plus a metadata-rich `M` lane. The exact carrier is lossless for its declared payload.
+`physicality.trajectory` uses a `GeometryZM`-family carrier because PostGIS provides a polymorphic geometry container, four binary64 lanes per vertex, and n-dimensional index machinery that Laplace can exploit without making ordinary GIS semantics authoritative.
 
-The historical/current carrier evidence uses four binary64 values with the exponent pinned and sign+mantissa carrying 53 payload bits each, for 212 exact payload bits per vertex. The 128-bit identity is distributed across the `X/Y/Z` payload capacity; ordinal, run length/RLE, flags and other typed metadata occupy the remaining capacity, with `M` the metadata-rich lane. Historical packing also uses spare `Z` payload bits for part of the flags word. The clean contract must therefore describe the exact generated bit layout rather than assuming that host coordinate names imply spatial meaning.
-
-Conceptually:
+The relevant physicality topology is not fixed to one subtype. Historical inventor product law and direct reconciliation require preserving the full family where the modality/structure calls for it:
 
 ```text
-trajectory vertex
-  X/Y/Z payload lanes  -> BLAKE3-128 constituent address plus any declared spare metadata bits
-  M metadata lane      -> ordinal, run/RLE and other typed metadata under the vertex recipe
+POINTZM
+LINESTRINGZM
+MULTILINESTRINGZM
+POLYGONZM
+MULTIPOLYGONZM
+MULTIPOINTZM
+GEOMETRYCOLLECTIONZM
 ```
 
-The fact that sequence position already supplies an ordinal does not make the packed ordinal meaningless: the encoded value is part of the exact portable/invertible carrier and may support validation, slicing, indexing, replay, run representation, or future recipe semantics. Its redundancy must be judged by the declared ABI and measured use, not deleted implicitly.
+The concrete shape follows the selected modality/structural recipe. Examples of the distinction, without making the examples a closed ontology:
 
-A packed `trajectory` vertex is therefore an extremely useful **address/index coordinate**, but it is not a point on Laplace's structural `S3` geometry.
+- one addressable point-like physicality may use `POINTZM`;
+- an ordered linear composition may use `LINESTRINGZM`;
+- parallel or branching sequence structure may require `MULTILINESTRINGZM`;
+- a closed region may require `POLYGONZM` or `MULTIPOLYGONZM`;
+- an unordered cloud may require `MULTIPOINTZM`;
+- heterogeneous compound physicality may require `GEOMETRYCOLLECTIONZM`.
 
-## 4. The realized curve is the geometric trajectory
+A subtype is part of the physical form, not the semantic type of the content. Modality, tier, type/classification, relation family, source, and physicality subtype remain different coordinates of the machine.
 
-When a calculation needs the geometric shape of a composition, the engine performs the typed realization:
+A generic physicality operator must preserve subtype structure. Flattening polygon rings, multiline branches, multipoint sets, or collection components into one anonymous vertex stream is a lossy substitution unless the declared operation explicitly requests and receipts such a projection.
+
+## 4. Mantissa exploitation is exact typed transport
+
+The carrier's binary64 slots can be used as exact payload lanes under a pinned exponent recipe. With sign plus mantissa available, each binary64 contributes 53 exact payload bits; four lanes therefore provide 212 exact payload bits per vertex.
+
+The coordinate-looking host names `X/Y/Z/M` do not assign semantic meaning to those bits. Meaning comes from the physicality type, geometry subtype, vertex class, generated ABI, recipe, and receipt.
+
+For the **historical/current ordered composition-trajectory vertex class**, evidence shows a 128-bit canonical constituent identity plus ordinal, run/RLE, flags, and other typed metadata distributed across the 212 available bits. Conceptually:
+
+```text
+composition trajectory vertex
+  payload capacity -> canonical constituent address + structural occurrence metadata
+  exact decoder    -> identity, ordinal, run/RLE, flags, declared metadata
+```
+
+Historical packing used most `X/Y/Z` capacity for the BLAKE3-128 constituent address and also used spare `Z` capacity for flags; `M` was metadata-rich. The generated ABI, not a mnemonic such as "XYZ = hash, M = metadata," owns the exact bit allocation.
+
+Other vertex classes may allocate the same 212-bit capacity differently. A factor, tensor, game, media, relation, execution, or future physicality payload is not required to pretend its bits are a composition child identity merely because it uses the same transport class.
+
+## 5. Ordered composition trajectories are exact structural manifests
+
+For an ordered recursive composition, the trajectory carries enough exact information to reconstruct the declared structural occurrence rather than merely approximate its shape.
+
+A conceptual decode is:
+
+```text
+packed composition trajectory
+  -> exact constituent identities
+  -> ordinal / role / multiplicity / run metadata
+  -> exact ordered structural occurrence
+  -> recursive constituent resolution
+  -> trunk-to-leaf Merkle structure
+```
+
+This directly supports exact structural calculations such as constituent identity, containment, ancestry, ordinal, gap, multiplicity, runs, recurrence, and precedes/follows under the selected structural recipe.
+
+Those facts do not need Fréchet, Hausdorff, an embedding, a semantic relation row, or source testimony merely to exist. They are calculated consequences of exact content and physicality.
+
+The packed ordinal can remain useful even when storage sequence appears to supply position: it is part of a portable/invertible carrier and can support validation, slicing, replay, run representation, index extraction, and future declared recipes. Redundancy is removed only through an explicit ABI and acceptance change, not by inference from host container order.
+
+## 6. Realization is polymorphic too
+
+When a calculation needs real geometry rather than exact packed addressing, it performs the realization required by that operation.
+
+For an ordered composition curve:
 
 ```text
 packed trajectory
-  -> decode constituent canonical IDs + ordinal/run/metadata
+  -> decode constituent IDs + ordinal/run/metadata
   -> resolve each constituent physicality.coord under the pinned geometry epoch
-  -> preserve declared order and multiplicity/RLE
-  -> produce the realized coordinate curve
+  -> preserve order and multiplicity/RLE
+  -> realized coordinate curve
 ```
 
-Fréchet, Hausdorff, curve length, trajectory-shape and other geometric path calculations operate on that realized curve when their recipe requires real structural coordinates.
+For other physicality shapes the realization preserves the declared topology instead of coercing it to a curve:
 
-Running Fréchet or another spatial metric directly over the packed `XYZM` payload measures the numerical layout of BLAKE3/metadata bits. It can return a perfectly valid floating-point number while answering the wrong question. That is a typed semantic defect, not merely an approximation.
+```text
+packed / stored physicality
+  -> typed decode
+  -> resolve the real coordinate or component geometry required by the recipe
+  -> preserve branches / rings / regions / sets / heterogeneous components
+  -> realized point / multiline / polygon / multipolygon / multipoint / collection / other declared object
+```
 
-## 5. There are therefore multiple legitimate '3D' views
+The exact clean ABI for each class belongs to generated contracts and acceptance. The architectural requirement is that realization preserves every distinction required by the consuming operation or explicitly declares the loss.
 
-The phrase `3D coordinate` is ambiguous in Laplace and must be qualified.
+## 7. Fréchet is one typed curve operation
 
-### Packed hash/address coordinate
+Fréchet is appropriate only when the program asks an order/progression-sensitive question about curve-like realized geometry under a declared point metric and algorithmic recipe.
 
-The trajectory carrier exposes three coordinate-shaped payload lanes whose main job is to encode the canonical 128-bit BLAKE3 identity for addressability/indexing. This is a discrete exact content-address representation, not a continuous projection of `S3`.
+A conforming Fréchet recipe names at least:
+
+- input coordinate class;
+- geometry/topology class accepted;
+- underlying point metric;
+- continuous or discrete algorithm;
+- monotone/non-monotone law as applicable;
+- open, closed, or subcurve treatment;
+- sampling/refinement behavior;
+- numeric precision/tolerance;
+- resource/cardinality boundary;
+- partial/failure disposition and receipt.
+
+Running Fréchet directly over packed payload `XYZM` measures the numerical layout of the address/metadata encoding rather than the real structural shape. That is a typed semantic defect even if the library returns a finite deterministic number.
+
+Fréchet is not a generic synonym for physicality similarity.
+
+## 8. Other physicality questions use different calculations
+
+No single distance, neighbor, or similarity is canonical.
+
+### Exact structural facts
+
+Identity, constituent identity, containment, ancestry, ordinal, gap, multiplicity/run, recurrence, precedes/follows, exact reconstruction, and structural altitude are calculated exactly from canonical structure and the applicable physicality/occurrence recipe. Metric approximation is unnecessary.
+
+### S3 point geometry
+
+For unit `S3` atom points, an intrinsic angular/geodesic calculation may use the pinned `acos(clamp(dot(p,q),-1,1))` law. Laplace's S3 points are content-structure locations and must not silently inherit quaternion orientation equivalence such as `q ~ -q`.
+
+### Hausdorff and set geometry
+
+Hausdorff answers a set-coverage question and does not impose Fréchet's monotone traversal correspondence. Equal or near-equal Hausdorff with materially different Fréchet is valid typed divergence, not an inconsistency to normalize away.
+
+### Karcher / Fréchet means
+
+An intrinsic mean is a separately calculated manifold view. It is not the canonical arithmetic composition centroid. On positively curved `S3`, admissible region, initialization, convergence, uniqueness/ties, iteration bounds, and failure behavior must be explicit.
+
+### Hilbert locality
+
+Hilbert is a locality/index projection over the declared real structural coordinate space. It can narrow candidate work but does not define semantic distance or replace exact validation.
+
+### Regions, branches, collections, and cross-shape operations
+
+Polygon/region operations, branch-aware multiline operations, point-cloud/set operations, collection-aware operations, and explicitly declared cross-shape relationships are separate typed families. The substrate operator must dispatch by the declared physicality and geometry classes and preserve topology required by the question.
+
+Additional point, curve, set, manifold, topological, spectral, temporal, recurrence, shape, or domain-specific calculations may be added through the ISA/recipe lifecycle. Numeric compatibility never authorizes one operation to impersonate another.
+
+## 9. There are multiple legitimate coordinate-shaped views
+
+The phrase `3D coordinate` or `geometry` is ambiguous unless qualified.
+
+### Packed address/payload view
+
+A trajectory or other physicality vertex may expose coordinate-shaped binary64 lanes used as exact typed payload. This is discrete transport/index state, not automatically a continuous structural coordinate.
 
 ### Continuous/display projection
 
-A UI or calculated view may map the real four-component `coord` into three dimensions for display or another declared calculation. That is a separate projection with an explicit loss contract.
+A UI or calculated view may map the real four-component coordinate into three dimensions for display or another declared calculation. That is a separate projection with explicit loss.
 
 ### Hopf base view
 
-The Hopf `S3 -> S2` base is another calculated structural view with explicit fiber loss and fiber phase/state when those distinctions matter.
+The Hopf `S3 -> S2` base is another calculated structural view with explicit fiber loss and retained fiber information where required.
 
-None of these replaces the real `coord` or canonical content identity.
+None of these replaces canonical content identity, the real coordinate, the exact packed carrier, or one another.
 
-## 6. Borsuk-Ulam boundary
+## 10. Borsuk-Ulam boundary
 
 For a continuous map of the real unit structural manifold
 
@@ -96,50 +210,78 @@ f : S3 -> R3
 
 Borsuk-Ulam guarantees at least one antipodal pair with equal projected value. This establishes a global non-injectivity boundary for continuous three-dimensional projections of the actual `S3` coordinate space.
 
-It does **not** apply to the trajectory's BLAKE3 mantissa packing as though that packing were a continuous `S3 -> R3` map. The hash/address coordinate is a discrete exact encoding of canonical identity. Its correctness question is bit-exact pack/unpack and index semantics, not manifold injectivity.
+It does **not** apply to the trajectory's BLAKE3/mantissa packing as though the discrete exact payload were a continuous `S3 -> R3` map.
 
-Therefore two very different statements must remain separate:
+Therefore these remain separate:
 
 ```text
 real S3 coord -> continuous R3 view
     globally non-injective by Borsuk-Ulam
 
-BLAKE3-128 id -> packed trajectory XYZ/M carrier
+canonical identity / typed metadata -> packed GeometryZM lanes
     discrete typed payload encoding; exact round-trip is the contract
 ```
 
-## 7. Structural geometry is still separate from the semantic web
+## 11. Structural physicality is not semantic authority
 
-All of the objects above remain structural machinery.
+All of the objects above remain structural/calculated machinery.
 
 ```text
 real coord / centroid / radius / Hilbert
-packed identity trajectory / ordinal / RLE / flags
-realized coordinate curve / angular / Fréchet / Hausdorff / Karcher-derived views
+GeometryZM subtype / topology
+packed identity or other typed payload / ordinal / RLE / flags
+realized point / curve / set / region / collection
+angular / Fréchet / Hausdorff / Karcher / other declared structural calculations
     = structural state and structural candidate calculations
 
 relations / senses / referents / usages / propositions / testimony / dependence /
-standing / world / time / discourse / goals / semantic acts
+standing / world / time / discourse / goals / semantic acts / outcomes
     = semantic and epistemic web state
 ```
 
-A cognition program may use both. Neither structure nor hash locality establishes meaning by itself.
+A cognition program may lawfully use several of these channels together. No structural coordinate, topology, hash locality, metric, or index result establishes semantic equivalence or truth by itself.
 
-## 8. Acceptance consequences
+## 12. Tier, type, modality, relation, and physicality shape remain separate
 
-Acceptance must reject:
+Physicality bugs have repeatedly originated in collapsing surrounding coordinates. The following distinction is mandatory:
 
-- reading `physicality.trajectory.X/Y/Z/M` as live `S3` coordinates;
-- computing Fréchet/Hausdorff directly over packed identity vertices and claiming shape distance;
-- substituting a trajectory hash/address coordinate for `physicality.coord`;
-- substituting the real centroid coordinate for exact ordered trajectory identity;
-- dropping packed ordinal/RLE/metadata merely because array position appears redundant;
-- treating Borsuk-Ulam as a property of the discrete hash packer;
-- treating a 3D display projection as the packed hash coordinate or vice versa;
-- treating any structural coordinate, hash address, locality result, or curve metric as semantic equivalence.
+- **tier / altitude** describes structural level relative to constituent decomposition under a selected recipe;
+- **type / classification** is witnessed or calculated interpretive state and can be multiple or competing;
+- **modality** determines the applicable structural grammar/realization domain while remaining outside content identity;
+- **relation** is a typed connection/law with its own direction, arity, evidence, context, and composition rules;
+- **physicality subtype/shape** is the concrete structural realization selected by the modality/physicality recipe.
 
-Positive tests must prove exact trajectory pack/unpack, exact constituent reconstruction, real-coordinate realization, metric divergence between packed-payload math and realized-curve math, and cross-route agreement on which coordinate class each operation consumes.
+A historical implementation field that combined several of these is defect evidence, not permission to combine them in the clean machine.
+
+## 13. Acceptance consequences
+
+Acceptance must reject at least:
+
+- reading packed `physicality.trajectory` lanes as live `S3` coordinates;
+- assuming every trajectory is a `LINESTRING`;
+- flattening `MULTILINESTRING`, polygon rings, multipoints, multipolygons, or geometry collections to one vertex stream while claiming lossless parity;
+- computing Fréchet/Hausdorff directly over packed address/metadata vertices and claiming real shape distance;
+- using Fréchet as the generic physicality or cognition similarity operation;
+- substituting a packed address coordinate for `physicality.coord`;
+- substituting a centroid for exact ordered/branched/regional physicality structure;
+- dropping packed ordinal/RLE/metadata because host container order appears redundant;
+- treating Borsuk-Ulam as a property of the discrete payload packer;
+- treating a display projection as packed payload or vice versa;
+- treating any structural coordinate, subtype, locality result, or metric as semantic equivalence;
+- collapsing tier, type, relation, modality, or physicality shape into one category field.
+
+Positive tests must prove, as applicable:
+
+- exact typed pack/unpack and payload-class decoding;
+- exact constituent reconstruction for composition trajectories;
+- preservation of subtype topology;
+- real-coordinate or real-geometry realization appropriate to the operation;
+- metric-family divergence fixtures;
+- exact structural facts without metric substitution;
+- cross-route agreement on coordinate class, topology class, recipe, epoch, and operation semantics.
 
 ## Evidence continuity
 
-The old iteration's archived substrate invariant already recorded the same critical distinction: `coord` is real four-dimensional placement; `trajectory` is an ordered mantissa-packed identity/ordinal/run/flags manifest; shape metrics require a realized curve of child coordinates. `docs/audits/TRAJECTORY_PAYLOAD_AND_INDEX_AUDIT.md` carries that recovered behavior forward as clean-room evidence. This document promotes the inventor-direct distinction into the current architecture record without importing the old implementation as authority.
+The old Hartonomous/Laplace lineage contains both valuable invention evidence and obsolete implementation choices. The preserved invention law includes the universal four-lane GeometryZM carrier, full subtype family, subtype-aware operator dispatch, recursive composition, mantissa exploitation, modality-derived physical structure, and the distinction between packed structural manifests and real geometry. Historical schema, fixed tier/type fields, or one implementation's preferred subtype remain non-authoritative unless reconciled through the current authority stack.
+
+`docs/audits/TRAJECTORY_PAYLOAD_AND_INDEX_AUDIT.md`, `docs/audits/INVENTION_RECONSTRUCTION_2026-09-12.md`, the pinned original Laplace invention lineage, and direct inventor corrections provide the reconciliation trail. A future direct correction changes this derived architecture record explicitly rather than being averaged with older prose.

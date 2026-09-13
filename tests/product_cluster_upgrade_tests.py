@@ -516,5 +516,93 @@ class ProductClusterUpgradeTests(unittest.TestCase):
         self.assertEqual(receipt_path.read_bytes(), receipt_before)
         self.assertEqual(old_path.read_bytes(), plan_before)
 
+
+    def test_preserved_recovery_keeps_state_and_rolls_back_only_its_own_files(self):
+        ctl = RECONCILE.runner.clusterctl
+        for case in ("stopped", "running", "missing_config", "missing_runtime", "status_unknown",
+                     "stop_failed", "changed_config", "changed_runtime", "success"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory(dir=self.root) as directory:
+                root = Path(directory)
+                data, wal, config_dir = root / "data", root / "wal", root / "config"
+                for path in (data, wal, config_dir):
+                    path.mkdir()
+                (data / "PG_VERSION").write_text("18\n")
+                (data / "pg_wal").symlink_to(wal)
+                (data / "retained-data").write_bytes(b"existing database bytes")
+                state_inodes = (data.stat().st_ino, wal.stat().st_ino)
+                config = config_dir / "postgresql.conf"
+                runtime = root / "runtime"
+                before_runtime = "../releases/" + self.old_id
+                if case != "missing_runtime":
+                    runtime.symlink_to(before_runtime)
+                if case != "missing_config":
+                    config.write_text("old configuration\n")
+                contract = {"package": {"postgresql_major": 18, "release_root": str(root / "releases")},
+                            "instance": {"data_directory": str(data), "wal_directory": str(wal),
+                                         "config_directory": str(config_dir)}}
+                package = {"package_id": self.new_id}
+                contract_path, package_path = root / "contract.json", root / "package.json"
+                contract_path.write_text(json.dumps(contract))
+                package_path.write_text(json.dumps(package))
+                plan = {"plan_sha256": "a" * 64, "package_id": self.new_id,
+                        "state_directories": [str(config_dir)],
+                        "files": [{"path": str(config), "content": "new configuration\n",
+                                   "sha256": ctl.sha256_bytes(b"new configuration\n"), "mode": 0o640}]}
+
+                def activate(*args, **kwargs):
+                    if case == "success":
+                        return {"phase": "complete"}
+                    if case == "changed_config":
+                        config.write_text("subsequent writer\n")
+                    if case == "changed_runtime":
+                        runtime.unlink()
+                        runtime.symlink_to("../releases/subsequent-writer")
+                    raise RuntimeError("deliberate activation failure")
+
+                def command(argv, **kwargs):
+                    if argv[0].endswith("pg_controldata"):
+                        return subprocess.CompletedProcess(argv, 0, "Database system identifier: 12345\n", "")
+                    status = 2 if case == "status_unknown" else 0 if case in ("running", "stop_failed") else 3
+                    return subprocess.CompletedProcess(argv, status, "", "")
+
+                with ExitStack() as stack:
+                    for owner in (ctl, RECONCILE.upgrade.clusterctl):
+                        stack.enter_context(mock.patch.object(owner, "RUNTIME_LINK", str(runtime)))
+                    stack.enter_context(mock.patch.object(ctl, "validate_contract"))
+                    stack.enter_context(mock.patch.object(ctl, "inspect_collisions", return_value={"collisions": []}))
+                    stack.enter_context(mock.patch.object(RECONCILE.upgrade, "_validate_active_collisions"))
+                    stack.enter_context(mock.patch.object(RECONCILE.upgrade, "_project_upgrade_collision", return_value={}))
+                    stack.enter_context(mock.patch.object(RECONCILE.upgrade, "_staged_receipt", return_value={}))
+                    stack.enter_context(mock.patch.object(ctl, "build_plan", return_value=plan))
+                    stack.enter_context(mock.patch.object(ctl, "_pg_ctl_command", side_effect=lambda plan, action: ["fixture", action]))
+                    stack.enter_context(mock.patch.object(ctl, "execute_cluster_activation", side_effect=activate))
+                    stack.enter_context(mock.patch.object(RECONCILE.subprocess, "run", side_effect=command))
+                    stop = stack.enter_context(mock.patch.object(ctl, "execute_activation_command"))
+                    if case == "stop_failed":
+                        stop.side_effect = RuntimeError("deliberate stop failure")
+                    if case == "success":
+                        result = RECONCILE.recover_preserved_cluster(contract_path, package_path, root / "resources.json", root / "evidence")
+                        self.assertEqual(result, {"phase": "complete"})
+                    else:
+                        with self.assertRaises(Exception):
+                            RECONCILE.recover_preserved_cluster(contract_path, package_path, root / "resources.json", root / "evidence")
+                self.assertEqual((data.stat().st_ino, wal.stat().st_ino), state_inodes)
+                self.assertEqual((data / "retained-data").read_bytes(), b"existing database bytes")
+                self.assertEqual(stop.call_count, int(case in ("running", "stop_failed")))
+                if case in ("stopped", "running", "missing_config", "missing_runtime"):
+                    if case == "missing_runtime":
+                        self.assertFalse(runtime.exists() or runtime.is_symlink())
+                    else:
+                        self.assertEqual(os.readlink(runtime), before_runtime)
+                    if case == "missing_config":
+                        self.assertFalse(config.exists())
+                    else:
+                        self.assertEqual(config.read_text(), "old configuration\n")
+                else:
+                    expected_runtime = "../releases/subsequent-writer" if case == "changed_runtime" else "../releases/" + self.new_id
+                    self.assertEqual(os.readlink(runtime), expected_runtime)
+                    expected_config = "subsequent writer\n" if case == "changed_config" else "new configuration\n"
+                    self.assertEqual(config.read_text(), expected_config)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
