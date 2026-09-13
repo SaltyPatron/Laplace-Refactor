@@ -22,7 +22,9 @@ void HashConstraint(
     HashU32(hasher, constraint.transport_kind);
 #endif
     HashU32(hasher, constraint.flags);
-    HashStanding(hasher, constraint.standing);
+    if (constraint.source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING) {
+        HashStanding(hasher, constraint.standing);
+    }
 }
 
 void HashProgram(
@@ -86,7 +88,9 @@ bool SameEvidenceSemantic(
         left.transport_offset == right.transport_offset &&
         left.target_value == right.target_value &&
         left.precision == right.precision &&
-        left.source_class == right.source_class && left.flags == right.flags;
+        left.source_class == right.source_class && left.flags == right.flags &&
+        (left.source_class != LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING ||
+         Same(left.standing.state_id, right.standing.state_id));
 }
 
 struct Coefficients {
@@ -187,7 +191,6 @@ void HashOperatorSets(laplace_cognition_operator* const value) {
     HashU64(&receipt_hasher, value->receipt.physicality_constraint_count);
     HashU64(&receipt_hasher, value->receipt.testimony_constraint_count);
     HashU64(&receipt_hasher, value->receipt.derived_constraint_count);
-    HashU64(&receipt_hasher, value->receipt.standing_constraint_count);
     HashU32(&receipt_hasher, value->receipt.relation_plane_count);
     HashU32(&receipt_hasher, value->receipt.version);
     Finish(&receipt_hasher, &value->receipt.receipt_id);
