@@ -14,11 +14,20 @@ engine_directory=$4
 native_probe=$5
 sql_file=$6
 sanitizer_preload=$7
-temporary_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+temporary_parent=${RUNNER_TEMP:-${TMPDIR:-/build/laplace/work/refactor-scratch}}
+case "$(realpath -m -- "$temporary_parent")" in
+    /build/laplace/*) ;;
+    *) echo "PostgreSQL test scratch must be under /build/laplace" >&2; exit 64 ;;
+esac
+export TMPDIR="$temporary_parent" TMP="$temporary_parent" TEMP="$temporary_parent"
+umask 0002
+# Keep Unix socket paths short even when the caller uses a fingerprinted build tree.
+socket_parent=/build/laplace/work/refactor-scratch
+mkdir -p -- "$socket_parent"
 mkdir -p -- "$temporary_parent"
 test_root=$(mktemp -d "$temporary_parent/laplace-postgres-target-attention.XXXXXX")
 data_directory="$test_root/data"
-socket_directory=$(mktemp -d /tmp/lp-ta-pg.XXXXXX)
+socket_directory=$(mktemp -d "$socket_parent/lp-ta-pg.XXXXXX")
 server_log="$test_root/postgres.log"
 port=${LAPLACE_POSTGRES_TARGET_ATTENTION_TEST_PORT:-55444}
 server_started=0
@@ -33,7 +42,7 @@ cleanup() {
         "$pg_bindir/pg_ctl" -D "$data_directory" -m immediate -t 5 -w stop \
             >/dev/null 2>&1 || true
     fi
-    if [[ "$socket_directory" == /tmp/lp-ta-pg.* ]]; then
+    if [[ "$socket_directory" == "$socket_parent/"* ]]; then
         rmdir -- "$socket_directory" 2>/dev/null || true
     fi
     if [[ $exit_code -ne 0 ]]; then
