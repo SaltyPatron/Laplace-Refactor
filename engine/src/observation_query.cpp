@@ -9,6 +9,7 @@
 #include "cognition_observation_index_candidates.inc"
 #include "cognition_observation_provider_set.inc"
 #include "cognition_semantic_act.inc"
+#include "cognition_interpretation_act.inc"
 #include "cognition_discourse.inc"
 #include "cognition_discourse_frame.inc"
 #include "cognition_turn.inc"
