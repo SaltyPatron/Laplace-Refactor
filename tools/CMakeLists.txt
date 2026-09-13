@@ -178,11 +178,11 @@ if(BUILD_TESTING)
     set_tests_properties(product.source-ingestion-lifecycle PROPERTIES
         LABELS "product;source-admission;catalog;preflight;job;idempotency;mutation")
     add_test(
-        NAME product.openai-chat-history
+        NAME product.openai-chat-boundary
         COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/../tests/openai_chat_compat_tests.py")
-    set_tests_properties(product.openai-chat-history PROPERTIES
-        LABELS "product;openai;chat;conversation;compatibility")
+    set_tests_properties(product.openai-chat-boundary PROPERTIES
+        LABELS "product;openai;transport;compatibility;negative-control")
     add_test(
         NAME product.gateway-contract
         COMMAND "${Python3_EXECUTABLE}"
