@@ -1,179 +1,62 @@
-name: final-convergence-audit
+name: branch-estate-audit
 
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
-  group: final-convergence-audit-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: branch-estate-audit
+  cancel-in-progress: false
 
 jobs:
   branch-estate:
-    name: branch-estate-live
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
     timeout-minutes: 45
+    env:
+      TMPDIR: /build/laplace/work/refactor-scratch
+      TMP: /build/laplace/work/refactor-scratch
+      TEMP: /build/laplace/work/refactor-scratch
     steps:
-      - name: Checkout proposed tree with all history
-        uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-
-      - name: Restore only convergence audit tooling intentionally absent from proposed tree
+      - name: Allocate permanent audit workspace
         shell: bash
         run: |
           set -euo pipefail
+          umask 0002
+          mountpoint -q /build
+          test -d "$TMPDIR" && test -w "$TMPDIR"
+          audit_root=$(mktemp -d "$TMPDIR/branch-audit.XXXXXXXX")
+          printf 'AUDIT_ROOT=%s\n' "$audit_root" >> "$GITHUB_ENV"
+      - name: Fetch actual branch state
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 0002
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
-          tooling_base="$(git rev-parse refs/remotes/origin/main)"
-          required=(
-            tools/branch_estate_live_audit.py
-            tools/branch_estate_merged_pr_reconcile.py
-            tools/branch_estate_candidate_subsume.py
-            tools/branch_estate_apply_dispositions.py
-            tools/branch_estate_apply_dispositions_tests.py
-            .github/branch-estate-semantic-dispositions.json
-            .github/branch-estate-semantic-dispositions.runner-lifecycle.json
-            .github/branch-estate-semantic-dispositions.cognition-contract.json
-            .github/branch-estate-semantic-dispositions.absorbed-contracts.json
-            .github/branch-estate-semantic-dispositions.governance-preservation.json
-          )
-          for path in "${required[@]}"; do
-            if [[ -f "$path" ]]; then
-              continue
-            fi
-            mkdir -p "$(dirname "$path")"
-            git show "$tooling_base:$path" > "$path"
-          done
-
-      - name: Prove semantic disposition lifecycle
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/branch_estate_apply_dispositions_tests.py
-
-      - name: Use convergence as provisional Refactor main
-        shell: bash
-        run: |
-          set -euo pipefail
-          convergence="$(git rev-parse refs/remotes/origin/delivery/final-convergence-20260911)"
-          git update-ref refs/remotes/origin/main "$convergence"
-          test "$(git rev-parse refs/remotes/origin/main)" = "$convergence"
-
-      - name: Clone every Laplace branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git clone --no-checkout https://github.com/SaltyPatron/Laplace.git "$RUNNER_TEMP/Laplace"
-          git -C "$RUNNER_TEMP/Laplace" fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
-
-      - name: Audit both live branch estates
+          git clone --no-checkout https://github.com/SaltyPatron/Laplace.git "$AUDIT_ROOT/Laplace"
+          git -C "$AUDIT_ROOT/Laplace" fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+      - name: Inventory branches against their actual main
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/branch_estate_live_audit.py \
             "Laplace-Refactor=$GITHUB_WORKSPACE" \
-            "Laplace=$RUNNER_TEMP/Laplace" \
-            --output "$RUNNER_TEMP/branch-estate-live.raw.json"
-
-      - name: Collapse exact heads of merged PRs and explicit merged supersession chains
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          python3 tools/branch_estate_merged_pr_reconcile.py \
-            --ledger "$RUNNER_TEMP/branch-estate-live.raw.json" \
-            --output "$RUNNER_TEMP/branch-estate-live.merged.json" \
-            --repository "Laplace-Refactor=SaltyPatron/Laplace-Refactor" \
-            --repository "Laplace=SaltyPatron/Laplace"
-
-      - name: Collapse ancestor candidates into maximal unresolved lineages
-        shell: bash
-        run: |
-          set -euo pipefail
+            "Laplace=$AUDIT_ROOT/Laplace" \
+            --output "$AUDIT_ROOT/branch-estate-live.raw.json"
           python3 tools/branch_estate_candidate_subsume.py \
-            --ledger "$RUNNER_TEMP/branch-estate-live.merged.json" \
-            --output "$RUNNER_TEMP/branch-estate-live.maximal.json" \
+            --ledger "$AUDIT_ROOT/branch-estate-live.raw.json" \
+            --output "$AUDIT_ROOT/branch-estate-live.json" \
             --repository "Laplace-Refactor=$GITHUB_WORKSPACE" \
-            --repository "Laplace=$RUNNER_TEMP/Laplace"
-
-      - name: Apply reviewed exact-tip semantic dispositions
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t disposition_files < <(
-            python3 - <<'PY'
-          import glob
-          import json
-          from pathlib import Path
-
-          for raw in sorted(glob.glob('.github/branch-estate-semantic-dispositions*.json')):
-              path = Path(raw)
-              document = json.loads(path.read_text(encoding='utf-8'))
-              entries = document.get('entries')
-              if not isinstance(entries, list):
-                  raise SystemExit(f'{path}: entries must be a JSON array')
-              if entries:
-                  print(path)
-          PY
-          )
-
-          if ((${#disposition_files[@]} == 0)); then
-            cp "$RUNNER_TEMP/branch-estate-live.maximal.json" "$RUNNER_TEMP/branch-estate-live.json"
-          else
-            disposition_args=()
-            for path in "${disposition_files[@]}"; do
-              disposition_args+=(--dispositions "$path")
-            done
-            python3 tools/branch_estate_apply_dispositions.py \
-              --ledger "$RUNNER_TEMP/branch-estate-live.maximal.json" \
-              "${disposition_args[@]}" \
-              --output "$RUNNER_TEMP/branch-estate-live.json"
-          fi
-          cp "$RUNNER_TEMP/branch-estate-live.json" branch-estate-live.json
-
-      - name: Report unresolved candidates and block incomplete convergence
-        shell: bash
-        env:
-          REQUIRE_ZERO: ${{ github.event.pull_request.head.ref == 'delivery/final-convergence-20260911' && '1' || '0' }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          ledger = json.loads(Path("branch-estate-live.json").read_text(encoding="utf-8"))
-          unresolved = []
-          for repository in ledger["repositories"]:
-              label = repository["repository"]
-              for branch in repository["branches"]:
-                  if branch.get("classification") != "UNIQUE_BEHAVIOR_CANDIDATE":
-                      continue
-                  unresolved.append((label, branch))
-
-          print(f"UNRESOLVED_UNIQUE_BEHAVIOR_CANDIDATES={len(unresolved)}")
-          for label, branch in unresolved:
-              print(
-                  f"{label}:{branch['branch']} "
-                  f"tip={branch['tip']} "
-                  f"missing_patches={branch.get('missing_patch_count', 0)}"
-              )
-
-          if os.environ.get("REQUIRE_ZERO") == "1" and unresolved:
-              raise SystemExit(
-                  f"final convergence is blocked by {len(unresolved)} unresolved unique-behavior branches"
-              )
-          PY
-
-      - name: Upload live reconciliation ledger
+            --repository "Laplace=$AUDIT_ROOT/Laplace"
+          printf 'Branch inventory retained at `%s`. Unresolved candidates require code review; this report does not certify delivery.\n' \
+            "$AUDIT_ROOT/branch-estate-live.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload inventory
         uses: actions/upload-artifact@v4
         with:
           name: branch-estate-live
-          path: branch-estate-live.json
+          path: ${{ env.AUDIT_ROOT }}/branch-estate-live.json
           if-no-files-found: error

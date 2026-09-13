@@ -1,7 +1,5 @@
--- Canonical composition may calculate and durably receipt structure without
--- witnessing an occurrence.  occurrence_count is therefore a nonnegative
--- emitted-state count, while logical_occurrence_count remains the positive
--- denominator derived from the nonempty request set.
+-- Historical 1.0.2 source-structural-witness schema. Keep byte-semantics stable so
+-- packaged 1.0.0/1.0.1/1.0.2 install scripts remain valid predecessors of 1.0.3.
 ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_execution_receipt
     DROP CONSTRAINT composition_execution_receipt_occurrence_count_check;
 ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_execution_receipt
@@ -28,20 +26,9 @@ CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witnes
         CHECK (byte_end BETWEEN 1 AND 18446744073709551615),
     kind numeric(20, 0) NOT NULL
         CHECK (kind BETWEEN 0 AND 18446744073709551615),
-    grammar_kind numeric(20, 0)
-        CHECK (grammar_kind BETWEEN 0 AND 18446744073709551615),
-    field_kind numeric(20, 0)
-        CHECK (field_kind BETWEEN 0 AND 18446744073709551615),
-    sibling_ordinal numeric(20, 0)
-        CHECK (sibling_ordinal BETWEEN 0 AND 18446744073709551615),
     media_type bytea NOT NULL,
     depth numeric(20, 0) NOT NULL CHECK (depth BETWEEN 0 AND 4294967295),
     flags numeric(20, 0) NOT NULL CHECK (flags BETWEEN 0 AND 4294967295),
-    syntax_flags numeric(20, 0) CHECK (syntax_flags BETWEEN 0 AND 4294967295),
-    CONSTRAINT source_structural_witness_syntax_presence CHECK (
-        (grammar_kind IS NULL AND field_kind IS NULL AND sibling_ordinal IS NULL AND syntax_flags IS NULL)
-        OR
-        (grammar_kind IS NOT NULL AND field_kind IS NOT NULL AND sibling_ordinal IS NOT NULL AND syntax_flags IS NOT NULL)),
     CHECK (byte_start < byte_end),
     CHECK (
         parent_span_index = 18446744073709551615 OR
@@ -62,11 +49,10 @@ CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witnes
         REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_execution_receipt(working_set_receipt),
     witness_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
     witness_count numeric(20, 0) NOT NULL CHECK (witness_count > 0),
-    version integer NOT NULL CHECK (version IN (1, 2)),
+    version integer NOT NULL CHECK (version = 1),
     recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     recorded_by name NOT NULL DEFAULT current_user,
-    CONSTRAINT source_structural_witness_receipt_profile_execution_version_key
-        UNIQUE (source_profile_id, composition_working_set_receipt, version)
+    UNIQUE (source_profile_id, composition_working_set_receipt)
 );
 
 REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness FROM PUBLIC;

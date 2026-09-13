@@ -401,10 +401,10 @@ def install_package_with_capacity(
 def reconcile_indexed_cognition_after_generation_upgrade(
     plan: dict[str, Any], cluster_contract: dict[str, Any], package: dict[str, Any]
 ) -> dict[str, Any]:
-    """Accept the indexed-cognition predecessor or its proved 1.0.2 successor.
+    """Accept the indexed-cognition predecessor and supported successor schemas.
 
     ``upgrade_product`` may advance an existing persistent extension through 1.0.1
-    to 1.0.2 before the legacy runner reaches its indexed-cognition reconciliation
+    to 1.0.2 or 1.0.3 before the runner reaches indexed-cognition reconciliation
     step. Re-entering that step must verify the inherited native bindings/indexes,
     not reject the already-upgraded product or attempt a downgrade.
     """
@@ -423,7 +423,7 @@ SELECT pg_catalog.json_build_object('version', extversion, 'owner', current_user
         cluster_contract["instance"]["admin_role"],
         60,
     )
-    if current.get("version") != "1.0.2":
+    if current.get("version") not in ("1.0.2", "1.0.3"):
         return fresh_reconcile_indexed_cognition(plan, cluster_contract, package)
 
     relative = (
@@ -453,7 +453,7 @@ BEGIN
     SELECT e.extversion, pg_catalog.pg_get_userbyid(e.extowner) INTO STRICT version, owner
       FROM pg_catalog.pg_extension e WHERE e.extname='laplace';
     IF owner <> current_user THEN RAISE EXCEPTION 'extension reconciliation requires its actual owner'; END IF;
-    IF version <> '1.0.2' THEN
+    IF version NOT IN ('1.0.2', '1.0.3') THEN
         RAISE EXCEPTION 'product cognition successor changed during reconciliation: %', version;
     END IF;
     FOR target IN SELECT * FROM (VALUES
@@ -504,7 +504,7 @@ COMMIT;
     )
     expected = {
         "schema": "laplace.indexed-cognition-upgrade/v1",
-        "version": "1.0.2",
+        "version": current["version"],
         "owner": cluster_contract["instance"]["admin_role"],
         "native_bindings": 2,
         "ready_indexes": 2,
@@ -561,7 +561,10 @@ def recover_preserved_cluster(contract_path, package_path, resource_path, eviden
     ctl.write_json(projection_path, projection)
     plan = ctl.build_plan(contract_path, package_path, resource_path, projection_path, Path("/"))
     previous_config = Path(instance["config_directory"]) / "postgresql.conf"
-    huge_pages = re.search(r"^huge_pages\s*=\s*'?([a-z]+)'?\s*$", previous_config.read_text(), re.M)
+    if previous_config.is_symlink() or (previous_config.exists() and not previous_config.is_file()):
+        raise runner.RunnerActivationError(f"invalid existing configuration: {previous_config}")
+    previous_text = previous_config.read_text() if previous_config.is_file() else ""
+    huge_pages = re.search(r"^huge_pages\s*=\s*'?([a-z]+)'?\s*$", previous_text, re.M)
     if huge_pages:
         plan = ctl.plan_with_physical_settings(plan, contract, {"huge_pages": huge_pages.group(1)})
     plan_path = evidence_directory / ("cluster-plan-" + plan["plan_sha256"] + ".json")
@@ -584,6 +587,11 @@ def recover_preserved_cluster(contract_path, package_path, resource_path, eviden
         path.mkdir(parents=True, exist_ok=True, mode=ctl._core.state_directory_mode(instance, logical))
     staged = upgrade._staged_receipt(plan, "")
     staged["cluster_plan_path"] = str(plan_path)
+    runtime = Path(ctl.RUNTIME_LINK)
+    if runtime.exists() and not runtime.is_symlink():
+        raise runner.RunnerActivationError(f"runtime selection is not a symlink: {runtime}")
+    previous_runtime = os.readlink(runtime) if runtime.is_symlink() else None
+    selected_runtime = f"../releases/{package['package_id']}"
     try:
         upgrade._install_generated_files(plan)
         upgrade._replace_runtime(package["package_id"])
@@ -593,15 +601,54 @@ def recover_preserved_cluster(contract_path, package_path, resource_path, eviden
         ctl.write_json(evidence_directory / "activation-complete.json", result)
         return result
     except BaseException:
+        # Another selection must not be stopped or have its configuration replaced.
+        observed_runtime = os.readlink(runtime) if runtime.is_symlink() else None
+        if ((runtime.exists() and not runtime.is_symlink())
+                or observed_runtime not in (previous_runtime, selected_runtime)):
+            raise runner.RunnerActivationError(
+                "runtime selection changed during recovery; configuration retained")
         # Preserve the database and evidence on every failure. Stop only this candidate.
-        try:
-            if Path(ctl.RUNTIME_LINK).is_symlink():
+        if runtime.is_symlink() and os.readlink(runtime) == selected_runtime:
+            status_command = ctl._pg_ctl_command(plan, "status")
+            observed = subprocess.run(status_command, check=False, capture_output=True,
+                                      text=True, timeout=30, env=ctl.activation_environment())
+            ctl.write_json(evidence_directory / "failed-candidate-status.json", {
+                "command": status_command, "returncode": observed.returncode,
+                "stdout": observed.stdout, "stderr": observed.stderr})
+            if observed.returncode == 0:
                 ctl.execute_activation_command("stop-preserved-candidate-after-failure",
                                                ctl._pg_ctl_command(plan, "stop"), 300)
-        finally:
-            upgrade._restore_generated_files(backups)
+            elif observed.returncode != 3:
+                raise runner.RunnerActivationError(
+                    "cannot establish failed candidate shutdown; configuration retained")
+        # Check every backup before restoring any: a later writer's configuration
+        # must not be overwritten by a rollback of this attempt.
+        planned = {entry["path"]: entry["sha256"] for entry in plan["files"]}
+        for name, backup in backups.items():
+            path = Path(name)
+            if (path.is_symlink() or not path.is_file()
+                    or ctl.sha256_file(path) not in (backup["sha256"], planned[name])):
+                raise runner.RunnerActivationError(
+                    f"configuration changed during recovery; rollback retained: {path}")
+        upgrade._restore_generated_files(backups)
+        # Retire only files created by this failed attempt and only while
+        # their bytes still match the plan; retain concurrent changes.
+        for entry in plan["files"]:
+            path = Path(entry["path"])
+            if (str(path) not in backups and not path.is_symlink()
+                    and path.is_file() and ctl.sha256_file(path) == entry["sha256"]):
+                path.unlink()
+        if runtime.is_symlink() and os.readlink(runtime) == selected_runtime:
+            if previous_runtime is None:
+                runtime.unlink()
+            else:
+                temporary = runtime.parent / f".{runtime.name}.restore-{os.getpid()}"
+                os.symlink(previous_runtime, temporary)
+                try:
+                    os.replace(temporary, runtime)
+                finally:
+                    temporary.unlink(missing_ok=True)
         raise
-
 
 def reconcile_cluster_activation(
     contract_path: Path,
