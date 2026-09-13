@@ -171,6 +171,10 @@ TEST(TabularRecursiveMerge, RetainsWitnessMetadataBoundToCanonicalContent) {
     spans[1].byte_end = 2u;
     spans[1].parent_span_index = 0u;
     spans[1].kind = 0x102u;
+    spans[1].grammar_kind = 0x201u;
+    spans[1].field_kind = 0x301u;
+    spans[1].sibling_ordinal = 7u;
+    spans[1].syntax_flags = 5u;
     spans[1].media_type_byte_count = sizeof(MediaType) - 1u;
     spans[1].depth = 1u;
     spans[1].flags = 3u;
@@ -205,6 +209,10 @@ TEST(TabularRecursiveMerge, RetainsWitnessMetadataBoundToCanonicalContent) {
     EXPECT_EQ(witnesses[1].byte_start, 1u);
     EXPECT_EQ(witnesses[1].byte_end, 2u);
     EXPECT_EQ(witnesses[1].kind, 0x102u);
+    EXPECT_EQ(witnesses[1].grammar_kind, 0x201u);
+    EXPECT_EQ(witnesses[1].field_kind, 0x301u);
+    EXPECT_EQ(witnesses[1].sibling_ordinal, 7u);
+    EXPECT_EQ(witnesses[1].syntax_flags, 5u);
     EXPECT_EQ(witnesses[1].depth, 1u);
     EXPECT_EQ(witnesses[1].flags, 3u);
 

@@ -18,9 +18,13 @@ struct RecursiveDecompositionWitnessInput final {
     std::uint64_t byte_end{};
     std::uint64_t parent_span_index{};
     std::uint64_t kind{};
+    std::uint64_t grammar_kind{};
+    std::uint64_t field_kind{};
+    std::uint64_t sibling_ordinal{};
     std::uint64_t media_type_byte_count{};
     std::uint32_t depth{};
     std::uint32_t flags{};
+    std::uint32_t syntax_flags{};
 };
 
 inline laplace_tabular_source_status MergeRecursiveCanonicalComposition(
@@ -305,10 +309,14 @@ inline laplace_tabular_source_status AppendRecursiveDecompositionWitnesses(
         witness.byte_start = span.byte_start;
         witness.byte_end = span.byte_end;
         witness.kind = span.kind;
+        witness.grammar_kind = span.grammar_kind;
+        witness.field_kind = span.field_kind;
+        witness.sibling_ordinal = span.sibling_ordinal;
         witness.media_type_byte_offset = media_offset;
         witness.media_type_byte_count = span.media_type_byte_count;
         witness.depth = span.depth;
         witness.flags = span.flags;
+        witness.syntax_flags = span.syntax_flags;
         pending_witnesses.push_back(witness);
         if (media_count != 0u) {
             const auto* bytes =

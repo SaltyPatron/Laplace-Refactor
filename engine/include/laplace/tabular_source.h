@@ -130,10 +130,15 @@ typedef struct laplace_tabular_decomposition_witness {
     uint64_t byte_start;
     uint64_t byte_end;
     uint64_t kind;
+    uint64_t grammar_kind;
+    uint64_t field_kind;
+    uint64_t sibling_ordinal;
     uint64_t media_type_byte_offset;
     uint64_t media_type_byte_count;
     uint32_t depth;
     uint32_t flags;
+    uint32_t syntax_flags;
+    uint32_t reserved;
 } laplace_tabular_decomposition_witness;
 
 typedef struct laplace_tabular_source_input {
