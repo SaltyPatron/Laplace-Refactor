@@ -120,6 +120,39 @@ VALUES(
     decode(repeat('97',32),'hex'),
     decode(repeat('98',32),'hex'),
     0::numeric,1::numeric,1::numeric,1,1,1,0);
+
+-- Close the exact semantic evidence into the same world-admission boundary that
+-- owns the mapping. The provider must require both the node/root lineage members
+-- and the exact testimony member; raw evidence rows outside this receipt closure
+-- are not candidates for a boundary-pinned cognition program.
+INSERT INTO laplace.world_admission(
+    admission_id,source_profile_id,selected_boundary_fingerprint,
+    source_profile_receipt_id,recipe_receipt_id,
+    composition_working_set_receipt_id,composition_presence_receipt_id,
+    composition_producer_receipt_id,composition_stream_receipt_id,
+    evidence_lineage_receipt_id,evidence_testimony_receipt_id,
+    readback_fingerprint,profile_occurrence_count,composition_occurrence_count,
+    profile_claim_count,evidence_node_count,testimony_count,
+    profile_bound_testimony_count,recipe_bound_testimony_count,
+    lineage_bound_testimony_count,closure_subject_count,closed_subject_count,
+    reconstruction_class,flags)
+VALUES(
+    decode(repeat('a1',32),'hex'),decode(repeat('72',32),'hex'),
+    decode(repeat('71',32),'hex'),decode(repeat('a2',32),'hex'),
+    decode(repeat('a3',32),'hex'),decode(repeat('a4',32),'hex'),
+    decode(repeat('a5',32),'hex'),decode(repeat('a6',32),'hex'),
+    decode(repeat('a7',32),'hex'),decode(repeat('aa',32),'hex'),
+    decode(repeat('ab',32),'hex'),decode(repeat('ac',32),'hex'),
+    1::numeric,1::numeric,1::numeric,1::numeric,1::numeric,
+    1::numeric,1::numeric,1::numeric,1::numeric,1::numeric,1,0);
+INSERT INTO laplace.evidence_lineage_receipt_member(
+    receipt_id,node_id,member_ordinal)
+VALUES(
+    decode(repeat('aa',32),'hex'),decode(repeat('91',32),'hex'),1::numeric);
+INSERT INTO laplace.evidence_testimony_receipt_member(
+    receipt_id,testimony_id,member_ordinal)
+VALUES(
+    decode(repeat('ab',32),'hex'),decode(repeat('95',32),'hex'),1::numeric);
 SET session_replication_role = origin;
 
 ANALYZE laplace.reference_mapping_occurrence;
@@ -228,10 +261,41 @@ BEGIN
 END
 $contract$;
 
--- Mutation control: remove the only root projection while leaving the relation
--- and testimony rows intact. The semantic execution must no longer succeed. This
--- prevents the old failure mode where an unrooted relation row was labeled
--- TESTIMONY and still produced a green product-path result.
+-- Mutation control: a raw testimony row is not enough. Remove it from the exact
+-- admitted testimony receipt while leaving the mapping, node, root projection and
+-- testimony rows themselves intact. A boundary-pinned query must reject it.
+DELETE FROM laplace.evidence_testimony_receipt_member
+WHERE receipt_id = decode(repeat('ab',32),'hex')
+  AND testimony_id = decode(repeat('95',32),'hex');
+
+DO $outside_admission$
+DECLARE
+    rejected boolean := false;
+    fixture laplace.cognition_observation_request;
+BEGIN
+    SELECT request INTO STRICT fixture FROM semantic_cognition_fixture;
+    BEGIN
+        PERFORM laplace.cognition_semantic_execute(
+            pg_temp.execution_context(), fixture);
+    EXCEPTION WHEN OTHERS THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'semantic testimony outside the world-admission receipt was accepted';
+    END IF;
+END
+$outside_admission$;
+
+SET session_replication_role = replica;
+INSERT INTO laplace.evidence_testimony_receipt_member(
+    receipt_id,testimony_id,member_ordinal)
+VALUES(
+    decode(repeat('ab',32),'hex'),decode(repeat('95',32),'hex'),1::numeric);
+SET session_replication_role = origin;
+
+-- Mutation control: remove the only root projection while leaving the relation,
+-- admitted node and testimony rows intact. The semantic execution must no longer
+-- succeed. This prevents an unrooted relation from being labeled TESTIMONY.
 DELETE FROM laplace.evidence_root_projection
 WHERE node_id = decode(repeat('91',32),'hex')
   AND root_node_id = decode(repeat('91',32),'hex');
