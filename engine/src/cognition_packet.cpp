@@ -186,11 +186,25 @@ bool ReadField(
         reader->U32(&field->flags);
 }
 
+bool ReadStandingState(
+    Reader* const reader,
+    laplace_standing_state* const state) {
+    return reader != nullptr && state != nullptr &&
+        reader->Digest(&state->state_id) && reader->Digest(&state->coordinate_id) &&
+        reader->Digest(&state->arena_scope_id) && reader->Digest(&state->prior_state_id) &&
+        reader->Digest(&state->epoch_id) && reader->Digest(&state->rating_recipe_id) &&
+        reader->F64(&state->rating) && reader->F64(&state->rating_deviation) &&
+        reader->F64(&state->volatility) && reader->U64(&state->eligible_match_count) &&
+        reader->U64(&state->period_ordinal) && reader->U32(&state->rating_recipe_version) &&
+        reader->U32(&state->flags);
+}
+
 bool ReadConstraint(
     Reader* const reader,
     laplace_cognition_operator_constraint* const constraint) {
     if (reader == nullptr || constraint == nullptr) return false;
-    return reader->Digest(&constraint->constraint_id) &&
+    *constraint = laplace_cognition_operator_constraint{};
+    const bool base = reader->Digest(&constraint->constraint_id) &&
         reader->Digest(&constraint->plane_id) &&
         reader->Digest(&constraint->law_fingerprint) &&
         reader->Digest(&constraint->units_fingerprint) &&
@@ -208,6 +222,9 @@ bool ReadConstraint(
         reader->U32(&constraint->transport_kind) &&
         reader->U32(&constraint->flags) &&
         reader->U32(&constraint->reserved);
+    if (!base) return false;
+    return constraint->source_class != LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING ||
+        ReadStandingState(reader, &constraint->standing);
 }
 
 laplace_cognition_packet_status DecodeRequest(
