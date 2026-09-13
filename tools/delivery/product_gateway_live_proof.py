@@ -254,11 +254,11 @@ def prove(output: Path, package_id: str, *, include_source_ingestion: bool = Fal
     if first.get("next_checkpoint_fingerprint") == second.get("next_checkpoint_fingerprint"):
         raise RuntimeError("gateway cognition did not advance the durable checkpoint")
 
+    # The compatibility adapter currently preserves one exact user message only.
+    # Client-supplied system/developer/assistant history is intentionally unsupported
+    # until #271 carries those roles into native discourse without text flattening.
     chat_messages = [
-        {"role": "system", "content": "You are the installed Laplace product."},
-        {"role": "user", "content": "Write a Python function named answer that returns 41."},
-        {"role": "assistant", "content": "def answer() -> int:\n    return 41"},
-        {"role": "user", "content": "Continue the conversation and change it to return 42."},
+        {"role": "user", "content": "AA"},
     ]
     chat = json_http("POST", "/v1/chat/completions", {"model": "laplace-native", "messages": chat_messages})
     if chat.get("object") != "chat.completion" or chat.get("model") != "laplace-native":
@@ -301,7 +301,16 @@ def prove(output: Path, package_id: str, *, include_source_ingestion: bool = Fal
             "turn_0": {"status": first.get("status"), "ordinal": first.get("turn_ordinal"), "checkpoint": first.get("next_checkpoint_fingerprint"), "output_utf8": first.get("output_utf8")},
             "turn_1": {"status": second.get("status"), "ordinal": second.get("turn_ordinal"), "continued": second.get("continued"), "checkpoint": second.get("next_checkpoint_fingerprint"), "output_utf8": second.get("output_utf8")},
         },
-        "openai_chat": {"message_count": len(chat_messages), "roles": [entry["role"] for entry in chat_messages], "object": chat.get("object"), "model": chat.get("model"), "assistant_content": message.get("content") if isinstance(message, dict) else None, "streaming": streamed},
+        "openai_chat": {
+            "declared_boundary": "single-user-message",
+            "client_supplied_role_history": False,
+            "message_count": len(chat_messages),
+            "roles": [entry["role"] for entry in chat_messages],
+            "object": chat.get("object"),
+            "model": chat.get("model"),
+            "assistant_content": message.get("content") if isinstance(message, dict) else None,
+            "streaming": streamed,
+        },
         "source_ingestion": source_ingestion,
         "mcp": {"tools": sorted(names), "query_schema": structured.get("schema")},
     }

@@ -43,18 +43,18 @@
           <div>
             <p class="eyebrow">Information world</p>
             <h2>Explore Laplace</h2>
-            <p>Move through canonical entities, consensus, rankings, evidence, sources, physical structure and occurrences without changing semantic engines or losing context.</p>
+            <p>Inspect canonical entities, consensus, rankings, evidence, sources, physical structure and occurrences without treating this browser view as the native Laplace search engine.</p>
           </div>
           <button id="explore-refresh" class="quiet-button" type="button">Refresh world</button>
         </div>
 
         <form id="explore-search-form" class="world-search">
           <div class="world-search-row">
-            <label class="world-search-label" for="explore-search">Search current facet or open a canonical entity</label>
-            <input id="explore-search" type="search" autocomplete="off" spellcheck="false" placeholder="Filter this facet, or paste a 32-hex entity id">
-            <button class="primary-button" type="submit">Go</button>
+            <label class="world-search-label" for="explore-search">Filter the currently loaded facet rows, or open an exact canonical entity ID</label>
+            <input id="explore-search" type="search" autocomplete="off" spellcheck="false" placeholder="Filter the loaded rows, or paste a 32-hex entity id">
+            <button class="primary-button" type="submit">Filter / Open</button>
           </div>
-          <p class="muted world-search-note">Name/referent discovery is shown only when backed by an admitted source or witnessed mapping. The browser never invents identity matches.</p>
+          <p class="muted world-search-note">This field is a local display filter over the currently loaded facet page. It is not corpus search, referent discovery, containment search, typed filtered indexed search, or evidence of absence. The real query/search path remains owned by #17/#60/#275.</p>
         </form>
 
         <div id="explore-summary" class="world-metrics" aria-label="World summary"></div>
@@ -120,14 +120,15 @@
         </details>
 
         <details class="operator-section">
-          <summary>Raw substrate query</summary>
+          <summary>Raw substrate inspection</summary>
           <div class="operator-body">
+            <p class="muted">This reads bounded collection rows or an exact entity ID through the inspection surface. It is not the #17/#60 query/search engine.</p>
             <div class="query-grid">
               <label>Collection<select id="graph-collection"><option value="entities">Entities</option><option value="consensus">Consensus</option><option value="standings">Rankings</option><option value="evidence">Evidence</option><option value="physicalities">Physicalities</option><option value="attestations">Occurrences</option><option value="source-profiles">Source profiles</option><option value="summary">Summary</option><option value="entity">Entity detail</option></select></label>
               <label>Limit<input id="graph-limit" type="number" min="1" max="1000" value="25"></label>
               <label id="graph-id-label" hidden>Entity ID<input id="graph-id" type="text" maxlength="32" spellcheck="false" autocomplete="off"></label>
             </div>
-            <button id="graph-refresh" class="primary-button" type="button">Run query</button>
+            <button id="graph-refresh" class="primary-button" type="button">Inspect</button>
             <div id="graph-status" class="inline-status"></div><div id="graph-result"></div>
           </div>
         </details>

@@ -96,6 +96,7 @@
       "bin/laplace-cognition-core-service",
       "bin/laplace-openai-api",
       "bin/laplace-openai-api-core",
+      "bin/laplace-openai-api-transport",
       "bin/laplace-source-product",
       "bin/laplace-source-job-worker",
       "bin/laplace-model-export",
