@@ -281,6 +281,13 @@ laplace_cognition_observation_result_operator_view(
     size_t answer_index,
     laplace_cognition_observation_operator_view* view);
 
+/* Bind an immutable answer set to its exact request and native execution. */
+LAPLACE_API laplace_cognition_observation_request_status
+laplace_cognition_observation_result_execution(
+    const laplace_cognition_observation_result* result,
+    laplace_digest256* request_fingerprint,
+    laplace_digest256* forward_receipt_id);
+
 LAPLACE_API void
 laplace_cognition_observation_result_destroy(
     laplace_cognition_observation_result** result);

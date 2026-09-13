@@ -307,6 +307,122 @@ TEST(CognitionMaterialization, NestedCompositionDescendsToAtomsAndPreservesRuns)
     EXPECT_EQ(state.read_calls, 2U);
 }
 
+TEST(CognitionMaterialization, SharedSubtreeAcrossParentsIsReadOnceWithExactOccurrenceOrder) {
+    auto child = Composite(
+        {{Codepoint(0x41U), 1U, 0x41U, 0U, true},
+         {Codepoint(0x42U), 1U, 0x42U, 0U, true}}, 1U, 30U);
+    auto parent = Composite(
+        {{Codepoint(0x3FU), 1U, 0x3FU, 0U, true},
+         {child.node.entity_id, 2U, 0U, 1U, false}}, 2U, 40U);
+    auto root = Composite(
+        {{child.node.entity_id, 1U, 0U, 1U, false},
+         {parent.node.entity_id, 1U, 0U, 2U, false},
+         {child.node.entity_id, 1U, 0U, 1U, false}}, 3U, 50U);
+    ProviderState state{{root, parent, child}};
+    auto provider = Provider(&state);
+    auto realization = Realization(root.node.entity_id);
+    auto request = Request();
+    request.maximum_nodes = 3U;
+    request.maximum_trajectory_carriers = 7U;
+    std::array<std::uint8_t, 64> output{};
+    std::size_t output_bytes = 0U;
+    laplace_cognition_materialization_receipt receipt{};
+    ASSERT_EQ(laplace_cognition_realization_materialize_utf8(
+        &realization, &request, &provider, output.data(), output.size(),
+        &output_bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    const auto expected = ExpectedBytes(
+        {0x41U, 0x42U, 0x3FU, 0x41U, 0x42U, 0x41U, 0x42U, 0x41U, 0x42U});
+    ASSERT_EQ(output_bytes, expected.size());
+    EXPECT_TRUE(std::equal(expected.begin(), expected.end(), output.begin()));
+    EXPECT_EQ(state.resolve_calls, 3U);
+    EXPECT_EQ(state.read_calls, 3U);
+    EXPECT_EQ(receipt.resolved_node_count, 3U);
+    EXPECT_EQ(receipt.trajectory_carrier_count, 7U);
+    EXPECT_EQ(receipt.maximum_depth_observed, 3U);
+    EXPECT_EQ(receipt.codepoint_count, 9U);
+
+    // Reuse at a deeper occurrence must still enforce that occurrence's depth.
+    request.maximum_depth = 2U;
+    output.fill(0xA5U);
+    EXPECT_EQ(laplace_cognition_realization_materialize_utf8(
+        &realization, &request, &provider, output.data(), output.size(),
+        &output_bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_LIMIT);
+    EXPECT_EQ(output_bytes, 0U);
+    EXPECT_TRUE(std::all_of(output.begin(), output.end(),
+        [](std::uint8_t byte) { return byte == 0xA5U; }));
+
+    request.maximum_depth = 3U;
+    request.maximum_output_bytes = expected.size() - 1U;
+    EXPECT_EQ(laplace_cognition_realization_materialize_utf8(
+        &realization, &request, &provider, output.data(), output.size(),
+        &output_bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_LIMIT);
+    EXPECT_EQ(output_bytes, 0U);
+    EXPECT_TRUE(std::all_of(output.begin(), output.end(),
+        [](std::uint8_t byte) { return byte == 0xA5U; }));
+
+    // A later call must revalidate the provider's content, never reuse a prior
+    // call's successful slice as authority for a changed full witness.
+    request.maximum_output_bytes = 64U;
+    state.entries[2].node.identity_witness.bytes[31] ^= 1U;
+    EXPECT_EQ(laplace_cognition_realization_materialize_utf8(
+        &realization, &request, &provider, output.data(), output.size(),
+        &output_bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH);
+    EXPECT_EQ(output_bytes, 0U);
+    EXPECT_TRUE(std::all_of(output.begin(), output.end(),
+        [](std::uint8_t byte) { return byte == 0xA5U; }));
+}
+
+TEST(CognitionMaterialization, SharedContentDoesNotEraseOccurrenceTierValidation) {
+    auto child = Composite(
+        {{Codepoint(0x41U), 1U, 0x41U, 0U, true},
+         {Codepoint(0x42U), 1U, 0x42U, 0U, true}}, 1U, 30U);
+    auto root = Composite(
+        {{child.node.entity_id, 1U, 0U, 1U, false},
+         {Codepoint(0x3FU), 1U, 0x3FU, 0U, true},
+         {child.node.entity_id, 1U, 0U, 2U, false}}, 3U, 50U);
+    ProviderState state{{root, child}};
+    auto provider = Provider(&state);
+    auto realization = Realization(root.node.entity_id);
+    auto request = Request();
+    std::array<std::uint8_t, 64> output{};
+    output.fill(0xA5U);
+    std::size_t output_bytes = 0U;
+    laplace_cognition_materialization_receipt receipt{};
+    EXPECT_EQ(laplace_cognition_realization_materialize_utf8(
+        &realization, &request, &provider, output.data(), output.size(),
+        &output_bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID);
+    EXPECT_EQ(output_bytes, 0U);
+    EXPECT_TRUE(std::all_of(output.begin(), output.end(),
+        [](std::uint8_t byte) { return byte == 0xA5U; }));
+}
+
+TEST(CognitionMaterialization, UnrepresentableProviderTrajectoryReturnsLimitWithoutPublication) {
+    auto root = Composite(
+        {{Codepoint(0x41U), 1U, 0x41U, 0U, true},
+         {Codepoint(0x42U), 1U, 0x42U, 0U, true}}, 1U, 30U);
+    root.node.carrier_count = static_cast<std::uint64_t>(
+        std::vector<laplace_trajectory_carrier>{}.max_size()) + 1U;
+    ProviderState state{{root}};
+    auto provider = Provider(&state);
+    auto realization = Realization(root.node.entity_id);
+    auto request = Request();
+    request.maximum_trajectory_carriers = root.node.carrier_count;
+    std::array<std::uint8_t, 64> output{};
+    output.fill(0xA5U);
+    std::size_t output_bytes = 99U;
+    laplace_cognition_materialization_receipt receipt{};
+    receipt.materialization_id = Digest(90U);
+    EXPECT_EQ(laplace_cognition_realization_materialize_utf8(
+        &realization, &request, &provider, output.data(), output.size(),
+        &output_bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_LIMIT);
+    EXPECT_EQ(state.resolve_calls, 1U);
+    EXPECT_EQ(state.read_calls, 0U);
+    EXPECT_EQ(output_bytes, 0U);
+    EXPECT_TRUE(ZeroDigest(receipt.materialization_id));
+    EXPECT_TRUE(std::all_of(output.begin(), output.end(),
+        [](std::uint8_t byte) { return byte == 0xA5U; }));
+}
+
 TEST(CognitionMaterialization, ValidTrajectoryWithWrongOrderFailsContentIdentity) {
     auto root = Composite(
         {{Codepoint(0x41U), 1U, 0x41U, 0U, true},

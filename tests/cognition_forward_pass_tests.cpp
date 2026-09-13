@@ -346,6 +346,24 @@ TEST(CognitionForwardPass, CompletesOnlyAfterAllObligationsResolve) {
         LAPLACE_COGNITION_FORWARD_OK);
     EXPECT_EQ(first.remaining_open_count, 1U);
     EXPECT_EQ(second.remaining_open_count, 0U);
+    laplace_cognition_forward_receipt retained{};
+    ASSERT_EQ(laplace_cognition_forward_result_receipt(result.value, &retained),
+        LAPLACE_COGNITION_FORWARD_OK);
+    EXPECT_TRUE(Same(retained.receipt_id, receipt.receipt_id));
+    receipt.final_remaining_required_count = 99U;
+    EXPECT_EQ(retained.final_remaining_required_count, 0U);
+    EXPECT_EQ(laplace_cognition_forward_result_obligation_count(result.value), 2U);
+    laplace_cognition_guidance_header header{};
+    ASSERT_EQ(laplace_cognition_forward_result_header(result.value, &header),
+        LAPLACE_COGNITION_FORWARD_OK);
+    std::array<laplace_cognition_obligation, 2> retained_obligations{};
+    ASSERT_EQ(laplace_cognition_forward_result_obligations(result.value, 0U,
+        retained_obligations.data(), retained_obligations.size()), LAPLACE_COGNITION_FORWARD_OK);
+    for (const auto& obligation : retained_obligations)
+        EXPECT_EQ(obligation.disposition, LAPLACE_COGNITION_OBLIGATION_SATISFIED);
+    EXPECT_EQ(laplace_cognition_forward_result_obligations(result.value, 2U,
+        retained_obligations.data(), 1U), LAPLACE_COGNITION_FORWARD_RANGE);
+
 }
 
 TEST(CognitionForwardPass, DoesNotTerminateAfterOneLayerWhenObligationRemains) {

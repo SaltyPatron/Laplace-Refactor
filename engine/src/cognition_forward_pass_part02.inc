@@ -117,6 +117,7 @@ laplace_cognition_forward_pass_execute(
             receipt->status = static_cast<std::uint32_t>(status);
             return status;
         }
+        owned->receipt = *receipt;
         *result = owned.release();
         return LAPLACE_COGNITION_FORWARD_OK;
     } catch (const std::bad_alloc&) {
@@ -165,4 +166,53 @@ laplace_cognition_forward_result_final_state_clone(
             LAPLACE_COGNITION_GUIDANCE_OK
         ? LAPLACE_COGNITION_FORWARD_OK
         : LAPLACE_COGNITION_FORWARD_GUIDANCE_FAILURE;
+}
+
+extern "C" laplace_cognition_forward_status
+laplace_cognition_forward_result_receipt(
+    const laplace_cognition_forward_result* const result,
+    laplace_cognition_forward_receipt* const receipt) {
+    if (receipt != nullptr) *receipt = {};
+    if (result == nullptr || receipt == nullptr)
+        return LAPLACE_COGNITION_FORWARD_INVALID_ARGUMENT;
+    *receipt = result->receipt;
+    return LAPLACE_COGNITION_FORWARD_OK;
+}
+
+extern "C" laplace_cognition_forward_status
+laplace_cognition_forward_result_header(
+    const laplace_cognition_forward_result* const result,
+    laplace_cognition_guidance_header* const header) {
+    if (header != nullptr) *header = {};
+    if (result == nullptr || header == nullptr)
+        return LAPLACE_COGNITION_FORWARD_INVALID_ARGUMENT;
+    return laplace_cognition_guidance_state_header(result->final_state, header) ==
+            LAPLACE_COGNITION_GUIDANCE_OK
+        ? LAPLACE_COGNITION_FORWARD_OK
+        : LAPLACE_COGNITION_FORWARD_GUIDANCE_FAILURE;
+}
+
+extern "C" size_t laplace_cognition_forward_result_obligation_count(
+    const laplace_cognition_forward_result* const result) {
+    return result == nullptr ? 0U :
+        laplace_cognition_guidance_state_obligation_count(result->final_state);
+}
+
+extern "C" laplace_cognition_forward_status
+laplace_cognition_forward_result_obligations(
+    const laplace_cognition_forward_result* const result,
+    const size_t first, laplace_cognition_obligation* const obligations,
+    const size_t count) {
+    if (result == nullptr || (count != 0U && obligations == nullptr))
+        return LAPLACE_COGNITION_FORWARD_INVALID_ARGUMENT;
+    const size_t total = laplace_cognition_forward_result_obligation_count(result);
+    if (first > total || count > total - first)
+        return LAPLACE_COGNITION_FORWARD_RANGE;
+    for (size_t index = 0U; index < count; ++index) {
+        if (laplace_cognition_guidance_state_obligation(
+                result->final_state, first + index, obligations + index) !=
+            LAPLACE_COGNITION_GUIDANCE_OK)
+            return LAPLACE_COGNITION_FORWARD_GUIDANCE_FAILURE;
+    }
+    return LAPLACE_COGNITION_FORWARD_OK;
 }
