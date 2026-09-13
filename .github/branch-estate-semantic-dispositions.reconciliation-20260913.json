@@ -1,0 +1,66 @@
+{
+  "schema": "laplace.branch-estate-semantic-dispositions/v1",
+  "rule": "Every entry is pinned to an exact reviewed branch tip and must be backed by current-code or repository-history evidence.",
+  "entries": [
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "delivery/postgresql-realization-readback-20260906",
+      "tip": "778d236ed146c671b990f54c044c5c2b0afe14fb",
+      "disposition": "SUPERSEDED_BY_PR_330_AND_CURRENT_MATERIALIZATION_ROUTE",
+      "rationale": "This historical branch carried an older PostgreSQL realization materialization/readback implementation. PR #329 explicitly records that branch as superseded by #330 because it predated the generalized materialization_pg provider and was not wired into the then-current PostgreSQL module source list. Current main contains the generalized materialization provider, public cognition materialization route, PostgreSQL route implementation, package wiring, and product cognition callers. Replaying the old branch would restore an obsolete provider boundary rather than missing functionality.",
+      "evidence": [
+        "778d236ed146c671b990f54c044c5c2b0afe14fb",
+        "SaltyPatron/Laplace-Refactor#329",
+        "SaltyPatron/Laplace-Refactor#330",
+        "integrations/postgresql/extension/src/materialization_pg.c",
+        "integrations/postgresql/extension/src/cognition_materialization_route_pg.c",
+        "integrations/postgresql/extension/cognition_materialization_route.sql"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "fix/persisted-cognition-provider-ci-probe",
+      "tip": "c3ee7a109a2b02d45d83054f8a3ca85ca8b9c56a",
+      "disposition": "ABSORBED_AND_STRENGTHENED_BY_CURRENT_PERSISTED_COGNITION_CONTRACT",
+      "rationale": "This branch added a durable entity/physicality fixture and parity probe for cognition_observation_execute_persisted. Current main contains that durable fixture and persisted execution path and extends the proof to the exact C-to-B-to-A answer, transition count, provider rows and bytes, batch count, database operations, unrelated-estate invariance, and index-policy checks. The branch therefore contributes no missing behavior beyond the stronger current contract.",
+      "evidence": [
+        "c3ee7a109a2b02d45d83054f8a3ca85ca8b9c56a",
+        "integrations/postgresql/extension/tests/observation_cognition_contract.sql.in",
+        "integrations/postgresql/extension/observation_cognition_persisted.sql.in",
+        "integrations/postgresql/extension/src/observation_cognition_persisted_pg.c"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "implementation/product-realization",
+      "tip": "a4e63422131886829373043eaf6b12ddc50002d2",
+      "disposition": "ABSORBED_AND_INTEGRATED_BY_CURRENT_PRODUCT_REALIZATION_PROVIDER",
+      "rationale": "This two-commit branch introduced a standalone PostgreSQL exact-reuse realization provider but did not represent the current product owner. Current main implements that production behavior inside cognition_product_pg: a completed semantic act yields an EXACT_WHOLE witnessed-reuse candidate, explicit language/register obligations fail closed, candidate/provider receipts are generated, and the provider is wired into the product cognition execution path. The current integrated provider is the authoritative evolution of the standalone branch implementation.",
+      "evidence": [
+        "a2a13bcba8d4c94cd3db3dd8dfe0886db9b7f20b",
+        "a4e63422131886829373043eaf6b12ddc50002d2",
+        "integrations/postgresql/extension/src/cognition_product_pg.c",
+        "engine/include/laplace/cognition_realization.h",
+        "engine/src/cognition_realization.inc"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "preservation/20260907-all-local/implementation/laplace-machine",
+      "tip": "d6159c527010790c7a1803b91fdaa2d6df8d866a",
+      "disposition": "ABSORBED_AND_EVOLVED_BY_CURRENT_COMPOSITION_OCCURRENCE_CONTRACT",
+      "rationale": "The product-semantic change preserved by this WIP branch separated canonical composition calculation from observed-occurrence emission through an explicit request flag. Current main retains and extends that rule in the composition contract, generated ABI, composition implementation, PostgreSQL persistence path, Highway AST producer, tabular source handling, and resource-accounting/behavior tests. The WIP workflow edits are historical orchestration choices superseded by the current product-path and runner-owned delivery lifecycle; replaying the preservation snapshot would regress newer source and delivery ownership.",
+      "evidence": [
+        "d6159c527010790c7a1803b91fdaa2d6df8d866a",
+        "contracts/composition.json",
+        "cmake/LaplaceCompositionContract.cmake",
+        "engine/src/composition_legacy.inc",
+        "integrations/postgresql/extension/src/composition_pg.c",
+        "engine/src/highway_ast.cpp",
+        "engine/src/tabular_source.cpp",
+        "tests/composition_tests.cpp",
+        "tests/composition_resource_accounting_tests.cpp"
+      ]
+    }
+  ]
+}
