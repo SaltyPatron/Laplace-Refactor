@@ -86,6 +86,17 @@
         "cached content identity cannot bypass occurrence tier validation",
         "inconsistent occurrence tier publishes no output"
       ]
+    },
+    {
+      "ctest_name": "CognitionMaterialization.UnrepresentableProviderTrajectoryReturnsLimitWithoutPublication",
+      "evidence_targets": [
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "provider-declared trajectory cardinality that cannot be represented by the native container returns a typed materialization limit",
+        "unrepresentable trajectory size is rejected before any trajectory read",
+        "limit failure clears receipt and output length without publishing partial bytes"
+      ]
     }
   ]
 }
