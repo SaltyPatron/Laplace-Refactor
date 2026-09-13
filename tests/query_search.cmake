@@ -40,7 +40,13 @@ gtest_discover_tests(laplace_observation_query_tests PROPERTIES
 function(laplace_add_query_search_mutation suffix definition test_name filter)
     set(library "laplace_query_search_${suffix}_mutant")
     set(probe "laplace_query_search_${suffix}_mutation_probe")
-    add_library(${library} STATIC "${PROJECT_SOURCE_DIR}/engine/src/query_search.cpp")
+    # query_search now validates the exact typed standing state carried by a
+    # standing transition. Mutation owners compile the same production search
+    # source, so include the canonical standing identity implementation rather
+    # than weakening transition validation for the probes.
+    add_library(${library} STATIC
+        "${PROJECT_SOURCE_DIR}/engine/src/query_search.cpp"
+        "${PROJECT_SOURCE_DIR}/engine/src/standing_calculation.c")
     target_include_directories(${library} PRIVATE
         "${PROJECT_SOURCE_DIR}/engine/include"
         "${CMAKE_BINARY_DIR}/generated")
