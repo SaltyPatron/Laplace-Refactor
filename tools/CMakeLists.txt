@@ -119,6 +119,9 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/cognition_surface_service.py"
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_service.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-openai-api-core)
+install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/_openai_api_compat_pre_reconciliation.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME laplace-openai-api-transport)
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/openai_api_compat.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-openai-api)
@@ -175,11 +178,11 @@ if(BUILD_TESTING)
     set_tests_properties(product.source-ingestion-lifecycle PROPERTIES
         LABELS "product;source-admission;catalog;preflight;job;idempotency;mutation")
     add_test(
-        NAME product.openai-chat-history
+        NAME product.openai-chat-boundary
         COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/../tests/openai_chat_compat_tests.py")
-    set_tests_properties(product.openai-chat-history PROPERTIES
-        LABELS "product;openai;chat;conversation;compatibility")
+    set_tests_properties(product.openai-chat-boundary PROPERTIES
+        LABELS "product;openai;transport;compatibility;negative-control")
     add_test(
         NAME product.gateway-contract
         COMMAND "${Python3_EXECUTABLE}"
