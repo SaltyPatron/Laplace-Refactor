@@ -7,9 +7,23 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <new>
 #include <stdexcept>
 #include <vector>
+
+struct laplace_cognition_interpretation_execution_result {
+    laplace_cognition_forward_result* forward{};
+    laplace_cognition_guidance_header header{};
+    laplace_digest256 query_program_id{};
+    std::vector<laplace_digest256> obligation_ids;
+    std::vector<laplace_digest256> request_fingerprints;
+    std::vector<std::vector<laplace_cognition_observation_answer>> answers;
+
+    ~laplace_cognition_interpretation_execution_result() {
+        laplace_cognition_forward_result_destroy(&forward);
+    }
+};
 
 namespace laplace_cognition_interpretation_query_detail {
 
@@ -295,14 +309,14 @@ laplace_cognition_interpretation_query_program_identify(
 }
 
 extern "C" laplace_cognition_interpretation_status
-laplace_cognition_interpretation_forward_execute_with_candidate_provider(
+laplace_cognition_interpretation_program_execute_with_candidate_provider(
     const laplace_cognition_interpretation_result* const interpretation,
     const laplace_cognition_interpretation_program_rule* const rule,
     const laplace_cognition_interpretation_query_program* const query_program,
     const laplace_cognition_turn_input* const turn,
     const laplace_cognition_turn_policy* const policy,
     const laplace_cognition_observation_candidate_provider_v1* const provider,
-    laplace_cognition_forward_result** const result,
+    laplace_cognition_interpretation_execution_result** const result,
     laplace_cognition_forward_receipt* const receipt) {
     using namespace laplace_cognition_interpretation_query_detail;
     if (result != nullptr) *result = nullptr;
@@ -460,24 +474,124 @@ laplace_cognition_interpretation_forward_execute_with_candidate_provider(
         forward_provider.abi_minor = LAPLACE_COGNITION_FORWARD_PROVIDER_ABI_MINOR;
 
         const auto program = ForwardProgram(header, inferred_policy.forward_limits);
+        laplace_cognition_forward_result* forward = nullptr;
         const auto status = laplace_cognition_forward_pass_execute(
-            &program, guidance.state, &forward_provider, result, receipt);
+            &program, guidance.state, &forward_provider, &forward, receipt);
         if (status == LAPLACE_COGNITION_FORWARD_MEMORY_FAILURE) {
+            laplace_cognition_forward_result_destroy(&forward);
             return LAPLACE_COGNITION_INTERPRETATION_MEMORY_FAILURE;
         }
-        if (status != LAPLACE_COGNITION_FORWARD_OK) {
-            laplace_cognition_forward_result_destroy(result);
+        if (status != LAPLACE_COGNITION_FORWARD_OK || forward == nullptr) {
+            laplace_cognition_forward_result_destroy(&forward);
             *receipt = laplace_cognition_forward_receipt{};
             return LAPLACE_COGNITION_INTERPRETATION_FORWARD_FAILURE;
         }
+
+        auto retained = std::make_unique<laplace_cognition_interpretation_execution_result>();
+        retained->forward = forward;
+        retained->header = header;
+        retained->query_program_id = query_program_id;
+        retained->obligation_ids.reserve(runtime.queries.size());
+        retained->request_fingerprints.reserve(runtime.queries.size());
+        retained->answers.reserve(runtime.queries.size());
+        for (auto& query : runtime.queries) {
+            retained->obligation_ids.push_back(query.obligation_id);
+            retained->request_fingerprints.push_back(
+                query.candidate.request_fingerprint);
+            retained->answers.push_back(std::move(query.candidate.answers));
+        }
+        *result = retained.release();
         return LAPLACE_COGNITION_INTERPRETATION_OK;
     } catch (const std::bad_alloc&) {
-        laplace_cognition_forward_result_destroy(result);
         *receipt = laplace_cognition_forward_receipt{};
         return LAPLACE_COGNITION_INTERPRETATION_MEMORY_FAILURE;
     } catch (const std::length_error&) {
-        laplace_cognition_forward_result_destroy(result);
         *receipt = laplace_cognition_forward_receipt{};
         return LAPLACE_COGNITION_INTERPRETATION_RANGE;
     }
+}
+
+extern "C" size_t
+laplace_cognition_interpretation_execution_obligation_count(
+    const laplace_cognition_interpretation_execution_result* const result) {
+    return result == nullptr ? 0U : result->obligation_ids.size();
+}
+
+extern "C" laplace_cognition_interpretation_status
+laplace_cognition_interpretation_execution_obligation_id(
+    const laplace_cognition_interpretation_execution_result* const result,
+    const size_t obligation_index,
+    laplace_digest256* const obligation_id) {
+    if (obligation_id != nullptr) *obligation_id = laplace_digest256{};
+    if (result == nullptr || obligation_id == nullptr) {
+        return LAPLACE_COGNITION_INTERPRETATION_INVALID_ARGUMENT;
+    }
+    if (obligation_index >= result->obligation_ids.size()) {
+        return LAPLACE_COGNITION_INTERPRETATION_RANGE;
+    }
+    *obligation_id = result->obligation_ids[obligation_index];
+    return LAPLACE_COGNITION_INTERPRETATION_OK;
+}
+
+extern "C" size_t
+laplace_cognition_interpretation_execution_answer_count(
+    const laplace_cognition_interpretation_execution_result* const result,
+    const size_t obligation_index) {
+    return result == nullptr || obligation_index >= result->answers.size()
+        ? 0U
+        : result->answers[obligation_index].size();
+}
+
+extern "C" laplace_cognition_interpretation_status
+laplace_cognition_interpretation_execution_answer(
+    const laplace_cognition_interpretation_execution_result* const result,
+    const size_t obligation_index,
+    const size_t answer_index,
+    laplace_cognition_observation_answer* const answer) {
+    if (answer != nullptr) *answer = laplace_cognition_observation_answer{};
+    if (result == nullptr || answer == nullptr) {
+        return LAPLACE_COGNITION_INTERPRETATION_INVALID_ARGUMENT;
+    }
+    if (obligation_index >= result->answers.size() ||
+        answer_index >= result->answers[obligation_index].size()) {
+        return LAPLACE_COGNITION_INTERPRETATION_RANGE;
+    }
+    *answer = result->answers[obligation_index][answer_index];
+    return LAPLACE_COGNITION_INTERPRETATION_OK;
+}
+
+extern "C" void
+laplace_cognition_interpretation_execution_destroy(
+    laplace_cognition_interpretation_execution_result** const result) {
+    if (result == nullptr || *result == nullptr) return;
+    delete *result;
+    *result = nullptr;
+}
+
+extern "C" laplace_cognition_interpretation_status
+laplace_cognition_interpretation_forward_execute_with_candidate_provider(
+    const laplace_cognition_interpretation_result* const interpretation,
+    const laplace_cognition_interpretation_program_rule* const rule,
+    const laplace_cognition_interpretation_query_program* const query_program,
+    const laplace_cognition_turn_input* const turn,
+    const laplace_cognition_turn_policy* const policy,
+    const laplace_cognition_observation_candidate_provider_v1* const provider,
+    laplace_cognition_forward_result** const result,
+    laplace_cognition_forward_receipt* const receipt) {
+    if (result != nullptr) *result = nullptr;
+    if (receipt != nullptr) *receipt = laplace_cognition_forward_receipt{};
+    if (result == nullptr || receipt == nullptr) {
+        return LAPLACE_COGNITION_INTERPRETATION_INVALID_ARGUMENT;
+    }
+    laplace_cognition_interpretation_execution_result* retained = nullptr;
+    const auto status =
+        laplace_cognition_interpretation_program_execute_with_candidate_provider(
+            interpretation, rule, query_program, turn, policy, provider,
+            &retained, receipt);
+    if (status == LAPLACE_COGNITION_INTERPRETATION_OK && retained != nullptr) {
+        *result = retained->forward;
+        retained->forward = nullptr;
+    }
+    laplace_cognition_interpretation_execution_destroy(&retained);
+    return status;
 }
