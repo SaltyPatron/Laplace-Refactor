@@ -3,133 +3,327 @@
   "tests": [
     {
       "ctest_name": "ObservationQuery.PreservesLogicalOccurrencesBeyondCarrierCount",
-      "evidence_targets": ["LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-CONNECTION-SEARCH-COVERAGE"],
-      "covered_dimensions": ["packed trajectory run length remains distinct from carrier count", "logical ordinal reconstruction", "immutable observation index receipt"]
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-CONNECTION-SEARCH-COVERAGE"
+      ],
+      "covered_dimensions": [
+        "packed trajectory run length remains distinct from carrier count",
+        "logical ordinal reconstruction",
+        "immutable observation index receipt"
+      ]
     },
     {
       "ctest_name": "ObservationQuery.RejectsCarrierDriftAgainstCanonicalPhysicality",
-      "evidence_targets": ["LP-TEST-OCCURRENCE-PRESERVATION"],
-      "covered_dimensions": ["trajectory fingerprint validation", "physicality-to-carrier closure", "fail-closed drift rejection"]
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "trajectory fingerprint validation",
+        "physicality-to-carrier closure",
+        "fail-closed drift rejection"
+      ]
     },
     {
       "ctest_name": "ObservationQuery.ExpandsImmediateSuccessorFromPhysicalityWithoutTestimony",
-      "evidence_targets": ["LP-TEST-CONNECTION-SEARCH-COVERAGE", "LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["physicality-derived successor calculation", "run-internal continuation plus next-run continuation", "zero fabricated evidence roots", "set-wise provider receipt"]
+      "evidence_targets": [
+        "LP-TEST-CONNECTION-SEARCH-COVERAGE",
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "physicality-derived successor calculation",
+        "run-internal continuation plus next-run continuation",
+        "zero fabricated evidence roots",
+        "set-wise provider receipt"
+      ]
     },
     {
       "ctest_name": "ObservationQuery.CognitionForwardPassExecutesSharedSearchOverObservationState",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["guidance projection to typed observation binding", "native forward pass calls common query search provider", "trajectory-derived predecessor result", "resolved guidance state and complete receipt"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "guidance projection to typed observation binding",
+        "native forward pass calls common query search provider",
+        "trajectory-derived predecessor result",
+        "resolved guidance state and complete receipt"
+      ]
     },
     {
       "ctest_name": "ObservationQuery.PartialRequestedResultSetCannotSatisfyCognition",
-      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["requested result multiplicity remains a completion obligation", "partial bounded observation search is not promoted to satisfied", "typed unresolved result remains distinct from successful answer"]
+      "evidence_targets": [
+        "LP-TEST-PARTIAL-NONCOMPLETION",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "requested result multiplicity remains a completion obligation",
+        "partial bounded observation search is not promoted to satisfied",
+        "typed unresolved result remains distinct from successful answer"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.CompilesAndExecutesWithoutHandBuiltGuidanceOrSearchState",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["typed request lowered to canonical binding", "request-derived guidance state", "request-derived search and forward programs", "execution through shared observation provider and query search", "no hand-authored runtime program identifiers"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "typed request lowered to canonical binding",
+        "request-derived guidance state",
+        "request-derived search and forward programs",
+        "execution through shared observation provider and query search",
+        "no hand-authored runtime program identifiers"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.PublicExecuteOwnsCompileProviderAndForwardLifecycle",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["public native request execution owns compile/provider/result lifecycle", "transport callers do not construct private guidance or search state", "complete cognition disposition and zero remaining obligations", "nonzero output fingerprint receipts the public execution boundary"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "public native request execution owns compile/provider/result lifecycle",
+        "transport callers do not construct private guidance or search state",
+        "complete cognition disposition and zero remaining obligations",
+        "nonzero output fingerprint receipts the public execution boundary"
+      ]
     },
     {
       "ctest_name": "CognitionObservationExternalProvider.CandidateBackendCannotOwnSearchOrForwardLifecycle",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["external backend emits typed observation candidates only", "native engine constructs nonzero search state", "native engine owns operation selection and forward completion", "candidate backend cannot inject guidance or resolutions"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "external backend emits typed observation candidates only",
+        "native engine constructs nonzero search state",
+        "native engine owns operation selection and forward completion",
+        "candidate backend cannot inject guidance or resolutions"
+      ]
     },
     {
       "ctest_name": "CognitionObservationExternalProvider.NativeSearchCarriesProviderTargetsAcrossTwoHops",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["candidate backend never constructs search transitions", "native A-star carries a provider target into the next frontier", "two-hop goal is resolved by compiled request search policy", "provider target identity is resolved back to the backend on the next expansion"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "candidate backend never constructs search transitions",
+        "native A-star carries a provider target into the next frontier",
+        "two-hop goal is resolved by compiled request search policy",
+        "provider target identity is resolved back to the backend on the next expansion"
+      ]
     },
     {
       "ctest_name": "CognitionObservationExternalProvider.NativeProviderSetCombinesIndependentEvidencePlanes",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["physicality and testimony remain independent candidate planes", "native cognition composes both planes under one request-owned search", "testimonial crossing retains one independent evidence root", "child providers do not acquire completion or semantic-act authority"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "physicality and testimony remain independent candidate planes",
+        "native cognition composes both planes under one request-owned search",
+        "testimonial crossing retains one independent evidence root",
+        "child providers do not acquire completion or semantic-act authority"
+      ]
     },
     {
       "ctest_name": "CognitionObservationExternalProvider.PreservesArbitraryTypedSemanticRelationIdentity",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["semantic relation family carries a separate canonical relation identity", "relation identity is explicit-presence state and is not inferred from zero bytes", "arbitrary semantic identity is preserved through the terminal answer", "changing only relation identity changes path terminal state and forward receipt", "semantic direction is provider-declared without prompt keyword or hardcoded relation-name lookup"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "semantic relation family carries a separate canonical relation identity",
+        "relation identity is explicit-presence state and is not inferred from zero bytes",
+        "arbitrary semantic identity is preserved through the terminal answer",
+        "changing only relation identity changes path terminal state and forward receipt",
+        "semantic direction is provider-declared without prompt keyword or hardcoded relation-name lookup"
+      ]
     },
     {
       "ctest_name": "CognitionObservationExternalProvider.ProviderSetIdentityIsOrderIndependentAndRejectsDuplicates",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["provider-set identity is independent of caller declaration order", "duplicate provider fingerprints fail closed", "provider composition cannot multiply one physical evidence plane by duplicate declaration"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "provider-set identity is independent of caller declaration order",
+        "duplicate provider fingerprints fail closed",
+        "provider composition cannot multiply one physical evidence plane by duplicate declaration"
+      ]
     },
     {
       "ctest_name": "CognitionObservationExternalProvider.RejectsCandidateProviderAbiDriftBeforeQueryingBackend",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["candidate provider ABI drift fails closed", "no backend candidate query executes under an incompatible ABI", "transport integration cannot silently bypass the canonical candidate contract"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "candidate provider ABI drift fails closed",
+        "no backend candidate query executes under an incompatible ABI",
+        "transport integration cannot silently bypass the canonical candidate contract"
+      ]
     },
     {
       "ctest_name": "CognitionObservationOperatorView.ReusesExactLiveOperatorEstate",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"],
-      "covered_dimensions": ["the retained observation result exposes the exact typed field and constraint estate already executed by live cognition", "reconstructing the operator from the borrowed estate reproduces the live operator receipt exactly", "changing an operator-bearing constraint changes the operator receipt instead of being hidden by a target adapter"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-TYPED-INCIDENCE-OPERATOR",
+        "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY"
+      ],
+      "covered_dimensions": [
+        "the retained observation result exposes the exact typed field and constraint estate already executed by live cognition",
+        "reconstructing the operator from the borrowed estate reproduces the live operator receipt exactly",
+        "changing an operator-bearing constraint changes the operator receipt instead of being hidden by a target adapter"
+      ]
     },
     {
       "ctest_name": "CognitionObservationOperatorView.TargetCompilationUsesSameLiveMaterializedOperator",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-TYPED-INCIDENCE-OPERATOR", "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY", "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"],
-      "covered_dimensions": ["target compilation consumes the retained live observation operator estate instead of caller-reconstructed fields and constraints", "an observation-only physicality plane drives a target position slot without proposition extraction", "target matrix and RHS are exactly equal to the materialized live cognition operator"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-TYPED-INCIDENCE-OPERATOR",
+        "LP-TEST-MATRIX-FREE-MATERIALIZED-PARITY",
+        "LP-TEST-CROSS-LAYER-DISTINCTION-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "target compilation consumes the retained live observation operator estate instead of caller-reconstructed fields and constraints",
+        "an observation-only physicality plane drives a target position slot without proposition extraction",
+        "target matrix and RHS are exactly equal to the materialized live cognition operator"
+      ]
     },
     {
       "ctest_name": "CognitionObservationOperatorView.RejectsOutOfRangeAnswer",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["operator-estate readback fails closed on invalid result/index state", "transport callers cannot fabricate a borrowed operator view"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "operator-estate readback fails closed on invalid result/index state",
+        "transport callers cannot fabricate a borrowed operator view"
+      ]
     },
     {
       "ctest_name": "CognitionSemanticAct.CompletedRequestSelectsNativeTerminalActWithoutTextIntentLookup",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["semantic act is derived only after native completion", "producer operation comes from the final forward decision receipt", "completed retained observation results become a typed ANSWER semantic act without prompt keyword matching", "retained answer entity path and result contract remain bound into one act identity", "realization can consume the semantic result without rerunning search"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "semantic act is derived only after native completion",
+        "producer operation comes from the final forward decision receipt",
+        "completed retained observation results become a typed ANSWER semantic act without prompt keyword matching",
+        "retained answer entity path and result contract remain bound into one act identity",
+        "realization can consume the semantic result without rerunning search"
+      ]
     },
     {
       "ctest_name": "CognitionSemanticAct.IncompleteReceiptCannotBePromotedToSemanticAct",
-      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["remaining required obligations block semantic-act publication", "incomplete cognition cannot become a fluent-looking terminal act", "failed selection returns no residual act identity"]
+      "evidence_targets": [
+        "LP-TEST-PARTIAL-NONCOMPLETION",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "remaining required obligations block semantic-act publication",
+        "incomplete cognition cannot become a fluent-looking terminal act",
+        "failed selection returns no residual act identity"
+      ]
     },
     {
       "ctest_name": "CognitionSemanticAct.ReceiptAndForwardResultMustDescribeSameFinalState",
-      "evidence_targets": ["LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["semantic-act handoff binds the exact completed forward result", "receipt/result final-state drift fails closed", "a transport cannot splice an unrelated completion receipt onto retained answers"]
+      "evidence_targets": [
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "semantic-act handoff binds the exact completed forward result",
+        "receipt/result final-state drift fails closed",
+        "a transport cannot splice an unrelated completion receipt onto retained answers"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.RequestIdentityChangesWithTypedRelationIntent",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["relation family remains part of request identity", "predecessor and successor requests cannot flatten to one program"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "relation family remains part of request identity",
+        "predecessor and successor requests cannot flatten to one program"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.RejectsPathMultiplicityThatContradictsRequestedResults",
-      "evidence_targets": ["LP-TEST-PARTIAL-NONCOMPLETION", "LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["requested result multiplicity is compiled into bounded search", "contradictory path multiplicity fails before execution"]
+      "evidence_targets": [
+        "LP-TEST-PARTIAL-NONCOMPLETION",
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "requested result multiplicity is compiled into bounded search",
+        "contradictory path multiplicity fails before execution"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.GoalPresenceIsExplicitNotInferredFromGoalBytes",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["goal presence uses explicit typed flag", "goal bytes cannot silently change absent-goal semantics"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "goal presence uses explicit typed flag",
+        "goal bytes cannot silently change absent-goal semantics"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.ForwardPassConsumesCompiledTwoHopGoalPolicy",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["forward provider consumes request-owned search program", "two-hop goal requires compiled max-depth and expansion budget", "one-hop compatibility policy cannot satisfy the fixture", "shared observation expansion remains the provider"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "forward provider consumes request-owned search program",
+        "two-hop goal requires compiled max-depth and expansion budget",
+        "one-hop compatibility policy cannot satisfy the fixture",
+        "shared observation expansion remains the provider"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.ProviderRejectsCompiledPolicyDrift",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["compiled search boundary must match immutable observation index", "post-compilation policy drift fails before provider publication"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "compiled search boundary must match immutable observation index",
+        "post-compilation policy drift fails before provider publication"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.NewRequestExecutesAgainstPreviouslyBuiltUnboundIndex",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
-      "covered_dimensions": ["observation index is built before request exists", "runtime binding is supplied by compiled request rather than index construction", "two-hop goal executes through request-bound provider", "index identity remains unchanged"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "covered_dimensions": [
+        "observation index is built before request exists",
+        "runtime binding is supplied by compiled request rather than index construction",
+        "two-hop goal executes through request-bound provider",
+        "index identity remains unchanged"
+      ]
     },
     {
       "ctest_name": "CognitionObservationRequest.DifferentRuntimeRequestsDoNotChangeIndexIdentity",
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING"],
-      "covered_dimensions": ["query intent is not observation-index identity", "different typed relations produce different requests over one immutable binding-free index", "provider publication does not mutate the observation estate"]
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "query intent is not observation-index identity",
+        "different typed relations produce different requests over one immutable binding-free index",
+        "provider publication does not mutate the observation estate"
+      ]
+    },
+    {
+      "ctest_name": "CognitionSemanticAct.RequestCannotBeSubstitutedAfterExecution",
+      "evidence_targets": [
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "semantic act rejects a request scope substituted after native execution",
+        "mismatched retained request provenance publishes no semantic act"
+      ]
     }
   ]
 }

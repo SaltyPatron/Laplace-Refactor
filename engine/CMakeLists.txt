@@ -70,6 +70,7 @@ add_library(laplace_engine SHARED
     src/tree_sitter_grammar.cpp
     src/universal_ast.cpp
     src/universal_ast_packet.cpp
+    src/cognition_interpretation.cpp
     src/cognition_forward_pass.cpp
     src/cognition_firmware.cpp
     src/observation_query.cpp

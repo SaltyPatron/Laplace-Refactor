@@ -191,6 +191,28 @@ laplace_cognition_forward_result_final_state_clone(
     const laplace_cognition_forward_result* result,
     laplace_cognition_guidance_state** state);
 
+/* Read the receipt owned by the completed native execution. Downstream semantic
+ * consumers bind to this record rather than trusting a caller-supplied copy. */
+LAPLACE_API laplace_cognition_forward_status
+laplace_cognition_forward_result_receipt(
+    const laplace_cognition_forward_result* result,
+    laplace_cognition_forward_receipt* receipt);
+
+/* Immutable scoped task state, available without copying all obligations. */
+LAPLACE_API laplace_cognition_forward_status
+laplace_cognition_forward_result_header(
+    const laplace_cognition_forward_result* result,
+    laplace_cognition_guidance_header* header);
+
+LAPLACE_API size_t
+laplace_cognition_forward_result_obligation_count(
+    const laplace_cognition_forward_result* result);
+
+LAPLACE_API laplace_cognition_forward_status
+laplace_cognition_forward_result_obligations(
+    const laplace_cognition_forward_result* result,
+    size_t first, laplace_cognition_obligation* obligations, size_t count);
+
 #ifdef __cplusplus
 }
 #endif

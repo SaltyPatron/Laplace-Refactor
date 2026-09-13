@@ -247,7 +247,7 @@ TEST(CognitionSemanticAct, IncompleteReceiptCannotBePromotedToSemanticAct) {
         laplace_cognition_observation_semantic_act_select(
             &fixture.request, fixture.observation.value, fixture.forward.value,
             &incomplete, &act),
-        LAPLACE_COGNITION_SEMANTIC_ACT_INCOMPLETE);
+        LAPLACE_COGNITION_SEMANTIC_ACT_FORWARD_RESULT_FAILURE);
     EXPECT_TRUE(Zero(act.act_id));
     EXPECT_EQ(act.answer_count, 0U);
     EXPECT_EQ(act.act_kind, 0U);
@@ -265,6 +265,18 @@ TEST(CognitionSemanticAct, ReceiptAndForwardResultMustDescribeSameFinalState) {
         laplace_cognition_observation_semantic_act_select(
             &fixture.request, fixture.observation.value, fixture.forward.value,
             &drifted, &act),
+        LAPLACE_COGNITION_SEMANTIC_ACT_FORWARD_RESULT_FAILURE);
+    EXPECT_TRUE(Zero(act.act_id));
+}
+
+TEST(CognitionSemanticAct, RequestCannotBeSubstitutedAfterExecution) {
+    CompletedFixture fixture;
+    Execute(fixture);
+    auto request = fixture.request;
+    request.context_fingerprint.bytes[0] ^= 1U;
+    laplace_cognition_semantic_act act{};
+    EXPECT_EQ(laplace_cognition_observation_semantic_act_select(
+        &request, fixture.observation.value, fixture.forward.value, &fixture.receipt, &act),
         LAPLACE_COGNITION_SEMANTIC_ACT_FORWARD_RESULT_FAILURE);
     EXPECT_TRUE(Zero(act.act_id));
 }
