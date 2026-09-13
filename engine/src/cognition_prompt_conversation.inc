@@ -57,8 +57,6 @@ laplace_cognition_prompt_conversation_execute_encoded(
     }
 
     std::vector<laplace_cognition_observation_candidate_provider_v1> providers;
-    // One descriptor is reserved for the prompt's structural provider. Check
-    // before +1 or indexing a caller buffer, including SIZE_MAX-sized requests.
     if (additional_cognition_provider_count >= providers.max_size()) {
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_MEMORY_FAILURE;
     }
@@ -122,22 +120,28 @@ laplace_cognition_prompt_conversation_execute_encoded(
         next_discourse_frame_bytes,
         &conversation_result);
 
+    const auto composite_fingerprint = composite_provider.provider_fingerprint;
     laplace_cognition_observation_candidate_provider_set_destroy(&provider_set);
+
+    result->prompt_admission_receipt_id = admission_view.admission_receipt_id;
+    result->prompt_exact_bytes_fingerprint = admission_view.exact_bytes_fingerprint;
+    result->composite_cognition_provider_fingerprint = composite_fingerprint;
+    result->conversation = conversation_result;
+    result->version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
+
+    if (conversation_status == LAPLACE_COGNITION_CONVERSATION_WHY_NOT) {
+        *output_bytes = 0U;
+        *next_discourse_frame_bytes = 0U;
+        return LAPLACE_COGNITION_PROMPT_CONVERSATION_WHY_NOT;
+    }
     if (conversation_status != LAPLACE_COGNITION_CONVERSATION_OK) {
+        *result = laplace_cognition_prompt_conversation_result{};
         *output_bytes = 0U;
         *next_discourse_frame_bytes = 0U;
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_CONVERSATION_FAILURE;
     }
-
-    result->prompt_admission_receipt_id = admission_view.admission_receipt_id;
-    result->prompt_exact_bytes_fingerprint = admission_view.exact_bytes_fingerprint;
-    result->composite_cognition_provider_fingerprint =
-        composite_provider.provider_fingerprint;
-    result->conversation = conversation_result;
-    result->version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
     return LAPLACE_COGNITION_PROMPT_CONVERSATION_OK;
 }
-
 
 extern "C" laplace_cognition_prompt_conversation_status
 laplace_cognition_prompt_conversation_execute(
