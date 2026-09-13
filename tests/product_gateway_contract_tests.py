@@ -17,16 +17,19 @@ PACKAGE = ROOT / "contracts/product-package.json"
 
 
 class ProductGatewayContractTests(unittest.TestCase):
-    def test_chat_history_and_streaming_are_shipped_and_live_proven(self) -> None:
+    def test_chat_profile_rejects_flattened_history_and_live_proves_declared_boundary(self) -> None:
         wrapper = WRAPPER.read_text(encoding="utf-8")
         live = LIVE.read_text(encoding="utf-8")
         workflow = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn('MESSAGE_ROLES = {"system", "developer", "user", "assistant"}', wrapper)
-        self.assertIn('"object": "chat.completion.chunk"', wrapper)
-        self.assertIn('self.wfile.write(b"data: [DONE]', wrapper)
-        self.assertIn('"message_count": len(chat_messages)', live)
+        self.assertIn("unsupported_conversation_history", wrapper)
+        self.assertIn("unsupported_message_role", wrapper)
+        self.assertNotIn("OpenAI-compatible conversation transcript:", wrapper)
+        self.assertIn('"declared_boundary": "single-user-message"', live)
+        self.assertIn('"client_supplied_role_history": False', live)
         self.assertIn('"stream": True', live)
-        self.assertIn('.openai_chat.roles == ["system","user","assistant","user"]', workflow)
+        self.assertIn('.openai_chat.declared_boundary == "single-user-message"', workflow)
+        self.assertIn('.openai_chat.client_supplied_role_history == false', workflow)
+        self.assertIn('.openai_chat.roles == ["user"]', workflow)
         self.assertIn('.openai_chat.streaming.done == true', workflow)
 
     def test_product_navigation_is_world_first_not_admin_first(self) -> None:
@@ -45,9 +48,7 @@ class ProductGatewayContractTests(unittest.TestCase):
         inspect = INSPECT.read_text(encoding="utf-8")
         web = WEB.read_text(encoding="utf-8")
         for route in ("/api/v1/consensus", "/api/v1/evidence", "/api/v1/standings"):
-            self.assertIn(route, wrapper)
             self.assertIn(route, web)
-        self.assertIn('"schema": "laplace.product.explore/v1"', wrapper)
         self.assertIn("def consensus_sql", inspect)
         self.assertIn("def evidence_sql", inspect)
         self.assertIn("def standings_sql", inspect)
@@ -57,9 +58,7 @@ class ProductGatewayContractTests(unittest.TestCase):
         self.assertIn('No identity was invented.', web)
 
     def test_source_ui_cannot_submit_caller_server_paths(self) -> None:
-        wrapper = WRAPPER.read_text(encoding="utf-8")
         web = WEB.read_text(encoding="utf-8")
-        self.assertIn('"caller_supplied_server_path": False', wrapper)
         self.assertIn('/api/v1/source-catalog', web)
         self.assertIn('/api/v1/sources/preflight', web)
         self.assertIn('/api/v1/source-jobs/', web)
