@@ -8,6 +8,7 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 namespace laplace_cognition_interpretation_query_detail {
