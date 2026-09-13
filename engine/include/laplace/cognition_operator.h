@@ -79,7 +79,6 @@ typedef struct laplace_cognition_operator_receipt {
     uint64_t physicality_constraint_count;
     uint64_t testimony_constraint_count;
     uint64_t derived_constraint_count;
-    uint64_t standing_constraint_count;
     uint32_t relation_plane_count;
     uint32_t status;
     uint32_t version;
