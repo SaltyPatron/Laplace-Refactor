@@ -61,6 +61,37 @@
         "tests/composition_tests.cpp",
         "tests/composition_resource_accounting_tests.cpp"
       ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "delivery/laplace-live-product-20260911",
+      "tip": "1f4fdaf8f5f8ae0963ecdd98a4786a920ad30607",
+      "disposition": "ABSORBED_AND_HARDENED_BY_CURRENT_RELEASE_RECOVERY_AND_RUNNER_ACTIVATION",
+      "rationale": "This delivery branch recovered a retained staged package and locally patched the activation reconciler to clear only a proven pair of canonical dangling product pointers. Current main owns that recovery directly rather than through a branch-specific patch-at-runtime workflow: product_release_capacity recreates an absent release root, validates both current/runtime pointers, requires them to agree on one canonical absent package, clears them fail-closed, and records recovered_dangling_pointers in the capacity receipt. Current product_activation_reconcile and product_predecessor_adoption then own immutable package reuse, active predecessor proof, stopped-cluster resume, upgrade and activation. Replaying the old live-product branch would restore obsolete recovery workflows and older source/package ownership.",
+      "evidence": [
+        "1f4fdaf8f5f8ae0963ecdd98a4786a920ad30607",
+        "tools/delivery/product_release_capacity.py",
+        "tests/product_release_capacity_tests.py",
+        "tools/delivery/product_activation_reconcile.py",
+        "tools/delivery/product_predecessor_adoption.py",
+        "scripts/setup-product.sh"
+      ]
+    },
+    {
+      "repository": "Laplace-Refactor",
+      "branch": "implementation/conversation-continuation-20260906",
+      "tip": "fa7c1589102a42fd8c169e546e32a89e1517920f",
+      "disposition": "PRESERVED_PAUSED_COGNITION_WIP_WITH_DELIVERED_CONVERSATION_BASE",
+      "rationale": "The admitted-prompt conversation composition commits on this branch are already carried by merged PR #361, including the conversation contract, composite provider execution, compiled admitted-prompt executor and multi-hop goal termination. The later preservation/manual WIP also contains additional cognition/query experiments, including cognition_interpretation sources that are not current product owners. The recovered task queue explicitly preserves structural-query and Q/K/V/O work while pausing query/cognition implementation. This exact tip is therefore intentionally preserved as evidence and must not be replayed into product main until that pause is explicitly lifted and its unique experiments are reconciled against the then-current cognition architecture.",
+      "evidence": [
+        "fa7c1589102a42fd8c169e546e32a89e1517920f",
+        "SaltyPatron/Laplace-Refactor#361",
+        "engine/include/laplace/cognition_prompt_conversation.h",
+        "engine/src/cognition_prompt_conversation.inc",
+        "tests/cognition_prompt_conversation_tests.cpp",
+        "docs/INVENTION.md",
+        "docs/INVENTIONS.md"
+      ]
     }
   ]
 }
