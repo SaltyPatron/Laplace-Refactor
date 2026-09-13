@@ -22,6 +22,23 @@ CREATE TYPE @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.semantic_cognition_result AS (
     status integer
 );
 
+-- Semantic frontier expansion is endpoint-addressed and boundary-scoped.  Keep the
+-- two directions as separate physical candidate providers so PostgreSQL can perform
+-- an exact parameterized index probe instead of scanning mapping occurrences behind
+-- an OR predicate.  These indexes are rebuildable acceleration only; the native
+-- candidate validator and evidence law remain authoritative.
+CREATE INDEX reference_mapping_occurrence_left_semantic_idx
+    ON @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.reference_mapping_occurrence
+    (boundary_id, left_value_entity_id, proposition_id, source_profile_id, occurrence_id)
+    INCLUDE (right_value_entity_id, row_entity_id)
+    WHERE disposition = 1;
+
+CREATE INDEX reference_mapping_occurrence_right_semantic_idx
+    ON @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.reference_mapping_occurrence
+    (boundary_id, right_value_entity_id, proposition_id, source_profile_id, occurrence_id)
+    INCLUDE (left_value_entity_id, row_entity_id)
+    WHERE disposition = 1;
+
 CREATE FUNCTION @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.cognition_semantic_execute(
     @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.execution_context,
     @LAPLACE_SEMANTIC_COGNITION_SCHEMA@.cognition_observation_request)
