@@ -7,6 +7,7 @@
 #include "laplace/contract/cognition_operator.h"
 #include "laplace/export.h"
 #include "laplace/identity.h"
+#include "laplace/standing_calculation.h"
 #include "laplace/types.h"
 
 #ifdef __cplusplus
@@ -58,6 +59,11 @@ typedef struct laplace_cognition_operator_constraint {
     uint32_t transport_kind;
     uint32_t flags;
     uint32_t reserved;
+    /* Exact arena-scoped state for SOURCE_STANDING. It remains all-zero for
+     * every other source class. Rating, RD, volatility, lane/epoch identities
+     * and recipe identity are retained independently; no scalar standing score
+     * is substituted for this state. */
+    laplace_standing_state standing;
 } laplace_cognition_operator_constraint;
 
 typedef struct laplace_cognition_operator_receipt {
@@ -73,6 +79,7 @@ typedef struct laplace_cognition_operator_receipt {
     uint64_t physicality_constraint_count;
     uint64_t testimony_constraint_count;
     uint64_t derived_constraint_count;
+    uint64_t standing_constraint_count;
     uint32_t relation_plane_count;
     uint32_t status;
     uint32_t version;
