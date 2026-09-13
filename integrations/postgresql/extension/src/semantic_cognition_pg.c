@@ -24,7 +24,7 @@
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_semantic_execute);
 
 #define LAPLACE_PG_SEMANTIC_PROVIDER_DOMAIN \
-    "laplace-postgresql-reference-mapping-candidate-provider-v1"
+    "laplace-postgresql-reference-mapping-candidate-provider-v2"
 
 struct laplace_pg_semantic_provider_state {
     laplace_digest256 boundary_id;
@@ -296,6 +296,21 @@ static int semantic_enumerate_impl(
         "   ON er.node_id=en.node_id"
         "  AND er.proposition_id=en.proposition_id"
         " WHERE p.flags IN (1,2)"
+        " AND EXISTS ("
+        "   SELECT 1"
+        "   FROM " LAPLACE_PG_SCHEMA ".world_admission wa"
+        "   JOIN " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member nlm"
+        "     ON nlm.receipt_id=wa.evidence_lineage_receipt_id"
+        "    AND nlm.node_id=en.node_id"
+        "   JOIN " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member rlm"
+        "     ON rlm.receipt_id=wa.evidence_lineage_receipt_id"
+        "    AND rlm.node_id=er.root_node_id"
+        "   JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member tm"
+        "     ON tm.receipt_id=wa.evidence_testimony_receipt_id"
+        "    AND tm.testimony_id=et.testimony_id"
+        "   WHERE wa.selected_boundary_fingerprint=o.boundary_id"
+        "     AND wa.source_profile_id=o.source_profile_id"
+        " )"
         "), dedup AS ("
         " SELECT DISTINCT ON (source_state_index, proposition_id, target_entity_id, evidence_root_id)"
         " source_state_index,target_entity_id,observation_fingerprint,relation_id,evidence_root_id,direction"
