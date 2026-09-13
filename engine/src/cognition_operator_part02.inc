@@ -93,6 +93,9 @@ extern "C" laplace_cognition_operator_status laplace_cognition_operator_create(
                 case LAPLACE_COGNITION_OPERATOR_SOURCE_DERIVED:
                     ++value->receipt.derived_constraint_count;
                     break;
+                case LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING:
+                    ++value->receipt.standing_constraint_count;
+                    break;
                 default:
                     break;
             }
