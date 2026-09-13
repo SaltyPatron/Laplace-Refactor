@@ -458,9 +458,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         geometry_epoch = require_hex(
             run_scalar(
                 command,
-                "SELECT pg_catalog.encode(geometry_epoch,'hex') "
-                "FROM laplace.unicode_root_generation "
-                "ORDER BY recorded_at DESC LIMIT 1;\n",
+                "SELECT pg_catalog.encode(g.geometry_epoch,'hex') "
+                "FROM laplace.perfcache_active_control AS a "
+                "JOIN laplace.unicode_root_generation AS g "
+                "ON g.activation_epoch_id=a.activation_epoch_id "
+                "AND g.activation_epoch_fingerprint=a.epoch_fingerprint "
+                "WHERE a.singleton AND a.active_present;\n",
                 "live Unicode geometry read",
             ),
             "live Unicode geometry epoch",
@@ -487,10 +490,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if geometry_epoch != identities["geometry_epoch"]:
             raise AdmissionError("live Unicode geometry epoch differs from active product receipt")
-        if perfcache_epoch != identities["perfcache_epoch"]:
-            raise AdmissionError("live Unicode perfcache epoch differs from active product receipt")
-        if numeric_epoch != identities["numeric_epoch"]:
-            raise AdmissionError("live Highway epoch differs from active product receipt")
+        # Perfcache and numeric epochs are live successor execution-context
+        # generations. They intentionally advance beyond the Unicode activation
+        # request's original framework context after Unicode/Highway activation.
 
         compiled = compile_profile(
             tool_release / "bin/laplace_source_profile_compile",

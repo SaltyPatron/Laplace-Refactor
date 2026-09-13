@@ -92,6 +92,8 @@ class SourceAdmissionUnpublishedPackageTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.receipts = self.root / "receipts"
+        self.releases = self.root / "releases"
+        self.releases.mkdir()
         (self.receipts / "cluster-activation").mkdir(parents=True)
         (self.receipts / "unicode").mkdir()
         self.tool_root = self.root / "branch-release"
@@ -143,12 +145,14 @@ class SourceAdmissionUnpublishedPackageTests(unittest.TestCase):
                     "schema": "laplace.unicode-activation-identities/v1",
                     "request_fingerprint": request,
                     "geometry_epoch": geometry_epoch or self.live["geometry_epoch"],
-                    "perfcache_epoch": self.live["perfcache_epoch"],
-                    "numeric_epoch": numeric_epoch or self.live["numeric_epoch"],
+                    "perfcache_epoch": "66" * 32,
+                    "numeric_epoch": numeric_epoch or "77" * 32,
                 }
             ),
             encoding="utf-8",
         )
+        release = self.releases / package
+        release.mkdir()
         return generation
 
     def argv(self) -> list[str]:
@@ -165,9 +169,12 @@ class SourceAdmissionUnpublishedPackageTests(unittest.TestCase):
     def test_binds_unique_live_activation_for_prepublication_package_proof(self) -> None:
         generation = self.add_generation("a", "b")
         values = self.guard.bind_unpublished_runtime(
-            self.argv(), active_path=self.active, live_state=self.live
+            self.argv(), active_path=self.active, release_root=self.releases, live_state=self.live
         )
-        self.assertEqual(values[-2:], ["--active", str(generation.resolve())])
+        self.assertEqual(
+            values[-2:],
+            ["--active", str((self.releases / generation.name).resolve())],
+        )
 
     def test_rejects_ambiguous_live_activation_receipts(self) -> None:
         self.add_generation("a", "b")
@@ -176,16 +183,19 @@ class SourceAdmissionUnpublishedPackageTests(unittest.TestCase):
             self.guard.AdmissionGuardError, "exactly one activation receipt"
         ):
             self.guard.bind_unpublished_runtime(
-                self.argv(), active_path=self.active, live_state=self.live
+                self.argv(), active_path=self.active, release_root=self.releases, live_state=self.live
             )
 
     def test_ignores_nonmatching_activation_receipt(self) -> None:
         generation = self.add_generation("a", "b")
-        self.add_generation("c", "d", numeric_epoch="55" * 32)
+        self.add_generation("c", "d", geometry_epoch="55" * 32)
         values = self.guard.bind_unpublished_runtime(
-            self.argv(), active_path=self.active, live_state=self.live
+            self.argv(), active_path=self.active, release_root=self.releases, live_state=self.live
         )
-        self.assertEqual(values[-2:], ["--active", str(generation.resolve())])
+        self.assertEqual(
+            values[-2:],
+            ["--active", str((self.releases / generation.name).resolve())],
+        )
 
     def test_explicit_active_selector_is_never_rewritten(self) -> None:
         explicit = self.root / ("e" * 64)

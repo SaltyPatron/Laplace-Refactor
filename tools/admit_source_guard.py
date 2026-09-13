@@ -14,6 +14,7 @@ DEFAULT_SOURCE_ESTATE_ROOT = Path("/vault/Data")
 SOURCE_ESTATE_ENV = "LAPLACE_SOURCE_ESTATE_ROOT"
 DEFAULT_UNICODE_RELATIVE = Path("UCD/Public/UCD/latest")
 DEFAULT_ACTIVE = Path("/opt/laplace/current")
+DEFAULT_RELEASE_ROOT = Path("/opt/laplace/releases")
 DEFAULT_RECEIPT_ROOT = Path("/opt/laplace/receipts/postgresql/refactor")
 DEFAULT_SOCKET = Path("/opt/laplace/runtime/postgresql/refactor")
 DEFAULT_PORT = 55433
@@ -152,19 +153,22 @@ def _live_runtime_state(
 SELECT pg_catalog.json_build_object(
   'activation_epoch_id',pg_catalog.encode(u.activation_epoch_id,'hex'),
   'activation_epoch_fingerprint',pg_catalog.encode(u.epoch_fingerprint,'hex'),
-  'geometry_epoch',(
-    SELECT pg_catalog.encode(g.geometry_epoch,'hex')
-    FROM laplace.unicode_root_generation AS g
-    ORDER BY g.recorded_at DESC
-    LIMIT 1
-  ),
+  'geometry_epoch',pg_catalog.encode(g.geometry_epoch,'hex'),
   'perfcache_epoch',pg_catalog.encode(u.epoch_fingerprint,'hex'),
   'numeric_epoch',pg_catalog.encode(h.activation_epoch_fingerprint,'hex')
 )::text
 FROM laplace.perfcache_active_control AS u
+JOIN laplace.unicode_root_generation AS g
+  ON g.activation_epoch_id=u.activation_epoch_id
+ AND g.activation_epoch_fingerprint=u.epoch_fingerprint
 CROSS JOIN laplace.highway_registry_active_control AS h
+JOIN laplace.highway_registry_generation AS hg
+  ON hg.activation_epoch_id=h.activation_epoch_id
+ AND hg.activation_epoch_fingerprint=h.activation_epoch_fingerprint
 WHERE u.singleton AND u.active_present
-  AND h.singleton AND h.active_present;
+  AND h.singleton AND h.active_present
+  AND hg.unicode_activation_epoch_id=u.activation_epoch_id
+  AND hg.unicode_activation_epoch_fingerprint=u.epoch_fingerprint;
 """
     command = [
         str(psql),
@@ -264,8 +268,6 @@ def _matching_activation_generations(
             identities.get("schema") == "laplace.unicode-activation-identities/v1"
             and identities.get("request_fingerprint") == request
             and identities.get("geometry_epoch") == live["geometry_epoch"]
-            and identities.get("perfcache_epoch") == live["perfcache_epoch"]
-            and identities.get("numeric_epoch") == live["numeric_epoch"]
         ):
             matches.append(generation)
     return matches
@@ -275,6 +277,7 @@ def bind_unpublished_runtime(
     argv: Sequence[str],
     *,
     active_path: Path = DEFAULT_ACTIVE,
+    release_root: Path = DEFAULT_RELEASE_ROOT,
     live_state: dict[str, str] | None = None,
 ) -> list[str]:
     """Bind package-proof execution to the uniquely live persisted generation.
@@ -335,7 +338,29 @@ def bind_unpublished_runtime(
             "package-proof source admission requires exactly one activation receipt "
             f"matching live PostgreSQL state; found {len(matches)}"
         )
-    values.extend(["--active", str(matches[0])])
+    package_id = matches[0].name
+    try:
+        release_root = release_root.resolve(strict=True)
+    except OSError as error:
+        raise AdmissionGuardError(
+            f"product release root is unavailable: {release_root}: {error}"
+        ) from error
+    candidate = release_root / package_id
+    if candidate.is_symlink() or not candidate.is_dir():
+        raise AdmissionGuardError(
+            f"live activation package release is unavailable: {candidate}"
+        )
+    try:
+        selected_release = candidate.resolve(strict=True)
+    except OSError as error:
+        raise AdmissionGuardError(
+            f"live activation package release cannot be resolved: {candidate}: {error}"
+        ) from error
+    if selected_release.parent != release_root:
+        raise AdmissionGuardError(
+            f"live activation package release escaped its root: {selected_release}"
+        )
+    values.extend(["--active", str(selected_release)])
     return values
 
 
