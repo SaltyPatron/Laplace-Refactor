@@ -19,6 +19,18 @@ AS $context$
     )::laplace.execution_context
 $context$;
 
+CREATE FUNCTION pg_temp.explain_json(statement text)
+RETURNS json
+LANGUAGE plpgsql
+AS $explain$
+DECLARE
+    plan json;
+BEGIN
+    EXECUTE 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ' || statement INTO STRICT plan;
+    RETURN plan;
+END
+$explain$;
+
 -- This fixture targets the live durable provider boundary. The relation crossing
 -- is backed by a real testimonial evidence root: the provider must bind the exact
 -- mapping occurrence and preserve that root through native search. A bare mapping
@@ -52,6 +64,32 @@ VALUES(
     decode(repeat('76',16),'hex'),
     decode(repeat('12',16),'hex'),
     1::numeric,1::numeric,1::numeric,1,1,1);
+
+-- Representative cardinality negative control. These rows share the live boundary
+-- and disposition but not the requested endpoints. An endpoint-unindexed provider
+-- must therefore examine thousands of irrelevant mapping occurrences, while the
+-- admitted physical plan should use the two boundary+endpoint partial indexes.
+INSERT INTO laplace.reference_mapping_occurrence(
+    mapping_id,occurrence_id,proposition_id,boundary_id,source_profile_id,
+    left_reference_id,right_reference_id,row_entity_id,
+    left_field_entity_id,left_value_entity_id,right_field_entity_id,right_value_entity_id,
+    source_ordinal,artifact_ordinal,row_ordinal,left_disposition,right_disposition,disposition)
+SELECT
+    decode(md5('mapping-' || g::text) || md5('mapping-hi-' || g::text),'hex'),
+    decode(md5('occurrence-' || g::text) || md5('occurrence-hi-' || g::text),'hex'),
+    decode(repeat('31',32),'hex'),
+    decode(repeat('71',32),'hex'),
+    decode(repeat('72',32),'hex'),
+    decode(md5('left-reference-' || g::text) || md5('left-reference-hi-' || g::text),'hex'),
+    decode(md5('right-reference-' || g::text) || md5('right-reference-hi-' || g::text),'hex'),
+    decode(md5('row-' || g::text),'hex'),
+    decode(repeat('75',16),'hex'),
+    decode(md5('left-value-' || g::text),'hex'),
+    decode(repeat('76',16),'hex'),
+    decode(md5('right-value-' || g::text),'hex'),
+    (g + 10)::numeric,2::numeric,g::numeric,1,1,1
+FROM generate_series(1,4096) AS generated(g);
+
 INSERT INTO laplace.evidence_node(
     node_id,proposition_id,occurrence_id,source_id,context_id,
     source_ordinal,epistemic_kind,flags)
@@ -83,6 +121,51 @@ VALUES(
     decode(repeat('98',32),'hex'),
     0::numeric,1::numeric,1::numeric,1,1,1,0);
 SET session_replication_role = origin;
+
+ANALYZE laplace.reference_mapping_occurrence;
+
+DO $endpoint_plan$
+DECLARE
+    left_plan json;
+    right_plan json;
+    either_plan json;
+BEGIN
+    left_plan := pg_temp.explain_json($sql$
+        SELECT occurrence_id
+        FROM laplace.reference_mapping_occurrence
+        WHERE boundary_id = decode(repeat('71',32),'hex')
+          AND disposition = 1
+          AND left_value_entity_id = decode(repeat('11',16),'hex')
+    $sql$);
+    right_plan := pg_temp.explain_json($sql$
+        SELECT occurrence_id
+        FROM laplace.reference_mapping_occurrence
+        WHERE boundary_id = decode(repeat('71',32),'hex')
+          AND disposition = 1
+          AND right_value_entity_id = decode(repeat('12',16),'hex')
+    $sql$);
+    either_plan := pg_temp.explain_json($sql$
+        SELECT occurrence_id
+        FROM laplace.reference_mapping_occurrence
+        WHERE boundary_id = decode(repeat('71',32),'hex')
+          AND disposition = 1
+          AND (
+              left_value_entity_id = decode(repeat('11',16),'hex') OR
+              right_value_entity_id = decode(repeat('11',16),'hex'))
+    $sql$);
+
+    IF left_plan::text NOT LIKE '%reference_mapping_occurrence_left_semantic_idx%' THEN
+        RAISE EXCEPTION 'left semantic endpoint did not select its boundary-scoped index: %', left_plan;
+    END IF;
+    IF right_plan::text NOT LIKE '%reference_mapping_occurrence_right_semantic_idx%' THEN
+        RAISE EXCEPTION 'right semantic endpoint did not select its boundary-scoped index: %', right_plan;
+    END IF;
+    IF either_plan::text NOT LIKE '%reference_mapping_occurrence_left_semantic_idx%' OR
+       either_plan::text NOT LIKE '%reference_mapping_occurrence_right_semantic_idx%' THEN
+        RAISE EXCEPTION 'bidirectional semantic endpoint probe did not use both indexed branches: %', either_plan;
+    END IF;
+END
+$endpoint_plan$;
 
 CREATE TEMP TABLE semantic_cognition_fixture AS
 SELECT ROW(
