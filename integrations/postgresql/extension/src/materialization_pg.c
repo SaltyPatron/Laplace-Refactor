@@ -5,8 +5,11 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "catalog/pg_type.h"
 #include "executor/spi.h"
+#include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/hsearch.h"
 #include "utils/memutils.h"
 
 #include "blake3.h"
@@ -18,6 +21,17 @@
 #include "materialization_pg.h"
 #include "perfcache_pg.h"
 
+typedef struct materialization_cache_entry {
+    laplace_id128 entity_id;
+    laplace_cognition_materialization_node node;
+    laplace_trajectory_carrier* trajectory;
+    uint64_t carrier_count;
+    uint8_t ready;
+    uint8_t resolving;
+    uint8_t children_prefetched;
+    uint8_t reserved8;
+} materialization_cache_entry;
+
 struct laplace_pg_materialization_provider_state {
     laplace_framework_context context;
     laplace_digest256 provider_fingerprint;
@@ -25,9 +39,13 @@ struct laplace_pg_materialization_provider_state {
     uint64_t trajectory_reads;
     uint64_t trajectory_bytes;
     uint64_t database_operations;
+    uint64_t node_batch_count;
+    uint64_t prefetched_node_count;
     blake3_hasher readset;
     MemoryContext caller_context;
     MemoryContext scratch_context;
+    MemoryContext cache_context;
+    HTAB* cache;
     ErrorData* error;
     MemoryContextCallback cleanup;
 };
@@ -35,6 +53,12 @@ struct laplace_pg_materialization_provider_state {
 static bool materialization_digest_equal(
     const laplace_digest256* left,
     const laplace_digest256* right) {
+    return memcmp(left->bytes, right->bytes, sizeof(left->bytes)) == 0;
+}
+
+static bool materialization_id_equal(
+    const laplace_id128* left,
+    const laplace_id128* right) {
     return memcmp(left->bytes, right->bytes, sizeof(left->bytes)) == 0;
 }
 
@@ -101,7 +125,7 @@ static void materialization_provider_identify(
     const laplace_framework_context* context,
     laplace_digest256* fingerprint) {
     static const char domain[] =
-        "laplace-postgresql-cognition-materialization-provider-v1";
+        "laplace-postgresql-cognition-materialization-provider-v2";
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
     blake3_hasher_update(&hasher, domain, sizeof(domain) - 1u);
@@ -162,6 +186,16 @@ static void materialization_note_node(
         sizeof(node->node_receipt_id.bytes));
 }
 
+static void materialization_note_prefetch_node(
+    laplace_pg_materialization_provider_state* state,
+    const laplace_cognition_materialization_node* node) {
+    static const uint8_t tag = 3u;
+    blake3_hasher_update(&state->readset, &tag, sizeof(tag));
+    blake3_hasher_update(
+        &state->readset, node->node_receipt_id.bytes,
+        sizeof(node->node_receipt_id.bytes));
+}
+
 static void materialization_note_trajectory(
     laplace_pg_materialization_provider_state* state,
     const laplace_digest256* receipt) {
@@ -192,75 +226,261 @@ static void materialization_require_active_perfcache(
     }
 }
 
-static void materialization_read_entity_witness(
+static materialization_cache_entry* materialization_cache_find(
     laplace_pg_materialization_provider_state* state,
-    const laplace_id128* entity_id,
-    laplace_digest256* witness) {
-    static const char sql[] =
-        "SELECT identity_witness FROM " LAPLACE_PG_SCHEMA
-        ".entity WHERE entity_id=$1";
-    Oid types[1] = {BYTEAOID};
-    Datum values[1];
-    int result;
-    values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        entity_id->bytes, sizeof(entity_id->bytes)));
-    result = SPI_execute_with_args(sql, 1, types, values, NULL, true, 1);
-    ++state->database_operations;
-    if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL) {
-        ereport(ERROR,
-                (errcode(ERRCODE_NO_DATA_FOUND),
-                 errmsg("Laplace materialization entity is not uniquely persisted"),
-                 errdetail("matches=%llu",
-                           (unsigned long long)SPI_processed)));
-    }
-    materialization_read_exact(
-        materialization_required_value(
-            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1,
-            "identity witness"),
-        witness->bytes, sizeof(witness->bytes), "identity witness");
-    SPI_freetuptable(SPI_tuptable);
+    const laplace_id128* entity_id) {
+    return (materialization_cache_entry*)hash_search(
+        state->cache, entity_id, HASH_FIND, NULL);
 }
 
-static bool materialization_resolve_atom(
+static materialization_cache_entry* materialization_cache_enter(
     laplace_pg_materialization_provider_state* state,
     const laplace_id128* entity_id,
-    const laplace_digest256* witness,
-    laplace_cognition_materialization_node* node) {
-    laplace_pg_perfcache_pin* pin = NULL;
-    laplace_unicode_identity_key key;
-    uint32_t position = 0u;
-    uint8_t reverse_found = 0u;
-    laplace_unicode_atom_record_view atom;
-    uint8_t atom_found = 0u;
-    laplace_perfcache_registry_status status;
+    bool* found) {
+    materialization_cache_entry* entry =
+        (materialization_cache_entry*)hash_search(
+            state->cache, entity_id, HASH_ENTER, found);
+    if (!*found) {
+        memset(
+            ((char*)entry) + sizeof(entry->entity_id),
+            0,
+            sizeof(*entry) - sizeof(entry->entity_id));
+    }
+    return entry;
+}
 
-    memset(&key, 0, sizeof(key));
-    memset(&atom, 0, sizeof(atom));
-    key.content_id = *entity_id;
-    key.identity_preimage_fingerprint = *witness;
+static void materialization_reset_resolving(
+    laplace_pg_materialization_provider_state* state) {
+    HASH_SEQ_STATUS scan;
+    materialization_cache_entry* entry;
+    hash_seq_init(&scan, state->cache);
+    while ((entry = (materialization_cache_entry*)hash_seq_search(&scan)) != NULL) {
+        entry->resolving = 0u;
+    }
+}
+
+static ArrayType* materialization_id_array(
+    const laplace_id128* ids,
+    size_t count) {
+    Datum* values;
+    size_t index;
+    if (count == 0u || count > (size_t)INT_MAX ||
+        count > MaxAllocSize / sizeof(*values)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Laplace materialization frontier exceeds PostgreSQL array addressability")));
+    }
+    values = (Datum*)palloc(sizeof(*values) * count);
+    for (index = 0u; index < count; ++index) {
+        values[index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            ids[index].bytes, sizeof(ids[index].bytes)));
+    }
+    return construct_array(
+        values, (int)count, BYTEAOID, -1, false, TYPALIGN_INT);
+}
+
+static void materialization_cache_trajectory(
+    laplace_pg_materialization_provider_state* state,
+    materialization_cache_entry* entry,
+    const bytea* trajectory,
+    uint64_t carrier_count,
+    uint64_t logical_count) {
+    MemoryContext prior;
+    uint64_t ordinal = 1u;
+    uint8_t maximum_child_tier = 0u;
+    size_t bytes;
+    size_t index;
+
+    if (carrier_count == 0u || carrier_count > (uint64_t)(SIZE_MAX / sizeof(laplace_trajectory_carrier))) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace materialization composition carrier count is invalid")));
+    }
+    bytes = (size_t)carrier_count * sizeof(laplace_trajectory_carrier);
+    if ((size_t)VARSIZE_ANY_EXHDR(trajectory) != bytes || logical_count <= 1u) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace materialization composition trajectory size is invalid")));
+    }
+    for (index = 0u; index < (size_t)carrier_count; ++index) {
+        laplace_trajectory_carrier carrier;
+        laplace_composition_occurrence occurrence;
+        memcpy(
+            &carrier,
+            VARDATA_ANY(trajectory) + index * sizeof(carrier),
+            sizeof(carrier));
+        if (laplace_trajectory_composition_decode_one(
+                &carrier, ordinal, &occurrence) != LAPLACE_TRAJECTORY_OK ||
+            occurrence.run_length == 0u ||
+            occurrence.tier >= LAPLACE_COMPOSITION_TIER_MAXIMUM ||
+            UINT64_MAX - ordinal < (uint64_t)occurrence.run_length) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace materialization composition trajectory is invalid")));
+        }
+        ordinal += (uint64_t)occurrence.run_length;
+        if (occurrence.tier > maximum_child_tier) {
+            maximum_child_tier = occurrence.tier;
+        }
+    }
+    if (ordinal - 1u != logical_count ||
+        maximum_child_tier == UINT8_MAX) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace materialization composition logical count is inconsistent")));
+    }
+
+    prior = MemoryContextSwitchTo(state->cache_context);
+    entry->trajectory = (laplace_trajectory_carrier*)palloc(bytes);
+    memcpy(entry->trajectory, VARDATA_ANY(trajectory), bytes);
+    MemoryContextSwitchTo(prior);
+    entry->carrier_count = carrier_count;
+    entry->node.logical_count = logical_count;
+    entry->node.carrier_count = carrier_count;
+    entry->node.kind = LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION;
+    entry->node.tier_floor = (uint8_t)(maximum_child_tier + 1u);
+}
+
+static void materialization_resolve_batch(
+    laplace_pg_materialization_provider_state* state,
+    const laplace_id128* requested,
+    size_t requested_count) {
+    static const char entity_sql[] =
+        "WITH input(entity_id, source_index) AS MATERIALIZED ("
+        " SELECT entity_id, ordinality - 1"
+        " FROM unnest($1::bytea[]) WITH ORDINALITY AS u(entity_id, ordinality))"
+        " SELECT i.source_index, e.identity_witness"
+        " FROM input AS i"
+        " LEFT JOIN " LAPLACE_PG_SCHEMA ".entity AS e ON e.entity_id=i.entity_id"
+        " ORDER BY i.source_index";
+    static const char physicality_sql[] =
+        "WITH input(entity_id, source_index) AS MATERIALIZED ("
+        " SELECT entity_id, ordinality - 1"
+        " FROM unnest($1::bytea[]) WITH ORDINALITY AS u(entity_id, ordinality))"
+        " SELECT i.source_index,p.physicality_id,p.trajectory_fingerprint,"
+        "        p.logical_count,p.vertex_count,p.trajectory"
+        " FROM input AS i"
+        " LEFT JOIN LATERAL ("
+        "   SELECT physicality_id,trajectory_fingerprint,logical_count,vertex_count,trajectory"
+        "   FROM " LAPLACE_PG_SCHEMA ".physicality"
+        "   WHERE entity_id=i.entity_id AND physicality_type=$2 AND geometry_epoch=$3"
+        "   ORDER BY physicality_id LIMIT 2"
+        " ) AS p ON true"
+        " ORDER BY i.source_index,p.physicality_id";
+    laplace_id128* ids;
+    materialization_cache_entry** entries;
+    laplace_digest256* witnesses;
+    laplace_unicode_identity_key* keys;
+    uint32_t* positions;
+    uint8_t* reverse_found;
+    laplace_unicode_atom_record_view* atoms;
+    uint8_t* atom_found;
+    laplace_id128* composition_ids;
+    size_t* composition_source;
+    size_t unique_count = 0u;
+    size_t composition_count = 0u;
+    size_t index;
+    Oid entity_types[1] = {BYTEAARRAYOID};
+    Datum entity_values[1];
+    int result;
+    laplace_pg_perfcache_pin* pin = NULL;
+    laplace_perfcache_registry_status cache_status;
+
+    if (state == NULL || requested == NULL || requested_count == 0u ||
+        requested_count > (size_t)INT_MAX ||
+        requested_count > MaxAllocSize / sizeof(*ids)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Laplace materialization node batch exceeds addressability")));
+    }
+
+    ids = (laplace_id128*)palloc(sizeof(*ids) * requested_count);
+    entries = (materialization_cache_entry**)palloc(sizeof(*entries) * requested_count);
+    for (index = 0u; index < requested_count; ++index) {
+        bool found = false;
+        materialization_cache_entry* entry =
+            materialization_cache_enter(state, &requested[index], &found);
+        if (entry->ready != 0u || entry->resolving != 0u) {
+            continue;
+        }
+        entry->resolving = 1u;
+        ids[unique_count] = requested[index];
+        entries[unique_count] = entry;
+        ++unique_count;
+    }
+    if (unique_count == 0u) {
+        return;
+    }
+
+    witnesses = (laplace_digest256*)palloc0(sizeof(*witnesses) * unique_count);
+    keys = (laplace_unicode_identity_key*)palloc0(sizeof(*keys) * unique_count);
+    positions = (uint32_t*)palloc0(sizeof(*positions) * unique_count);
+    reverse_found = (uint8_t*)palloc0(sizeof(*reverse_found) * unique_count);
+    atoms = (laplace_unicode_atom_record_view*)palloc0(sizeof(*atoms) * unique_count);
+    atom_found = (uint8_t*)palloc0(sizeof(*atom_found) * unique_count);
+    composition_ids = (laplace_id128*)palloc(sizeof(*composition_ids) * unique_count);
+    composition_source = (size_t*)palloc(sizeof(*composition_source) * unique_count);
+
+    entity_values[0] = PointerGetDatum(materialization_id_array(ids, unique_count));
+    result = SPI_execute_with_args(
+        entity_sql, 1, entity_types, entity_values, NULL, true,
+        (long)(unique_count + 1u));
+    ++state->database_operations;
+    ++state->node_batch_count;
+    if (result != SPI_OK_SELECT || SPI_tuptable == NULL ||
+        SPI_processed != unique_count) {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace materialization entity frontier is incomplete"),
+                 errdetail("requested=%zu returned=%llu",
+                           unique_count, (unsigned long long)SPI_processed)));
+    }
+    for (index = 0u; index < unique_count; ++index) {
+        bool is_null = false;
+        Datum source = SPI_getbinval(
+            SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 1, &is_null);
+        int64 source_index;
+        if (is_null) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace materialization frontier lost source ordinality")));
+        }
+        source_index = DatumGetInt64(source);
+        if (source_index < 0 || (uint64_t)source_index >= unique_count ||
+            (size_t)source_index != index) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace materialization frontier reordered source identities")));
+        }
+        materialization_read_exact(
+            materialization_required_value(
+                SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 2,
+                "identity witness"),
+            witnesses[index].bytes, sizeof(witnesses[index].bytes),
+            "identity witness");
+        keys[index].content_id = ids[index];
+        keys[index].identity_preimage_fingerprint = witnesses[index];
+    }
+    SPI_freetuptable(SPI_tuptable);
+
     materialization_require_active_perfcache(state, &pin);
     PG_TRY();
     {
-        status = laplace_perfcache_unicode_identity_reverse_resolve_batch(
-            &pin->native_pin, &key, 1u, &position, &reverse_found);
-        if (status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+        cache_status = laplace_perfcache_unicode_identity_reverse_resolve_batch(
+            &pin->native_pin, keys, unique_count, positions, reverse_found);
+        if (cache_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_CORRUPTED),
-                     errmsg("Laplace Unicode reverse materialization lookup failed"),
-                     errdetail("status=%u", (unsigned int)status)));
+                     errmsg("Laplace Unicode reverse materialization batch failed"),
+                     errdetail("status=%u", (unsigned int)cache_status)));
         }
-        if (reverse_found != 0u) {
-            status = laplace_perfcache_unicode_tier0_resolve_batch(
-                &pin->native_pin, &position, 1u, &atom, &atom_found);
-            if (status != LAPLACE_PERFCACHE_REGISTRY_OK || atom_found == 0u ||
-                memcmp(atom.value.content_id.bytes, entity_id->bytes,
-                       sizeof(entity_id->bytes)) != 0 ||
-                memcmp(atom.value.identity_preimage_fingerprint.bytes,
-                       witness->bytes, sizeof(witness->bytes)) != 0) {
-                ereport(ERROR,
-                        (errcode(ERRCODE_DATA_CORRUPTED),
-                         errmsg("Laplace Unicode direct materialization lookup disagrees with reverse identity")));
-            }
+        cache_status = laplace_perfcache_unicode_tier0_resolve_batch(
+            &pin->native_pin, positions, unique_count, atoms, atom_found);
+        if (cache_status != LAPLACE_PERFCACHE_REGISTRY_OK) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace Unicode direct materialization batch failed"),
+                     errdetail("status=%u", (unsigned int)cache_status)));
         }
         laplace_pg_perfcache_pin_release(&pin);
     }
@@ -271,137 +491,245 @@ static bool materialization_resolve_atom(
     }
     PG_END_TRY();
 
-    if (reverse_found == 0u) {
-        return false;
-    }
-    memset(node, 0, sizeof(*node));
-    node->entity_id = *entity_id;
-    node->identity_witness = *witness;
-    node->logical_count = 1u;
-    node->atom = position;
-    node->kind = LAPLACE_COGNITION_MATERIALIZATION_NODE_ATOM;
-    node->tier_floor = 0u;
-    materialization_node_receipt(state, node, &node->node_receipt_id);
-    return true;
-}
-
-static void materialization_resolve_composition(
-    laplace_pg_materialization_provider_state* state,
-    const laplace_id128* entity_id,
-    const laplace_digest256* witness,
-    laplace_cognition_materialization_node* node) {
-    static const char sql[] =
-        "SELECT physicality_id,trajectory_fingerprint,logical_count,vertex_count,trajectory "
-        "FROM " LAPLACE_PG_SCHEMA ".physicality "
-        "WHERE entity_id=$1 AND physicality_type=$2 AND geometry_epoch=$3 "
-        "ORDER BY physicality_id";
-    Oid types[3] = {BYTEAOID, INT4OID, BYTEAOID};
-    Datum values[3];
-    int result;
-    HeapTuple tuple;
-    TupleDesc descriptor;
-    bytea* trajectory;
-    uint64_t carrier_count;
-    uint64_t logical_count;
-    size_t trajectory_bytes;
-    laplace_composition_occurrence* occurrences;
-    uint64_t decoded_logical_count = 0u;
-    uint8_t maximum_child_tier = 0u;
-    size_t index;
-
-    values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        entity_id->bytes, sizeof(entity_id->bytes)));
-    values[1] = Int32GetDatum((int32)LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION);
-    values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        state->context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes,
-        sizeof(state->context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes)));
-    result = SPI_execute_with_args(sql, 3, types, values, NULL, true, 2);
-    ++state->database_operations;
-    if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace materialization composition physicality is not unique in the pinned geometry epoch"),
-                 errdetail("matches=%llu",
-                           (unsigned long long)SPI_processed)));
+    for (index = 0u; index < unique_count; ++index) {
+        materialization_cache_entry* entry = entries[index];
+        memset(&entry->node, 0, sizeof(entry->node));
+        entry->node.entity_id = ids[index];
+        entry->node.identity_witness = witnesses[index];
+        if (reverse_found[index] != 0u) {
+            if (atom_found[index] == 0u ||
+                memcmp(
+                    atoms[index].value.content_id.bytes,
+                    ids[index].bytes,
+                    sizeof(ids[index].bytes)) != 0 ||
+                memcmp(
+                    atoms[index].value.identity_preimage_fingerprint.bytes,
+                    witnesses[index].bytes,
+                    sizeof(witnesses[index].bytes)) != 0) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_CORRUPTED),
+                         errmsg("Laplace Unicode batch read disagrees with exact identity")));
+            }
+            entry->node.logical_count = 1u;
+            entry->node.atom = positions[index];
+            entry->node.kind = LAPLACE_COGNITION_MATERIALIZATION_NODE_ATOM;
+            entry->node.tier_floor = 0u;
+            materialization_node_receipt(
+                state, &entry->node, &entry->node.node_receipt_id);
+            entry->ready = 1u;
+            entry->resolving = 0u;
+            ++state->prefetched_node_count;
+            materialization_note_prefetch_node(state, &entry->node);
+        } else {
+            composition_ids[composition_count] = ids[index];
+            composition_source[composition_count] = index;
+            ++composition_count;
+        }
     }
 
-    tuple = SPI_tuptable->vals[0];
-    descriptor = SPI_tuptable->tupdesc;
-    memset(node, 0, sizeof(*node));
-    node->entity_id = *entity_id;
-    node->identity_witness = *witness;
-    materialization_read_exact(
-        materialization_required_value(tuple, descriptor, 1, "physicality id"),
-        node->physicality_id.bytes, sizeof(node->physicality_id.bytes),
-        "physicality id");
-    materialization_read_exact(
-        materialization_required_value(
-            tuple, descriptor, 2, "trajectory fingerprint"),
-        node->trajectory_fingerprint.bytes,
-        sizeof(node->trajectory_fingerprint.bytes),
-        "trajectory fingerprint");
-    logical_count = materialization_numeric_u64(
-        materialization_required_value(tuple, descriptor, 3, "logical count"),
-        "materialization logical count");
-    carrier_count = materialization_numeric_u64(
-        materialization_required_value(tuple, descriptor, 4, "vertex count"),
-        "materialization vertex count");
-    trajectory = DatumGetByteaPP(
-        materialization_required_value(tuple, descriptor, 5, "trajectory"));
-    trajectory_bytes = (size_t)VARSIZE_ANY_EXHDR(trajectory);
-    if (carrier_count == 0u || carrier_count > (uint64_t)SIZE_MAX ||
-        carrier_count > (uint64_t)(SIZE_MAX / sizeof(laplace_trajectory_carrier)) ||
-        trajectory_bytes != (size_t)carrier_count * sizeof(laplace_trajectory_carrier)) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace materialization composition trajectory size is invalid")));
-    }
-    occurrences = (laplace_composition_occurrence*)palloc0(
-        sizeof(*occurrences) * (size_t)carrier_count);
-    if (laplace_trajectory_composition_decode(
-            (const laplace_trajectory_carrier*)VARDATA_ANY(trajectory),
-            (size_t)carrier_count,
-            occurrences,
-            (size_t)carrier_count,
-            &decoded_logical_count) != LAPLACE_TRAJECTORY_OK ||
-        decoded_logical_count != logical_count || logical_count <= 1u) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace materialization composition trajectory cannot reconstruct its logical cardinality")));
-    }
-    for (index = 0u; index < (size_t)carrier_count; ++index) {
-        if (occurrences[index].run_length == 0u ||
-            occurrences[index].tier >= LAPLACE_COMPOSITION_TIER_MAXIMUM) {
+    if (composition_count != 0u) {
+        Oid physicality_types[3] = {BYTEAARRAYOID, INT4OID, BYTEAOID};
+        Datum physicality_values[3];
+        size_t row;
+        bool* seen = (bool*)palloc0(sizeof(*seen) * composition_count);
+        long row_limit = composition_count > (size_t)((LONG_MAX - 1L) / 2L)
+            ? LONG_MAX
+            : (long)(composition_count * 2u + 1u);
+
+        physicality_values[0] = PointerGetDatum(
+            materialization_id_array(composition_ids, composition_count));
+        physicality_values[1] = Int32GetDatum(
+            (int32)LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION);
+        physicality_values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            state->context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes,
+            sizeof(state->context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes)));
+        result = SPI_execute_with_args(
+            physicality_sql, 3, physicality_types, physicality_values,
+            NULL, true, row_limit);
+        ++state->database_operations;
+        if (result != SPI_OK_SELECT || SPI_tuptable == NULL) {
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_CORRUPTED),
-                     errmsg("Laplace materialization composition trajectory contains an invalid tier")));
+                     errmsg("Laplace materialization composition frontier read failed")));
         }
-        if (occurrences[index].tier > maximum_child_tier) {
-            maximum_child_tier = occurrences[index].tier;
+        for (row = 0u; row < (size_t)SPI_processed; ++row) {
+            bool is_null = false;
+            Datum source = SPI_getbinval(
+                SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 1, &is_null);
+            int64 source_index;
+            size_t batch_index;
+            size_t original_index;
+            materialization_cache_entry* entry;
+            bytea* trajectory;
+            uint64_t logical_count;
+            uint64_t carrier_count;
+
+            if (is_null) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_CORRUPTED),
+                         errmsg("Laplace materialization composition frontier lost ordinality")));
+            }
+            source_index = DatumGetInt64(source);
+            if (source_index < 0 || (uint64_t)source_index >= composition_count) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_CORRUPTED),
+                         errmsg("Laplace materialization composition frontier returned an invalid source index")));
+            }
+            batch_index = (size_t)source_index;
+            if (seen[batch_index]) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_CORRUPTED),
+                         errmsg("Laplace materialization composition is not unique in the pinned geometry epoch")));
+            }
+            seen[batch_index] = true;
+            original_index = composition_source[batch_index];
+            entry = entries[original_index];
+            materialization_read_exact(
+                materialization_required_value(
+                    SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 2,
+                    "physicality id"),
+                entry->node.physicality_id.bytes,
+                sizeof(entry->node.physicality_id.bytes),
+                "physicality id");
+            materialization_read_exact(
+                materialization_required_value(
+                    SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 3,
+                    "trajectory fingerprint"),
+                entry->node.trajectory_fingerprint.bytes,
+                sizeof(entry->node.trajectory_fingerprint.bytes),
+                "trajectory fingerprint");
+            logical_count = materialization_numeric_u64(
+                materialization_required_value(
+                    SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 4,
+                    "logical count"),
+                "materialization logical count");
+            carrier_count = materialization_numeric_u64(
+                materialization_required_value(
+                    SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 5,
+                    "vertex count"),
+                "materialization vertex count");
+            trajectory = DatumGetByteaPP(materialization_required_value(
+                SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 6,
+                "trajectory"));
+            materialization_cache_trajectory(
+                state, entry, trajectory, carrier_count, logical_count);
+            materialization_node_receipt(
+                state, &entry->node, &entry->node.node_receipt_id);
+            entry->ready = 1u;
+            entry->resolving = 0u;
+            ++state->prefetched_node_count;
+            materialization_note_prefetch_node(state, &entry->node);
+        }
+        for (index = 0u; index < composition_count; ++index) {
+            if (!seen[index]) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_NO_DATA_FOUND),
+                         errmsg("Laplace materialization composition is absent in the pinned geometry epoch")));
+            }
+        }
+        SPI_freetuptable(SPI_tuptable);
+    }
+
+    for (index = 0u; index < unique_count; ++index) {
+        if (entries[index]->ready == 0u) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace materialization node batch did not resolve every requested identity")));
+        }
+        entries[index]->resolving = 0u;
+    }
+}
+
+static void materialization_prefetch_children(
+    laplace_pg_materialization_provider_state* state,
+    materialization_cache_entry* parent) {
+    laplace_id128* children;
+    size_t child_count = 0u;
+    size_t index;
+    uint64_t ordinal = 1u;
+    volatile bool failed = false;
+    ErrorData* ignored = NULL;
+
+    if (parent == NULL || parent->ready == 0u ||
+        parent->node.kind != LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION ||
+        parent->children_prefetched != 0u || parent->trajectory == NULL ||
+        parent->carrier_count == 0u ||
+        parent->carrier_count > (uint64_t)(MaxAllocSize / sizeof(*children))) {
+        return;
+    }
+    parent->children_prefetched = 1u;
+    children = (laplace_id128*)palloc(
+        sizeof(*children) * (size_t)parent->carrier_count);
+    for (index = 0u; index < (size_t)parent->carrier_count; ++index) {
+        laplace_composition_occurrence occurrence;
+        size_t prior;
+        bool duplicate = false;
+        if (laplace_trajectory_composition_decode_one(
+                &parent->trajectory[index], ordinal, &occurrence) !=
+                LAPLACE_TRAJECTORY_OK ||
+            UINT64_MAX - ordinal < (uint64_t)occurrence.run_length) {
+            return;
+        }
+        ordinal += (uint64_t)occurrence.run_length;
+        if (materialization_cache_find(state, &occurrence.entity_id) != NULL) {
+            continue;
+        }
+        for (prior = 0u; prior < child_count; ++prior) {
+            if (materialization_id_equal(
+                    &children[prior], &occurrence.entity_id)) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate) {
+            children[child_count++] = occurrence.entity_id;
         }
     }
-    node->logical_count = logical_count;
-    node->carrier_count = carrier_count;
-    node->kind = LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION;
-    node->tier_floor = (uint8_t)(maximum_child_tier + 1u);
-    materialization_node_receipt(state, node, &node->node_receipt_id);
-    SPI_freetuptable(SPI_tuptable);
+    if (child_count == 0u) {
+        return;
+    }
+
+    /* Prefetch is a physical acceleration only. A child-level corruption or
+     * provider fault must not change a parent's logical read into an earlier
+     * failure. Discard the speculative diagnostic and let an on-demand resolve
+     * reproduce it if native execution actually reaches that child. */
+    PG_TRY();
+    {
+        materialization_resolve_batch(state, children, child_count);
+    }
+    PG_CATCH();
+    {
+        ignored = CopyErrorData();
+        FlushErrorState();
+        materialization_reset_resolving(state);
+        failed = true;
+    }
+    PG_END_TRY();
+    if (ignored != NULL) {
+        FreeErrorData(ignored);
+    }
+    (void)failed;
 }
 
 static int materialization_resolve_node_impl(
     laplace_pg_materialization_provider_state* state,
     const laplace_id128* entity_id,
     laplace_cognition_materialization_node* node) {
-    laplace_digest256 witness;
+    materialization_cache_entry* entry;
     if (state == NULL || entity_id == NULL || node == NULL) {
         return 1;
     }
-    memset(&witness, 0, sizeof(witness));
-    memset(node, 0, sizeof(*node));
-    materialization_read_entity_witness(state, entity_id, &witness);
-    if (!materialization_resolve_atom(state, entity_id, &witness, node)) {
-        materialization_resolve_composition(state, entity_id, &witness, node);
+    entry = materialization_cache_find(state, entity_id);
+    if (entry == NULL || entry->ready == 0u) {
+        materialization_resolve_batch(state, entity_id, 1u);
+        entry = materialization_cache_find(state, entity_id);
     }
+    if (entry == NULL || entry->ready == 0u) {
+        ereport(ERROR,
+                (errcode(ERRCODE_NO_DATA_FOUND),
+                 errmsg("Laplace materialization node remained unresolved after its batch read")));
+    }
+    *node = entry->node;
     ++state->resolved_nodes;
     materialization_note_node(state, node);
     return 0;
@@ -431,6 +759,7 @@ static int materialization_resolve_node(
         MemoryContextSwitchTo(state->caller_context);
         state->error = CopyErrorData();
         FlushErrorState();
+        materialization_reset_resolving(state);
         if (node != NULL) {
             memset(node, 0, sizeof(*node));
         }
@@ -448,15 +777,9 @@ static int materialization_read_trajectory_impl(
     laplace_trajectory_carrier* carriers,
     size_t carrier_count,
     laplace_digest256* read_receipt_id) {
-    static const char sql[] =
-        "SELECT trajectory FROM " LAPLACE_PG_SCHEMA ".physicality "
-        "WHERE physicality_id=$1 AND entity_id=$2 AND trajectory_fingerprint=$3";
     static const char receipt_domain[] =
-        "laplace-postgresql-materialization-trajectory-read-v1";
-    Oid types[3] = {BYTEAOID, BYTEAOID, BYTEAOID};
-    Datum values[3];
-    int result;
-    bytea* trajectory;
+        "laplace-postgresql-materialization-trajectory-read-v2";
+    materialization_cache_entry* entry;
     size_t bytes;
     blake3_hasher hasher;
 
@@ -467,31 +790,22 @@ static int materialization_read_trajectory_impl(
         carrier_count > SIZE_MAX / sizeof(*carriers)) {
         return 1;
     }
-    values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        node->physicality_id.bytes, sizeof(node->physicality_id.bytes)));
-    values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        node->entity_id.bytes, sizeof(node->entity_id.bytes)));
-    values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        node->trajectory_fingerprint.bytes,
-        sizeof(node->trajectory_fingerprint.bytes)));
-    result = SPI_execute_with_args(sql, 3, types, values, NULL, true, 1);
-    ++state->database_operations;
-    if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL) {
+    entry = materialization_cache_find(state, &node->entity_id);
+    if (entry == NULL || entry->ready == 0u || entry->trajectory == NULL ||
+        entry->carrier_count != (uint64_t)carrier_count ||
+        !materialization_digest_equal(
+            &entry->node.physicality_id, &node->physicality_id) ||
+        !materialization_digest_equal(
+            &entry->node.trajectory_fingerprint,
+            &node->trajectory_fingerprint)) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace materialization trajectory is not uniquely persisted"),
-                 errdetail("matches=%llu",
-                           (unsigned long long)SPI_processed)));
+                 errmsg("Laplace materialization trajectory cache disagrees with its resolved node")));
     }
-    trajectory = DatumGetByteaPP(materialization_required_value(
-        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, "trajectory"));
-    bytes = (size_t)VARSIZE_ANY_EXHDR(trajectory);
-    if (bytes != carrier_count * sizeof(*carriers)) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace materialization trajectory byte count changed between node and payload reads")));
-    }
-    memcpy(carriers, VARDATA_ANY(trajectory), bytes);
+
+    materialization_prefetch_children(state, entry);
+    bytes = carrier_count * sizeof(*carriers);
+    memcpy(carriers, entry->trajectory, bytes);
     blake3_hasher_init(&hasher);
     blake3_hasher_update(&hasher, receipt_domain, sizeof(receipt_domain) - 1u);
     blake3_hasher_update(
@@ -501,7 +815,7 @@ static int materialization_read_trajectory_impl(
     blake3_hasher_update(
         &hasher, node->node_receipt_id.bytes,
         sizeof(node->node_receipt_id.bytes));
-    blake3_hasher_update(&hasher, VARDATA_ANY(trajectory), bytes);
+    blake3_hasher_update(&hasher, entry->trajectory, bytes);
     blake3_hasher_finalize(
         &hasher, read_receipt_id->bytes, sizeof(read_receipt_id->bytes));
     ++state->trajectory_reads;
@@ -512,7 +826,6 @@ static int materialization_read_trajectory_impl(
     }
     state->trajectory_bytes += (uint64_t)bytes;
     materialization_note_trajectory(state, read_receipt_id);
-    SPI_freetuptable(SPI_tuptable);
     return 0;
 }
 
@@ -543,6 +856,7 @@ static int materialization_read_trajectory(
         MemoryContextSwitchTo(state->caller_context);
         state->error = CopyErrorData();
         FlushErrorState();
+        materialization_reset_resolving(state);
         if (read_receipt_id != NULL) {
             memset(read_receipt_id, 0, sizeof(*read_receipt_id));
         }
@@ -561,6 +875,8 @@ static void materialization_provider_release(void* opaque) {
         return;
     }
     state->scratch_context = NULL;
+    state->cache_context = NULL;
+    state->cache = NULL;
     if (state->error != NULL) {
         FreeErrorData(state->error);
         state->error = NULL;
@@ -572,6 +888,7 @@ void laplace_pg_materialization_provider_create(
     laplace_pg_materialization_provider_state** owner,
     laplace_cognition_materialization_provider_v1* provider) {
     laplace_pg_materialization_provider_state* state;
+    HASHCTL control;
     const uint64_t required_epochs =
         (UINT64_C(1) << LAPLACE_FRAMEWORK_EPOCH_GEOMETRY) |
         (UINT64_C(1) << LAPLACE_FRAMEWORK_EPOCH_PERFCACHE);
@@ -595,8 +912,21 @@ void laplace_pg_materialization_provider_create(
     state->caller_context = CurrentMemoryContext;
     state->scratch_context = AllocSetContextCreate(
         CurrentMemoryContext,
-        "Laplace materialization read batch",
+        "Laplace materialization frontier scratch",
         ALLOCSET_DEFAULT_SIZES);
+    state->cache_context = AllocSetContextCreate(
+        CurrentMemoryContext,
+        "Laplace materialization frontier cache",
+        ALLOCSET_DEFAULT_SIZES);
+    memset(&control, 0, sizeof(control));
+    control.keysize = sizeof(laplace_id128);
+    control.entrysize = sizeof(materialization_cache_entry);
+    control.hcxt = state->cache_context;
+    state->cache = hash_create(
+        "Laplace materialization exact-node cache",
+        128,
+        &control,
+        HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
     state->cleanup.func = materialization_provider_release;
     state->cleanup.arg = state;
     MemoryContextRegisterResetCallback(CurrentMemoryContext, &state->cleanup);
@@ -604,7 +934,7 @@ void laplace_pg_materialization_provider_create(
     blake3_hasher_init(&state->readset);
     {
         static const char readset_domain[] =
-            "laplace-postgresql-materialization-readset-v1";
+            "laplace-postgresql-materialization-readset-v2";
         blake3_hasher_update(
             &state->readset, readset_domain, sizeof(readset_domain) - 1u);
         blake3_hasher_update(
@@ -664,6 +994,11 @@ void laplace_pg_materialization_provider_destroy(
     if ((*owner)->scratch_context != NULL) {
         MemoryContextDelete((*owner)->scratch_context);
         (*owner)->scratch_context = NULL;
+    }
+    if ((*owner)->cache_context != NULL) {
+        MemoryContextDelete((*owner)->cache_context);
+        (*owner)->cache_context = NULL;
+        (*owner)->cache = NULL;
     }
     materialization_provider_release(*owner);
     *owner = NULL;
