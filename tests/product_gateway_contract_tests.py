@@ -44,7 +44,6 @@ class ProductGatewayContractTests(unittest.TestCase):
             self.assertIn(f">{label}</button>", index)
 
     def test_explore_uses_real_persisted_facets_and_entity_context(self) -> None:
-        wrapper = WRAPPER.read_text(encoding="utf-8")
         inspect = INSPECT.read_text(encoding="utf-8")
         web = WEB.read_text(encoding="utf-8")
         for route in ("/api/v1/consensus", "/api/v1/evidence", "/api/v1/standings"):
@@ -77,7 +76,9 @@ class ProductGatewayContractTests(unittest.TestCase):
     def test_package_requires_new_product_owners(self) -> None:
         package = PACKAGE.read_text(encoding="utf-8")
         for required in (
+            '"bin/laplace-openai-api"',
             '"bin/laplace-openai-api-core"',
+            '"bin/laplace-openai-api-transport"',
             '"bin/laplace-source-product"',
             '"bin/laplace-source-job-worker"',
             '"share/laplace/source-contracts/selected-source-boundary.json"',
