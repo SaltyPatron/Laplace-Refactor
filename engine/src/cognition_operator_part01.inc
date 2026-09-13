@@ -22,6 +22,7 @@ void HashConstraint(
     HashU32(hasher, constraint.transport_kind);
 #endif
     HashU32(hasher, constraint.flags);
+    HashStanding(hasher, constraint.standing);
 }
 
 void HashProgram(
@@ -52,6 +53,7 @@ void HashProgram(
 
 struct EvidenceKey {
     DigestKey root{};
+    DigestKey standing{};
     DigestKey plane{};
     DigestKey law{};
     std::uint64_t source{};
@@ -61,8 +63,8 @@ struct EvidenceKey {
     std::uint32_t transport{};
 
     bool operator<(const EvidenceKey& other) const {
-        return std::tie(root, plane, law, source, target, relation, direction, transport) <
-            std::tie(other.root, other.plane, other.law, other.source, other.target,
+        return std::tie(root, standing, plane, law, source, target, relation, direction, transport) <
+            std::tie(other.root, other.standing, other.plane, other.law, other.source, other.target,
                      other.relation, other.direction, other.transport);
     }
 };
@@ -70,10 +72,10 @@ struct EvidenceKey {
 EvidenceKey MakeEvidenceKey(
     const laplace_cognition_operator_constraint& constraint) {
     return EvidenceKey{
-        Key(constraint.evidence_root_id), Key(constraint.plane_id),
-        Key(constraint.law_fingerprint), constraint.source_field_index,
-        constraint.target_field_index, constraint.relation_family,
-        constraint.direction, constraint.transport_kind};
+        Key(constraint.evidence_root_id), Key(constraint.standing.state_id),
+        Key(constraint.plane_id), Key(constraint.law_fingerprint),
+        constraint.source_field_index, constraint.target_field_index,
+        constraint.relation_family, constraint.direction, constraint.transport_kind};
 }
 
 bool SameEvidenceSemantic(
@@ -185,6 +187,7 @@ void HashOperatorSets(laplace_cognition_operator* const value) {
     HashU64(&receipt_hasher, value->receipt.physicality_constraint_count);
     HashU64(&receipt_hasher, value->receipt.testimony_constraint_count);
     HashU64(&receipt_hasher, value->receipt.derived_constraint_count);
+    HashU64(&receipt_hasher, value->receipt.standing_constraint_count);
     HashU32(&receipt_hasher, value->receipt.relation_plane_count);
     HashU32(&receipt_hasher, value->receipt.version);
     Finish(&receipt_hasher, &value->receipt.receipt_id);
