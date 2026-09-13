@@ -42,6 +42,9 @@ typedef struct laplace_cognition_interpretation_query_program {
     uint32_t reserved;
 } laplace_cognition_interpretation_query_program;
 
+typedef struct laplace_cognition_interpretation_execution_result
+    laplace_cognition_interpretation_execution_result;
+
 /*
  * Canonical identity of the executable query recipe. A program_rule that is
  * executed by the candidate-provider path must carry this exact identity in its
@@ -54,15 +57,54 @@ laplace_cognition_interpretation_query_program_identify(
     laplace_digest256* identity);
 
 /*
- * Run every OPEN interpreted obligation through the existing guidance/forward
- * processor and the existing typed candidate-provider search engine. One query
- * recipe exists per declared obligation. The joint interpretation owns the
- * operand values; the query program owns how those operands are projected into
- * anchor/goal search bindings. The provider supplies observed crossings only.
- *
- * `turn` and `policy` supply current finite execution bounds and independently
- * admitted scope. They must match the interpretation; caller-supplied goals are
- * rejected by laplace_cognition_interpretation_prepare_turn().
+ * Execute every OPEN interpreted obligation through the existing native
+ * guidance/forward processor and retain the actual canonical observation answers
+ * produced for each obligation. Resolution.value_id remains the 256-bit result
+ * fingerprint used by guidance; it is never truncated or reinterpreted as a
+ * 128-bit entity. The retained answer rows are the authoritative entity/result
+ * surface for later semantic-act selection.
+ */
+LAPLACE_API laplace_cognition_interpretation_status
+laplace_cognition_interpretation_program_execute_with_candidate_provider(
+    const laplace_cognition_interpretation_result* interpretation,
+    const laplace_cognition_interpretation_program_rule* rule,
+    const laplace_cognition_interpretation_query_program* query_program,
+    const laplace_cognition_turn_input* turn,
+    const laplace_cognition_turn_policy* policy,
+    const laplace_cognition_observation_candidate_provider_v1* provider,
+    laplace_cognition_interpretation_execution_result** result,
+    laplace_cognition_forward_receipt* receipt);
+
+LAPLACE_API size_t
+laplace_cognition_interpretation_execution_obligation_count(
+    const laplace_cognition_interpretation_execution_result* result);
+
+LAPLACE_API laplace_cognition_interpretation_status
+laplace_cognition_interpretation_execution_obligation_id(
+    const laplace_cognition_interpretation_execution_result* result,
+    size_t obligation_index,
+    laplace_digest256* obligation_id);
+
+LAPLACE_API size_t
+laplace_cognition_interpretation_execution_answer_count(
+    const laplace_cognition_interpretation_execution_result* result,
+    size_t obligation_index);
+
+LAPLACE_API laplace_cognition_interpretation_status
+laplace_cognition_interpretation_execution_answer(
+    const laplace_cognition_interpretation_execution_result* result,
+    size_t obligation_index,
+    size_t answer_index,
+    laplace_cognition_observation_answer* answer);
+
+LAPLACE_API void
+laplace_cognition_interpretation_execution_destroy(
+    laplace_cognition_interpretation_execution_result** result);
+
+/*
+ * Compatibility surface for callers that need only the native forward result.
+ * It delegates to the retained execution API and detaches the forward result;
+ * no alternative execution path or different semantics are introduced.
  */
 LAPLACE_API laplace_cognition_interpretation_status
 laplace_cognition_interpretation_forward_execute_with_candidate_provider(
