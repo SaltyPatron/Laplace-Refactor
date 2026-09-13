@@ -21,23 +21,36 @@ class OpenAIChatCompatibilityTests(unittest.TestCase):
     def payload(self, messages: list[dict[str, str]], **extra: object) -> dict[str, object]:
         return {"model": "laplace-native", "messages": messages, **extra}
 
-    def test_accepts_multi_message_conversation(self) -> None:
-        prompt = self.module.normalize_chat_payload(self.payload([
-            {"role": "system", "content": "You are Laplace."},
-            {"role": "user", "content": "Write a Python function."},
-            {"role": "assistant", "content": "def f():\n    return 1"},
-            {"role": "user", "content": "Now add a type annotation."},
-        ]))
-        self.assertIn("<SYSTEM>\nYou are Laplace.", prompt)
-        self.assertIn("<USER>\nWrite a Python function.", prompt)
-        self.assertIn("<ASSISTANT>\ndef f():", prompt)
-        self.assertTrue(prompt.endswith("<ASSISTANT>\n"))
+    def test_preserves_single_user_message_exactly(self) -> None:
+        prompt = self.module.normalize_chat_payload(
+            self.payload([{"role": "user", "content": "Write a Python function."}])
+        )
+        self.assertEqual(prompt, "Write a Python function.")
+        self.assertNotIn("<USER>", prompt)
+        self.assertNotIn("OpenAI-compatible conversation transcript", prompt)
 
-    def test_accepts_streaming_profile(self) -> None:
+    def test_rejects_multi_message_history_until_roles_are_native(self) -> None:
+        with self.assertRaises(self.module.ChatProfileError) as caught:
+            self.module.normalize_chat_payload(self.payload([
+                {"role": "system", "content": "You are Laplace."},
+                {"role": "user", "content": "Write a Python function."},
+                {"role": "assistant", "content": "def f():\n    return 1"},
+                {"role": "user", "content": "Now add a type annotation."},
+            ]))
+        self.assertEqual(caught.exception.code, "unsupported_conversation_history")
+
+    def test_rejects_non_user_role_until_roles_are_native(self) -> None:
+        with self.assertRaises(self.module.ChatProfileError) as caught:
+            self.module.normalize_chat_payload(
+                self.payload([{"role": "system", "content": "Only system context."}])
+            )
+        self.assertEqual(caught.exception.code, "unsupported_message_role")
+
+    def test_accepts_streaming_transport_for_single_user_message(self) -> None:
         prompt = self.module.normalize_chat_payload(
             self.payload([{"role": "user", "content": "stream this"}], stream=True)
         )
-        self.assertIn("<USER>\nstream this", prompt)
+        self.assertEqual(prompt, "stream this")
 
     def test_rejects_non_boolean_stream(self) -> None:
         with self.assertRaises(self.module.ChatProfileError):
@@ -45,15 +58,10 @@ class OpenAIChatCompatibilityTests(unittest.TestCase):
                 self.payload([{"role": "user", "content": "hello"}], stream="true")
             )
 
-    def test_requires_at_least_one_user_message(self) -> None:
-        with self.assertRaises(self.module.ChatProfileError):
-            self.module.normalize_chat_payload(self.payload([{"role": "system", "content": "Only system context."}]))
-
-    def test_rejects_unsupported_role(self) -> None:
+    def test_rejects_unsupported_message_name_until_typed(self) -> None:
         with self.assertRaises(self.module.ChatProfileError):
             self.module.normalize_chat_payload(self.payload([
-                {"role": "tool", "content": "opaque"},
-                {"role": "user", "content": "continue"},
+                {"role": "user", "content": "hello", "name": "anthony"},
             ]))
 
     def test_rejects_unsupported_top_level_parameter(self) -> None:
