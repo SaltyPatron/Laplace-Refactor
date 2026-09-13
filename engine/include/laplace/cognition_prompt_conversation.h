@@ -25,7 +25,8 @@ typedef enum laplace_cognition_prompt_conversation_status {
     LAPLACE_COGNITION_PROMPT_CONVERSATION_PROVIDER_SET_FAILURE = 5,
     LAPLACE_COGNITION_PROMPT_CONVERSATION_CONVERSATION_FAILURE = 6,
     LAPLACE_COGNITION_PROMPT_CONVERSATION_MEMORY_FAILURE = 7,
-    LAPLACE_COGNITION_PROMPT_CONVERSATION_ENCODING_INVALID = 8
+    LAPLACE_COGNITION_PROMPT_CONVERSATION_ENCODING_INVALID = 8,
+    LAPLACE_COGNITION_PROMPT_CONVERSATION_WHY_NOT = 9
 } laplace_cognition_prompt_conversation_status;
 
 /*
@@ -57,13 +58,14 @@ typedef struct laplace_cognition_prompt_conversation_result {
  * Executes the admitted prompt through one native conversation chain while
  * composing its exact structural provider with zero or more caller-owned
  * persistent cognition providers. This closes the raw-prompt admission boundary
- * to the already-existing turn/cognition/semantic-act/realization/materialization
- * path without selecting a topic, tokenizing the prompt, or invoking a model.
+ * to the already-existing turn/cognition/semantic-act-or-WHY_NOT/realization/
+ * materialization path without selecting a topic, tokenizing the prompt, or
+ * invoking a model.
  *
  * The prompt admission and every additional provider state must remain alive for
- * the duration of this call. The provider set owns descriptor copies only. Output
- * and next-frame byte counts remain zero on failure, matching the underlying
- * conversation publication law.
+ * the duration of this call. The provider set owns descriptor copies only. A
+ * typed WHY_NOT preserves its complete nested result while publishing zero output
+ * and next-frame bytes.
  */
 LAPLACE_API laplace_cognition_prompt_conversation_status
 laplace_cognition_prompt_conversation_execute(
