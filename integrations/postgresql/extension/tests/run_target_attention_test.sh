@@ -54,14 +54,23 @@ LD_PRELOAD="${sanitizer_preload}${sanitizer_preload:+${LD_PRELOAD:+:}}${LD_PRELO
     -o "$postgres_options" -w start >/dev/null
 server_started=1
 
+echo "target-attention phase=native-probe" >&2
 if [[ ! -x "$native_probe" ]]; then
     echo "target attention native oracle is unavailable" >&2
     exit 65
 fi
+set +e
 probe_output=$(
     LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     "$native_probe"
 )
+probe_status=$?
+set -e
+echo "target-attention native-probe-status=$probe_status" >&2
+printf '%s\n' "$probe_output" >&2
+if [[ $probe_status -ne 0 ]]; then
+    exit "$probe_status"
+fi
 
 psql_arguments=(
     -X
@@ -80,5 +89,6 @@ while IFS='=' read -r key value; do
     psql_arguments+=(-v "$shell_name=$value")
 done <<<"$probe_output"
 
+echo "target-attention phase=postgresql-contract" >&2
 LD_PRELOAD="${sanitizer_preload}${sanitizer_preload:+${LD_PRELOAD:+:}}${LD_PRELOAD:-}" \
 "$pg_bindir/psql" "${psql_arguments[@]}" -f "$sql_file"
