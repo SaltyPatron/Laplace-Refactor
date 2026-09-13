@@ -52,6 +52,23 @@ BEGIN
 END
 $laplace_product_cognition_upgrade$;
 
+-- Reconcile the filter-first physical providers on already-persistent 1.0.3
+-- clusters as well as on fresh installs.  The semantic candidate query addresses
+-- mappings by (boundary, endpoint); without these indexes an otherwise set-wise
+-- frontier can degrade into occurrence scans.  They are rebuildable accelerators
+-- and do not change semantic authority.
+CREATE INDEX IF NOT EXISTS reference_mapping_occurrence_left_semantic_idx
+    ON laplace.reference_mapping_occurrence
+    (boundary_id, left_value_entity_id, proposition_id, source_profile_id, occurrence_id)
+    INCLUDE (right_value_entity_id, row_entity_id)
+    WHERE disposition = 1;
+
+CREATE INDEX IF NOT EXISTS reference_mapping_occurrence_right_semantic_idx
+    ON laplace.reference_mapping_occurrence
+    (boundary_id, right_value_entity_id, proposition_id, source_profile_id, occurrence_id)
+    INCLUDE (left_value_entity_id, row_entity_id)
+    WHERE disposition = 1;
+
 CREATE OR REPLACE FUNCTION laplace.cognition_conversation_execute_product(
     laplace.execution_context,
     text,
