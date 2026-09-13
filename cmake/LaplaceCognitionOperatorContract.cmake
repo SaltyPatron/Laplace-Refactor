@@ -6,7 +6,7 @@ function(laplace_configure_cognition_operator_contract contract_path output_path
     foreach(domain IN ITEMS program field constraint operator application materialization)
         string(JSON domain_${domain} GET "${contract}" domains ${domain})
     endforeach()
-    foreach(source IN ITEMS physicality testimony derived)
+    foreach(source IN ITEMS physicality testimony derived standing)
         string(JSON source_${source} GET "${contract}" constraint_sources ${source})
     endforeach()
     foreach(direction IN ITEMS source_to_target target_to_source symmetric)
@@ -27,7 +27,7 @@ function(laplace_configure_cognition_operator_contract contract_path output_path
     if(NOT schema STREQUAL "laplace.cognition-operator/v1" OR
        NOT version EQUAL 1 OR NOT algorithm STREQUAL "BLAKE3-256" OR
        NOT source_physicality EQUAL 1 OR NOT source_testimony EQUAL 2 OR
-       NOT source_derived EQUAL 3 OR
+       NOT source_derived EQUAL 3 OR NOT source_standing EQUAL 4 OR
        NOT direction_source_to_target EQUAL 1 OR NOT direction_target_to_source EQUAL 2 OR
        NOT direction_symmetric EQUAL 3 OR
        NOT transport_identity EQUAL 1 OR NOT transport_signed EQUAL 2 OR
@@ -48,7 +48,7 @@ function(laplace_configure_cognition_operator_contract contract_path output_path
         string(TOUPPER "${domain}" symbol)
         set(LAPLACE_COGNITION_OPERATOR_DOMAIN_${symbol} "${domain_${domain}}")
     endforeach()
-    foreach(source IN ITEMS physicality testimony derived)
+    foreach(source IN ITEMS physicality testimony derived standing)
         string(TOUPPER "${source}" symbol)
         set(LAPLACE_COGNITION_OPERATOR_SOURCE_${symbol} "${source_${source}}")
     endforeach()
