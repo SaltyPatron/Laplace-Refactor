@@ -398,24 +398,8 @@ def execute_cognition(
 
     previous_checkpoint = session["previous_checkpoint_hex"] if continued else ""
     relation_count = len(relations) if relations is not None else len(ACTIVE_RELATIONS)
-    common_arguments = (
-        f"  {context_sql(identities, program_id, perfcache_epoch, numeric_epoch)},\n"
-        f"  pg_catalog.convert_from({bytea_literal(encoded_prompt.hex())}, 'UTF8'),\n"
-        f"  {prompt_scope_sql(identities, session)},\n"
-        f"  {product_request_sql(identities, program_id, relation_count, session)},\n"
-        f"  {bytea_literal(previous_checkpoint)},\n"
-        "  1073741824::bigint\n"
-    )
-    if relations is None:
-        execution_route = "native-conversation"
-        sql = f"""
-SELECT pg_catalog.row_to_json(result)::text
-FROM laplace.cognition_conversation_execute_product(
-{common_arguments}) AS result;
-"""
-    else:
-        execution_route = "explicit-firmware"
-        sql = f"""
+    execution_route = "automatic-firmware" if relations is None else "explicit-firmware"
+    sql = f"""
 SELECT pg_catalog.row_to_json(result)::text
 FROM laplace.cognition_firmware_execute_product(
   {context_sql(identities, program_id, perfcache_epoch, numeric_epoch)},
