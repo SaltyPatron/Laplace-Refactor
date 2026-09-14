@@ -86,7 +86,7 @@ class RetainedUnicodeAdmission(unittest.TestCase):
         identity,request,command=self.execute()
         self.assertEqual(identity,self.identity);self.assertEqual(request,self.original)
         self.assertEqual(command['label'],'native-old-request')
-        self.assertEqual(self.calls,[('/verified/native-identify',staged,self.contract)])
+        self.assertEqual(self.calls,[(Path('/verified/native-identify'),staged,self.contract)])
         self.assertEqual((self.folder/'request.json').read_bytes(),u.canonical_bytes(self.original))
         self.assertEqual((self.folder/'identities.json').read_bytes(),u.canonical_bytes(self.identity))
 
