@@ -292,7 +292,7 @@ laplace_cognition_packet_status DecodeRequest(
 bool ResultSize(const std::size_t solution_count, std::size_t* const result_bytes) {
     constexpr std::size_t HeaderBytes = 8U + 4U + 4U + 8U;
     constexpr std::size_t OperatorReceiptBytes =
-        5U * 32U + 7U * 8U + 4U * 4U;
+        5U * 32U + 8U * 8U + 4U * 4U;
     constexpr std::size_t SolverReceiptBytes =
         8U * 32U + 2U * 8U + 4U * 8U + 5U * 4U;
     constexpr std::size_t FixedBytes =
@@ -321,6 +321,7 @@ bool WriteOperatorReceipt(
         writer->U64(receipt.physicality_constraint_count) &&
         writer->U64(receipt.testimony_constraint_count) &&
         writer->U64(receipt.derived_constraint_count) &&
+        writer->U64(receipt.standing_constraint_count) &&
         writer->U32(receipt.relation_plane_count) &&
         writer->U32(receipt.status) &&
         writer->U32(receipt.version) &&

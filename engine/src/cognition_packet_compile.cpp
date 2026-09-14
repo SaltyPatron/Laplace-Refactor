@@ -22,7 +22,7 @@ constexpr std::size_t RequestFixedBytes = 344U;
 constexpr std::size_t FieldBytes = 160U;
 constexpr std::size_t ConstraintBytes = 264U;
 constexpr std::size_t StandingStateBytes = 240U;
-constexpr std::size_t ResultFixedBytes = 580U;
+constexpr std::size_t ResultFixedBytes = 588U;
 
 bool FitsSize(const std::uint64_t value) {
 #if SIZE_MAX < UINT64_MAX
@@ -281,6 +281,7 @@ bool ReadOperatorReceipt(
         reader->U64(&receipt->physicality_constraint_count) &&
         reader->U64(&receipt->testimony_constraint_count) &&
         reader->U64(&receipt->derived_constraint_count) &&
+        reader->U64(&receipt->standing_constraint_count) &&
         reader->U32(&receipt->relation_plane_count) && reader->U32(&receipt->status) &&
         reader->U32(&receipt->version) && reader->U32(&receipt->flags);
 }
