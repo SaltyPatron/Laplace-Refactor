@@ -19,4 +19,5 @@
 #include "cognition_interpreted_conversation.inc"
 #include "cognition_prompt_admission.cpp"
 #include "cognition_prompt_structural_provider.inc"
+#include "cognition_prompt_orientation.inc"
 #include "cognition_prompt_conversation.inc"
