@@ -4,6 +4,7 @@
 #include "cognition_observation_request.inc"
 #include "cognition_observation_request_provider.inc"
 #include "cognition_observation_candidate_provider.inc"
+#include "cognition_response_field.inc"
 #include "cognition_interpretation_candidates.inc"
 #include "cognition_interpretation_query.inc"
 #include "cognition_observation_index_candidates.inc"
