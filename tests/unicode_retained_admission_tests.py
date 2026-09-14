@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A deployment can reuse an admission only after its native identity is re-proved."""
+"""A deployment can reuse a Unicode root only after exact native/direct proof."""
 from __future__ import annotations
 import copy
 import importlib.util
@@ -90,6 +90,74 @@ class RetainedUnicodeAdmission(unittest.TestCase):
         self.assertEqual((self.folder/'request.json').read_bytes(),u.canonical_bytes(self.original))
         self.assertEqual((self.folder/'identities.json').read_bytes(),u.canonical_bytes(self.identity))
 
+    def test_no_historical_request_projects_current_native_context_onto_proven_root(self):
+        shutil.rmtree(self.folder)
+        current_identity=copy.deepcopy(self.identity)
+        current_identity['request_fingerprint']='e1'*32
+        current_identity['activation_epoch_id']='e2'*16
+        current_identity['activation_epoch_fingerprint']='e3'*32
+        current_identity['geometry_epoch']='e4'*32
+        payload=u.canonical_bytes(self.current)
+        staging=self.root/'.unicode-activation';staging.mkdir(parents=True,exist_ok=True)
+        request_path=staging/f'request-{u.sha256_bytes(payload)}.json';request_path.write_bytes(payload)
+        self.inspection.update({
+            'active_present':True,
+            'generation_count':1,
+            'deposit_count':1,
+            'root_receipt':self.contract['expected_result']['root_receipt'],
+            'root_geometry_epoch':'a1'*32,
+            'root_postgresql_contract_fingerprint':self.contract['authority']['unicode_postgresql_contract_fingerprint'],
+            'deposit_activation_epoch_id':self.identity['activation_epoch_id'],
+            'deposit_activation_epoch_fingerprint':self.identity['activation_epoch_fingerprint'],
+        })
+        calls=[]
+        def current_native(executable,path,contract):
+            calls.append(path)
+            self.assertEqual(path,request_path)
+            return copy.deepcopy(current_identity),{'exit_code':0,'label':'native-current-request'}
+        effective,request,command=u.retained_root_identities(
+            self.root,self.inspection,self.current,self.contract,Path('/verified/native-identify'),current_native)
+        self.assertEqual(request,self.current)
+        self.assertEqual(effective['request_fingerprint'],current_identity['request_fingerprint'])
+        self.assertEqual(effective['activation_epoch_id'],self.identity['activation_epoch_id'])
+        self.assertEqual(effective['activation_epoch_fingerprint'],self.identity['activation_epoch_fingerprint'])
+        self.assertEqual(effective['geometry_epoch'],'a1'*32)
+        self.assertEqual(effective['source_epoch'],current_identity['source_epoch'])
+        self.assertGreaterEqual(len(calls),2)
+        evidence=self.root/'unicode'/current_identity['request_fingerprint']
+        self.assertEqual(u.load_json(evidence/'native-identities.json'),current_identity)
+        projection=u.load_json(evidence/'runtime-context-projection.json')
+        self.assertEqual(projection['schema'],u.RUNTIME_CONTEXT_PROJECTION_SCHEMA)
+        self.assertEqual(projection['native_geometry_epoch'],'e4'*32)
+        self.assertEqual(projection['committed_geometry_epoch'],'a1'*32)
+        self.assertEqual(projection['committed_root_receipt'],self.contract['expected_result']['root_receipt'])
+        self.assertEqual(command['runtime_context_projection'],projection)
+
+    def test_missing_history_cannot_project_without_exact_committed_root_contract(self):
+        shutil.rmtree(self.folder)
+        payload=u.canonical_bytes(self.current)
+        staging=self.root/'.unicode-activation';staging.mkdir(parents=True,exist_ok=True)
+        request_path=staging/f'request-{u.sha256_bytes(payload)}.json';request_path.write_bytes(payload)
+        current_identity=copy.deepcopy(self.identity)
+        current_identity['activation_epoch_id']='e2'*16
+        current_identity['activation_epoch_fingerprint']='e3'*32
+        current_identity['geometry_epoch']='e4'*32
+        self.inspection.update({
+            'active_present':True,
+            'generation_count':1,
+            'deposit_count':1,
+            'root_receipt':self.contract['expected_result']['root_receipt'],
+            'root_geometry_epoch':'a1'*32,
+            'root_postgresql_contract_fingerprint':'ff'*32,
+            'deposit_activation_epoch_id':self.identity['activation_epoch_id'],
+            'deposit_activation_epoch_fingerprint':self.identity['activation_epoch_fingerprint'],
+        })
+        def current_native(_executable,_path,_contract):
+            return copy.deepcopy(current_identity),{'exit_code':0}
+        with self.assertRaisesRegex(u.UnicodeActivationError,'PostgreSQL contract fingerprint differs'):
+            u.retained_root_identities(
+                self.root,self.inspection,self.current,self.contract,Path('/verified/native-identify'),current_native)
+
     def test_staged_request_filename_must_bind_exact_canonical_bytes(self):
         shutil.rmtree(self.folder)
         staging=self.root/'.unicode-activation';staging.mkdir(parents=True)
@@ -124,12 +192,12 @@ class RetainedUnicodeAdmission(unittest.TestCase):
             self.execute()
 
     def test_candidate_admission_is_not_published_before_database_inspection(self):
-        source=(ROOT/'tools/postgresql/unicodectl.py').read_text(encoding='utf-8')
+        source=(ROOT/'tools/postgresql/unicodectl_core.py').read_text(encoding='utf-8')
         inspection=source.index('"inspect-unicode-product-state"')
         publication=source.index('write_immutable(evidence_directory / "request.json"')
         self.assertLess(inspection,publication)
 
-    def test_source_scoped_counts_do_not_confuse_later_highway_content_with_corruption(self):
+    def test_source_scoped_counts_and_root_context_are_inspected_exactly(self):
         sql=u.render_inspection_sql()
         for name in ('entity','physicality'):
             self.assertIn(f'FROM laplace.{name} AS owned',sql)
@@ -137,5 +205,9 @@ class RetainedUnicodeAdmission(unittest.TestCase):
         self.assertIn('root.root_receipt=witness.source_fingerprint',sql)
         self.assertIn('WHERE witness.attestation_kind=3',sql)
         self.assertIn('WHERE NOT EXISTS (SELECT 1 FROM laplace.unicode_root_generation)',sql)
+        self.assertIn("'root_geometry_epoch'",sql)
+        self.assertIn("'root_postgresql_contract_fingerprint'",sql)
+        self.assertIn("'deposit_activation_epoch_id'",sql)
+        self.assertIn("'deposit_activation_epoch_fingerprint'",sql)
 
 if __name__=='__main__':unittest.main(verbosity=2)
