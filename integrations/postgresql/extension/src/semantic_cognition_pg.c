@@ -9,6 +9,7 @@
 #include "catalog/pg_type.h"
 #include "executor/spi.h"
 #include "fmgr.h"
+#include "lib/stringinfo.h"
 #include "utils/array.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
@@ -272,7 +273,7 @@ static int semantic_enumerate_impl(
     size_t candidate_capacity,
     size_t* candidate_count,
     laplace_cognition_observation_candidate_usage* usage) {
-    static const char query[] =
+    static const char query_part1[] =
         "WITH src AS MATERIALIZED ("
         " SELECT entity_id, ordinality - 1 AS source_state_index"
         " FROM unnest($1::bytea[]) WITH ORDINALITY s(entity_id, ordinality)"
@@ -306,7 +307,8 @@ static int semantic_enumerate_impl(
         " source_state_index,target_entity_id,observation_fingerprint,relation_id,evidence_root_id,direction,"
         " uncertainty_numerator,uncertainty_denominator"
         " FROM edges"
-        " ORDER BY source_state_index,proposition_id,target_entity_id,evidence_root_id,observation_fingerprint"
+        " ORDER BY source_state_index,proposition_id,target_entity_id,evidence_root_id,observation_fingerprint";
+    static const char query_part2[] =
         "), standing_lanes AS MATERIALIZED ("
         " SELECT DISTINCT d.source_state_index,d.target_entity_id,d.observation_fingerprint,d.relation_id,d.direction,"
         " d.evidence_root_id,me.participant_coordinate_id"
@@ -346,6 +348,7 @@ static int semantic_enumerate_impl(
         ")"
         " SELECT * FROM candidate_rows"
         " ORDER BY source_state_index,observation_fingerprint,target_entity_id,source_layer,coordinate_id NULLS FIRST";
+    StringInfoData query
     Datum* source_values;
     ArrayType* source_array;
     bytea* boundary;
@@ -420,8 +423,11 @@ static int semantic_enumerate_impl(
     argument_values[2] = PointerGetDatum(evidence_epoch);
     argument_values[3] = PointerGetDatum(authority_id);
 
+    initStringInfo(&query);
+    appendStringInfoString(&query, query_part1);
+    appendStringInfoString(&query, query_part2);
     result = SPI_execute_with_args(
-        query, 4, argument_types, argument_values, NULL, true, row_limit);
+        query.data, 4, argument_types, argument_values, NULL, true, row_limit);
     if (result != SPI_OK_SELECT || SPI_tuptable == NULL) {
         return 4;
     }
