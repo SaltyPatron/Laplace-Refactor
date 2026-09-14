@@ -74,6 +74,9 @@ typedef struct laplace_cognition_coupling_request {
     uint32_t version;
 } laplace_cognition_coupling_request;
 
+/* Exact typed crossing caused by one occurrence perturbation. No conversion of
+ * evidence uncertainty or Glicko state into a universal relevance score occurs.
+ * A standing crossing preserves its complete immutable rating/RD/volatility state. */
 typedef struct laplace_cognition_coupling_witness {
     laplace_digest256 witness_id;
     laplace_id128 source_entity_id;
@@ -82,7 +85,7 @@ typedef struct laplace_cognition_coupling_witness {
     laplace_digest256 seed_occurrence_id;
     laplace_digest256 observation_fingerprint;
     laplace_digest256 evidence_root_fingerprint;
-    laplace_digest256 standing_state_id;
+    laplace_standing_state standing;
     uint64_t seed_index;
     uint64_t source_logical_ordinal;
     uint64_t target_logical_ordinal;
