@@ -55,40 +55,111 @@ OrientationStatus BuildSeeds(
     return OrientationStatus::Ok;
 }
 
-std::uint64_t NonphysicalSemanticSupport(
-    const laplace_cognition_coupling_response& response) {
-    return response.testimony_witness_count +
-        response.calculation_witness_count +
-        response.standing_witness_count;
+bool IsSeedEntity(
+    const std::vector<laplace_cognition_coupling_seed>& seeds,
+    const laplace_id128& entity_id) {
+    for (const auto& seed : seeds) {
+        if (OrientationSameId(seed.entity_id, entity_id)) return true;
+    }
+    return false;
 }
 
-bool EligibleResponse(const laplace_cognition_coupling_response& response) {
-    return response.semantic_witness_count != 0U &&
-        NonphysicalSemanticSupport(response) != 0U;
+bool JointSemanticWitness(
+    const laplace_cognition_coupling_witness& witness) {
+    return witness.relation_family == LAPLACE_OBSERVATION_QUERY_SEMANTIC &&
+        (witness.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_TESTIMONY ||
+         witness.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_CALCULATION ||
+         witness.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_STANDING);
 }
 
-int CompareResponse(
-    const laplace_cognition_coupling_response& left,
-    const laplace_cognition_coupling_response& right) {
-    if (left.seed_support_count != right.seed_support_count) {
-        return left.seed_support_count > right.seed_support_count ? 1 : -1;
+struct OrientationFactorStorage final {
+    std::uint64_t seed_index{};
+    laplace_digest256 factor_id{};
+    laplace_digest256 law_id{};
+    std::uint32_t slot_index{};
+    std::vector<std::array<laplace_id128, 1>> values;
+    std::vector<laplace_cognition_interpretation_row> rows;
+
+    void SealRows(
+        const std::vector<laplace_cognition_coupling_witness>& witnesses) {
+        rows.clear();
+        rows.reserve(values.size());
+        for (std::size_t index = 0U; index < values.size(); ++index) {
+            const auto& witness = witnesses[index];
+            laplace_cognition_interpretation_row row{};
+            row.values = values[index].data();
+            row.observation_id = witness.observation_fingerprint;
+            row.evidence_root_id = witness.evidence_root_fingerprint;
+            row.calculation_receipt_id = witness.witness_id;
+            rows.push_back(row);
+        }
     }
-    if (left.independent_evidence_root_count !=
-        right.independent_evidence_root_count) {
-        return left.independent_evidence_root_count >
-                right.independent_evidence_root_count ? 1 : -1;
+};
+
+struct OrientationFactorInputs final {
+    OrientationFactorStorage storage;
+    std::vector<laplace_cognition_coupling_witness> witnesses;
+};
+
+OrientationStatus BuildJointFactors(
+    const std::vector<laplace_cognition_coupling_seed>& seeds,
+    const laplace_cognition_coupling_result* const field,
+    std::vector<OrientationFactorInputs>* const factor_inputs) {
+    if (field == nullptr || factor_inputs == nullptr) {
+        return OrientationStatus::Invalid;
     }
-    const auto left_typed = NonphysicalSemanticSupport(left);
-    const auto right_typed = NonphysicalSemanticSupport(right);
-    if (left_typed != right_typed) return left_typed > right_typed ? 1 : -1;
-    if (left.semantic_witness_count != right.semantic_witness_count) {
-        return left.semantic_witness_count > right.semantic_witness_count ? 1 : -1;
+    factor_inputs->clear();
+    std::vector<std::vector<laplace_cognition_coupling_witness>> by_seed(
+        seeds.size());
+    const std::size_t witness_count =
+        laplace_cognition_coupling_witness_count(field);
+    for (std::size_t index = 0U; index < witness_count; ++index) {
+        laplace_cognition_coupling_witness witness{};
+        if (laplace_cognition_coupling_witness_read(
+                field,
+                index,
+                &witness) != LAPLACE_COGNITION_COUPLING_OK ||
+            witness.seed_index >= static_cast<std::uint64_t>(seeds.size())) {
+            return OrientationStatus::Invalid;
+        }
+        if (!JointSemanticWitness(witness) ||
+            IsSeedEntity(seeds, witness.target_entity_id)) {
+            continue;
+        }
+        by_seed[static_cast<std::size_t>(witness.seed_index)].push_back(witness);
     }
-    if (left.minimum_depth != right.minimum_depth) {
-        return left.minimum_depth < right.minimum_depth ? 1 : -1;
+
+    for (std::size_t seed_index = 0U; seed_index < by_seed.size(); ++seed_index) {
+        auto& witness_rows = by_seed[seed_index];
+        if (witness_rows.empty()) continue;
+        OrientationFactorInputs input{};
+        input.storage.seed_index = static_cast<std::uint64_t>(seed_index);
+        input.storage.factor_id = OrientationDerivedDigest(
+            FactorDomain,
+            seeds[seed_index].occurrence_id,
+            input.storage.seed_index);
+        input.storage.law_id = OrientationDerivedDigest(
+            FactorLawDomain,
+            seeds[seed_index].occurrence_id,
+            input.storage.seed_index);
+        input.storage.slot_index = 0U;
+        input.storage.values.reserve(witness_rows.size());
+        input.witnesses.reserve(witness_rows.size());
+        for (const auto& witness : witness_rows) {
+            input.storage.values.push_back({witness.target_entity_id});
+            input.witnesses.push_back(witness);
+        }
+        factor_inputs->push_back(std::move(input));
     }
-    if (left.minimum_gap != right.minimum_gap) {
-        return left.minimum_gap < right.minimum_gap ? 1 : -1;
-    }
-    return 0;
+    if (factor_inputs->empty()) return OrientationStatus::NoResponse;
+    std::sort(
+        factor_inputs->begin(),
+        factor_inputs->end(),
+        [](const auto& left, const auto& right) {
+            return std::memcmp(
+                left.storage.factor_id.bytes,
+                right.storage.factor_id.bytes,
+                sizeof(left.storage.factor_id.bytes)) < 0;
+        });
+    return OrientationStatus::Ok;
 }
