@@ -5,6 +5,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 import unittest
@@ -41,12 +42,24 @@ class RetainedUnicodeAdmission(unittest.TestCase):
     def execute(self):
         return u.retained_root_identities(self.root,self.inspection,self.current,self.contract,Path('/verified/native-identify'),self.native)
 
+    def stage_original_request(self):
+        content=u.canonical_bytes(self.original)
+        staging=self.root/'.unicode-activation';staging.mkdir(parents=True,exist_ok=True)
+        path=staging/f'request-{u.sha256_bytes(content)}.json';path.write_bytes(content)
+        return path
+
     def test_new_deployment_reuses_original_epoch_without_rewriting_admission(self):
         before={p.name:p.read_bytes() for p in self.folder.iterdir()}
         identity,request,command=self.execute()
         self.assertEqual(identity,self.identity);self.assertEqual(request,self.original)
         self.assertEqual(command['label'],'native-old-request');self.assertEqual(len(self.calls),1)
         self.assertEqual(before,{p.name:p.read_bytes() for p in self.folder.iterdir()})
+
+    def test_package_only_cluster_contract_churn_is_deployment_not_unicode_semantics(self):
+        self.current['cluster_contract_sha256']='new-package-contract'
+        identity,request,command=self.execute()
+        self.assertEqual(identity,self.identity);self.assertEqual(request,self.original)
+        self.assertEqual(command['label'],'native-old-request');self.assertEqual(len(self.calls),1)
 
     def test_changed_source_database_or_semantics_cannot_reuse_old_admission(self):
         for key in ('cluster_system_identifier','source_evidence_sha256','source_contract_sha256',
@@ -68,6 +81,33 @@ class RetainedUnicodeAdmission(unittest.TestCase):
             self.execute()
         self.assertEqual(self.calls,[])
 
+    def test_missing_canonical_leaf_recovers_only_from_exact_staged_request(self):
+        staged=self.stage_original_request();shutil.rmtree(self.folder)
+        identity,request,command=self.execute()
+        self.assertEqual(identity,self.identity);self.assertEqual(request,self.original)
+        self.assertEqual(command['label'],'native-old-request')
+        self.assertEqual(self.calls,[(Path('/verified/native-identify'),staged,self.contract)])
+        self.assertEqual((self.folder/'request.json').read_bytes(),u.canonical_bytes(self.original))
+        self.assertEqual((self.folder/'identities.json').read_bytes(),u.canonical_bytes(self.identity))
+
+    def test_staged_request_filename_must_bind_exact_canonical_bytes(self):
+        shutil.rmtree(self.folder)
+        staging=self.root/'.unicode-activation';staging.mkdir(parents=True)
+        (staging/f"request-{'ff'*32}.json").write_bytes(u.canonical_bytes(self.original))
+        with self.assertRaisesRegex(u.UnicodeActivationError,'staged Unicode request digest differs'):
+            self.execute()
+        self.assertEqual(self.calls,[])
+
+    def test_unrelated_staged_request_cannot_become_committed_authority(self):
+        shutil.rmtree(self.folder)
+        unrelated=dict(self.original,source_evidence_sha256='other-source')
+        content=u.canonical_bytes(unrelated)
+        staging=self.root/'.unicode-activation';staging.mkdir(parents=True)
+        (staging/f'request-{u.sha256_bytes(content)}.json').write_bytes(content)
+        with self.assertRaisesRegex(u.UnicodeActivationError,'one exact retained admission'):
+            self.execute()
+        self.assertEqual(self.calls,[])
+
     def test_symlink_or_noncanonical_request_cannot_become_authority(self):
         request=self.folder/'request.json'
         request.write_text(json.dumps(self.original,indent=2))
@@ -82,6 +122,12 @@ class RetainedUnicodeAdmission(unittest.TestCase):
         self.folder.rename(self.folder.with_name('ee'*32))
         with self.assertRaisesRegex(u.UnicodeActivationError,'directory identity differs'):
             self.execute()
+
+    def test_candidate_admission_is_not_published_before_database_inspection(self):
+        source=(ROOT/'tools/postgresql/unicodectl.py').read_text(encoding='utf-8')
+        inspection=source.index('"inspect-unicode-product-state"')
+        publication=source.index('write_immutable(evidence_directory / "request.json"')
+        self.assertLess(inspection,publication)
 
     def test_source_scoped_counts_do_not_confuse_later_highway_content_with_corruption(self):
         sql=u.render_inspection_sql()

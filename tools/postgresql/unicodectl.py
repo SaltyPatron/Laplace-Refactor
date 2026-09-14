@@ -37,6 +37,18 @@ RECEIPT_SCHEMA = "laplace.unicode-product-activation-receipt/v1"
 FAILURE_SCHEMA = "laplace.unicode-product-activation-failure/v1"
 HEX_128 = re.compile(r"^[0-9a-f]{32}$")
 HEX_256 = re.compile(r"^[0-9a-f]{64}$")
+RETAINED_ADMISSION_FIELDS = (
+    "schema",
+    "activation_contract_sha256",
+    "cluster_system_identifier",
+    "source_contract_sha256",
+    "source_evidence_sha256",
+    "source_root",
+    "unicode_postgresql_contract_sha256",
+    "operation",
+    "execution_context",
+    "expected_result",
+)
 
 
 class UnicodeActivationError(RuntimeError):
@@ -999,6 +1011,24 @@ def create_work_directories(
             os.chown(path, user.pw_uid, user.pw_gid)
 
 
+def retained_request_matches(
+    original: dict[str, Any], request: dict[str, Any], *, strict: bool
+) -> bool:
+    """Compare only the boundary that owns the already-committed Unicode root.
+
+    The PostgreSQL cluster contract also contains product packaging inventory and
+    other deployment mechanics. Those bytes may change while the same database,
+    source evidence, Unicode SQL contract and semantic operation remain authoritative.
+    Cluster identity itself is bound separately by ``cluster_system_identifier``.
+    """
+    for field in RETAINED_ADMISSION_FIELDS:
+        if field not in original or original[field] != request[field]:
+            if strict:
+                raise UnicodeActivationError(f"retained Unicode admission differs: {field}")
+            return False
+    return True
+
+
 def retained_root_identities(
     receipt_root: Path, inspection: dict[str, Any], request: dict[str, Any],
     contract: dict[str, Any], identity_executable: Path, identity_runner: Callable[..., Any],
@@ -1006,60 +1036,120 @@ def retained_root_identities(
     """Re-prove the original admission, never relabel it as the new deployment.
 
     Software/package changes need a new deployment proof, not a second copy of the
-    same canonical Unicode root. A bounded search of retained admission evidence
-    locates the exact active epoch; the packaged native identity provider hashes
-    its original canonical request again. Source, database and semantic contracts
-    must agree, then normal artifact, deposition, restart and app readback checks
-    still execute. No catalog, artifact or historical evidence is modified here.
+    same canonical Unicode root. First consult the canonical admission estate. If
+    that leaf was lost while the database survived, recover it only from a retained
+    canonical request whose packaged native identity re-derives the exact active
+    epoch. Source, database and semantic contracts must agree, then normal artifact,
+    deposition, restart and app readback checks still execute. No catalog, artifact
+    or historical database evidence is modified here.
     """
     directory = receipt_root / contract["receipt"]["directory_name"]
-    if directory.is_symlink() or not directory.is_dir():
-        raise UnicodeActivationError("committed Unicode root lacks retained admission evidence")
-    matches = []
+    if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+        raise UnicodeActivationError("unsafe retained Unicode admission directory")
+
+    matches: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     examined = 0
-    with os.scandir(directory) as entries:
-        for entry in entries:
-            examined += 1
-            if examined > 1024:
-                raise UnicodeActivationError("Unicode admission evidence search limit exceeded")
-            if HEX_256.fullmatch(entry.name) is None:
-                continue
-            if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
-                raise UnicodeActivationError("unsafe retained Unicode admission directory")
-            folder = Path(entry.path)
-            identity_path = folder / "identities.json"
-            if not identity_path.exists():
-                continue
-            if identity_path.is_symlink() or identity_path.stat().st_size > 65536:
-                raise UnicodeActivationError("unsafe retained Unicode identities")
-            candidate = load_json(identity_path)
-            if (candidate.get("activation_epoch_id") != inspection.get("activation_epoch_id")
-                    or candidate.get("activation_epoch_fingerprint") != inspection.get("activation_epoch_fingerprint")):
-                continue
-            validate_identities(candidate, contract)
-            if candidate["request_fingerprint"] != entry.name:
-                raise UnicodeActivationError("retained Unicode admission directory identity differs")
-            request_path = folder / "request.json"
-            if (request_path.is_symlink() or not request_path.is_file()
-                    or request_path.stat().st_size > contract["identity_provider"]["maximum_request_bytes"]):
-                raise UnicodeActivationError("unsafe retained Unicode admission request")
-            original = load_json(request_path)
-            if request_path.read_bytes() != canonical_bytes(original):
-                raise UnicodeActivationError("retained Unicode admission request is not canonical")
-            for field in ("schema", "activation_contract_sha256", "cluster_contract_sha256",
-                          "cluster_system_identifier", "source_contract_sha256", "source_evidence_sha256",
-                          "source_root", "unicode_postgresql_contract_sha256", "operation",
-                          "execution_context", "expected_result"):
-                if field not in original or original[field] != request[field]:
-                    raise UnicodeActivationError(f"retained Unicode admission differs: {field}")
-            verified, command = identity_runner(identity_executable, request_path, contract)
-            validate_identities(verified, contract)
-            if verified != candidate:
-                raise UnicodeActivationError("retained Unicode admission fails native identity verification")
-            matches.append((candidate, original, command))
-    if len(matches) != 1:
+    if directory.is_dir():
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                examined += 1
+                if examined > 1024:
+                    raise UnicodeActivationError("Unicode admission evidence search limit exceeded")
+                if HEX_256.fullmatch(entry.name) is None:
+                    continue
+                if entry.is_symlink() or not entry.is_dir(follow_symlinks=False):
+                    raise UnicodeActivationError("unsafe retained Unicode admission directory")
+                folder = Path(entry.path)
+                identity_path = folder / "identities.json"
+                if not identity_path.exists():
+                    continue
+                if identity_path.is_symlink() or identity_path.stat().st_size > 65536:
+                    raise UnicodeActivationError("unsafe retained Unicode identities")
+                candidate = load_json(identity_path)
+                if (
+                    candidate.get("activation_epoch_id") != inspection.get("activation_epoch_id")
+                    or candidate.get("activation_epoch_fingerprint")
+                    != inspection.get("activation_epoch_fingerprint")
+                ):
+                    continue
+                validate_identities(candidate, contract)
+                if candidate["request_fingerprint"] != entry.name:
+                    raise UnicodeActivationError("retained Unicode admission directory identity differs")
+                request_path = folder / "request.json"
+                if (
+                    request_path.is_symlink()
+                    or not request_path.is_file()
+                    or request_path.stat().st_size
+                    > contract["identity_provider"]["maximum_request_bytes"]
+                ):
+                    raise UnicodeActivationError("unsafe retained Unicode admission request")
+                original = load_json(request_path)
+                if request_path.read_bytes() != canonical_bytes(original):
+                    raise UnicodeActivationError("retained Unicode admission request is not canonical")
+                retained_request_matches(original, request, strict=True)
+                verified, command = identity_runner(identity_executable, request_path, contract)
+                validate_identities(verified, contract)
+                if verified != candidate:
+                    raise UnicodeActivationError("retained Unicode admission fails native identity verification")
+                matches.append((candidate, original, command))
+
+    if len(matches) > 1:
         raise UnicodeActivationError("committed Unicode root requires one exact retained admission")
-    return matches[0]
+    if len(matches) == 1:
+        return matches[0]
+
+    staging = receipt_root / ".unicode-activation"
+    if staging.is_symlink() or (staging.exists() and not staging.is_dir()):
+        raise UnicodeActivationError("unsafe staged Unicode admission directory")
+    staged_matches: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    examined = 0
+    if staging.is_dir():
+        with os.scandir(staging) as entries:
+            for entry in entries:
+                match = re.fullmatch(r"request-([0-9a-f]{64})\.json", entry.name)
+                if match is None:
+                    continue
+                examined += 1
+                if examined > 1024:
+                    raise UnicodeActivationError("staged Unicode admission search limit exceeded")
+                if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
+                    raise UnicodeActivationError("unsafe staged Unicode admission request")
+                request_path = Path(entry.path)
+                if request_path.stat().st_size > contract["identity_provider"]["maximum_request_bytes"]:
+                    raise UnicodeActivationError("unsafe staged Unicode admission request")
+                payload = request_path.read_bytes()
+                if sha256_bytes(payload) != match.group(1):
+                    raise UnicodeActivationError("staged Unicode request digest differs")
+                original = load_json(request_path)
+                if payload != canonical_bytes(original):
+                    raise UnicodeActivationError("staged Unicode admission request is not canonical")
+                if not retained_request_matches(original, request, strict=False):
+                    continue
+                verified, command = identity_runner(identity_executable, request_path, contract)
+                validate_identities(verified, contract)
+                if (
+                    verified.get("activation_epoch_id") != inspection.get("activation_epoch_id")
+                    or verified.get("activation_epoch_fingerprint")
+                    != inspection.get("activation_epoch_fingerprint")
+                ):
+                    continue
+                staged_matches.append((verified, original, command))
+
+    if len(staged_matches) != 1:
+        raise UnicodeActivationError(
+            "committed Unicode root requires one exact retained admission; "
+            f"canonical_matches={len(matches)} staged_matches={len(staged_matches)}"
+        )
+
+    candidate, original, command = staged_matches[0]
+    directory.mkdir(parents=True, exist_ok=True, mode=0o750)
+    folder = directory / candidate["request_fingerprint"]
+    if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+        raise UnicodeActivationError("unsafe retained Unicode admission directory")
+    folder.mkdir(parents=True, exist_ok=True, mode=0o750)
+    write_immutable(folder / "request.json", original)
+    write_immutable(folder / "identities.json", candidate)
+    return candidate, original, command
 
 
 def execute_unicode_activation(
@@ -1153,15 +1243,6 @@ def execute_unicode_activation(
         identity_executable, request_path, activation_contract
     )
     validate_identities(identities, activation_contract)
-    evidence_directory = (
-        receipt_root
-        / activation_contract["receipt"]["directory_name"]
-        / identities["request_fingerprint"]
-    )
-    evidence_directory.mkdir(parents=True, exist_ok=True, mode=0o750)
-    write_immutable(evidence_directory / "request.json", request)
-    write_immutable(evidence_directory / "identities.json", identities)
-    write_immutable(evidence_directory / "source-evidence.json", source_evidence)
 
     instance = cluster_contract["instance"]
     command_receipts: list[dict[str, Any]] = [identity_command]
@@ -1188,6 +1269,18 @@ def execute_unicode_activation(
         command_receipts.append(retained_command)
         request_sha = sha256_bytes(canonical_bytes(retained_request))
     mode = validate_inspection(inspection, activation_contract, identities)
+
+    admission_request = retained_request if retained_request is not None else request
+    evidence_directory = (
+        receipt_root
+        / activation_contract["receipt"]["directory_name"]
+        / identities["request_fingerprint"]
+    )
+    evidence_directory.mkdir(parents=True, exist_ok=True, mode=0o750)
+    write_immutable(evidence_directory / "request.json", admission_request)
+    write_immutable(evidence_directory / "identities.json", identities)
+    write_immutable(evidence_directory / "source-evidence.json", source_evidence)
+
     epoch = identities["activation_epoch_id"]
     spool_logical = f"{instance['temp_directory']}/{activation_contract['operation']['spool_directory_prefix']}{epoch}"
     generation_logical = f"{instance['perfcache_directory']}/{activation_contract['operation']['generation_directory_prefix']}{epoch}"
