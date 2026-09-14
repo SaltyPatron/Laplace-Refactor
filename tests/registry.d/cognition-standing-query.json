@@ -12,7 +12,7 @@
         "exact standing state survives candidate to transition to generated operator constraint",
         "standing remains distinct from testimony and carries no fabricated evidence root",
         "rating rating-deviation volatility lane recipe epoch and period identity remain typed operator ancestry",
-        "operator receipt counts standing independently from physicality testimony and derived constraints"
+        "historical physicality testimony and derived receipt counters remain unchanged while the selected constraint is standing"
       ]
     },
     {
@@ -25,8 +25,8 @@
       "covered_dimensions": [
         "canonical standing request uses the explicit packet v2 extension",
         "canonical request packet carries the complete typed standing state",
-        "standing operator receipt cardinality survives result packet serialization",
-        "solver receipt remains aligned after the standing-specific operator receipt extension",
+        "standing packet results retain the historical operator and solver receipt layout",
+        "solver receipt remains aligned while standing state extends only the request constraint payload",
         "packet word transport executes and decodes without standing field loss or offset drift"
       ]
     },
@@ -41,7 +41,7 @@
         "non-standing request remains canonical packet v1",
         "v1 request byte count is unchanged by the standing extension",
         "v1 result framing remains the original 580-byte fixed receipt payload",
-        "standing receipt count defaults to zero when decoding the legacy v1 layout"
+        "legacy receipt fields decode in their historical order without an inserted standing counter"
       ]
     }
   ]
