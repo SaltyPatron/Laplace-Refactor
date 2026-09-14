@@ -1,5 +1,5 @@
     std::vector<FrontierNode> frontier;
-    std::set<std::pair<std::uint64_t, IdKey>> visited;
+    std::set<DigestKey> visited;
     std::set<DigestKey> witnessed;
     std::map<IdKey, Aggregate> aggregates;
     try {
@@ -24,7 +24,7 @@
                 return LAPLACE_COGNITION_COUPLING_INVALID_ARGUMENT;
             }
             frontier.push_back(node);
-            visited.insert({node.seed_index, Key(node.entity_id)});
+            visited.insert(Key(node.state.state_id));
         }
     } catch (const std::bad_alloc&) {
         return LAPLACE_COGNITION_COUPLING_MEMORY_FAILURE;
