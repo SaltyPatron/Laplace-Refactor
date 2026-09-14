@@ -12,7 +12,10 @@
  * their exact uncertainty/dependence root, while admitted current standing lanes
  * are emitted as a separate typed source carrying the complete immutable
  * rating/RD/volatility/recipe/epoch state. Standing never becomes traversal cost
- * or a replacement for testimony. PostgreSQL errors are captured inside the
+ * or a replacement for testimony. The bounded SQL fragments are assembled in
+ * the provider scratch context so strict C toolchains do not require an
+ * overlength translation-time string literal; the existing scratch reset owns
+ * that temporary query storage. PostgreSQL errors are captured inside the
  * callback so C++ native owners unwind before the outer C host rethrows the
  * original database diagnostic.
  */
