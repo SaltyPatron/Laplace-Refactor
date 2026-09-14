@@ -14,6 +14,8 @@
 namespace laplace_cognition_conversation_detail {
 
 constexpr char ConversationDomain[] = "laplace-cognition-conversation-v1";
+constexpr char WhyNotConversationDomain[] =
+    "laplace-cognition-conversation-why-not-v1";
 
 void HashU32(blake3_hasher* const hasher, const std::uint32_t value) {
     std::array<std::uint8_t, 4> bytes{};
@@ -133,6 +135,22 @@ void ConversationIdentity(
     Finish(&hasher, identity);
 }
 
+void WhyNotConversationIdentity(
+    const laplace_cognition_conversation_result& result,
+    laplace_digest256* const identity) {
+    blake3_hasher hasher{};
+    blake3_hasher_init(&hasher);
+    blake3_hasher_update(
+        &hasher, WhyNotConversationDomain,
+        sizeof(WhyNotConversationDomain) - 1U);
+    HashDigest(&hasher, result.turn_receipt.turn_fingerprint);
+    HashDigest(&hasher, result.turn_receipt.request_fingerprint);
+    HashDigest(&hasher, result.forward_receipt.receipt_id);
+    HashDigest(&hasher, result.why_not.outcome_id);
+    HashU32(&hasher, result.version);
+    Finish(&hasher, identity);
+}
+
 struct NativeResultOwner final {
     laplace_cognition_observation_result* observation{};
     laplace_cognition_forward_result* forward{};
@@ -223,10 +241,21 @@ laplace_cognition_conversation_execute_encoded(
         return LAPLACE_COGNITION_CONVERSATION_COGNITION_FAILURE;
     }
 
-    if (laplace_cognition_observation_semantic_act_select(
-            &resolved.cognition_request, native_results.observation,
-            native_results.forward, &resolved.forward_receipt,
-            &resolved.semantic_act) != LAPLACE_COGNITION_SEMANTIC_ACT_OK) {
+    const auto semantic_status = laplace_cognition_observation_semantic_act_select(
+        &resolved.cognition_request, native_results.observation,
+        native_results.forward, &resolved.forward_receipt,
+        &resolved.semantic_act);
+    if (semantic_status != LAPLACE_COGNITION_SEMANTIC_ACT_OK) {
+        if (semantic_status == LAPLACE_COGNITION_SEMANTIC_ACT_INCOMPLETE &&
+            laplace_cognition_forward_why_not(
+                &resolved.cognition_request, native_results.forward,
+                &resolved.why_not) == LAPLACE_COGNITION_WHY_NOT_OK) {
+            resolved.output_bytes = 0U;
+            resolved.discourse_frame_bytes = 0U;
+            WhyNotConversationIdentity(resolved, &resolved.conversation_id);
+            *result = resolved;
+            return LAPLACE_COGNITION_CONVERSATION_WHY_NOT;
+        }
         return LAPLACE_COGNITION_CONVERSATION_SEMANTIC_ACT_FAILURE;
     }
 

@@ -70,6 +70,11 @@ laplace_cognition_interpreted_conversation_execute_encoded(
         next_discourse_frame_bytes,
         &result->conversation);
     result->conversation_status = static_cast<std::uint32_t>(conversation_status);
+    if (conversation_status == LAPLACE_COGNITION_CONVERSATION_WHY_NOT) {
+        *output_bytes = 0U;
+        *next_discourse_frame_bytes = 0U;
+        return LAPLACE_COGNITION_INTERPRETED_CONVERSATION_WHY_NOT;
+    }
     if (conversation_status != LAPLACE_COGNITION_CONVERSATION_OK) {
         *output_bytes = 0U;
         *next_discourse_frame_bytes = 0U;
