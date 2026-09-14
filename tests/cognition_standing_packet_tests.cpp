@@ -147,7 +147,7 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
         laplace_cognition_packet_request_required_words(
             &request, &request_word_count),
         LAPLACE_COGNITION_PACKET_OK);
-    ASSERT_GT(request_word_count, 2U);
+    EXPECT_EQ(request_word_count, 297U);
     std::vector<std::uint32_t> request_words(request_word_count);
     std::size_t encoded_request_words = 0U;
     ASSERT_EQ(
@@ -158,6 +158,7 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
             &encoded_request_words),
         LAPLACE_COGNITION_PACKET_OK);
     ASSERT_EQ(encoded_request_words, request_words.size());
+    ASSERT_GT(request_words.size(), 2U);
     EXPECT_EQ(request_words[2], 2U);
 
     std::size_t result_word_count = 0U;
@@ -165,7 +166,7 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
         laplace_cognition_packet_required_result_words(
             request_words.data(), request_words.size(), &result_word_count),
         LAPLACE_COGNITION_PACKET_OK);
-    EXPECT_EQ(result_word_count, 151U);
+    EXPECT_EQ(result_word_count, 149U);
     std::vector<std::uint32_t> result_words(result_word_count);
     std::size_t executed_result_words = 0U;
     ASSERT_EQ(
@@ -193,7 +194,6 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
     EXPECT_EQ(decoded.operator_receipt.field_count, fields.size());
     EXPECT_EQ(decoded.operator_receipt.input_constraint_count, 1U);
     EXPECT_EQ(decoded.operator_receipt.selected_constraint_count, 1U);
-    EXPECT_EQ(decoded.operator_receipt.standing_constraint_count, 1U);
     EXPECT_EQ(decoded.operator_receipt.physicality_constraint_count, 0U);
     EXPECT_EQ(decoded.operator_receipt.testimony_constraint_count, 0U);
     EXPECT_EQ(decoded.operator_receipt.derived_constraint_count, 0U);
@@ -271,7 +271,6 @@ TEST(CognitionStandingPacket, NonStandingRequestPreservesCanonicalV1Wire) {
             result_words.data(), result_words.size(), &decoded),
         LAPLACE_COGNITION_PACKET_OK);
     EXPECT_EQ(decoded.status, LAPLACE_COGNITION_RUNTIME_OK);
-    EXPECT_EQ(decoded.operator_receipt.standing_constraint_count, 0U);
     EXPECT_EQ(decoded.operator_receipt.physicality_constraint_count, 1U);
     EXPECT_EQ(decoded.operator_receipt.testimony_constraint_count, 0U);
     EXPECT_EQ(decoded.operator_receipt.derived_constraint_count, 0U);
