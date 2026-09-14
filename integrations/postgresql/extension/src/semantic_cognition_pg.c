@@ -348,7 +348,7 @@ static int semantic_enumerate_impl(
         ")"
         " SELECT * FROM candidate_rows"
         " ORDER BY source_state_index,observation_fingerprint,target_entity_id,source_layer,coordinate_id NULLS FIRST";
-    StringInfoData query
+    StringInfoData query;
     Datum* source_values;
     ArrayType* source_array;
     bytea* boundary;
