@@ -6,6 +6,7 @@
 #include "cognition_observation_candidate_provider.inc"
 #include "cognition_observation_index_candidates.inc"
 #include "cognition_observation_provider_set.inc"
+#include "cognition_coupling.inc"
 #include "cognition_semantic_act.inc"
 #include "cognition_discourse.inc"
 #include "cognition_discourse_frame.inc"
