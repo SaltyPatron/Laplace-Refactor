@@ -272,7 +272,7 @@ TEST(CognitionStandingOperator, PreservesExactStandingAsItsOwnTypedPlane) {
             &rebuilt.value,
             &receipt),
         LAPLACE_COGNITION_OPERATOR_OK);
-    EXPECT_EQ(receipt.standing_constraint_count, 1U);
+    EXPECT_EQ(receipt.selected_constraint_count, 1U);
     EXPECT_EQ(receipt.testimony_constraint_count, 0U);
     EXPECT_EQ(receipt.derived_constraint_count, 0U);
     EXPECT_EQ(receipt.physicality_constraint_count, 0U);
