@@ -32,12 +32,13 @@ jobs:
             -o /tmp/job.log
           {
             printf 'Temporary CI failure excerpt for PR #369, source job `103866763705`.\n\n```text\n'
-            grep -E -n -C 8 'The following tests FAILED|FAILED|Failure|failure|Expected|Actual|ASSERT_|EXPECT_|Errors while running CTest|[0-9]+% tests passed' /tmp/job.log | tail -n 260 || true
+            grep -E -n -C 10 'The following tests FAILED|FAILED|Failure|failure|Expected|Actual|ASSERT_|EXPECT_|Errors while running CTest|[0-9]+% tests passed' /tmp/job.log | tail -n 300 || true
             printf '\n```\n'
           } > /tmp/comment.md
+          jq -Rs '{body: .}' /tmp/comment.md > /tmp/comment.json
           gh api "repos/${GITHUB_REPOSITORY}/issues/369/comments" \
             --method POST \
-            --input /tmp/comment.md
+            --input /tmp/comment.json
       - name: Remove temporary capture workflow
         run: |
           set -euo pipefail
