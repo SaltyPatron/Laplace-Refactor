@@ -126,7 +126,8 @@ bool ProgramValid(const laplace_cognition_operator_program& program) {
         program.eligible_relation_families == nullptr ||
         program.eligible_relation_family_count == 0U ||
         program.eligible_source_mask == 0U ||
-        (program.eligible_source_mask & ~UINT32_C(15)) != 0U ||
+        (program.eligible_source_mask &
+         ~LAPLACE_COGNITION_OPERATOR_SOURCE_KNOWN_MASK) != 0U ||
         (program.flags & ~LAPLACE_COGNITION_OPERATOR_PROGRAM_KNOWN_MASK) != 0U ||
         !std::isfinite(program.numeric_tolerance) || program.numeric_tolerance <= 0.0 ||
         program.version != LAPLACE_COGNITION_OPERATOR_VERSION ||

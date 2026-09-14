@@ -109,7 +109,8 @@ laplace_target_scope_plan_status TargetScopePrepareSlot(
         slot.eligible_relation_families == nullptr ||
         slot.eligible_relation_family_count == 0U ||
         slot.eligible_source_mask == 0U ||
-        (slot.eligible_source_mask & ~UINT32_C(7)) != 0U ||
+        (slot.eligible_source_mask &
+         ~LAPLACE_COGNITION_OPERATOR_SOURCE_KNOWN_MASK) != 0U ||
         slot.flags != 0U || slot.reserved != 0U) {
         return LAPLACE_TARGET_SCOPE_PLAN_INVALID_SLOT;
     }
