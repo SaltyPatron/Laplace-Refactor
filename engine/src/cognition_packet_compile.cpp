@@ -16,13 +16,37 @@ constexpr std::array<std::uint8_t, 8> RequestMagic{
     'L', 'A', 'P', 'C', 'O', 'G', 'Q', '1'};
 constexpr std::array<std::uint8_t, 8> ResultMagic{
     'L', 'A', 'P', 'C', 'O', 'G', 'R', '1'};
-constexpr std::uint32_t PacketVersion = 1U;
+constexpr std::uint32_t PacketVersionV1 = 1U;
+constexpr std::uint32_t PacketVersionStanding = 2U;
 constexpr std::uint32_t PacketFlags = 0U;
 constexpr std::size_t RequestFixedBytes = 344U;
 constexpr std::size_t FieldBytes = 160U;
 constexpr std::size_t ConstraintBytes = 264U;
 constexpr std::size_t StandingStateBytes = 240U;
-constexpr std::size_t ResultFixedBytes = 588U;
+constexpr std::size_t ResultFixedBytesV1 = 580U;
+constexpr std::size_t ResultFixedBytesStanding = 588U;
+
+bool PacketVersionValid(const std::uint32_t version) {
+    return version == PacketVersionV1 || version == PacketVersionStanding;
+}
+
+std::size_t ResultFixedBytes(const std::uint32_t version) {
+    return version >= PacketVersionStanding
+        ? ResultFixedBytesStanding
+        : ResultFixedBytesV1;
+}
+
+std::uint32_t RequestPacketVersion(
+    const laplace_cognition_runtime_request& request) {
+    for (std::size_t index = 0U;
+         index < static_cast<std::size_t>(request.constraint_count); ++index) {
+        if (request.constraints[index].source_class ==
+            LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING) {
+            return PacketVersionStanding;
+        }
+    }
+    return PacketVersionV1;
+}
 
 bool FitsSize(const std::uint64_t value) {
 #if SIZE_MAX < UINT64_MAX
@@ -268,22 +292,35 @@ bool WriteConstraint(
 
 bool ReadOperatorReceipt(
     ByteReader* const reader,
-    laplace_cognition_operator_receipt* const receipt) {
-    return reader != nullptr && receipt != nullptr &&
-        reader->Digest(&receipt->receipt_id) && reader->Digest(&receipt->operator_id) &&
-        reader->Digest(&receipt->program_fingerprint) &&
-        reader->Digest(&receipt->field_set_fingerprint) &&
-        reader->Digest(&receipt->constraint_set_fingerprint) &&
-        reader->U64(&receipt->field_count) &&
-        reader->U64(&receipt->input_constraint_count) &&
-        reader->U64(&receipt->selected_constraint_count) &&
-        reader->U64(&receipt->deduplicated_dependent_count) &&
-        reader->U64(&receipt->physicality_constraint_count) &&
-        reader->U64(&receipt->testimony_constraint_count) &&
-        reader->U64(&receipt->derived_constraint_count) &&
-        reader->U64(&receipt->standing_constraint_count) &&
-        reader->U32(&receipt->relation_plane_count) && reader->U32(&receipt->status) &&
-        reader->U32(&receipt->version) && reader->U32(&receipt->flags);
+    laplace_cognition_operator_receipt* const receipt,
+    const std::uint32_t packet_version) {
+    if (reader == nullptr || receipt == nullptr ||
+        !PacketVersionValid(packet_version)) {
+        return false;
+    }
+    *receipt = laplace_cognition_operator_receipt{};
+    if (!reader->Digest(&receipt->receipt_id) ||
+        !reader->Digest(&receipt->operator_id) ||
+        !reader->Digest(&receipt->program_fingerprint) ||
+        !reader->Digest(&receipt->field_set_fingerprint) ||
+        !reader->Digest(&receipt->constraint_set_fingerprint) ||
+        !reader->U64(&receipt->field_count) ||
+        !reader->U64(&receipt->input_constraint_count) ||
+        !reader->U64(&receipt->selected_constraint_count) ||
+        !reader->U64(&receipt->deduplicated_dependent_count) ||
+        !reader->U64(&receipt->physicality_constraint_count) ||
+        !reader->U64(&receipt->testimony_constraint_count) ||
+        !reader->U64(&receipt->derived_constraint_count)) {
+        return false;
+    }
+    if (packet_version >= PacketVersionStanding &&
+        !reader->U64(&receipt->standing_constraint_count)) {
+        return false;
+    }
+    return reader->U32(&receipt->relation_plane_count) &&
+        reader->U32(&receipt->status) &&
+        reader->U32(&receipt->version) &&
+        reader->U32(&receipt->flags);
 }
 
 bool ReadSolverReceipt(
@@ -376,7 +413,8 @@ laplace_cognition_packet_encode_request_words(
         std::vector<std::uint8_t> bytes(required_bytes);
         ByteWriter writer(bytes.data(), bytes.size());
         if (!writer.Bytes(RequestMagic.data(), RequestMagic.size()) ||
-            !writer.U32(PacketVersion) || !writer.U32(PacketFlags) ||
+            !writer.U32(RequestPacketVersion(*request)) ||
+            !writer.U32(PacketFlags) ||
             !writer.U64(request->operator_program.eligible_relation_family_count) ||
             !writer.U64(request->field_count) ||
             !writer.U64(request->constraint_count) ||
@@ -447,12 +485,12 @@ laplace_cognition_packet_decode_result_words(
         laplace_cognition_operator_receipt operator_receipt{};
         laplace_cognition_solver_receipt solver_receipt{};
         if (!reader.Bytes(magic.data(), magic.size()) || magic != ResultMagic ||
-            !reader.U32(&version) || version != PacketVersion ||
+            !reader.U32(&version) || !PacketVersionValid(version) ||
             !reader.U32(&flags) || flags != PacketFlags ||
             !reader.U64(&solution_count) ||
             solution_count > result->solution_capacity ||
             !FitsSize(solution_count) ||
-            !ReadOperatorReceipt(&reader, &operator_receipt) ||
+            !ReadOperatorReceipt(&reader, &operator_receipt, version) ||
             !ReadSolverReceipt(&reader, &solver_receipt)) {
             return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
         }
@@ -463,7 +501,7 @@ laplace_cognition_packet_decode_result_words(
             }
         }
         if (!reader.Complete() || bytes.size() !=
-                ResultFixedBytes + solution.size() * sizeof(double)) {
+                ResultFixedBytes(version) + solution.size() * sizeof(double)) {
             return LAPLACE_COGNITION_PACKET_INVALID_REQUEST;
         }
         std::copy(solution.begin(), solution.end(), result->solution);
