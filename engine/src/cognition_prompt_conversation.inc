@@ -270,6 +270,7 @@ laplace_cognition_prompt_conversation_execute_encoded(
           LAPLACE_COGNITION_OBSERVATION_REQUEST_GOAL_PRESENT) != 0U &&
          !ContainsGoal(
              orientation_responses, request->cognition_policy.goal_entity_id))) {
+        *result = staged_result;
         laplace_cognition_observation_candidate_provider_set_destroy(&provider_set);
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_ORIENTATION_FAILURE;
     }
