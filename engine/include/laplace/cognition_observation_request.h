@@ -10,6 +10,7 @@
 #include "laplace/identity.h"
 #include "laplace/observation_query.h"
 #include "laplace/query_search.h"
+#include "laplace/standing_calculation.h"
 #include "laplace/types.h"
 
 #ifdef __cplusplus
@@ -29,12 +30,14 @@ enum {
     LAPLACE_COGNITION_OBSERVATION_REQUEST_VERSION = 1,
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_WORKSPACE_MULTIPLIER = 2,
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR = 2,
-    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR = 1,
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MINOR = 2,
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT = UINT32_C(1),
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_EVIDENCE_UNCERTAINTY_PRESENT = UINT32_C(2),
+    LAPLACE_COGNITION_OBSERVATION_CANDIDATE_STANDING_PRESENT = UINT32_C(4),
     LAPLACE_COGNITION_OBSERVATION_CANDIDATE_KNOWN_FLAGS =
         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT |
-        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_EVIDENCE_UNCERTAINTY_PRESENT,
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_EVIDENCE_UNCERTAINTY_PRESENT |
+        LAPLACE_COGNITION_OBSERVATION_CANDIDATE_STANDING_PRESENT,
     LAPLACE_COGNITION_OBSERVATION_ANSWER_RELATION_ID_PRESENT = UINT32_C(1),
     LAPLACE_COGNITION_OBSERVATION_ANSWER_OPERATOR_EXECUTED = UINT32_C(2),
     LAPLACE_COGNITION_OBSERVATION_ANSWER_KNOWN_FLAGS =
@@ -89,7 +92,10 @@ typedef struct laplace_cognition_observation_request_provider
 
 /* A backend returns typed observed crossings only. Evidence uncertainty is an
  * exact rational from the witnessed testimony record; it is never inferred from
- * source type or search rank. Structural crossings leave it absent/zero. */
+ * source type or search rank. Structural crossings leave it absent/zero.
+ * Standing crossings carry the complete immutable standing successor state and
+ * set STANDING_PRESENT. They do not translate rating, RD or volatility into a
+ * generic evidence uncertainty or traversal score. */
 typedef struct laplace_cognition_observation_candidate {
     laplace_id128 target_entity_id;
     laplace_id128 relation_id;
@@ -107,6 +113,7 @@ typedef struct laplace_cognition_observation_candidate {
     uint32_t direction;
     uint32_t flags;
     uint32_t reserved;
+    laplace_standing_state standing;
 } laplace_cognition_observation_candidate;
 
 typedef struct laplace_cognition_observation_candidate_usage {

@@ -25,7 +25,11 @@ bool TargetObservationProgramValid(
         program.eligible_relation_families == nullptr ||
         program.eligible_relation_family_count == 0U ||
         program.eligible_source_mask == 0U ||
-        (program.eligible_source_mask & ~UINT32_C(7)) != 0U ||
+        /* The live estate may admit every typed source plane even when a target
+         * slot selects only one subset. Validate the estate against the shared
+         * source contract here; per-slot filtering remains target-scope owned. */
+        (program.eligible_source_mask &
+         ~LAPLACE_COGNITION_OPERATOR_SOURCE_KNOWN_MASK) != 0U ||
         (program.flags & ~LAPLACE_COGNITION_OPERATOR_PROGRAM_KNOWN_MASK) != 0U ||
         !std::isfinite(program.numeric_tolerance) ||
         program.numeric_tolerance <= 0.0 ||

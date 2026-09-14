@@ -7,6 +7,7 @@
 #include "laplace/contract/query_search.h"
 #include "laplace/export.h"
 #include "laplace/identity.h"
+#include "laplace/standing_calculation.h"
 #include "laplace/types.h"
 
 #ifdef __cplusplus
@@ -30,8 +31,10 @@ typedef struct laplace_query_search_state {
 enum {
     /* Presence is explicit because an all-zero laplace_id128 is a legal value. */
     LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT = UINT32_C(1),
+    LAPLACE_QUERY_SEARCH_TRANSITION_STANDING_PRESENT = UINT32_C(2),
     LAPLACE_QUERY_SEARCH_TRANSITION_KNOWN_FLAGS =
-        LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT
+        LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT |
+        LAPLACE_QUERY_SEARCH_TRANSITION_STANDING_PRESENT
 };
 
 typedef struct laplace_query_search_transition {
@@ -48,6 +51,9 @@ typedef struct laplace_query_search_transition {
     uint32_t source_layer;
     uint32_t direction;
     uint32_t flags;
+    /* Present only for SOURCE_STANDING transitions. Search retains this state
+     * without converting rating/RD/volatility into g, h or a global rank. */
+    laplace_standing_state standing;
 } laplace_query_search_transition;
 
 typedef struct laplace_query_search_budget {

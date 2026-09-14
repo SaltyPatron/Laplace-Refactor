@@ -75,11 +75,30 @@ bool RelationIdZero(const laplace_id128& value) {
     return aggregate == 0U;
 }
 
+bool SearchStandingZero(const laplace_standing_state& state) {
+    return Zero(state.state_id) && Zero(state.coordinate_id) &&
+        Zero(state.arena_scope_id) && Zero(state.prior_state_id) &&
+        Zero(state.epoch_id) && Zero(state.rating_recipe_id) &&
+        state.rating == 0.0 && state.rating_deviation == 0.0 &&
+        state.volatility == 0.0 && state.eligible_match_count == 0U &&
+        state.period_ordinal == 0U && state.rating_recipe_version == 0U &&
+        state.flags == 0U;
+}
+
+bool SearchStandingValid(const laplace_standing_state& state) {
+    if (SearchStandingZero(state)) return false;
+    laplace_digest256 identified{};
+    return laplace_standing_state_identify(&state, &identified) == LAPLACE_STANDING_OK &&
+        Same(identified, state.state_id);
+}
+
 bool TransitionValid(
     const laplace_query_search_program& program,
     const laplace_query_search_transition& transition) {
     const bool relation_id_present =
         (transition.flags & LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT) != 0U;
+    const bool standing_present =
+        (transition.flags & LAPLACE_QUERY_SEARCH_TRANSITION_STANDING_PRESENT) != 0U;
     return !Zero(transition.transition_id) &&
         !Zero(transition.source_state_id) &&
         StateValid(program, transition.target) &&
@@ -88,7 +107,9 @@ bool TransitionValid(
         transition.relation_family != 0U && transition.source_layer != 0U &&
         transition.direction != 0U &&
         (transition.flags & ~LAPLACE_QUERY_SEARCH_TRANSITION_KNOWN_FLAGS) == 0U &&
-        (relation_id_present || RelationIdZero(transition.relation_id));
+        (relation_id_present || RelationIdZero(transition.relation_id)) &&
+        (standing_present ? SearchStandingValid(transition.standing)
+                          : SearchStandingZero(transition.standing));
 }
 
 struct Node {

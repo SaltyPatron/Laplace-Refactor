@@ -133,6 +133,33 @@ bool DirectionValid(const std::uint32_t direction) {
         direction == LAPLACE_OBSERVATION_QUERY_DIRECTION_SYMMETRIC;
 }
 
+bool StandingZero(const laplace_standing_state& state) {
+    return DigestZero(state.state_id) && DigestZero(state.coordinate_id) &&
+        DigestZero(state.arena_scope_id) && DigestZero(state.prior_state_id) &&
+        DigestZero(state.epoch_id) && DigestZero(state.rating_recipe_id) &&
+        state.rating == 0.0 && state.rating_deviation == 0.0 &&
+        state.volatility == 0.0 && state.eligible_match_count == 0U &&
+        state.period_ordinal == 0U && state.rating_recipe_version == 0U &&
+        state.flags == 0U;
+}
+
+bool StandingValid(const laplace_standing_state& state) {
+    if (StandingZero(state)) return false;
+    laplace_digest256 identified{};
+    return laplace_standing_state_identify(&state, &identified) == LAPLACE_STANDING_OK &&
+        SameDigest(identified, state.state_id);
+}
+
+void HashStandingIdentity(
+    blake3_hasher* const hasher,
+    const laplace_standing_state& standing) {
+    HashDigest(hasher, standing.state_id);
+    HashDigest(hasher, standing.coordinate_id);
+    HashDigest(hasher, standing.arena_scope_id);
+    HashDigest(hasher, standing.epoch_id);
+    HashDigest(hasher, standing.rating_recipe_id);
+}
+
 bool CandidateValid(
     const ProviderState& state,
     const laplace_cognition_observation_candidate& candidate,
@@ -143,6 +170,9 @@ bool CandidateValid(
     const bool uncertainty_present =
         (candidate.flags &
          LAPLACE_COGNITION_OBSERVATION_CANDIDATE_EVIDENCE_UNCERTAINTY_PRESENT) != 0U;
+    const bool standing_present =
+        (candidate.flags &
+         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_STANDING_PRESENT) != 0U;
     if (candidate.source_state_index >= static_cast<std::uint64_t>(source_count) ||
         DigestZero(candidate.observation_fingerprint) ||
         candidate.multiplicity == 0U || candidate.relation_family == 0U ||
@@ -162,7 +192,13 @@ bool CandidateValid(
               candidate.evidence_uncertainty_denominator)) ||
         (!uncertainty_present &&
          (candidate.evidence_uncertainty_numerator != 0U ||
-          candidate.evidence_uncertainty_denominator != 0U))) {
+          candidate.evidence_uncertainty_denominator != 0U)) ||
+        (candidate.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_STANDING &&
+         (!standing_present || uncertainty_present ||
+          !DigestZero(candidate.evidence_root_fingerprint) ||
+          !StandingValid(candidate.standing))) ||
+        (candidate.source_layer != LAPLACE_OBSERVATION_QUERY_SOURCE_STANDING &&
+         (standing_present || !StandingZero(candidate.standing)))) {
         return false;
     }
 
@@ -217,6 +253,9 @@ bool BuildTransition(
     HashU32(&context_hasher, candidate.source_layer);
     HashU32(&context_hasher, candidate.direction);
     HashU32(&context_hasher, candidate.flags);
+    if ((candidate.flags & LAPLACE_COGNITION_OBSERVATION_CANDIDATE_STANDING_PRESENT) != 0U) {
+        HashStandingIdentity(&context_hasher, candidate.standing);
+    }
     Finish(&context_hasher, &target.context_fingerprint);
 
     blake3_hasher dominance_hasher{};
@@ -232,6 +271,9 @@ bool BuildTransition(
     HashU32(&dominance_hasher, candidate.source_layer);
     HashU32(&dominance_hasher, candidate.direction);
     HashU32(&dominance_hasher, candidate.flags);
+    if ((candidate.flags & LAPLACE_COGNITION_OBSERVATION_CANDIDATE_STANDING_PRESENT) != 0U) {
+        HashStandingIdentity(&dominance_hasher, candidate.standing);
+    }
     Finish(&dominance_hasher, &target.dominance_key);
 
     blake3_hasher state_hasher{};
@@ -260,6 +302,11 @@ bool BuildTransition(
     if ((candidate.flags &
          LAPLACE_COGNITION_OBSERVATION_CANDIDATE_RELATION_ID_PRESENT) != 0U) {
         transition->flags |= LAPLACE_QUERY_SEARCH_TRANSITION_RELATION_ID_PRESENT;
+    }
+    if ((candidate.flags &
+         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_STANDING_PRESENT) != 0U) {
+        transition->flags |= LAPLACE_QUERY_SEARCH_TRANSITION_STANDING_PRESENT;
+        transition->standing = candidate.standing;
     }
     transition->cost_components[0] = 1U;
     transition->cost_components[1] = candidate.gap;
@@ -294,6 +341,9 @@ bool BuildTransition(
     HashU32(&calculation_hasher, candidate.source_layer);
     HashU32(&calculation_hasher, candidate.direction);
     HashU32(&calculation_hasher, candidate.flags);
+    if ((candidate.flags & LAPLACE_COGNITION_OBSERVATION_CANDIDATE_STANDING_PRESENT) != 0U) {
+        HashStandingIdentity(&calculation_hasher, candidate.standing);
+    }
     Finish(&calculation_hasher, &transition->calculation_receipt);
 
     blake3_hasher transition_hasher{};
@@ -312,6 +362,9 @@ bool BuildTransition(
     HashU32(&transition_hasher, transition->source_layer);
     HashU32(&transition_hasher, transition->direction);
     HashU32(&transition_hasher, transition->flags);
+    if ((transition->flags & LAPLACE_QUERY_SEARCH_TRANSITION_STANDING_PRESENT) != 0U) {
+        HashStandingIdentity(&transition_hasher, transition->standing);
+    }
     Finish(&transition_hasher, &transition->transition_id);
     return true;
 }
@@ -633,10 +686,15 @@ std::uint32_t OperatorSourceClass(
         return DigestZero(transition.evidence_root_fingerprint)
             ? LAPLACE_COGNITION_OPERATOR_SOURCE_PHYSICALITY : 0U;
     }
-    if (transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_TESTIMONY ||
-        transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_STANDING) {
+    if (transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_TESTIMONY) {
         return !DigestZero(transition.evidence_root_fingerprint)
             ? LAPLACE_COGNITION_OPERATOR_SOURCE_TESTIMONY : 0U;
+    }
+    if (transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_STANDING) {
+        return DigestZero(transition.evidence_root_fingerprint) &&
+               (transition.flags & LAPLACE_QUERY_SEARCH_TRANSITION_STANDING_PRESENT) != 0U &&
+               StandingValid(transition.standing)
+            ? LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING : 0U;
     }
     if (transition.source_layer == LAPLACE_OBSERVATION_QUERY_SOURCE_CALCULATION) {
         return LAPLACE_COGNITION_OPERATOR_SOURCE_DERIVED;
@@ -727,6 +785,9 @@ bool ExecutePathMathematics(
         constraint.source_class = source_class;
         constraint.direction = direction;
         constraint.transport_kind = LAPLACE_COGNITION_OPERATOR_TRANSPORT_IDENTITY;
+        if (source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING) {
+            constraint.standing = step.standing;
+        }
         family_set.insert(step.relation_family);
     }
     std::vector<std::uint32_t> families(family_set.begin(), family_set.end());
@@ -741,7 +802,7 @@ bool ExecutePathMathematics(
     operator_program.result_contract_fingerprint = state.result_contract_fingerprint;
     operator_program.eligible_relation_families = families.data();
     operator_program.eligible_relation_family_count = families.size();
-    operator_program.eligible_source_mask = 7U;
+    operator_program.eligible_source_mask = 15U;
     operator_program.flags =
         LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_POSITIVE_SEMIDEFINITE_PRECISION |
         LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_RELATION_PLANE_SEPARATION;

@@ -21,7 +21,8 @@ function(laplace_add_cognition_operator_mutation suffix definition test_name fil
     set(library "laplace_cognition_operator_${suffix}_mutant")
     set(probe "laplace_cognition_operator_${suffix}_mutation_probe")
     add_library(${library} STATIC
-        "${PROJECT_SOURCE_DIR}/engine/src/cognition_operator.cpp")
+        "${PROJECT_SOURCE_DIR}/engine/src/cognition_operator.cpp"
+        "${PROJECT_SOURCE_DIR}/engine/src/standing_calculation.c")
     target_include_directories(${library} PRIVATE
         "${PROJECT_SOURCE_DIR}/engine/include"
         "${CMAKE_BINARY_DIR}/generated")
