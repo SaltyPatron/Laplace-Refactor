@@ -14,6 +14,39 @@ laplace_cognition_prompt_conversation_status ProviderSetStatus(
     return LAPLACE_COGNITION_PROMPT_CONVERSATION_PROVIDER_SET_FAILURE;
 }
 
+std::uint32_t OrientationDisposition(
+    const laplace_cognition_prompt_orientation_detail::OrientationStatus status) {
+    using Status = laplace_cognition_prompt_orientation_detail::OrientationStatus;
+    switch (status) {
+        case Status::Ok:
+            return LAPLACE_COGNITION_PROMPT_ORIENTATION_RESOLVED;
+        case Status::NoResponse:
+            return LAPLACE_COGNITION_PROMPT_ORIENTATION_NO_RESPONSE;
+        case Status::Ambiguous:
+            return LAPLACE_COGNITION_PROMPT_ORIENTATION_AMBIGUOUS;
+        case Status::Incomplete:
+            return LAPLACE_COGNITION_PROMPT_ORIENTATION_INCOMPLETE;
+        case Status::Exhausted:
+            return LAPLACE_COGNITION_PROMPT_ORIENTATION_EXHAUSTED;
+        case Status::Invalid:
+            return LAPLACE_COGNITION_PROMPT_ORIENTATION_FAILED;
+    }
+    return LAPLACE_COGNITION_PROMPT_ORIENTATION_FAILED;
+}
+
+void PublishOrientation(
+    const laplace_cognition_prompt_orientation_detail::OrientationOutput& orientation,
+    const std::uint32_t disposition,
+    laplace_cognition_prompt_conversation_result* const result) {
+    result->orientation_coupling_receipt_id = orientation.receipt.receipt_id;
+    result->orientation_interpretation_receipt_id =
+        orientation.interpretation_receipt.receipt_id;
+    result->orientation_response_fingerprint =
+        orientation.selected.response_fingerprint;
+    result->derived_goal_entity_id = orientation.policy.goal_entity_id;
+    result->orientation_disposition = disposition;
+}
+
 }  // namespace laplace_cognition_prompt_conversation_detail
 
 extern "C" laplace_cognition_prompt_conversation_status
@@ -98,15 +131,20 @@ laplace_cognition_prompt_conversation_execute_encoded(
 
     laplace_cognition_turn_input conversation_turn = admission_view.turn;
     laplace_cognition_turn_policy conversation_policy = request->cognition_policy;
+    laplace_cognition_prompt_orientation_detail::OrientationOutput orientation{};
+    bool orientation_executed = false;
     if ((conversation_policy.request_flags &
          LAPLACE_COGNITION_OBSERVATION_REQUEST_GOAL_PRESENT) == 0U) {
-        laplace_cognition_prompt_orientation_detail::OrientationOutput orientation{};
+        orientation_executed = true;
         const auto orientation_status =
             laplace_cognition_prompt_orientation_detail::Orient(
                 *admission,
                 request->cognition_policy,
                 composite_provider,
                 &orientation);
+        const auto orientation_disposition =
+            laplace_cognition_prompt_conversation_detail::OrientationDisposition(
+                orientation_status);
         if (orientation_status !=
             laplace_cognition_prompt_orientation_detail::OrientationStatus::Ok) {
             const auto composite_fingerprint = composite_provider.provider_fingerprint;
@@ -114,6 +152,10 @@ laplace_cognition_prompt_conversation_execute_encoded(
             result->prompt_admission_receipt_id = admission_view.admission_receipt_id;
             result->prompt_exact_bytes_fingerprint = admission_view.exact_bytes_fingerprint;
             result->composite_cognition_provider_fingerprint = composite_fingerprint;
+            laplace_cognition_prompt_conversation_detail::PublishOrientation(
+                orientation,
+                orientation_disposition,
+                result);
             result->version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
             *output_bytes = 0U;
             *next_discourse_frame_bytes = 0U;
@@ -153,6 +195,15 @@ laplace_cognition_prompt_conversation_execute_encoded(
     result->prompt_admission_receipt_id = admission_view.admission_receipt_id;
     result->prompt_exact_bytes_fingerprint = admission_view.exact_bytes_fingerprint;
     result->composite_cognition_provider_fingerprint = composite_fingerprint;
+    if (orientation_executed) {
+        laplace_cognition_prompt_conversation_detail::PublishOrientation(
+            orientation,
+            LAPLACE_COGNITION_PROMPT_ORIENTATION_RESOLVED,
+            result);
+    } else {
+        result->orientation_disposition =
+            LAPLACE_COGNITION_PROMPT_ORIENTATION_NOT_REQUIRED;
+    }
     result->conversation = conversation_result;
     result->version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
 
