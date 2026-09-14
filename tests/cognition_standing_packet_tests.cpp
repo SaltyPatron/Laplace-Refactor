@@ -63,12 +63,41 @@ laplace_standing_state StandingPacketState() {
     return state;
 }
 
-TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
-    const std::array<std::uint32_t, 1> families{{
-        LAPLACE_OBSERVATION_QUERY_SEMANTIC}};
-    const std::array<laplace_cognition_operator_field, 2> fields{{
-        StandingPacketField(10U), StandingPacketField(11U)}};
+laplace_cognition_operator_program StandingPacketProgram(
+    const std::array<std::uint32_t, 1>& families,
+    const std::uint32_t source_class) {
+    laplace_cognition_operator_program program{};
+    program.program_id = StandingPacketDigest(40U);
+    program.boundary_id = StandingPacketDigest(41U);
+    program.context_fingerprint = StandingPacketDigest(42U);
+    program.evidence_epoch = StandingPacketDigest(43U);
+    program.result_contract_fingerprint = StandingPacketDigest(44U);
+    program.eligible_relation_families = families.data();
+    program.eligible_relation_family_count = families.size();
+    program.eligible_source_mask = UINT32_C(1) << (source_class - 1U);
+    program.flags =
+        LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_POSITIVE_SEMIDEFINITE_PRECISION;
+    program.numeric_tolerance = 1e-12;
+    program.version = LAPLACE_COGNITION_OPERATOR_VERSION;
+    return program;
+}
 
+laplace_cognition_solver_program StandingPacketSolverProgram() {
+    laplace_cognition_solver_program program{};
+    program.program_id = StandingPacketDigest(50U);
+    program.result_contract_fingerprint = StandingPacketDigest(51U);
+    program.max_iterations = 64U;
+    program.absolute_residual_tolerance = 1e-10;
+    program.relative_residual_tolerance = 1e-10;
+    program.regularization = 1e-3;
+    program.method = LAPLACE_COGNITION_SOLVER_METHOD_CONJUGATE_GRADIENT;
+    program.flags = LAPLACE_COGNITION_SOLVER_REQUIRE_PSD_OPERATOR;
+    program.version = LAPLACE_COGNITION_SOLVER_VERSION;
+    return program;
+}
+
+laplace_cognition_operator_constraint StandingPacketConstraint(
+    const std::uint32_t source_class) {
     laplace_cognition_operator_constraint constraint{};
     constraint.constraint_id = StandingPacketDigest(30U);
     constraint.plane_id = StandingPacketDigest(31U);
@@ -82,38 +111,27 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
     constraint.target_value = 0.0;
     constraint.precision = 2.0;
     constraint.relation_family = LAPLACE_OBSERVATION_QUERY_SEMANTIC;
-    constraint.source_class = LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING;
+    constraint.source_class = source_class;
     constraint.direction = LAPLACE_COGNITION_OPERATOR_DIRECTION_SOURCE_TO_TARGET;
     constraint.transport_kind = LAPLACE_COGNITION_OPERATOR_TRANSPORT_IDENTITY;
-    constraint.standing = StandingPacketState();
+    if (source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING) {
+        constraint.standing = StandingPacketState();
+    }
+    return constraint;
+}
 
-    laplace_cognition_operator_program operator_program{};
-    operator_program.program_id = StandingPacketDigest(40U);
-    operator_program.boundary_id = StandingPacketDigest(41U);
-    operator_program.context_fingerprint = StandingPacketDigest(42U);
-    operator_program.evidence_epoch = StandingPacketDigest(43U);
-    operator_program.result_contract_fingerprint = StandingPacketDigest(44U);
-    operator_program.eligible_relation_families = families.data();
-    operator_program.eligible_relation_family_count = families.size();
-    operator_program.eligible_source_mask =
-        UINT32_C(1) << (LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING - 1U);
-    operator_program.flags =
-        LAPLACE_COGNITION_OPERATOR_PROGRAM_REQUIRE_POSITIVE_SEMIDEFINITE_PRECISION;
-    operator_program.numeric_tolerance = 1e-12;
-    operator_program.version = LAPLACE_COGNITION_OPERATOR_VERSION;
-
-    laplace_cognition_solver_program solver_program{};
-    solver_program.program_id = StandingPacketDigest(50U);
-    solver_program.result_contract_fingerprint = StandingPacketDigest(51U);
-    solver_program.max_iterations = 64U;
-    solver_program.absolute_residual_tolerance = 1e-10;
-    solver_program.relative_residual_tolerance = 1e-10;
-    solver_program.regularization = 1e-3;
-    solver_program.method = LAPLACE_COGNITION_SOLVER_METHOD_CONJUGATE_GRADIENT;
-    solver_program.flags = LAPLACE_COGNITION_SOLVER_REQUIRE_PSD_OPERATOR;
-    solver_program.version = LAPLACE_COGNITION_SOLVER_VERSION;
-
+TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
+    const std::array<std::uint32_t, 1> families{{
+        LAPLACE_OBSERVATION_QUERY_SEMANTIC}};
+    const std::array<laplace_cognition_operator_field, 2> fields{{
+        StandingPacketField(10U), StandingPacketField(11U)}};
+    const auto constraint = StandingPacketConstraint(
+        LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING);
+    const auto operator_program = StandingPacketProgram(
+        families, LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING);
+    const auto solver_program = StandingPacketSolverProgram();
     const std::array<double, 2> initial{{1.0, -1.0}};
+
     laplace_cognition_runtime_request request{};
     request.operator_program = operator_program;
     request.fields = fields.data();
@@ -129,7 +147,7 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
         laplace_cognition_packet_request_required_words(
             &request, &request_word_count),
         LAPLACE_COGNITION_PACKET_OK);
-    ASSERT_GT(request_word_count, 0U);
+    ASSERT_GT(request_word_count, 2U);
     std::vector<std::uint32_t> request_words(request_word_count);
     std::size_t encoded_request_words = 0U;
     ASSERT_EQ(
@@ -140,13 +158,14 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
             &encoded_request_words),
         LAPLACE_COGNITION_PACKET_OK);
     ASSERT_EQ(encoded_request_words, request_words.size());
+    EXPECT_EQ(request_words[2], 2U);
 
     std::size_t result_word_count = 0U;
     ASSERT_EQ(
         laplace_cognition_packet_required_result_words(
             request_words.data(), request_words.size(), &result_word_count),
         LAPLACE_COGNITION_PACKET_OK);
-    ASSERT_GT(result_word_count, 0U);
+    EXPECT_EQ(result_word_count, 151U);
     std::vector<std::uint32_t> result_words(result_word_count);
     std::size_t executed_result_words = 0U;
     ASSERT_EQ(
@@ -158,6 +177,8 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
             &executed_result_words),
         LAPLACE_COGNITION_PACKET_OK);
     ASSERT_EQ(executed_result_words, result_words.size());
+    ASSERT_GT(result_words.size(), 2U);
+    EXPECT_EQ(result_words[2], 2U);
 
     std::array<double, 2> solution{};
     laplace_cognition_runtime_result decoded{};
@@ -174,6 +195,84 @@ TEST(CognitionStandingPacket, RoundTripsStandingReceiptWithoutWireShift) {
     EXPECT_EQ(decoded.operator_receipt.selected_constraint_count, 1U);
     EXPECT_EQ(decoded.operator_receipt.standing_constraint_count, 1U);
     EXPECT_EQ(decoded.operator_receipt.physicality_constraint_count, 0U);
+    EXPECT_EQ(decoded.operator_receipt.testimony_constraint_count, 0U);
+    EXPECT_EQ(decoded.operator_receipt.derived_constraint_count, 0U);
+    EXPECT_EQ(decoded.operator_receipt.status, LAPLACE_COGNITION_OPERATOR_OK);
+    EXPECT_EQ(decoded.solver_receipt.status, LAPLACE_COGNITION_SOLVER_OK);
+}
+
+TEST(CognitionStandingPacket, NonStandingRequestPreservesCanonicalV1Wire) {
+    const std::array<std::uint32_t, 1> families{{
+        LAPLACE_OBSERVATION_QUERY_SEMANTIC}};
+    const std::array<laplace_cognition_operator_field, 2> fields{{
+        StandingPacketField(10U), StandingPacketField(11U)}};
+    const auto constraint = StandingPacketConstraint(
+        LAPLACE_COGNITION_OPERATOR_SOURCE_PHYSICALITY);
+    const auto operator_program = StandingPacketProgram(
+        families, LAPLACE_COGNITION_OPERATOR_SOURCE_PHYSICALITY);
+    const auto solver_program = StandingPacketSolverProgram();
+    const std::array<double, 2> initial{{1.0, -1.0}};
+
+    laplace_cognition_runtime_request request{};
+    request.operator_program = operator_program;
+    request.fields = fields.data();
+    request.constraints = &constraint;
+    request.initial_state = initial.data();
+    request.field_count = fields.size();
+    request.constraint_count = 1U;
+    request.initial_state_count = initial.size();
+    request.solver_program = solver_program;
+
+    std::size_t request_word_count = 0U;
+    ASSERT_EQ(
+        laplace_cognition_packet_request_required_words(
+            &request, &request_word_count),
+        LAPLACE_COGNITION_PACKET_OK);
+    EXPECT_EQ(request_word_count, 237U);
+    std::vector<std::uint32_t> request_words(request_word_count);
+    std::size_t encoded_request_words = 0U;
+    ASSERT_EQ(
+        laplace_cognition_packet_encode_request_words(
+            &request,
+            request_words.data(),
+            request_words.size(),
+            &encoded_request_words),
+        LAPLACE_COGNITION_PACKET_OK);
+    ASSERT_EQ(encoded_request_words, request_words.size());
+    ASSERT_GT(request_words.size(), 2U);
+    EXPECT_EQ(request_words[2], 1U);
+
+    std::size_t result_word_count = 0U;
+    ASSERT_EQ(
+        laplace_cognition_packet_required_result_words(
+            request_words.data(), request_words.size(), &result_word_count),
+        LAPLACE_COGNITION_PACKET_OK);
+    EXPECT_EQ(result_word_count, 149U);
+    std::vector<std::uint32_t> result_words(result_word_count);
+    std::size_t executed_result_words = 0U;
+    ASSERT_EQ(
+        laplace_cognition_packet_execute_words(
+            request_words.data(),
+            request_words.size(),
+            result_words.data(),
+            result_words.size(),
+            &executed_result_words),
+        LAPLACE_COGNITION_PACKET_OK);
+    ASSERT_EQ(executed_result_words, result_words.size());
+    ASSERT_GT(result_words.size(), 2U);
+    EXPECT_EQ(result_words[2], 1U);
+
+    std::array<double, 2> solution{};
+    laplace_cognition_runtime_result decoded{};
+    decoded.solution = solution.data();
+    decoded.solution_capacity = solution.size();
+    ASSERT_EQ(
+        laplace_cognition_packet_decode_result_words(
+            result_words.data(), result_words.size(), &decoded),
+        LAPLACE_COGNITION_PACKET_OK);
+    EXPECT_EQ(decoded.status, LAPLACE_COGNITION_RUNTIME_OK);
+    EXPECT_EQ(decoded.operator_receipt.standing_constraint_count, 0U);
+    EXPECT_EQ(decoded.operator_receipt.physicality_constraint_count, 1U);
     EXPECT_EQ(decoded.operator_receipt.testimony_constraint_count, 0U);
     EXPECT_EQ(decoded.operator_receipt.derived_constraint_count, 0U);
     EXPECT_EQ(decoded.operator_receipt.status, LAPLACE_COGNITION_OPERATOR_OK);
