@@ -37,7 +37,9 @@ class _DistributionProxyModule(types.ModuleType):
             setattr(core, name, value)
 
 
-sys.modules[__name__].__class__ = _DistributionProxyModule
+_public_module = sys.modules.get(__name__)
+if _public_module is not None:
+    _public_module.__class__ = _DistributionProxyModule
 CONTROL_SOURCES = _core.CONTROL_SOURCES
 
 
