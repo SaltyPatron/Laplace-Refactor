@@ -1,0 +1,27 @@
+name: repair-cognition-packet-version
+
+on:
+  push:
+    branches:
+      - complete/typed-standing-query-20260913
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: complete/typed-standing-query-20260913
+          fetch-depth: 0
+      - run: python3 tools/repair_cognition_packet_version.py
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --quiet && exit 1
+          git commit -m "Version standing packet extension without changing v1"
+          git push origin HEAD:complete/typed-standing-query-20260913
