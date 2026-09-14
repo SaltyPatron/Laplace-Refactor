@@ -244,7 +244,7 @@ TEST(CognitionResponseField, ScanPropagatesOneTugAcrossSetWiseTypedFrontiers) {
              LAPLACE_OBSERVATION_QUERY_SOURCE_TESTIMONY, 82U, 100U},
         Edge{right, shared, LAPLACE_OBSERVATION_QUERY_SEMANTIC,
              LAPLACE_OBSERVATION_QUERY_SOURCE_CALCULATION, 83U, 0U},
-    }}, 0U, 0U};
+    }, 0U, 0U};
     laplace_cognition_observation_candidate_provider_v1 provider{};
     provider.state = &fixture;
     provider.provider_fingerprint = Digest(120U);
