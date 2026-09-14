@@ -308,7 +308,7 @@ bool ResultSize(
     constexpr std::size_t OperatorReceiptBytesV1 =
         5U * 32U + 7U * 8U + 4U * 4U;
     constexpr std::size_t OperatorReceiptBytesStanding =
-        5U * 32U + 8U * 8U + 4U * 4U;
+        5U * 32U + 7U * 8U + 4U * 4U;
     constexpr std::size_t SolverReceiptBytes =
         8U * 32U + 2U * 8U + 4U * 8U + 5U * 4U;
     if (result_bytes == nullptr || !PacketVersionValid(packet_version)) return false;
@@ -343,10 +343,6 @@ bool WriteOperatorReceipt(
         !writer->U64(receipt.physicality_constraint_count) ||
         !writer->U64(receipt.testimony_constraint_count) ||
         !writer->U64(receipt.derived_constraint_count)) {
-        return false;
-    }
-    if (packet_version >= PacketVersionStanding &&
-        !writer->U64(receipt.standing_constraint_count)) {
         return false;
     }
     return writer->U32(receipt.relation_plane_count) &&

@@ -24,7 +24,7 @@ constexpr std::size_t FieldBytes = 160U;
 constexpr std::size_t ConstraintBytes = 264U;
 constexpr std::size_t StandingStateBytes = 240U;
 constexpr std::size_t ResultFixedBytesV1 = 580U;
-constexpr std::size_t ResultFixedBytesStanding = 588U;
+constexpr std::size_t ResultFixedBytesStanding = 580U;
 
 bool PacketVersionValid(const std::uint32_t version) {
     return version == PacketVersionV1 || version == PacketVersionStanding;
@@ -311,10 +311,6 @@ bool ReadOperatorReceipt(
         !reader->U64(&receipt->physicality_constraint_count) ||
         !reader->U64(&receipt->testimony_constraint_count) ||
         !reader->U64(&receipt->derived_constraint_count)) {
-        return false;
-    }
-    if (packet_version >= PacketVersionStanding &&
-        !reader->U64(&receipt->standing_constraint_count)) {
         return false;
     }
     return reader->U32(&receipt->relation_plane_count) &&
