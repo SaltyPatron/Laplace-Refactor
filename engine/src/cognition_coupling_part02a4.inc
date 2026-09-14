@@ -21,16 +21,6 @@
                     }
                     if (depth >= request->maximum_depth) continue;
 
-                    const auto visit_key = std::make_pair(
-                        source.seed_index,
-                        Key(candidate.target_entity_id));
-                    if (!visited.insert(visit_key).second) continue;
-                    if (receipt->generated_frontier_state_count >=
-                        request->maximum_frontier_states) {
-                        resource_limited = true;
-                        break;
-                    }
-
                     FrontierNode target{};
                     target.entity_id = candidate.target_entity_id;
                     target.seed_index = source.seed_index;
@@ -56,6 +46,14 @@
                             context,
                             &target.state)) {
                         return LAPLACE_COGNITION_COUPLING_INVALID_ARGUMENT;
+                    }
+                    if (!visited.insert(Key(target.state.state_id)).second) {
+                        continue;
+                    }
+                    if (receipt->generated_frontier_state_count >=
+                        request->maximum_frontier_states) {
+                        resource_limited = true;
+                        break;
                     }
                     next.push_back(target);
                     ++receipt->generated_frontier_state_count;
