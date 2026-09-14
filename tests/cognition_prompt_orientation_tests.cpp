@@ -15,3 +15,4 @@
 #include "cognition_prompt_orientation_tests_part00.inc"
 #include "cognition_prompt_orientation_tests_part01.inc"
 #include "cognition_prompt_orientation_tests_part02.inc"
+#include "cognition_prompt_orientation_tests_part03.inc"
