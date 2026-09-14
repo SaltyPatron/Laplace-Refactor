@@ -43,7 +43,9 @@ class _ControllerProxyModule(types.ModuleType):
             setattr(core, name, value)
 
 
-sys.modules[__name__].__class__ = _ControllerProxyModule
+_public_module = sys.modules.get(__name__)
+if _public_module is not None:
+    _public_module.__class__ = _ControllerProxyModule
 
 RUNTIME_CONTEXT_PROJECTION_SCHEMA = "laplace.unicode-runtime-context-projection/v1"
 _original_render_inspection_sql = _core.render_inspection_sql
