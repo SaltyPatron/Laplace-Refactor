@@ -17,7 +17,7 @@ RUNNER = ROOT / "tools/delivery/product_activation_runner.py"
 RECONCILER = ROOT / "tools/delivery/product_activation_reconcile.py"
 CLUSTERCTL = ROOT / "tools/postgresql/clusterctl.py"
 RESOURCECTL = ROOT / "tools/postgresql/resourcectl.py"
-UNICODECTL = ROOT / "tools/postgresql/unicodectl.py"
+UNICODECTL = ROOT / "tools/postgresql/unicodectl_core.py"
 HIGHWAYCTL = ROOT / "tools/postgresql/highwayctl.py"
 
 
