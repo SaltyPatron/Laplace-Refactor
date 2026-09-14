@@ -216,11 +216,12 @@ laplace_cognition_prompt_conversation_execute_encoded(
         return ProviderSetStatus(provider_status);
     }
 
-    result->prompt_admission_receipt_id = admission_view.admission_receipt_id;
-    result->prompt_exact_bytes_fingerprint = admission_view.exact_bytes_fingerprint;
-    result->composite_cognition_provider_fingerprint =
+    laplace_cognition_prompt_conversation_result staged_result{};
+    staged_result.prompt_admission_receipt_id = admission_view.admission_receipt_id;
+    staged_result.prompt_exact_bytes_fingerprint = admission_view.exact_bytes_fingerprint;
+    staged_result.composite_cognition_provider_fingerprint =
         composite_provider.provider_fingerprint;
-    result->version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
+    staged_result.version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
 
     laplace_cognition_response_scan_program orientation_program{};
     if (!BuildOrientationProgram(
@@ -253,7 +254,7 @@ laplace_cognition_prompt_conversation_execute_encoded(
         orientation_candidates.data(), orientation_candidates.size(),
         &orientation_candidate_count,
         orientation_responses.data(), orientation_responses.size(),
-        &orientation_response_count, &result->orientation_receipt);
+        &orientation_response_count, &staged_result.orientation_receipt);
     if (orientation_status != LAPLACE_COGNITION_RESPONSE_OK) {
         laplace_cognition_observation_candidate_provider_set_destroy(&provider_set);
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_ORIENTATION_FAILURE;
@@ -262,7 +263,7 @@ laplace_cognition_prompt_conversation_execute_encoded(
     orientation_responses.resize(orientation_response_count);
 
     const std::uint32_t orientation_mask =
-        result->orientation_receipt.relation_family_mask &
+        staged_result.orientation_receipt.relation_family_mask &
         request->cognition_policy.relation_mask;
     if (orientation_mask == 0U ||
         ((request->cognition_policy.request_flags &
@@ -272,14 +273,14 @@ laplace_cognition_prompt_conversation_execute_encoded(
         laplace_cognition_observation_candidate_provider_set_destroy(&provider_set);
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_ORIENTATION_FAILURE;
     }
-    result->orientation_relation_mask = orientation_mask;
-    result->orientation_context_fingerprint =
-        OrientationContext(admission_view, result->orientation_receipt);
+    staged_result.orientation_relation_mask = orientation_mask;
+    staged_result.orientation_context_fingerprint =
+        OrientationContext(admission_view, staged_result.orientation_receipt);
 
     laplace_cognition_conversation_request conversation_request{};
     conversation_request.turn = admission_view.turn;
     conversation_request.turn.context_fingerprint =
-        result->orientation_context_fingerprint;
+        staged_result.orientation_context_fingerprint;
     conversation_request.cognition_policy = request->cognition_policy;
     conversation_request.cognition_policy.relation_mask = orientation_mask;
     conversation_request.realization_policy = request->realization_policy;
@@ -304,11 +305,12 @@ laplace_cognition_prompt_conversation_execute_encoded(
         &conversation_result);
 
     laplace_cognition_observation_candidate_provider_set_destroy(&provider_set);
-    result->conversation = conversation_result;
+    staged_result.conversation = conversation_result;
 
     if (conversation_status == LAPLACE_COGNITION_CONVERSATION_WHY_NOT) {
         *output_bytes = 0U;
         *next_discourse_frame_bytes = 0U;
+        *result = staged_result;
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_WHY_NOT;
     }
     if (conversation_status != LAPLACE_COGNITION_CONVERSATION_OK) {
@@ -316,6 +318,7 @@ laplace_cognition_prompt_conversation_execute_encoded(
         *next_discourse_frame_bytes = 0U;
         return LAPLACE_COGNITION_PROMPT_CONVERSATION_CONVERSATION_FAILURE;
     }
+    *result = staged_result;
     return LAPLACE_COGNITION_PROMPT_CONVERSATION_OK;
 }
 
