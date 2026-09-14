@@ -23,10 +23,25 @@
         "LP-TEST-ISA-RECEIPT"
       ],
       "covered_dimensions": [
+        "canonical standing request uses the explicit packet v2 extension",
         "canonical request packet carries the complete typed standing state",
         "standing operator receipt cardinality survives result packet serialization",
         "solver receipt remains aligned after the standing-specific operator receipt extension",
         "packet word transport executes and decodes without standing field loss or offset drift"
+      ]
+    },
+    {
+      "ctest_name": "CognitionStandingPacket.NonStandingRequestPreservesCanonicalV1Wire",
+      "evidence_targets": [
+        "LP-TEST-ISA-TYPE-SAFETY",
+        "LP-TEST-ISA-RECEIPT",
+        "LP-TEST-BULK-PARITY"
+      ],
+      "covered_dimensions": [
+        "non-standing request remains canonical packet v1",
+        "v1 request byte count is unchanged by the standing extension",
+        "v1 result framing remains the original 580-byte fixed receipt payload",
+        "standing receipt count defaults to zero when decoding the legacy v1 layout"
       ]
     }
   ]
