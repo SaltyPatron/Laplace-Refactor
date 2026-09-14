@@ -13,7 +13,8 @@
   "constraint_sources": {
     "physicality": 1,
     "testimony": 2,
-    "derived": 3
+    "derived": 3,
+    "standing": 4
   },
   "directions": {
     "source_to_target": 1,
@@ -49,6 +50,7 @@
     "typed_planes": "relation family plane law direction units transport and source class remain explicit and participate in operator identity; scalar pairwise affinity cannot reconstruct the operator",
     "nary": "container role ordinal and constituent identities remain field metadata and cannot be replaced by anonymous pairwise endpoints",
     "evidence": "precision is nonnegative and keyed to eligible dependence roots; copied descendants cannot increase precision without a separately admitted independent root",
+    "standing": "standing is a distinct typed source carrying its exact arena-scoped state identity, rating, rating deviation, volatility, lane and epoch; it is never flattened into testimony, truth, traversal cost or one global relevance score",
     "contradiction": "competing targets remain separate typed constraints with positive precision; contradiction never becomes negative precision",
     "matrix_free": "direct application and a materialized dense operator generated from the same pinned contract must agree within the declared numeric tolerance",
     "scope": "only relation families and source classes selected by the program enter the generated operator; no universal adjacency graph is persisted as semantic authority"
