@@ -96,9 +96,36 @@ laplace_cognition_prompt_conversation_execute_encoded(
             provider_status);
     }
 
+    laplace_cognition_turn_input conversation_turn = admission_view.turn;
+    laplace_cognition_turn_policy conversation_policy = request->cognition_policy;
+    if ((conversation_policy.request_flags &
+         LAPLACE_COGNITION_OBSERVATION_REQUEST_GOAL_PRESENT) == 0U) {
+        laplace_cognition_prompt_orientation_detail::OrientationOutput orientation{};
+        const auto orientation_status =
+            laplace_cognition_prompt_orientation_detail::Orient(
+                *admission,
+                request->cognition_policy,
+                composite_provider,
+                &orientation);
+        if (orientation_status !=
+            laplace_cognition_prompt_orientation_detail::OrientationStatus::Ok) {
+            const auto composite_fingerprint = composite_provider.provider_fingerprint;
+            laplace_cognition_observation_candidate_provider_set_destroy(&provider_set);
+            result->prompt_admission_receipt_id = admission_view.admission_receipt_id;
+            result->prompt_exact_bytes_fingerprint = admission_view.exact_bytes_fingerprint;
+            result->composite_cognition_provider_fingerprint = composite_fingerprint;
+            result->version = LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION;
+            *output_bytes = 0U;
+            *next_discourse_frame_bytes = 0U;
+            return LAPLACE_COGNITION_PROMPT_CONVERSATION_WHY_NOT;
+        }
+        conversation_turn = orientation.turn;
+        conversation_policy = orientation.policy;
+    }
+
     laplace_cognition_conversation_request conversation_request{};
-    conversation_request.turn = admission_view.turn;
-    conversation_request.cognition_policy = request->cognition_policy;
+    conversation_request.turn = conversation_turn;
+    conversation_request.cognition_policy = conversation_policy;
     conversation_request.realization_policy = request->realization_policy;
     conversation_request.materialization = request->materialization;
     conversation_request.discourse_roots = request->discourse_roots;
