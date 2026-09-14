@@ -55,6 +55,7 @@ class ClusterCandidateRecoveryTests(unittest.TestCase):
         self.assertEqual(receipt["instance_id"], "refactor")
         self.assertEqual(receipt["removed_count"], 2)
         self.assertEqual(receipt["blocked_count"], 0)
+        self.assertFalse(receipt["preserved_cluster_present"])
         self.assertEqual(
             receipt["receipt_sha256"],
             RECOVERY.document_identity(receipt, "receipt_sha256"),
@@ -112,11 +113,50 @@ class ClusterCandidateRecoveryTests(unittest.TestCase):
         self.assertTrue(config.is_dir())
         self.assertTrue(active.is_symlink())
         self.assertTrue(receipt["active_product_present"])
+        self.assertFalse(receipt["preserved_cluster_present"])
         self.assertEqual(receipt["removed_count"], 0)
         self.assertEqual(receipt["blocked_count"], 0)
         self.assertTrue(
             all(result["state"] == "active-product-present" for result in receipt["results"])
         )
+
+    def test_preserved_pgdata_disables_empty_candidate_recovery(self) -> None:
+        config = Path(self.contract["instance"]["config_directory"])
+        data = Path(self.contract["instance"]["data_directory"])
+        wal = Path(self.contract["instance"]["wal_directory"])
+        config.mkdir()
+        data.mkdir()
+        wal.mkdir()
+        (config / "postgresql.conf").write_text("preserve\n", encoding="utf-8")
+        (data / "PG_VERSION").write_text("18\n", encoding="utf-8")
+        (data / "base").mkdir()
+        (wal / "000000010000000000000001").write_text("wal\n", encoding="utf-8")
+
+        receipt = RECOVERY.recover(self.contract)
+
+        self.assertTrue(config.is_dir())
+        self.assertTrue(data.is_dir())
+        self.assertTrue(wal.is_dir())
+        self.assertFalse(receipt["active_product_present"])
+        self.assertTrue(receipt["preserved_cluster_present"])
+        self.assertEqual(receipt["removed_count"], 0)
+        self.assertEqual(receipt["blocked_count"], 0)
+        self.assertTrue(
+            all(result["state"] == "preserved-cluster-present" for result in receipt["results"])
+        )
+
+    def test_symlink_pgdata_cannot_bypass_candidate_boundary(self) -> None:
+        outside = self.root / "outside-data"
+        outside.mkdir()
+        (outside / "PG_VERSION").write_text("18\n", encoding="utf-8")
+        data = Path(self.contract["instance"]["data_directory"])
+        data.symlink_to(outside, target_is_directory=True)
+
+        with self.assertRaisesRegex(RECOVERY.RecoveryError, "blocked-symlink"):
+            RECOVERY.recover(self.contract)
+
+        self.assertTrue(data.is_symlink())
+        self.assertEqual((outside / "PG_VERSION").read_text(encoding="utf-8"), "18\n")
 
     def test_unknown_contract_or_relative_target_is_rejected(self) -> None:
         mutant = json.loads(json.dumps(self.contract))

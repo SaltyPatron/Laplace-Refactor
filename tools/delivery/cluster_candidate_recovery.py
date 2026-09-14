@@ -10,6 +10,8 @@ This provider therefore has a deliberately narrow authority boundary:
 
 * only exact paths named by ``contracts/postgresql-cluster.json`` are inspected;
 * an active product link disables recovery entirely;
+* a real preserved PGDATA (regular ``PG_VERSION`` below a direct data directory)
+  disables empty-candidate cleanup and is left for the activation reconciler to prove;
 * symlinks and non-directories are never followed or removed;
 * non-empty directories are never modified;
 * all targets are inspected before any empty leaf is removed;
@@ -124,6 +126,35 @@ def _inspect_target(key: str, target: Path) -> dict[str, Any]:
     return result
 
 
+def _preserved_cluster_present(data_directory: Path) -> bool:
+    """Recognize only the minimum non-following PGDATA witness.
+
+    Full ownership, PostgreSQL-major, WAL-placement, process and collision validation
+    belongs to ``product_activation_reconcile.recover_preserved_cluster``.  This check
+    exists only to stop empty-candidate cleanup from rejecting or deleting around a
+    persistent cluster before that reconciler can prove it.
+    """
+    try:
+        data_metadata = data_directory.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError as error:
+        raise RecoveryError(
+            f"cannot inspect preserved PostgreSQL data directory {data_directory}: {error}"
+        ) from error
+    if stat.S_ISLNK(data_metadata.st_mode) or not stat.S_ISDIR(data_metadata.st_mode):
+        return False
+
+    marker = data_directory / "PG_VERSION"
+    try:
+        marker_metadata = marker.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError as error:
+        raise RecoveryError(f"cannot inspect preserved PostgreSQL marker {marker}: {error}") from error
+    return stat.S_ISREG(marker_metadata.st_mode) and not stat.S_ISLNK(marker_metadata.st_mode)
+
+
 def _remove_inspected_empty(result: dict[str, Any], active_link: Path) -> None:
     if result.get("state") != "empty":
         return
@@ -175,12 +206,16 @@ def recover(contract: dict[str, Any]) -> dict[str, Any]:
         targets.append((key, target))
 
     active_present = active_link.exists() or active_link.is_symlink()
-    if active_present:
+    preserved_present = _preserved_cluster_present(
+        Path(str(instance.get("data_directory", "")))
+    )
+    if active_present or preserved_present:
+        state = "active-product-present" if active_present else "preserved-cluster-present"
         results = [
             {
                 "key": key,
                 "path": str(target),
-                "state": "active-product-present",
+                "state": state,
                 "removed": False,
             }
             for key, target in targets
@@ -199,6 +234,8 @@ def recover(contract: dict[str, Any]) -> dict[str, Any]:
             )
         if active_link.exists() or active_link.is_symlink():
             raise RecoveryError("active product appeared after candidate preflight")
+        if _preserved_cluster_present(Path(str(instance.get("data_directory", "")))):
+            raise RecoveryError("preserved PostgreSQL cluster appeared after candidate preflight")
         for result in results:
             _remove_inspected_empty(result, active_link)
 
@@ -208,6 +245,7 @@ def recover(contract: dict[str, Any]) -> dict[str, Any]:
         "instance_id": instance.get("id"),
         "active_link": str(active_link),
         "active_product_present": active_present,
+        "preserved_cluster_present": preserved_present,
         "effective_uid": os.geteuid(),
         "effective_gid": os.getegid(),
         "removed_count": sum(1 for result in results if result["removed"]),
