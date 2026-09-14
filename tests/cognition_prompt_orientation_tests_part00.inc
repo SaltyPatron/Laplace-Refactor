@@ -8,6 +8,7 @@ struct OrientationSemanticFixture final {
     laplace_id128 preferred{};
     laplace_id128 distractor{};
     std::size_t calls{};
+    bool ambiguous{};
 };
 
 void EmitSemanticCandidate(
@@ -74,14 +75,14 @@ int EnumerateOrientationSemantic(
             static_cast<std::uint8_t>(0xA0U + index),
             from_a ? 0xB0U : 0xB1U,
             frontier_states[index].depth);
-        if (from_a) {
+        if (from_a || fixture.ambiguous) {
             if (*candidate_count >= candidate_capacity) return 3;
             EmitSemanticCandidate(
                 &candidates[(*candidate_count)++],
                 index,
                 fixture.distractor,
                 static_cast<std::uint8_t>(0xC0U + index),
-                0xC8U,
+                from_a ? 0xC8U : 0xC9U,
                 frontier_states[index].depth);
         }
     }
