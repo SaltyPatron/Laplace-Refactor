@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import types
 from pathlib import Path
 from typing import Any, Callable
 
@@ -30,6 +31,19 @@ _core.__file__ = str(Path(__file__).resolve())
 for _name in dir(_core):
     if not _name.startswith("__"):
         globals()[_name] = getattr(_core, _name)
+
+
+class _ControllerProxyModule(types.ModuleType):
+    """Keep public monkey-patch/test seams identical to the unsplit controller."""
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        core = globals().get("_core")
+        if core is not None and not name.startswith("_") and hasattr(core, name):
+            setattr(core, name, value)
+
+
+sys.modules[__name__].__class__ = _ControllerProxyModule
 
 RUNTIME_CONTEXT_PROJECTION_SCHEMA = "laplace.unicode-runtime-context-projection/v1"
 _original_render_inspection_sql = _core.render_inspection_sql
