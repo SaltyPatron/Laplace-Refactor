@@ -45,7 +45,20 @@
       "covered_dimensions": [
         "a raw prompt with no explicit goal is oriented through the whole composite structural and semantic provider estate before cognition compilation",
         "the caller relation mask cannot preselect the interpretation boundary for an unbound prompt",
-        "the uniquely strongest whole-prompt response derives the cognition goal, relation families and context receipt before semantic completion and realization"
+        "joint factor intersection across the responding prompt occurrences derives the cognition goal, relation families and context receipts before semantic completion and realization"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptOrientation.AmbiguousJointBackReactionPublishesWhyNotInsteadOfRankOneGuess",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-RANK1-TOPIC-NONCOLLAPSE",
+        "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION",
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "two equally compatible joint semantic bindings remain ambiguous rather than being broken by endpoint order, frequency or a scalar score",
+        "ambiguous prompt orientation publishes typed WHY_NOT before realization or materialization",
+        "coupling and interpretation receipts remain visible on the failed-closed public prompt result"
       ]
     }
   ]
