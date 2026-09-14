@@ -8,9 +8,16 @@
  *
  * This is the same provider used by the standalone semantic cognition SQL entry
  * and by firmware execution. It emits candidate records only; native cognition
- * retains search/guidance/completion authority. PostgreSQL errors are captured
- * inside the callback so C++ native owners unwind before the outer C host
- * rethrows the original database diagnostic.
+ * retains search/guidance/completion authority. Testimony candidates retain
+ * their exact uncertainty/dependence root, while admitted current standing lanes
+ * are emitted as a separate typed source carrying the complete immutable
+ * rating/RD/volatility/recipe/epoch state. Standing never becomes traversal cost
+ * or a replacement for testimony. The bounded SQL fragments are assembled in
+ * the provider scratch context so strict C toolchains do not require an
+ * overlength translation-time string literal; the existing scratch reset owns
+ * that temporary query storage. PostgreSQL errors are captured inside the
+ * callback so C++ native owners unwind before the outer C host rethrows the
+ * original database diagnostic.
  */
 typedef struct laplace_pg_semantic_provider_state
     laplace_pg_semantic_provider_state;

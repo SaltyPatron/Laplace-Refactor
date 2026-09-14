@@ -84,6 +84,41 @@ void Finish(blake3_hasher* const hasher, laplace_digest256* const output) {
     blake3_hasher_finalize(hasher, output->bytes, sizeof(output->bytes));
 }
 
+bool StandingZero(const laplace_standing_state& state) {
+    return Zero(state.state_id) && Zero(state.coordinate_id) &&
+        Zero(state.arena_scope_id) && Zero(state.prior_state_id) &&
+        Zero(state.epoch_id) && Zero(state.rating_recipe_id) &&
+        state.rating == 0.0 && state.rating_deviation == 0.0 &&
+        state.volatility == 0.0 && state.eligible_match_count == 0U &&
+        state.period_ordinal == 0U && state.rating_recipe_version == 0U &&
+        state.flags == 0U;
+}
+
+bool StandingValid(const laplace_standing_state& state) {
+    if (StandingZero(state)) return false;
+    laplace_digest256 identified{};
+    return laplace_standing_state_identify(&state, &identified) == LAPLACE_STANDING_OK &&
+        Same(identified, state.state_id);
+}
+
+void HashStanding(
+    blake3_hasher* const hasher,
+    const laplace_standing_state& state) {
+    HashDigest(hasher, state.state_id);
+    HashDigest(hasher, state.coordinate_id);
+    HashDigest(hasher, state.arena_scope_id);
+    HashDigest(hasher, state.prior_state_id);
+    HashDigest(hasher, state.epoch_id);
+    HashDigest(hasher, state.rating_recipe_id);
+    HashF64(hasher, state.rating);
+    HashF64(hasher, state.rating_deviation);
+    HashF64(hasher, state.volatility);
+    HashU64(hasher, state.eligible_match_count);
+    HashU64(hasher, state.period_ordinal);
+    HashU32(hasher, state.rating_recipe_version);
+    HashU32(hasher, state.flags);
+}
+
 bool ProgramValid(const laplace_cognition_operator_program& program) {
     if (Zero(program.program_id) || Zero(program.boundary_id) ||
         Zero(program.context_fingerprint) || Zero(program.evidence_epoch) ||
@@ -91,7 +126,8 @@ bool ProgramValid(const laplace_cognition_operator_program& program) {
         program.eligible_relation_families == nullptr ||
         program.eligible_relation_family_count == 0U ||
         program.eligible_source_mask == 0U ||
-        (program.eligible_source_mask & ~UINT32_C(7)) != 0U ||
+        (program.eligible_source_mask &
+         ~LAPLACE_COGNITION_OPERATOR_SOURCE_KNOWN_MASK) != 0U ||
         (program.flags & ~LAPLACE_COGNITION_OPERATOR_PROGRAM_KNOWN_MASK) != 0U ||
         !std::isfinite(program.numeric_tolerance) || program.numeric_tolerance <= 0.0 ||
         program.version != LAPLACE_COGNITION_OPERATOR_VERSION ||
@@ -126,7 +162,7 @@ bool FieldValid(const laplace_cognition_operator_field& field) {
 
 bool SourceClassValid(const std::uint32_t value) {
     return value >= LAPLACE_COGNITION_OPERATOR_SOURCE_PHYSICALITY &&
-        value <= LAPLACE_COGNITION_OPERATOR_SOURCE_DERIVED;
+        value <= LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING;
 }
 
 bool DirectionValid(const std::uint32_t value) {
@@ -167,8 +203,14 @@ bool ConstraintValid(
         Zero(constraint.evidence_root_id)) {
         return false;
     }
-    if (constraint.source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_PHYSICALITY &&
+    if ((constraint.source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_PHYSICALITY ||
+         constraint.source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING) &&
         !Zero(constraint.evidence_root_id)) {
+        return false;
+    }
+    if (constraint.source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING) {
+        if (!StandingValid(constraint.standing)) return false;
+    } else if (!StandingZero(constraint.standing)) {
         return false;
     }
     if (constraint.transport_kind == LAPLACE_COGNITION_OPERATOR_TRANSPORT_IDENTITY &&

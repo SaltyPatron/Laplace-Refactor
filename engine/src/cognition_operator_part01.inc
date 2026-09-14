@@ -22,6 +22,9 @@ void HashConstraint(
     HashU32(hasher, constraint.transport_kind);
 #endif
     HashU32(hasher, constraint.flags);
+    if (constraint.source_class == LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING) {
+        HashStanding(hasher, constraint.standing);
+    }
 }
 
 void HashProgram(
@@ -52,6 +55,7 @@ void HashProgram(
 
 struct EvidenceKey {
     DigestKey root{};
+    DigestKey standing{};
     DigestKey plane{};
     DigestKey law{};
     std::uint64_t source{};
@@ -61,8 +65,8 @@ struct EvidenceKey {
     std::uint32_t transport{};
 
     bool operator<(const EvidenceKey& other) const {
-        return std::tie(root, plane, law, source, target, relation, direction, transport) <
-            std::tie(other.root, other.plane, other.law, other.source, other.target,
+        return std::tie(root, standing, plane, law, source, target, relation, direction, transport) <
+            std::tie(other.root, other.standing, other.plane, other.law, other.source, other.target,
                      other.relation, other.direction, other.transport);
     }
 };
@@ -70,10 +74,10 @@ struct EvidenceKey {
 EvidenceKey MakeEvidenceKey(
     const laplace_cognition_operator_constraint& constraint) {
     return EvidenceKey{
-        Key(constraint.evidence_root_id), Key(constraint.plane_id),
-        Key(constraint.law_fingerprint), constraint.source_field_index,
-        constraint.target_field_index, constraint.relation_family,
-        constraint.direction, constraint.transport_kind};
+        Key(constraint.evidence_root_id), Key(constraint.standing.state_id),
+        Key(constraint.plane_id), Key(constraint.law_fingerprint),
+        constraint.source_field_index, constraint.target_field_index,
+        constraint.relation_family, constraint.direction, constraint.transport_kind};
 }
 
 bool SameEvidenceSemantic(
@@ -84,7 +88,9 @@ bool SameEvidenceSemantic(
         left.transport_offset == right.transport_offset &&
         left.target_value == right.target_value &&
         left.precision == right.precision &&
-        left.source_class == right.source_class && left.flags == right.flags;
+        left.source_class == right.source_class && left.flags == right.flags &&
+        (left.source_class != LAPLACE_COGNITION_OPERATOR_SOURCE_STANDING ||
+         Same(left.standing.state_id, right.standing.state_id));
 }
 
 struct Coefficients {

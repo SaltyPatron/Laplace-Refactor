@@ -19,6 +19,18 @@ AS $context$
     )::laplace.execution_context
 $context$;
 
+CREATE FUNCTION pg_temp.explain_json(statement text)
+RETURNS json
+LANGUAGE plpgsql
+AS $explain$
+DECLARE
+    plan json;
+BEGIN
+    EXECUTE 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ' || statement INTO STRICT plan;
+    RETURN plan;
+END
+$explain$;
+
 -- This fixture targets the live durable provider boundary. The relation crossing
 -- is backed by a real testimonial evidence root: the provider must bind the exact
 -- mapping occurrence and preserve that root through native search. A bare mapping
@@ -52,6 +64,32 @@ VALUES(
     decode(repeat('76',16),'hex'),
     decode(repeat('12',16),'hex'),
     1::numeric,1::numeric,1::numeric,1,1,1);
+
+-- Representative cardinality negative control. These rows share the live boundary
+-- and disposition but not the requested endpoints. An endpoint-unindexed provider
+-- must therefore examine thousands of irrelevant mapping occurrences, while the
+-- admitted physical plan should use the two boundary+endpoint partial indexes.
+INSERT INTO laplace.reference_mapping_occurrence(
+    mapping_id,occurrence_id,proposition_id,boundary_id,source_profile_id,
+    left_reference_id,right_reference_id,row_entity_id,
+    left_field_entity_id,left_value_entity_id,right_field_entity_id,right_value_entity_id,
+    source_ordinal,artifact_ordinal,row_ordinal,left_disposition,right_disposition,disposition)
+SELECT
+    decode(md5('mapping-' || g::text) || md5('mapping-hi-' || g::text),'hex'),
+    decode(md5('occurrence-' || g::text) || md5('occurrence-hi-' || g::text),'hex'),
+    decode(repeat('31',32),'hex'),
+    decode(repeat('71',32),'hex'),
+    decode(repeat('72',32),'hex'),
+    decode(md5('left-reference-' || g::text) || md5('left-reference-hi-' || g::text),'hex'),
+    decode(md5('right-reference-' || g::text) || md5('right-reference-hi-' || g::text),'hex'),
+    decode(md5('row-' || g::text),'hex'),
+    decode(repeat('75',16),'hex'),
+    decode(md5('left-value-' || g::text),'hex'),
+    decode(repeat('76',16),'hex'),
+    decode(md5('right-value-' || g::text),'hex'),
+    (g + 10)::numeric,2::numeric,g::numeric,1,1,1
+FROM generate_series(1,4096) AS generated(g);
+
 INSERT INTO laplace.evidence_node(
     node_id,proposition_id,occurrence_id,source_id,context_id,
     source_ordinal,epistemic_kind,flags)
@@ -82,7 +120,85 @@ VALUES(
     decode(repeat('97',32),'hex'),
     decode(repeat('98',32),'hex'),
     0::numeric,1::numeric,1::numeric,1,1,1,0);
+
+-- Close the exact semantic evidence into the same world-admission boundary that
+-- owns the mapping. The provider must require both the node/root lineage members
+-- and the exact testimony member; raw evidence rows outside this receipt closure
+-- are not candidates for a boundary-pinned cognition program.
+INSERT INTO laplace.world_admission(
+    admission_id,source_profile_id,selected_boundary_fingerprint,
+    source_profile_receipt_id,recipe_receipt_id,
+    composition_working_set_receipt_id,composition_presence_receipt_id,
+    composition_producer_receipt_id,composition_stream_receipt_id,
+    evidence_lineage_receipt_id,evidence_testimony_receipt_id,
+    readback_fingerprint,profile_occurrence_count,composition_occurrence_count,
+    profile_claim_count,evidence_node_count,testimony_count,
+    profile_bound_testimony_count,recipe_bound_testimony_count,
+    lineage_bound_testimony_count,closure_subject_count,closed_subject_count,
+    reconstruction_class,flags)
+VALUES(
+    decode(repeat('a1',32),'hex'),decode(repeat('72',32),'hex'),
+    decode(repeat('71',32),'hex'),decode(repeat('a2',32),'hex'),
+    decode(repeat('a3',32),'hex'),decode(repeat('a4',32),'hex'),
+    decode(repeat('a5',32),'hex'),decode(repeat('a6',32),'hex'),
+    decode(repeat('a7',32),'hex'),decode(repeat('aa',32),'hex'),
+    decode(repeat('ab',32),'hex'),decode(repeat('ac',32),'hex'),
+    1::numeric,1::numeric,1::numeric,1::numeric,1::numeric,
+    1::numeric,1::numeric,1::numeric,1::numeric,1::numeric,1,0);
+INSERT INTO laplace.evidence_lineage_receipt_member(
+    receipt_id,node_id,member_ordinal)
+VALUES(
+    decode(repeat('aa',32),'hex'),decode(repeat('91',32),'hex'),1::numeric);
+INSERT INTO laplace.evidence_testimony_receipt_member(
+    receipt_id,testimony_id,member_ordinal)
+VALUES(
+    decode(repeat('ab',32),'hex'),decode(repeat('95',32),'hex'),1::numeric);
 SET session_replication_role = origin;
+
+ANALYZE laplace.reference_mapping_occurrence;
+
+DO $endpoint_plan$
+DECLARE
+    left_plan json;
+    right_plan json;
+    either_plan json;
+BEGIN
+    left_plan := pg_temp.explain_json($sql$
+        SELECT occurrence_id
+        FROM laplace.reference_mapping_occurrence
+        WHERE boundary_id = decode(repeat('71',32),'hex')
+          AND disposition = 1
+          AND left_value_entity_id = decode(repeat('11',16),'hex')
+    $sql$);
+    right_plan := pg_temp.explain_json($sql$
+        SELECT occurrence_id
+        FROM laplace.reference_mapping_occurrence
+        WHERE boundary_id = decode(repeat('71',32),'hex')
+          AND disposition = 1
+          AND right_value_entity_id = decode(repeat('12',16),'hex')
+    $sql$);
+    either_plan := pg_temp.explain_json($sql$
+        SELECT occurrence_id
+        FROM laplace.reference_mapping_occurrence
+        WHERE boundary_id = decode(repeat('71',32),'hex')
+          AND disposition = 1
+          AND (
+              left_value_entity_id = decode(repeat('11',16),'hex') OR
+              right_value_entity_id = decode(repeat('11',16),'hex'))
+    $sql$);
+
+    IF left_plan::text NOT LIKE '%reference_mapping_occurrence_left_semantic_idx%' THEN
+        RAISE EXCEPTION 'left semantic endpoint did not select its boundary-scoped index: %', left_plan;
+    END IF;
+    IF right_plan::text NOT LIKE '%reference_mapping_occurrence_right_semantic_idx%' THEN
+        RAISE EXCEPTION 'right semantic endpoint did not select its boundary-scoped index: %', right_plan;
+    END IF;
+    IF either_plan::text NOT LIKE '%reference_mapping_occurrence_left_semantic_idx%' OR
+       either_plan::text NOT LIKE '%reference_mapping_occurrence_right_semantic_idx%' THEN
+        RAISE EXCEPTION 'bidirectional semantic endpoint probe did not use both indexed branches: %', either_plan;
+    END IF;
+END
+$endpoint_plan$;
 
 CREATE TEMP TABLE semantic_cognition_fixture AS
 SELECT ROW(
@@ -145,10 +261,41 @@ BEGIN
 END
 $contract$;
 
--- Mutation control: remove the only root projection while leaving the relation
--- and testimony rows intact. The semantic execution must no longer succeed. This
--- prevents the old failure mode where an unrooted relation row was labeled
--- TESTIMONY and still produced a green product-path result.
+-- Mutation control: a raw testimony row is not enough. Remove it from the exact
+-- admitted testimony receipt while leaving the mapping, node, root projection and
+-- testimony rows themselves intact. A boundary-pinned query must reject it.
+DELETE FROM laplace.evidence_testimony_receipt_member
+WHERE receipt_id = decode(repeat('ab',32),'hex')
+  AND testimony_id = decode(repeat('95',32),'hex');
+
+DO $outside_admission$
+DECLARE
+    rejected boolean := false;
+    fixture laplace.cognition_observation_request;
+BEGIN
+    SELECT request INTO STRICT fixture FROM semantic_cognition_fixture;
+    BEGIN
+        PERFORM laplace.cognition_semantic_execute(
+            pg_temp.execution_context(), fixture);
+    EXCEPTION WHEN OTHERS THEN
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'semantic testimony outside the world-admission receipt was accepted';
+    END IF;
+END
+$outside_admission$;
+
+SET session_replication_role = replica;
+INSERT INTO laplace.evidence_testimony_receipt_member(
+    receipt_id,testimony_id,member_ordinal)
+VALUES(
+    decode(repeat('ab',32),'hex'),decode(repeat('95',32),'hex'),1::numeric);
+SET session_replication_role = origin;
+
+-- Mutation control: remove the only root projection while leaving the relation,
+-- admitted node and testimony rows intact. The semantic execution must no longer
+-- succeed. This prevents an unrooted relation from being labeled TESTIMONY.
 DELETE FROM laplace.evidence_root_projection
 WHERE node_id = decode(repeat('91',32),'hex')
   AND root_node_id = decode(repeat('91',32),'hex');

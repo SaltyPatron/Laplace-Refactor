@@ -1,0 +1,48 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionStandingOperator.PreservesExactStandingAsItsOwnTypedPlane",
+      "evidence_targets": [
+        "LP-TEST-EVIDENCE-TOPOLOGY-STANDING",
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-TYPED-INCIDENCE-OPERATOR"
+      ],
+      "covered_dimensions": [
+        "exact standing state survives candidate to transition to generated operator constraint",
+        "standing remains distinct from testimony and carries no fabricated evidence root",
+        "rating rating-deviation volatility lane recipe epoch and period identity remain typed operator ancestry",
+        "historical physicality testimony and derived receipt counters remain unchanged while the selected constraint is standing"
+      ]
+    },
+    {
+      "ctest_name": "CognitionStandingPacket.RoundTripsStandingReceiptWithoutWireShift",
+      "evidence_targets": [
+        "LP-TEST-EVIDENCE-TOPOLOGY-STANDING",
+        "LP-TEST-ISA-TYPE-SAFETY",
+        "LP-TEST-ISA-RECEIPT"
+      ],
+      "covered_dimensions": [
+        "canonical standing request uses the explicit packet v2 extension",
+        "canonical request packet carries the complete typed standing state",
+        "standing packet results retain the historical operator and solver receipt layout",
+        "solver receipt remains aligned while standing state extends only the request constraint payload",
+        "packet word transport executes and decodes without standing field loss or offset drift"
+      ]
+    },
+    {
+      "ctest_name": "CognitionStandingPacket.NonStandingRequestPreservesCanonicalV1Wire",
+      "evidence_targets": [
+        "LP-TEST-ISA-TYPE-SAFETY",
+        "LP-TEST-ISA-RECEIPT",
+        "LP-TEST-BULK-PARITY"
+      ],
+      "covered_dimensions": [
+        "non-standing request remains canonical packet v1",
+        "v1 request byte count is unchanged by the standing extension",
+        "v1 result framing remains the original 580-byte fixed receipt payload",
+        "legacy receipt fields decode in their historical order without an inserted standing counter"
+      ]
+    }
+  ]
+}
