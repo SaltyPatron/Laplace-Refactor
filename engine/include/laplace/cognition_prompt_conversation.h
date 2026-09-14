@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 enum {
-    LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION = 1
+    LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION = 2
 };
 
 typedef enum laplace_cognition_prompt_conversation_status {
@@ -29,12 +29,23 @@ typedef enum laplace_cognition_prompt_conversation_status {
     LAPLACE_COGNITION_PROMPT_CONVERSATION_WHY_NOT = 9
 } laplace_cognition_prompt_conversation_status;
 
+typedef enum laplace_cognition_prompt_orientation_disposition {
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_NOT_REQUIRED = 0,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_RESOLVED = 1,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_NO_RESPONSE = 2,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_AMBIGUOUS = 3,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_INCOMPLETE = 4,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_EXHAUSTED = 5,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_FAILED = 6
+} laplace_cognition_prompt_orientation_disposition;
+
 /*
  * One response policy downstream of an already-created exact prompt admission.
  * The incoming turn is deliberately absent: it is copied only from the admission
  * view so a caller cannot admit one prompt and execute cognition against another
- * observation identity or occurrence. Goal/result policy remains typed cognition
- * policy and is not inferred from endpoint names or prompt keywords here.
+ * observation identity or occurrence. An explicit goal remains valid typed
+ * cognition policy. When GOAL_PRESENT is absent, the prompt route must derive the
+ * goal and admissible relation families from witnessed query-relative orientation.
  */
 typedef struct laplace_cognition_prompt_conversation_request {
     laplace_cognition_turn_policy cognition_policy;
@@ -49,7 +60,14 @@ typedef struct laplace_cognition_prompt_conversation_result {
     laplace_digest256 prompt_admission_receipt_id;
     laplace_digest256 prompt_exact_bytes_fingerprint;
     laplace_digest256 composite_cognition_provider_fingerprint;
+    /* Present when an unbound prompt executed the sparse typed coupling field. */
+    laplace_digest256 orientation_coupling_receipt_id;
+    /* Present when coupling responses were lowered into joint interpretation. */
+    laplace_digest256 orientation_interpretation_receipt_id;
+    laplace_digest256 orientation_response_fingerprint;
+    laplace_id128 derived_goal_entity_id;
     laplace_cognition_conversation_result conversation;
+    uint32_t orientation_disposition;
     uint32_t version;
     uint32_t reserved;
 } laplace_cognition_prompt_conversation_result;
@@ -57,15 +75,15 @@ typedef struct laplace_cognition_prompt_conversation_result {
 /*
  * Executes the admitted prompt through one native conversation chain while
  * composing its exact structural provider with zero or more caller-owned
- * persistent cognition providers. This closes the raw-prompt admission boundary
- * to the already-existing turn/cognition/semantic-act-or-WHY_NOT/realization/
- * materialization path without selecting a topic, tokenizing the prompt, or
- * invoking a model.
+ * persistent cognition providers. For an unbound prompt the composite provider
+ * is first used as a sparse query-relative response field; semantic reactions are
+ * solved jointly across their originating prompt occurrences before the cognition
+ * turn is compiled. No caller topic, keyword router or model selects that binding.
  *
  * The prompt admission and every additional provider state must remain alive for
  * the duration of this call. The provider set owns descriptor copies only. A
- * typed WHY_NOT preserves its complete nested result while publishing zero output
- * and next-frame bytes.
+ * typed WHY_NOT publishes zero response/frame bytes and retains the orientation
+ * disposition/receipts when orientation itself supplied the reason.
  */
 LAPLACE_API laplace_cognition_prompt_conversation_status
 laplace_cognition_prompt_conversation_execute(
@@ -85,11 +103,6 @@ laplace_cognition_prompt_conversation_execute(
     size_t* next_discourse_frame_bytes,
     laplace_cognition_prompt_conversation_result* result);
 
-/* Preserve the selected output serialization through the ordinary prompt route.
- * Firmware/ISA selection remains cognition policy; an output encoding is not a
- * modality classifier. Both APIs use one execution and publication implementation.
- * Unknown encodings and impossible provider counts fail before admission reads.
- */
 LAPLACE_API laplace_cognition_prompt_conversation_status
 laplace_cognition_prompt_conversation_execute_encoded(
     laplace_cognition_prompt_admission* admission,
