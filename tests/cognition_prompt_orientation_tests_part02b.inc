@@ -78,6 +78,14 @@ TEST(CognitionPromptOrientation,
     ASSERT_EQ(output_bytes, 1U);
     EXPECT_EQ(output[0], static_cast<std::uint8_t>('C'));
     EXPECT_EQ(frame_bytes, frame.size());
+    EXPECT_EQ(
+        result.orientation_disposition,
+        LAPLACE_COGNITION_PROMPT_ORIENTATION_RESOLVED);
+    EXPECT_TRUE(SameId(result.derived_goal_entity_id, semantic.preferred));
+    const laplace_digest256 zero_digest{};
+    EXPECT_FALSE(SameDigest(result.orientation_coupling_receipt_id, zero_digest));
+    EXPECT_FALSE(SameDigest(result.orientation_interpretation_receipt_id, zero_digest));
+    EXPECT_FALSE(SameDigest(result.orientation_response_fingerprint, zero_digest));
     EXPECT_TRUE(SameId(
         result.conversation.cognition_request.goal_entity_id,
         semantic.preferred));
