@@ -6,6 +6,7 @@
 
 #include "laplace/cognition_conversation.h"
 #include "laplace/cognition_prompt_admission.h"
+#include "laplace/cognition_response_field.h"
 #include "laplace/export.h"
 
 #ifdef __cplusplus
@@ -26,15 +27,23 @@ typedef enum laplace_cognition_prompt_conversation_status {
     LAPLACE_COGNITION_PROMPT_CONVERSATION_CONVERSATION_FAILURE = 6,
     LAPLACE_COGNITION_PROMPT_CONVERSATION_MEMORY_FAILURE = 7,
     LAPLACE_COGNITION_PROMPT_CONVERSATION_ENCODING_INVALID = 8,
-    LAPLACE_COGNITION_PROMPT_CONVERSATION_WHY_NOT = 9
+    LAPLACE_COGNITION_PROMPT_CONVERSATION_WHY_NOT = 9,
+    LAPLACE_COGNITION_PROMPT_CONVERSATION_ORIENTATION_FAILURE = 10
 } laplace_cognition_prompt_conversation_status;
 
 /*
  * One response policy downstream of an already-created exact prompt admission.
  * The incoming turn is deliberately absent: it is copied only from the admission
  * view so a caller cannot admit one prompt and execute cognition against another
- * observation identity or occurrence. Goal/result policy remains typed cognition
- * policy and is not inferred from endpoint names or prompt keywords here.
+ * observation identity or occurrence.
+ *
+ * For the raw-prompt route, cognition_policy.relation_mask is an admissibility
+ * envelope, not a selected intent. Before the turn is compiled, the conversation
+ * owner executes the full typed response field over all relation families and
+ * narrows the active request to the families that actually responded inside that
+ * envelope. A supplied goal is likewise only accepted when that canonical entity
+ * is present in the measured response field. The caller therefore cannot name an
+ * unrelated read/goal and bypass prompt orientation.
  */
 typedef struct laplace_cognition_prompt_conversation_request {
     laplace_cognition_turn_policy cognition_policy;
@@ -49,7 +58,10 @@ typedef struct laplace_cognition_prompt_conversation_result {
     laplace_digest256 prompt_admission_receipt_id;
     laplace_digest256 prompt_exact_bytes_fingerprint;
     laplace_digest256 composite_cognition_provider_fingerprint;
+    laplace_digest256 orientation_context_fingerprint;
+    laplace_cognition_response_scan_receipt orientation_receipt;
     laplace_cognition_conversation_result conversation;
+    uint32_t orientation_relation_mask;
     uint32_t version;
     uint32_t reserved;
 } laplace_cognition_prompt_conversation_result;
@@ -57,10 +69,14 @@ typedef struct laplace_cognition_prompt_conversation_result {
 /*
  * Executes the admitted prompt through one native conversation chain while
  * composing its exact structural provider with zero or more caller-owned
- * persistent cognition providers. This closes the raw-prompt admission boundary
- * to the already-existing turn/cognition/semantic-act-or-WHY_NOT/realization/
- * materialization path without selecting a topic, tokenizing the prompt, or
- * invoking a model.
+ * persistent cognition providers.
+ *
+ * Before turn compilation, the same composite provider is traversed by the
+ * response-field scanner starting from the whole admitted trunk. That scan is
+ * set-wise, typed and bounded; it preserves structural, testimony, calculation,
+ * geometry and standing channels separately and binds its receipt into the turn
+ * context. Only then is the ordinary cognition request compiled. This prevents a
+ * raw prompt from skipping orientation by supplying a preselected topic/read.
  *
  * The prompt admission and every additional provider state must remain alive for
  * the duration of this call. The provider set owns descriptor copies only. A
