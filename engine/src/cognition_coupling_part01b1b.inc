@@ -8,7 +8,7 @@
     witness.observation_fingerprint = candidate.observation_fingerprint;
     witness.evidence_root_fingerprint = candidate.evidence_root_fingerprint;
     if ((candidate.flags & LAPLACE_COGNITION_OBSERVATION_CANDIDATE_STANDING_PRESENT) != 0U) {
-        witness.standing_state_id = candidate.standing.state_id;
+        witness.standing = candidate.standing;
     }
     witness.seed_index = source.seed_index;
     witness.source_logical_ordinal = candidate.source_logical_ordinal;
