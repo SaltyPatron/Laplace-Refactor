@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import types
 from pathlib import Path
+from typing import Any
 
 
 _CORE_PATH = Path(__file__).with_name("product_distribution_core.py")
@@ -23,6 +25,19 @@ _core.CONTROL_SOURCES = set(_core.CONTROL_SOURCES) | {
 for _name in dir(_core):
     if not _name.startswith("__"):
         globals()[_name] = getattr(_core, _name)
+
+
+class _DistributionProxyModule(types.ModuleType):
+    """Keep public monkey-patch/test seams identical to the unsplit module."""
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        core = globals().get("_core")
+        if core is not None and not name.startswith("_") and hasattr(core, name):
+            setattr(core, name, value)
+
+
+sys.modules[__name__].__class__ = _DistributionProxyModule
 CONTROL_SOURCES = _core.CONTROL_SOURCES
 
 
