@@ -121,6 +121,27 @@ def require_build(condition: bool, message: str, log: Path) -> None:
         raise ChessToolError(f"{message}; see {log}\n{tail}")
 
 
+def qt_environment(prefix: Path) -> dict[str, str]:
+    """Keep selected SDK tools and their libraries together in child processes."""
+    environment = os.environ.copy()
+    paths = {"PATH": prefix / "bin"}
+    if platform.system() == "Linux":
+        paths["LD_LIBRARY_PATH"] = prefix / "lib"
+    elif platform.system() == "Darwin":
+        paths.update({"DYLD_LIBRARY_PATH": prefix / "lib", "DYLD_FRAMEWORK_PATH": prefix / "lib"})
+    for name, directory in paths.items():
+        # An inherited system Qt path can override the SDK tool's ELF RUNPATH.
+        # Scope the correction to this process tree; preserve other dependencies.
+        previous = environment.get(name, "")
+        environment[name] = str(directory) + (os.pathsep + previous if previous else "")
+    return environment
+
+
+def tool_environment(tool: dict) -> dict[str, str]:
+    prefix = tool.get("qt_prefix")
+    return qt_environment(Path(prefix)) if prefix else os.environ.copy()
+
+
 def single_match(root: Path, pattern: str) -> Path:
     found = [p for p in root.rglob(pattern) if p.is_file()]
     require(len(found) == 1, f"expected one {pattern} in {root}; found {len(found)}")
@@ -267,13 +288,15 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
         else:
             if arguments.qt_prefix is None:
                 arguments.qt_prefix = acquire_qt(arguments, selected, artifacts)
+            arguments.qt_prefix = arguments.qt_prefix.resolve()
+            environment = qt_environment(arguments.qt_prefix)
             command = ["cmake", "-S", str(source), "-B", str(work), "-UQt6*", "-DCMAKE_BUILD_TYPE=Release", "-DWITH_TESTS=OFF", "-DCMAKE_CXX_STANDARD=17"]
             if arguments.qt_prefix:
                 command.append(f"-DCMAKE_PREFIX_PATH={arguments.qt_prefix}")
             with log.open("w") as output:
-                configured = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)
+                configured = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False, env=environment)
                 require_build(configured.returncode == 0, "Cute Chess configure failed; requires CMake >=3.20, C++17 and Qt >=6.8 (Core, Widgets, Svg, Concurrent, PrintSupport, Core5Compat); set --qt-prefix for the installed Qt SDK", log)
-                built = subprocess.run(["cmake", "--build", str(work), "--config", "Release", "--target", "cli", "--parallel", str(arguments.jobs)], stdout=output, stderr=subprocess.STDOUT, check=False)
+                built = subprocess.run(["cmake", "--build", str(work), "--config", "Release", "--target", "cli", "--parallel", str(arguments.jobs)], stdout=output, stderr=subprocess.STDOUT, check=False, env=environment)
                 require_build(built.returncode == 0, "Cute Chess source build failed", log)
             executable = single_match(work, "cutechess-cli.exe" if platform.system() == "Windows" else "cutechess-cli")
             if platform.system() == "Windows":
@@ -281,10 +304,12 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
                 # to it; the Windows loader cannot infer our Qt SDK location.
                 deployment = arguments.qt_prefix / "bin/windeployqt.exe"
                 require(deployment.is_file(), f"Qt runtime deployment tool is missing: {deployment}")
-                execute([str(deployment), "--release", "--no-translations", str(executable)], timeout=180)
-            checks = probe_cutechess([str(executable)])
+                execute([str(deployment), "--release", "--no-translations", str(executable)], timeout=180, env=environment)
+            checks = probe_cutechess([str(executable)], environment=environment)
         verify_source(source, entry)
         result["tools"][name] = {"source": str(source), "revision": entry["revision"], "source_archive_sha256": entry["git_archive_sha256"], "executable": str(executable), "sha256": digest(executable), "build_command": command, "build_log": str(log), "checks": checks}
+        if name == "cutechess":
+            result["tools"][name]["qt_prefix"] = str(arguments.qt_prefix)
     arguments.prefix.mkdir(parents=True, exist_ok=True)
     receipt = arguments.prefix / "current.json"
     if receipt.exists():
@@ -369,12 +394,12 @@ def install_aqt(python: Path, qt_root: Path, wheel: Path) -> Path:
     return report
 
 
-def probe_cutechess(argv: list[str]) -> dict:
-    output = execute([*argv, "--version"])
+def probe_cutechess(argv: list[str], *, environment: dict[str, str] | None = None) -> dict:
+    output = execute([*argv, "--version"], env=environment)
     require(re.search(r"^cutechess-cli 1\.5\.1(?:\s|$)", output, re.M) is not None, "Cute Chess version mismatch")
     qt = re.search(r"Using Qt version (\d+)\.(\d+)\.(\d+)", output)
     require(qt is not None and tuple(map(int, qt.groups())) >= (6, 8, 0), "Cute Chess needs Qt >=6.8")
-    help_text = execute([*argv, "--help"])
+    help_text = execute([*argv, "--help"], env=environment)
     for option in ("-engine", "-pgnout", "-repeat", "-openings"):
         require(option in help_text, f"Cute Chess lacks {option}")
     return {"disposition": "ready", "version_output": output.strip()}
@@ -393,7 +418,7 @@ def verify_installation(prefix: Path, selected: dict, artifacts: dict, only: str
             network = artifacts[selected["releases"][name]["network"]]
             verify_artifact(Path(tool["source"]) / "src" / network["filename"], network)
         require(digest(Path(tool["executable"])) == tool["sha256"], f"{name} executable differs; rebuild")
-        tool["checks"] = probe_stockfish([tool["executable"]], artifacts[selected["releases"]["stockfish"]["network"]]) if name == "stockfish" else probe_cutechess([tool["executable"]])
+        tool["checks"] = probe_stockfish([tool["executable"]], artifacts[selected["releases"]["stockfish"]["network"]]) if name == "stockfish" else probe_cutechess([tool["executable"]], environment=tool_environment(tool))
     return installation
 
 
@@ -454,7 +479,7 @@ def main() -> int:
             extra = extra[1:] if extra[:1] == ["--"] else extra
             tool = current["tools"][arguments.tool]
             require(digest(Path(tool["executable"])) == tool["sha256"], "direct source executable changed; run check or rebuild")
-            return subprocess.call([tool["executable"], *extra])
+            return subprocess.call([tool["executable"], *extra], env=tool_environment(tool))
         report = {"schema": "laplace.chess-dependency-readback/v1", "product_chess_activated": False, "capability_boundary": selected["capability_boundary"]}
         if arguments.action == "latest" or arguments.online or (arguments.action == "install" and not arguments.offline):
             report["upstream"] = upstream_versions(selected)

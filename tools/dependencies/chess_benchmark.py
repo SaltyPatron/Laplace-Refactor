@@ -169,7 +169,7 @@ def cleanup_group(process: subprocess.Popen) -> None:
     process.wait()
 
 
-def measured_process(command: list[str], transcript: Path, host: dict, timeout: float, memory_bytes: int, input_text: str | None = None) -> dict:
+def measured_process(command: list[str], transcript: Path, host: dict, timeout: float, memory_bytes: int, input_text: str | None = None, *, environment: dict[str, str] | None = None) -> dict:
     before_usage = resource.getrusage(resource.RUSAGE_CHILDREN)
     before_pressure = group_pressure(host)
     started = time.perf_counter()
@@ -178,7 +178,7 @@ def measured_process(command: list[str], transcript: Path, host: dict, timeout: 
     peak = dict.fromkeys(PROCESS_METRICS, 0 if proc_metrics_available else None)
     disposition = "completed"
     with transcript.open("w") as output:
-        process = subprocess.Popen(command, stdin=subprocess.PIPE if input_text else subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, start_new_session=True, text=True)
+        process = subprocess.Popen(command, stdin=subprocess.PIPE if input_text else subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, start_new_session=True, text=True, env=environment)
         try:
             if input_text:
                 assert process.stdin
@@ -367,6 +367,7 @@ def main() -> int:
         report["tool_identity"] = installed
         sf = installed["tools"]["stockfish"]["executable"]
         cc = installed["tools"]["cutechess"]["executable"]
+        cc_environment = tools.tool_environment(installed["tools"]["cutechess"])
         if arguments.stockfish:
             sf = str(arguments.stockfish.resolve())
             tools.probe_stockfish([sf], artifacts[selected["releases"]["stockfish"]["network"]])
@@ -411,7 +412,7 @@ def main() -> int:
                     else:
                         pgn = arguments.output / f"cutechess-{index:04d}.pgn"
                         command = [cc, "-engine", f"cmd={sf}", "name=Source-A", "-engine", f"cmd={sf}", "name=Source-B", "-each", "proto=uci", "tc=60", f"depth={arguments.game_depth}", f'option.Threads={configuration["threads"]}', f'option.Hash={configuration["hash_mib"]}', "option.UCI_LimitStrength=false", "option.Skill Level=20", "option.MultiPV=1", "option.NumaPolicy=auto", "-games", str(arguments.games), "-rounds", "1", "-repeat", "-concurrency", str(configuration["concurrency"]), "-maxmoves", str(arguments.max_moves), "-pgnout", str(pgn)]
-                        measurement = measured_process(command, transcript, host, arguments.timeout, resource_plan["memory_mib"] * MIB)
+                        measurement = measured_process(command, transcript, host, arguments.timeout, resource_plan["memory_mib"] * MIB, environment=cc_environment)
                         tools.require(measurement["completion"] == "completed" and "Finished match" in transcript.read_text(), f"CuteChess benchmark failed: {measurement}")
                         measurement.update(validate_pgn(pgn.read_text(), arguments.games))
                         measurement.update({"games_per_second": arguments.games / measurement["wall_seconds"], "plies_per_second": measurement["plies"] / measurement["wall_seconds"], "pgn": str(pgn), "pgn_sha256": tools.digest(pgn)})

@@ -3,6 +3,7 @@
 import argparse
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -18,6 +19,16 @@ spec.loader.exec_module(BENCH)
 
 
 class ChessBenchmarks(unittest.TestCase):
+    def test_measured_process_retains_selected_child_runtime(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            transcript = Path(temporary) / "runtime.log"
+            environment = {**os.environ, "LAPLACE_TEST_QT_RUNTIME": "selected-sdk"}
+            host = {"cgroups": [], "process_identity": {"consistent": False}}
+            result = BENCH.measured_process([sys.executable, "-c", "import os; print(os.environ['LAPLACE_TEST_QT_RUNTIME'])"], transcript, host, 5, 32 * BENCH.MIB, environment=environment)
+            self.assertEqual(result["completion"], "completed")
+            self.assertEqual(transcript.read_text().strip(), "selected-sdk")
+            self.assertNotIn("LAPLACE_TEST_QT_RUNTIME", os.environ)
+
     def test_parent_quota_overrides_unlimited_child(self):
         cpu, memory = BENCH.resource_bounds(168, 100 * BENCH.MIB, [{"cpu.max": "max 100000", "memory.max": "max"}, {"cpu.max": "800000 100000", "memory.max": str(20 * BENCH.MIB), "memory.current": str(15 * BENCH.MIB)}])
         self.assertEqual(cpu, 8)

@@ -9,6 +9,7 @@ import importlib.util
 import io
 import json
 import os
+import platform
 from pathlib import Path
 import shutil
 import subprocess
@@ -256,6 +257,35 @@ class ChessDependencies(unittest.TestCase):
         with patch.object(TOOLS, "execute", return_value="cutechess-cli 1.5.1\nUsing Qt version 6.4.2\n"):
             with self.assertRaisesRegex(TOOLS.ChessToolError, "Qt >=6.8"):
                 TOOLS.probe_cutechess(["fixture"])
+
+    @unittest.skipUnless(platform.system() == "Linux" and shutil.which("cc"), "requires the Linux ELF loader and C compiler")
+    def test_selected_sdk_precedes_conflicting_inherited_elf_library(self) -> None:
+        sdk = self.directory / "selected-sdk"
+        selected = sdk / "lib"
+        conflicting = self.directory / "other-sdk"
+        selected.mkdir(parents=True)
+        conflicting.mkdir()
+        source = self.directory / "library.c"
+        for directory, value in ((selected, 611), (conflicting, 602)):
+            source.write_text(f"int selected_sdk(void) {{ return {value}; }}\n")
+            subprocess.run(["cc", "-shared", "-fPIC", str(source), "-Wl,-soname,libselection.so", "-o", str(directory / "libselection.so")], check=True, capture_output=True)
+        source.write_text("#include <stdio.h>\nint selected_sdk(void);\nint main(void) { printf(\"%d\\n\", selected_sdk()); }\n")
+        program = self.directory / "sdk-tool"
+        subprocess.run(["cc", str(source), "-L", str(selected), "-lselection", "-Wl,--enable-new-dtags", f"-Wl,-rpath,{selected}", "-o", str(program)], check=True, capture_output=True)
+        with patch.dict(os.environ, {"LD_LIBRARY_PATH": str(conflicting)}):
+            before = os.environ.copy()
+            # Deliberate break: ambient loader precedence defeats executable RUNPATH.
+            self.assertEqual(TOOLS.execute([str(program)]).strip(), "602")
+            environment = TOOLS.tool_environment({"qt_prefix": str(sdk)})
+            self.assertEqual(TOOLS.execute([str(program)], env=environment).strip(), "611")
+            self.assertEqual(os.environ.copy(), before)
+            self.assertEqual(environment["LD_LIBRARY_PATH"], os.pathsep.join((str(selected), str(conflicting))))
+
+    def test_cutechess_probe_uses_selected_environment_for_version_and_help(self) -> None:
+        environment = {"PATH": "selected-sdk"}
+        with patch.object(TOOLS, "execute", side_effect=["cutechess-cli 1.5.1\nUsing Qt version 6.11.2\n", "-engine -pgnout -repeat -openings"]) as execute:
+            TOOLS.probe_cutechess(["selected-cli"], environment=environment)
+        self.assertEqual([call.kwargs["env"] for call in execute.call_args_list], [environment, environment])
 
     def test_sdk_pip_bootstrap_does_not_require_unsupported_report_option(self) -> None:
         _, artifacts = TOOLS.configuration()
