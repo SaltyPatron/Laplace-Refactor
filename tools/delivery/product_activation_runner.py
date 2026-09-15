@@ -14,6 +14,7 @@ runner-owned pg_ctl stop/start operations and rejects every other systemd comman
 from __future__ import annotations
 
 import argparse
+from functools import partial
 import importlib.util
 import json
 import os
@@ -22,12 +23,14 @@ import pwd
 import subprocess
 import sys
 import tempfile
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 RUNNER_USER = "laplace-runner"
 RESULT_SCHEMA = "laplace.product-activation-result/v1"
+SQL_FAILURE_SCHEMA = "laplace.product-sql-failure/v1"
+MAX_FAILURE_OUTPUT_BYTES = 128 * 1024
 
 
 def load_module(name: str, path: Path) -> Any:
@@ -206,6 +209,8 @@ def runner_sql(
     os_user: str,
     database_role: str,
     timeout: int,
+    *,
+    completed_observer: Callable[[subprocess.CompletedProcess[str], dict[str, Any]], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     require_runner()
     if os_user != RUNNER_USER:
@@ -244,12 +249,33 @@ def runner_sql(
     )
     receipt = clusterctl.command_execution_receipt(label, command, completed)
     receipt["stdin_sha256"] = unicodectl.sha256_bytes(sql.encode("utf-8"))
+    if completed_observer is not None:
+        completed_observer(completed, receipt)
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
         raise RunnerActivationError(
             f"{label} failed with exit {completed.returncode}: {detail[-1000:]}"
         )
     return unicodectl.parse_single_json(completed.stdout, label), receipt
+
+
+def retain_failed_sql(completed: subprocess.CompletedProcess[str], receipt: dict[str, Any], *, directory: Path) -> None:
+    """Preserve failed native output before the short caller exception preview."""
+    if completed.returncode == 0:
+        return
+    result: dict[str, Any] = {"schema": SQL_FAILURE_SCHEMA, "command": receipt,
+        "success_receipt_issued": False, "retained_bytes_per_output": MAX_FAILURE_OUTPUT_BYTES,
+        "output_encoding": "UTF-8 encoding of subprocess decoded text", "outputs": {}}
+    for name, content in (("stdout", completed.stdout), ("stderr", completed.stderr)):
+        raw = content.encode("utf-8")
+        retained = raw[:MAX_FAILURE_OUTPUT_BYTES]
+        # Hex preserves a partial final UTF-8 codepoint at the byte boundary.
+        result["outputs"][name] = {"observed_bytes": len(raw),
+            "observed_sha256": unicodectl.sha256_bytes(raw),
+            "retained_bytes": len(retained), "retained_hex": retained.hex(),
+            "truncated": len(raw) != len(retained)}
+    identity = unicodectl.sha256_bytes(unicodectl.canonical_bytes(result))
+    unicodectl.write_immutable(directory / f"sql-failure-{identity}.json", result)
 
 
 def reconcile_indexed_cognition(
@@ -603,7 +629,8 @@ def execute(
         Path("/"),
         False,
         committed_revalidation_contract=revalidation_contract,
-        sql_runner=runner_sql,
+        sql_runner=partial(runner_sql, completed_observer=partial(retain_failed_sql,
+            directory=Path(cluster_contract["instance"]["receipt_directory"]) / "highway" / "failures")),
         loaded_observer=clusterctl.observe_loaded_live,
         command_runner=command_runner,
         readiness_runner=clusterctl.await_postgresql_ready,

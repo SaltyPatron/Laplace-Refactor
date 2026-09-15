@@ -26,6 +26,12 @@ typedef struct laplace_pg_composition_execution {
 #define LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL laplace_pg_composition_execute
 #endif
 
+#define LAPLACE_PG_COMPOSITION_OBSERVED_NAME_INNER(name) name##_observed
+#define LAPLACE_PG_COMPOSITION_OBSERVED_NAME(name) \
+    LAPLACE_PG_COMPOSITION_OBSERVED_NAME_INNER(name)
+#define LAPLACE_PG_COMPOSITION_EXECUTE_OBSERVED_SYMBOL \
+    LAPLACE_PG_COMPOSITION_OBSERVED_NAME(LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL)
+
 #if !defined(LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL)
 #define LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL \
     laplace_pg_composition_execution_destroy
@@ -45,6 +51,20 @@ void laplace_pg_composition_presence_provider(
 void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution);
+
+/* Observe the exact resolved candidates before their construction storage is
+ * released or the sealed stream is deposited. Borrowed candidate pointers are
+ * valid only during this callback; the observer must not mutate the working set.
+ * A PostgreSQL error follows the same execution cleanup as a producer failure.
+ * The ordinary execute entrypoint calls this owner with no observer. */
+typedef void (*laplace_pg_composition_observer)(
+    const laplace_pg_composition_execution* execution, void* state);
+
+void LAPLACE_PG_COMPOSITION_EXECUTE_OBSERVED_SYMBOL(
+    const laplace_composition_working_set_input* input,
+    laplace_pg_composition_execution* execution,
+    laplace_pg_composition_observer observer,
+    void* observer_state);
 
 void LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(
     laplace_pg_composition_execution* execution);
