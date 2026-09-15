@@ -1075,6 +1075,24 @@ def retained_request_matches(
     return True
 
 
+def validate_retained_identity_proof(
+    folder: Path, candidate: dict[str, Any], verified: dict[str, Any],
+    original: dict[str, Any], inspection: dict[str, Any], contract: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Default admission law: retained native identities equal recomputation.
+
+    The public controller supplies the separately authenticated committed-root
+    projection law. Directory discovery and canonical request checks stay here.
+    """
+    if verified != candidate:
+        differing = sorted(key for key in set(verified) | set(candidate)
+                           if verified.get(key) != candidate.get(key))
+        raise UnicodeActivationError(
+            "retained Unicode admission fails native identity verification: "
+            + ", ".join(differing))
+    return None
+
+
 def retained_root_identities(
     receipt_root: Path, inspection: dict[str, Any], request: dict[str, Any],
     contract: dict[str, Any], identity_executable: Path, identity_runner: Callable[..., Any],
@@ -1135,8 +1153,10 @@ def retained_root_identities(
                 retained_request_matches(original, request, strict=True)
                 verified, command = identity_runner(identity_executable, request_path, contract)
                 validate_identities(verified, contract)
-                if verified != candidate:
-                    raise UnicodeActivationError("retained Unicode admission fails native identity verification")
+                projection = validate_retained_identity_proof(
+                    folder, candidate, verified, original, inspection, contract)
+                if projection is not None:
+                    command = dict(command, runtime_context_projection=projection)
                 matches.append((candidate, original, command))
 
     if len(matches) > 1:
