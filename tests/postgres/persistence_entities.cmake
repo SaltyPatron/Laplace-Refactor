@@ -12,7 +12,7 @@ target_include_directories(laplace_persistence_entities_native_probe PRIVATE
 target_link_libraries(laplace_persistence_entities_native_probe PRIVATE
     Laplace::Persistence BLAKE3::blake3)
 target_compile_options(laplace_persistence_entities_native_probe PRIVATE
-    $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-ffunction-sections;-fdata-sections;-ffp-contract=off>)
+    $<$<C_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wshadow;-Wstrict-prototypes;-Wno-declaration-after-statement;-Wno-gnu-statement-expression-from-macro-expansion;-ffunction-sections;-fdata-sections;-ffp-contract=off>)
 if(APPLE)
     target_link_options(laplace_persistence_entities_native_probe PRIVATE
         "LINKER:-dead_strip")

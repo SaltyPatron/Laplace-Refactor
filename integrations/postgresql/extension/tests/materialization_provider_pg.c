@@ -11,9 +11,9 @@
 
 #include "laplace/cognition_materialization.h"
 #include "laplace/physicality_entity.h"
-#include "laplace_pg_internal.h"
-#include "materialization_pg.h"
-#include "persistence_rows_pg.h"
+#include "../src/laplace_pg_internal.h"
+#include "../src/materialization_pg.h"
+#include "../src/persistence_rows_pg.h"
 
 /* BUILD_TESTING only: exercise the real generic kernel/provider over physical
  * rows produced by native composition. No cognition realization is invented. */
