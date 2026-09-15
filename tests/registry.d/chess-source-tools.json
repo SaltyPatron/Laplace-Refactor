@@ -1,0 +1,9 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [{
+    "ctest_name": "dependencies.chess-source-tools",
+    "evidence_targets": ["LP-TEST-DEPENDENCY-INTENT"],
+    "covered_dimensions": ["verified upstream source identity", "direct source executable readback", "single Stockfish 19 network", "UCI search lifecycle", "Qt compatibility", "external service and tablebase completeness boundaries"],
+    "defect_controls": ["changed source archive", "unrelated Git origin", "corrupted network", "obsolete secondary NNUE", "crashed engine", "invalid initial move", "outdated Qt", "missing tablebase half"]
+  }]
+}

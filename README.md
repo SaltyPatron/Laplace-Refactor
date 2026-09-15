@@ -90,6 +90,9 @@ Thirteen upstream source trees are pinned by exact Git revision, Git-archive SHA
 version, upstream URL, and license-file SHA-256 in `dependencies/lock.json`. The clean
 source importer copies without hardlinks and verifies the source before and after the
 copy. The build verifies each dependency it consumes again during configuration.
+The [chess dependency setup](docs/delivery/CHESS_DEPENDENCIES.md) builds Stockfish 19
+and Cute Chess 1.5.1 directly from those upstream checkouts, verifies the selected
+NNUE and UCI/Qt behavior, and records the actual source-built executable paths.
 Another lock binds twenty-six official release archives. In addition to PostgreSQL 18.6,
 PostGIS 3.6.4, GDAL 3.13.3, GEOS 3.14.1, and PROJ 9.8.1, it now selects the current
 PostgreSQL runtime leaves and build/test tools: ICU, OpenSSL, libxml2, zlib, LZ4,

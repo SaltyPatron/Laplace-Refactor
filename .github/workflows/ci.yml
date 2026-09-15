@@ -39,6 +39,10 @@ jobs:
         run: |
           set -euo pipefail
           bash -n scripts/setup-host.sh
+          bash -n scripts/setup-chess.sh
+          python3 tests/chess_dependency_tests.py
+          python3 tests/chess_benchmark_tests.py
+          python3 tests/chess_host_evidence_tests.py
           python3 tests/receipt_estate_tests.py
           python3 tests/receipt_estate_runner_tests.py
           python3 tests/product_build_workspace_retention_tests.py

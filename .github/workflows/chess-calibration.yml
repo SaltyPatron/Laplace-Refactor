@@ -1,0 +1,58 @@
+name: Explicit chess machine calibration
+
+on:
+  workflow_dispatch:
+    inputs:
+      cpu_budget:
+        description: Whole CPU equivalents available to the experiment (blank uses observed bound)
+        required: false
+        type: string
+      memory_mib:
+        description: Memory budget in MiB (blank uses observed headroom minus reserve)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: explicit-chess-calibration
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+
+jobs:
+  calibrate:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 60
+    env:
+      TMPDIR: /build/laplace/work
+      TMP: /build/laplace/work
+      TEMP: /build/laplace/work
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build and verify official chess sources in the configured dependency estate
+        run: scripts/setup-chess.sh
+      - name: Measure the actual runner with bounded resource admission
+        env:
+          CPU_BUDGET: ${{ inputs.cpu_budget }}
+          MEMORY_MIB: ${{ inputs.memory_mib }}
+        run: |
+          limits=()
+          [[ -z "$CPU_BUDGET" ]] || limits+=(--cpu-budget "$CPU_BUDGET")
+          [[ -z "$MEMORY_MIB" ]] || limits+=(--memory-mib "$MEMORY_MIB")
+          # The surrounding shell owns the shared host lock for the complete sweep.
+          python3 tools/dependencies/chess_benchmark.py run \
+            --output "$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --hash-mib 16,64,256 --depth 12 --samples 3 --warmups 1 \
+            --games 16 --game-depth 8 --max-moves 12 --timeout 120 "${limits[@]}"
+      - name: Retain machine observations, all timed samples and paired PGNs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: chess-calibration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/chess-calibration-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 14

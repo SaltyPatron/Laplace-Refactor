@@ -3487,6 +3487,24 @@ if(UNIX)
         LABELS "implementation;package;dependencies;evidence")
 
     add_test(
+        NAME dependencies.chess-source-tools
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/chess_dependency_tests.py")
+    set_tests_properties(dependencies.chess-source-tools PROPERTIES
+        LABELS "implementation;package;dependencies;chess;mutation")
+
+    add_test(
+        NAME dependencies.chess-benchmark-receipts
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/chess_benchmark_tests.py")
+    set_tests_properties(dependencies.chess-benchmark-receipts PROPERTIES
+        LABELS "implementation;dependencies;chess;benchmark;mutation")
+
+    add_test(
+        NAME dependencies.chess-host-evidence
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/chess_host_evidence_tests.py")
+    set_tests_properties(dependencies.chess-host-evidence PROPERTIES
+        LABELS "implementation;dependencies;chess;delivery;mutation")
+
+    add_test(
         NAME dependencies.installed-provider-contract
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/installed_provider_lock_tests.py")
     set_tests_properties(dependencies.installed-provider-contract PROPERTIES

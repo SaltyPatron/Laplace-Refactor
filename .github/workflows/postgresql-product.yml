@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+
 concurrency:
   group: laplace-physical-product-proof
   queue: max
@@ -29,7 +33,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Terminate stale database workers from interrupted jobs
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tools/delivery/runner_orphan_cleanup.py \
@@ -37,7 +41,7 @@ jobs:
             --grace-seconds 5 \
             --terminate
       - name: Sweep stale interrupted PostgreSQL-product residue
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tools/delivery/proof_workspace_cleanup.py \
@@ -53,7 +57,7 @@ jobs:
             --minimum-age-seconds 300 \
             --name laplace-postgresql-product-proof
       - name: Verify PostgreSQL-product proof authority
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -71,7 +75,7 @@ jobs:
             --receipt "$publication" >/dev/null
           printf 'LAPLACE_POSTGRESQL_PUBLICATION=%s\n' "$publication" >> "$GITHUB_ENV"
       - name: Prove exact current-change PostgreSQL 18.6 package runtime
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           work_root="$RUNNER_TEMP/laplace-postgresql-product-proof"
@@ -111,7 +115,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Print bounded PostgreSQL-product failure diagnostics
         if: failure()
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           work_root="$RUNNER_TEMP/laplace-postgresql-product-proof"
@@ -121,7 +125,7 @@ jobs:
           fi
       - name: Clean disposable PostgreSQL-product workspace
         if: always()
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tools/delivery/runner_orphan_cleanup.py \

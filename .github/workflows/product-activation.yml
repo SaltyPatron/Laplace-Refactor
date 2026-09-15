@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+
 concurrency:
   group: product-activation-${{ github.ref }}
   cancel-in-progress: false
@@ -32,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify runner-owned host prerequisites
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
 
@@ -242,7 +246,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify protected product-build context and accepted PostgreSQL input
         id: inputs
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -266,7 +270,7 @@ jobs:
 
       - name: Compose or verify the exact content-addressed product package
         id: compose
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           selection="$RUNNER_TEMP/laplace-product-selection.json"
@@ -325,7 +329,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify protected runner-owned deployment context
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -347,7 +351,7 @@ jobs:
           test -w /opt/laplace/pgdata/refactor
 
       - name: Reconcile empty uncommitted PostgreSQL candidate leaves
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           recovery="$RUNNER_TEMP/laplace-cluster-candidate-recovery.json"
@@ -361,7 +365,7 @@ jobs:
           ' "$recovery" >/dev/null
 
       - name: Activate PostgreSQL, Unicode, and Highway as laplace-runner
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           result="$RUNNER_TEMP/laplace-product-activation-result.json"
@@ -390,7 +394,7 @@ jobs:
           printf 'LAPLACE_PRODUCT_ACTIVATION_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
 
       - name: Verify the persistent DEV/BAT product directly
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           result="$LAPLACE_PRODUCT_ACTIVATION_RESULT"
@@ -457,7 +461,7 @@ jobs:
           [[ "$live_extension" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 
       - name: Execute installed product cognition proof
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           package_id='${{ needs.compose-product.outputs.package_id }}'
@@ -478,7 +482,7 @@ jobs:
           ' "$proof" >/dev/null
 
       - name: Converge runner-owned package receipt estate
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tests/receipt_estate_runner_tests.py
@@ -512,7 +516,7 @@ jobs:
           test ! -e "$receipt_root/highway-product-activation.json"
 
       - name: Start and execute the installed Laplace cognition surface
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           package_id='${{ needs.compose-product.outputs.package_id }}'
@@ -579,3 +583,16 @@ jobs:
             echo '- default caller: two sequential `laplace-cognition AA` turns executed the native prompt-conversation route'
             echo '- continuation: turn 1 consumed the durably deposited discourse frame from turn 0 and emitted a distinct successor frame'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Observe retained Highway admission evidence after activation attempt
+        if: always()
+        run: |
+          python3 tools/delivery/highway_receipt_diagnostic.py \
+            --output "$RUNNER_TEMP/highway-activation-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Upload bounded Highway activation receipt evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: highway-activation-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/highway-activation-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7

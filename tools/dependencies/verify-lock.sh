@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-    echo "usage: $0 SOURCE-ROOT" >&2
+if [[ $# -lt 1 ]]; then
+    echo "usage: $0 SOURCE-ROOT [DEPENDENCY...]" >&2
     exit 64
 fi
 
 source_root=$1
+shift
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 lock_file="$repo_root/dependencies/lock.json"
 
@@ -15,13 +16,20 @@ if [[ ! -d "$source_root" ]]; then
     exit 66
 fi
 
-mapfile -t dependencies < <(jq -r '.dependencies | keys[]' "$lock_file")
+if [[ $# -gt 0 ]]; then
+    dependencies=("$@")
+else
+    mapfile -t dependencies < <(jq -r '.dependencies | keys[]' "$lock_file")
+fi
 if [[ ${#dependencies[@]} -eq 0 ]]; then
     echo "dependency lock contains no entries: $lock_file" >&2
     exit 65
 fi
 
 for dependency in "${dependencies[@]}"; do
+    jq -e --arg dependency "$dependency" '.dependencies | has($dependency)' "$lock_file" >/dev/null || {
+        echo "unknown dependency: $dependency" >&2; exit 65;
+    }
     source_tree=$(realpath -e -- "$source_root/$dependency")
     revision=$(jq -r --arg dependency "$dependency" \
         '.dependencies[$dependency].revision' "$lock_file")
