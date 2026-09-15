@@ -122,11 +122,13 @@ CREATE TEMP TABLE cpp_readback AS
    10000,(SELECT sum(octet_length(content)) FROM cpp_input)) r;
 DO $readback$
 BEGIN
- IF (SELECT count(*) FROM cpp_readback)<>4 OR EXISTS(
+ IF (SELECT array_agg(ordinal ORDER BY ordinal) FROM cpp_readback)
+      IS DISTINCT FROM (SELECT array_agg(ordinal ORDER BY ordinal) FROM cpp_input) OR EXISTS(
      SELECT FROM cpp_input i JOIN cpp_readback r ON r.ordinal=i.ordinal
-     WHERE r.content<>i.content OR r.output_bytes<>octet_length(i.content) OR
-       r.verified_witnesses<>(SELECT witness_count FROM cpp_structural) OR
-       octet_length(r.materialization_receipt_id)<>32) THEN
+     WHERE r.content IS DISTINCT FROM i.content OR
+       r.output_bytes IS DISTINCT FROM octet_length(i.content) OR
+       r.verified_witnesses IS DISTINCT FROM (SELECT witness_count FROM cpp_structural) OR
+       octet_length(r.materialization_receipt_id) IS DISTINCT FROM 32) THEN
    RAISE EXCEPTION 'exact C++ source readback differs from retained input bytes';
  END IF;
 END

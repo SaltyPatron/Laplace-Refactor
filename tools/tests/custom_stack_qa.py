@@ -294,6 +294,10 @@ def build_plan(
         "required_physical_receipts": sorted({
             name for row in selected_rows for name in row.get("required_receipts", [])
         }),
+        "required_physical_receipts_by_test": {
+            str(row["ctest_name"]): list(row["required_receipts"])
+            for row in selected_rows if row.get("required_receipts")
+        },
         "isolated_test_count": len(isolated_names),
         "eligible_test_count": len(eligible),
         "core_test_count": len(core),
@@ -415,23 +419,7 @@ def embedded_receipts(log: Path, report: Path | None = None) -> list[dict[str, A
     cardinality, plan, or other explicitly emitted physical evidence.
     """
 
-    try:
-        sources = [log.read_text(encoding="utf-8", errors="strict").splitlines()]
-    except (OSError, UnicodeError) as error:
-        raise QaError(f"cannot read custom-stack lane log for evidence: {log}: {error}") from error
-    if report is not None and report.is_file():
-        try:
-            root = ET.parse(report).getroot()
-            sources.extend(
-                (output.text or "").splitlines()
-                for case in root.iter("testcase")
-                for output in case.findall("system-out")
-            )
-        except (OSError, ET.ParseError) as error:
-            raise QaError(f"cannot read JUnit physical evidence: {report}: {error}") from error
-    retained: dict[str, dict[str, Any]] = {}
-    for lines in sources:
-        names: set[str] = set()
+    def parse(lines: Iterable[str]) -> Iterable[tuple[str, dict[str, Any], str]]:
         for line in lines:
             marker = line.strip()
             if not marker.startswith(EMBEDDED_RECEIPT_PREFIX):
@@ -440,8 +428,8 @@ def embedded_receipts(log: Path, report: Path | None = None) -> list[dict[str, A
             if " " not in payload:
                 raise QaError("embedded QA receipt omits its name or JSON payload")
             name, encoded = payload.split(" ", 1)
-            if not name or name in names:
-                raise QaError(f"embedded QA receipt name is absent or duplicated: {name!r}")
+            if not name:
+                raise QaError("embedded QA receipt name is absent")
             try:
                 receipt = json.loads(encoded)
             except json.JSONDecodeError as error:
@@ -451,16 +439,55 @@ def embedded_receipts(log: Path, report: Path | None = None) -> list[dict[str, A
             schema = receipt.get("schema")
             if not isinstance(schema, str) or not schema.startswith("laplace."):
                 raise QaError(f"embedded QA receipt {name!r} has no Laplace schema")
-            names.add(name)
-            if name in retained and (
-                json.dumps(retained[name], sort_keys=True)
-                != json.dumps(receipt, sort_keys=True)
-            ):
-                raise QaError(f"embedded QA receipt differs between retained outputs: {name!r}")
-            # Failure output can appear in both the lane log and JUnit. Preserve
-            # one exact receipt; conflicting or repeated source entries fail.
-            retained[name] = receipt
-    return [{"name": name, "receipt": receipt} for name, receipt in retained.items()]
+            # Preserve JSON types when comparing transport copies: true and 1
+            # are different receipt values even though Python compares them equal.
+            yield name, receipt, json.dumps(receipt, sort_keys=True)
+
+    try:
+        log_lines = log.read_text(encoding="utf-8", errors="strict").splitlines()
+    except (OSError, UnicodeError) as error:
+        raise QaError(f"cannot read custom-stack lane log for evidence: {log}: {error}") from error
+    retained: list[dict[str, Any]] = []
+    owners: set[tuple[str, str]] = set()
+    junit_copies: Counter[tuple[str, str]] = Counter()
+    if report is not None and report.is_file():
+        try:
+            root = ET.parse(report).getroot()
+        except (OSError, ET.ParseError) as error:
+            raise QaError(f"cannot read JUnit physical evidence: {report}: {error}") from error
+        for case in root.iter("testcase"):
+            owner = case.get("name")
+            if not isinstance(owner, str) or not owner:
+                raise QaError("JUnit physical evidence has no owning testcase")
+            for output in case.findall("system-out"):
+                for name, receipt, encoded in parse((output.text or "").splitlines()):
+                    key = (owner, name)
+                    if key in owners:
+                        raise QaError(f"embedded QA receipt is duplicated within testcase {owner!r}: {name!r}")
+                    owners.add(key)
+                    retained.append({"test": owner, "name": name, "receipt": receipt})
+                    junit_copies[(name, encoded)] += 1
+
+    # A failed test's exact output can occur in both JUnit and the lane log.
+    # Reconcile transport copies by multiplicity without merging observations
+    # from different testcases or assigning an owner to log-only evidence.
+    available_copies = junit_copies.copy()
+    junit_names = {name for name, _ in junit_copies}
+    unowned_names: set[str] = set()
+    for name, receipt, encoded in parse(log_lines):
+        key = (name, encoded)
+        if available_copies[key]:
+            available_copies[key] -= 1
+        elif name in junit_names:
+            if key in junit_copies:
+                raise QaError(f"embedded QA receipt transport copy is duplicated: {name!r}")
+            raise QaError(f"embedded QA receipt differs between retained outputs: {name!r}")
+        else:
+            if name in unowned_names:
+                raise QaError(f"embedded QA receipt name is duplicated in unowned lane output: {name!r}")
+            unowned_names.add(name)
+            retained.append({"test": None, "name": name, "receipt": receipt})
+    return retained
 
 
 def first_failure(
@@ -528,6 +555,7 @@ def run_ctest_lane(
     ctest: str,
     parallel_jobs: int,
     required_receipts: Sequence[str] = (),
+    required_receipts_by_test: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     if not names:
         raise QaError(f"custom-stack QA lane {lane!r} has no executable tests")
@@ -582,6 +610,14 @@ def run_ctest_lane(
     evidence_verified = False
     try:
         retained_receipts = embedded_receipts(log, report)
+        observed_pairs = {(row["test"], row["name"]) for row in retained_receipts}
+        missing_owned_receipts = sorted(
+            (owner, name)
+            for owner, required in (required_receipts_by_test or {}).items()
+            for name in required if (owner, name) not in observed_pairs
+        )
+        if missing_owned_receipts:
+            raise QaError(f"required physical QA receipts are absent from their owning tests: {missing_owned_receipts}")
         missing_receipts = set(required_receipts) - {row["name"] for row in retained_receipts}
         if missing_receipts:
             raise QaError(f"required physical QA receipts are absent: {sorted(missing_receipts)}")
@@ -617,6 +653,7 @@ def run_ctest_lane(
         "executed_tests": executed_names,
         "selection_verified": selection_verified,
         "evidence_receipts_verified": evidence_verified,
+        "required_receipts_by_test": required_receipts_by_test or {},
         "embedded_receipts": retained_receipts,
         "command": command,
         "started_at_utc": started,
@@ -655,6 +692,19 @@ def execute_plan(
         not isinstance(value, str) or not value for value in required_receipts
     ):
         raise QaError("plan required_physical_receipts is invalid")
+    required_by_test = plan.get("required_physical_receipts_by_test", {})
+    if not isinstance(required_by_test, dict):
+        raise QaError("plan required_physical_receipts_by_test is invalid")
+    for owner, required in required_by_test.items():
+        if (not isinstance(owner, str) or owner not in selected or
+            not isinstance(required, list) or not required or
+            any(not isinstance(name, str) or not name for name in required) or
+            len(set(required)) != len(required)):
+            raise QaError("plan required_physical_receipts_by_test has an invalid owner or receipt list")
+    if "required_physical_receipts_by_test" in plan and set(required_receipts) != {
+        name for required in required_by_test.values() for name in required
+    }:
+        raise QaError("plan required physical receipt inventory differs from owning tests")
     available = ctest_names(build_directory, ctest)
     missing = sorted((set(core) | set(selected)) - available)
     if missing:
@@ -707,6 +757,7 @@ def execute_plan(
             ctest=ctest,
             parallel_jobs=parallel_jobs,
             required_receipts=required_receipts if lane == "selected-physical" else (),
+            required_receipts_by_test=required_by_test if lane == "selected-physical" else {},
         )
         result["lanes"].append(lane_result)
         if lane_result["result"] != "passed":

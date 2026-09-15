@@ -25,7 +25,8 @@
       ],
       "covered_dimensions": [
         "provider identity span ranges parentage kind depth flags and exact media-type bytes survive source admission as structural witness state rather than content identity",
-        "each structural witness is bound to a canonical known-entity or prior-result reference relocated into the enclosing source working set",
+        "each content-bearing structural witness is bound to a canonical known-entity or prior-result reference relocated into the enclosing source working set",
+        "explicit MISSING and EMPTY observations retain no canonical content; missing or inconsistent presence bitmaps and fabricated content references are rejected",
         "witness metadata cannot alter canonical relationship metadata multiplicity or flags"
       ]
     },

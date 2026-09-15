@@ -143,12 +143,14 @@ TEST(TabularRecursiveMerge, RetainsWitnessMetadataBoundToCanonicalContent) {
         Request(0u, 2u, 99u, 0x20u)}};
     const std::array<laplace_composition_operand, 2> SpanReferences{{
         Prior(0u), Known(1u)}};
+    const std::array<std::uint8_t, 2> SpanHasContent{{1u, 1u}};
 
     laplace_decomposition_composition_plan_view source{};
     source.atom_positions = SourceAtoms.data();
     source.operands = SourceOperands.data();
     source.requests = SourceRequests.data();
     source.span_references = SpanReferences.data();
+    source.span_has_content = SpanHasContent.data();
     source.atom_count = SourceAtoms.size();
     source.operand_count = SourceOperands.size();
     source.request_count = SourceRequests.size();
@@ -239,6 +241,39 @@ TEST(TabularRecursiveMerge, RetainsWitnessMetadataBoundToCanonicalContent) {
             reinterpret_cast<const char*>(media_types.data() + second_offset),
             static_cast<std::size_t>(witnesses[1].media_type_byte_count)),
         MediaType);
+
+    // Absence is explicit provider data; it must never acquire a fake content
+    // operand or be accepted through a missing content-presence bitmap.
+    const auto append = [&] {
+        return laplace::internal::AppendRecursiveDecompositionWitnesses(
+            destination_atoms, RequestBase, source, 3u, trace,
+            spans.data(), spans.size(), witnesses, media_types);
+    };
+    source.span_has_content = nullptr;
+    EXPECT_EQ(append(), LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID);
+    EXPECT_EQ(witnesses.size(), 2u);
+    std::array<std::uint8_t, 2> absent_content{{1u, 0u}};
+    source.span_has_content = absent_content.data();
+    EXPECT_EQ(append(), LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID);
+    EXPECT_EQ(witnesses.size(), 2u);
+    std::array<laplace_composition_operand, 2> absent_references{{Prior(0u), {}}};
+    source.span_references = absent_references.data();
+    spans[1].byte_end = spans[1].byte_start;
+    spans[1].flags = 0u;
+    for (const auto flag : {LAPLACE_DECOMPOSITION_SYNTAX_MISSING,
+                           LAPLACE_DECOMPOSITION_SYNTAX_EMPTY}) {
+        witnesses.clear();
+        media_types.clear();
+        spans[1].syntax_flags = static_cast<std::uint32_t>(flag);
+        ASSERT_EQ(append(), LAPLACE_TABULAR_SOURCE_OK);
+        ASSERT_EQ(witnesses.size(), 2u);
+        EXPECT_EQ(witnesses[1].canonical_content.multiplicity, 0u);
+        EXPECT_EQ(witnesses[1].syntax_flags, static_cast<std::uint32_t>(flag));
+        absent_references[1] = Known(0u);
+        EXPECT_EQ(append(), LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID);
+        EXPECT_EQ(witnesses.size(), 2u);
+        absent_references[1] = {};
+    }
 }
 
 TEST(TabularRecursiveMerge, RejectsForwardCanonicalResultReferences) {
