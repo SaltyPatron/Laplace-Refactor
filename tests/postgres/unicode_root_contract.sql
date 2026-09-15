@@ -2,6 +2,7 @@
 
 CREATE EXTENSION laplace;
 \ir highway_revalidation_bindings.sql
+\echo LAPLACE_HIGHWAY_REVALIDATION_BINDINGS_OK
 
 CREATE FUNCTION pg_temp.unicode_root_context()
 RETURNS laplace.execution_context
@@ -715,6 +716,8 @@ SELECT verification_receipt FROM laplace.highway_registry_revalidate_committed(
     pg_temp.highway_revalidation_context(), 1048576::numeric);
 ROLLBACK;
 
+CREATE TEMP TABLE highway_revalidation_rejections(mutation text PRIMARY KEY, detail text NOT NULL);
+
 CREATE FUNCTION pg_temp.highway_revalidation_rejects(mutation text, expected_detail text)
 RETURNS void LANGUAGE plpgsql VOLATILE PARALLEL UNSAFE AS $test$
 BEGIN
@@ -727,6 +730,8 @@ BEGIN
         IF position(expected_detail IN SQLERRM) = 0 THEN
             RAISE EXCEPTION 'wrong rejection for %: %', expected_detail, SQLERRM;
         END IF;
+        INSERT INTO highway_revalidation_rejections VALUES(mutation,expected_detail);
+        RAISE NOTICE 'LAPLACE_HIGHWAY_REVALIDATION_REJECTED detail=% mutation=%', expected_detail, mutation;
     END;
 END
 $test$;
@@ -792,6 +797,9 @@ BEGIN
     IF pg_temp.highway_revalidation_state() <> (SELECT state FROM highway_revalidation_before) THEN
         RAISE EXCEPTION 'negative controls or caller rollback changed committed Highway state';
     END IF;
+    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 18 THEN
+        RAISE EXCEPTION 'committed Highway corruption controls did not all execute';
+    END IF;
     BEGIN
         -- Forward verification must not change the existing activation law.
         context := pg_temp.highway_registry_read_context();
@@ -808,3 +816,22 @@ BEGIN
     END;
 END
 $revalidation$;
+
+\pset format unaligned
+\pset tuples_only on
+SELECT 'LAPLACE_QA_RECEIPT highway_committed_revalidation ' || json_build_object(
+    'schema','laplace.highway-committed-revalidation-test/v1',
+    'verification_receipt',encode(verification_receipt,'hex'),
+    'registry_epoch_fingerprint',encode(registry_epoch_fingerprint,'hex'),
+    'activation_sequence',activation_sequence,
+    'caller_commit_preserved_state',true,
+    'caller_rollback_preserved_state',true,
+    'corruption_controls',(SELECT count(*) FROM highway_revalidation_rejections),
+    'rejections',(SELECT json_agg(r ORDER BY mutation) FROM highway_revalidation_rejections r),
+    'binding_checks',(SELECT json_agg(check_name ORDER BY check_name) FROM highway_revalidation_binding_checks),
+    'activation_performed',activation_performed,
+    'historical_admission_distinct_from_final',stored_admission_receipt<>stored_activation_receipt,
+    'status',status)::text AS highway_revalidation_test_receipt
+FROM highway_revalidation_first;
+\pset tuples_only off
+\pset format aligned

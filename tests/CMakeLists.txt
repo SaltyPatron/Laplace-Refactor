@@ -3198,6 +3198,27 @@ if(LAPLACE_POSTGRES_ENABLED)
         RUN_SERIAL TRUE)
 
     add_test(
+        NAME postgres.highway-committed-revalidation-contract
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+            "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            unicode-root
+            "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>"
+            "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(
+        postgres.highway-committed-revalidation-contract PROPERTIES
+        LABELS "implementation;postgresql;highway;unicode;revalidation;rollback;receipt"
+        RUN_SERIAL TRUE
+        TIMEOUT 900)
+
+    add_test(
         NAME postgres.source-admission-suite-whole-route-contract
         COMMAND "${CMAKE_COMMAND}" -E env
             "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"

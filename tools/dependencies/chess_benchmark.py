@@ -265,14 +265,30 @@ def powers(limit: int) -> list[int]:
 
 def plan(arguments: argparse.Namespace, host: dict, options: dict) -> dict:
     cpu = arguments.cpu_budget if arguments.cpu_budget is not None else math.floor(host["effective_cpu_equivalents"])
-    memory = arguments.memory_mib or max(1, host["effective_memory_headroom_bytes"] // MIB - arguments.reserve_memory_mib)
     tools.require(0 < cpu <= host["effective_cpu_equivalents"], "CPU budget exceeds the observed affinity/quota boundary or less than one full CPU equivalent is available")
-    tools.require(memory > 0 and memory * MIB <= host["effective_memory_headroom_bytes"], "memory budget exceeds current effective headroom")
     if not host["cgroups"]:
         tools.require(arguments.cpu_budget is not None and arguments.memory_mib is not None, "unobserved cgroup limits require explicit CPU and memory budgets")
     threads = integer_list(arguments.threads) if arguments.threads else powers(math.floor(cpu))
     hashes = integer_list(arguments.hash_mib)
     concurrency = integer_list(arguments.concurrency) if arguments.concurrency else powers(max(1, math.floor(cpu / arguments.game_threads)))
+    if arguments.memory_mib is None:
+        # Available host memory is a ceiling, not the sweep's working grant.
+        # Charging nearly all available memory made unrelated background growth
+        # invalidate a small completed experiment at the ending-headroom check.
+        available = host["effective_memory_headroom_bytes"] // MIB - arguments.reserve_memory_mib
+        tools.require(available > 0, "memory reserve leaves no experiment headroom")
+        demands = [hash_mib + arguments.engine_overhead_mib for count, hash_mib in itertools.product(threads, hashes)
+                   if count <= min(cpu, int(options["Threads"]["max"])) and hash_mib <= int(options["Hash"]["max"])]
+        demands += [2 * count * (arguments.game_hash_mib + arguments.engine_overhead_mib) for count in concurrency
+                    if count <= arguments.games and count * arguments.game_threads <= cpu
+                    and arguments.game_threads <= int(options["Threads"]["max"]) and arguments.game_hash_mib <= int(options["Hash"]["max"])]
+        fitted_demand = max((demand for demand in demands if demand <= available), default=0)
+        memory = min(available, fitted_demand + arguments.reserve_memory_mib)
+        memory_selection = "largest fitting sweep resident estimate plus explicit margin, capped below observed headroom"
+    else:
+        memory = arguments.memory_mib
+        memory_selection = "explicit caller budget"
+    tools.require(memory > 0 and memory * MIB <= host["effective_memory_headroom_bytes"], "memory budget exceeds current effective headroom")
     rejected, serial, games = [], [], []
     for count, hash_mib in itertools.product(threads, hashes):
         value = {"threads": count, "hash_mib": hash_mib}
@@ -288,7 +304,8 @@ def plan(arguments: argparse.Namespace, host: dict, options: dict) -> dict:
         else:
             games.append(value)
     tools.require(serial and games, "no configuration fits the observed resource grant")
-    return {"cpu_budget": cpu, "memory_mib": memory, "resident_engine_overhead_estimate_mib": arguments.engine_overhead_mib, "memory_estimate_is_measurement": False, "ponder": False, "stockfish": serial, "cutechess": games, "rejected": rejected}
+    resident_estimate = max([item["hash_mib"] + arguments.engine_overhead_mib for item in serial] + [item["estimated_resident_memory_mib"] for item in games])
+    return {"cpu_budget": cpu, "memory_mib": memory, "memory_budget_selection": memory_selection, "estimated_peak_resident_mib": resident_estimate, "memory_margin_mib": max(0, memory - resident_estimate), "requested_reserve_memory_mib": arguments.reserve_memory_mib, "resident_engine_overhead_estimate_mib": arguments.engine_overhead_mib, "memory_estimate_is_measurement": False, "ponder": False, "stockfish": serial, "cutechess": games, "rejected": rejected}
 
 
 def stability_failures(before: dict, after: dict, initial_files: dict, final_files: dict, resource_plan: dict) -> list[str]:
@@ -338,7 +355,7 @@ def main() -> int:
     parser.add_argument("--concurrency")
     parser.add_argument("--cpu-budget", type=int)
     parser.add_argument("--memory-mib", type=int)
-    parser.add_argument("--reserve-memory-mib", type=int, default=512)
+    parser.add_argument("--reserve-memory-mib", type=int, default=512, help="automatic budget: retain this host headroom and add up to this margin above estimated peak sweep residency")
     parser.add_argument("--engine-overhead-mib", type=int, default=256)
     parser.add_argument("--samples", type=int, default=3)
     parser.add_argument("--warmups", type=int, default=1)

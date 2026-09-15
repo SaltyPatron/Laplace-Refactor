@@ -1976,6 +1976,12 @@
       "defect_controls": ["a fixed 16384-record batch leaves at least one full encoded record unused and fails the saturation assertion", "missing coordinate occurrence or receipt-member persistence fails exact durable counts"]
     },
     {
+      "ctest_name": "postgres.highway-committed-revalidation-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
+      "covered_dimensions": ["current committed-registry verification through the actual PostgreSQL extension", "caller COMMIT and ROLLBACK preserve canonical and retained state", "root and nested trajectory corruption is rejected", "original admission and final receipt identities remain distinct", "private native binding upgrade and corruption controls"]
+    },
+    {
       "ctest_name": "postgres.spi-isa-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ISA-COVERAGE", "LP-TEST-ISA-RECEIPT", "LP-TEST-IDENTITY-CROSS-ROUTE", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-STRUCTURAL-RELATIONS", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-TRAJECTORY-INDEX-EXACT-DECODE", "LP-TEST-FRAMEWORK-SINK-PROVIDER", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-OCCURRENCE-PRESERVATION", "LP-TEST-PERFCACHE-ACTIVATION-EPOCH", "LP-TEST-PERFCACHE-EPOCH-PINNED-READERS", "LP-TEST-PERFCACHE-RESTART-FREE-REPLACEMENT", "LP-TEST-PERFCACHE-OLD-GENERATION-DRAIN", "LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-HIGHWAY-AUTHORITY-RELEASE-COLLISION", "LP-TEST-HIGHWAY-NONLANGUAGE-OPERATION", "LP-TEST-EPISTEMIC-KIND-SEPARATION", "LP-TEST-DERIVATION-LINEAGE-CLOSURE", "LP-TEST-DERIVATION-NONAMPLIFICATION", "LP-TEST-CIRCULAR-EVIDENCE-REJECTION", "LP-TEST-EVIDENCE-DEPENDENCE"],

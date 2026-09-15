@@ -73,6 +73,21 @@ class CustomStackQaTests(unittest.TestCase):
             ],
         )
 
+    def test_highway_revalidation_runs_without_manual_source_acceptance(self) -> None:
+        name = "postgres.highway-committed-revalidation-contract"
+        for path in (
+            "integrations/postgresql/extension/src/highway_registry_revalidate_pg.inc",
+            "tests/postgres/unicode_root_contract.sql",
+            "engine/src/persistence.c",
+        ):
+            with self.subTest(path=path):
+                plan = self.plan(path)
+                self.assertEqual(plan["selected_physical_tests"], [name])
+                self.assertNotIn(name, plan["core_tests"])
+                self.assertFalse(plan["source_acceptance_authorized"])
+                self.assertNotIn(name, plan["manual_source_acceptance_tests"])
+                self.assertEqual(plan["required_physical_receipts"], ["highway_committed_revalidation"])
+
     def test_perfcache_change_selects_hot_lookup_boundary_once(self) -> None:
         plan = self.plan("engine/src/perfcache.cpp")
         self.assertEqual(
@@ -342,6 +357,59 @@ raise SystemExit(exit_code)
                 lane["embedded_receipts"],
                 [{"name": "postgres_source_resource_guard", "receipt": embedded}],
             )
+
+    def test_successful_junit_output_retains_required_physical_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt = {"schema": "laplace.physical-test/v1", "checks": 18}
+            marker = "LAPLACE_QA_RECEIPT physical_proof " + json.dumps(receipt)
+            fake = self._fake_ctest(
+                root, inventory=["selected.physical"], output="",
+                junit=("<testsuite><testcase name=\"selected.physical\" time=\"0.2\">"
+                       "<system-out><![CDATA[" + marker + "]]></system-out>"
+                       "</testcase></testsuite>"),
+            )
+            plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                    "selected_physical_tests": ["selected.physical"],
+                    "required_physical_receipts": ["physical_proof"]}
+            result = root / "result.json"
+            self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", result, str(fake)), 0)
+            lane = json.loads(result.read_text())["lanes"][0]
+            self.assertEqual(lane["embedded_receipts"], [{"name": "physical_proof", "receipt": receipt}])
+            self.assertTrue(lane["evidence_receipts_verified"])
+
+    def test_missing_required_receipt_turns_successful_test_red(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake = self._fake_ctest(root, inventory=["selected.physical"], output="",
+                junit='<testsuite><testcase name="selected.physical"/></testsuite>')
+            plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                    "selected_physical_tests": ["selected.physical"],
+                    "required_physical_receipts": ["physical_proof"]}
+            self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", root / "result.json", str(fake)), qa.EVIDENCE_RECEIPT_EXIT)
+
+    def test_receipt_transport_duplicates_require_exact_equal_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            log, report = root / "lane.log", root / "lane.xml"
+            marker = 'LAPLACE_QA_RECEIPT proof {"schema":"laplace.proof/v1","count":18}'
+            log.write_text(marker + "\n")
+            report.write_text('<testsuite><testcase name="physical"><system-out>' + marker + '</system-out></testcase></testsuite>')
+            self.assertEqual(len(qa.embedded_receipts(log, report)), 1)
+            report.write_text(report.read_text().replace('"count":18', '"count":17'))
+            with self.assertRaisesRegex(qa.QaError, "differs between retained outputs"):
+                qa.embedded_receipts(log, report)
+            for left, right in (("true", "1"), ("false", "0")):
+                with self.subTest(left=left, right=right):
+                    log.write_text(marker.replace('"count":18', '"count":' + left) + "\n")
+                    report.write_text('<testsuite><testcase name="physical"><system-out>' +
+                                      marker.replace('"count":18', '"count":' + right) +
+                                      '</system-out></testcase></testsuite>')
+                    with self.assertRaisesRegex(qa.QaError, "differs between retained outputs"):
+                        qa.embedded_receipts(log, report)
+            log.write_text(marker + "\n" + marker + "\n")
+            with self.assertRaisesRegex(qa.QaError, "duplicated"):
+                qa.embedded_receipts(log)
 
     def test_malformed_embedded_receipt_turns_zero_exit_red(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -23,6 +23,14 @@
   },
   "isolated_tests": [
     {
+      "ctest_name": "postgres.highway-committed-revalidation-contract",
+      "profile": "highway-committed-revalidation",
+      "required_receipts": ["highway_committed_revalidation"],
+      "order": 5,
+      "resource_class": "postgresql-unicode-registry-integrity",
+      "reason": "actual native committed-state revalidation and corruption/rollback proof on a disposable Unicode and Highway generation"
+    },
+    {
       "ctest_name": "postgres.composition-whole-boundary-measurement",
       "profile": "composition-boundary",
       "order": 10,
@@ -62,6 +70,27 @@
     }
   ],
   "selection_rules": [
+    {
+      "id": "highway-committed-revalidation",
+      "patterns": [
+        "contracts/highway-committed-revalidation.json",
+        "contracts/isa.json",
+        "cmake/LaplacePostgreSQLBindings.cmake",
+        "engine/src/framework.c",
+        "engine/include/laplace/framework.h",
+        "engine/src/persistence.c",
+        "engine/include/laplace/persistence.h",
+        "integrations/postgresql/extension/src/highway_registry*",
+        "integrations/postgresql/extension/src/composition_pg.*",
+        "integrations/postgresql/extension/highway_committed_revalidation.sql.in",
+        "integrations/postgresql/extension/laplace--version.sql.in",
+        "tests/postgres/highway_revalidation_bindings.sql.in",
+        "tests/postgres/unicode_root_contract.sql",
+        "tests/postgres/run_spi_test.sh",
+        "tools/postgresql/highway_revalidation.py"
+      ],
+      "profiles": ["highway-committed-revalidation"]
+    },
     {
       "id": "unicode-hot-performance",
       "patterns": [

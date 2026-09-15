@@ -82,6 +82,46 @@ class ChessBenchmarks(unittest.TestCase):
         with self.assertRaisesRegex(BENCH.tools.ChessToolError, "CPU budget exceeds"):
             BENCH.plan(arguments, self.host(), self.options())
 
+    def test_automatic_memory_grant_covers_sweep_not_all_host_headroom(self):
+        arguments = self.arguments()
+        arguments.memory_mib = None
+        arguments.cpu_budget = 12
+        arguments.threads = None
+        arguments.concurrency = None
+        arguments.hash_mib = "16,64,256"
+        arguments.games = 16
+        host = {**self.host(), "effective_cpu_equivalents": 12, "effective_memory_headroom_bytes": 80 * 1024 * BENCH.MIB}
+        result = BENCH.plan(arguments, host, self.options())
+        self.assertEqual(result["estimated_peak_resident_mib"], 6528)
+        self.assertEqual(result["memory_mib"], 7040)
+        self.assertEqual(result["memory_margin_mib"], 512)
+        self.assertFalse(result["memory_estimate_is_measurement"])
+        # Background growth consumes 8 GiB; the admitted experiment still fits.
+        after = {**host, "effective_memory_headroom_bytes": 72 * 1024 * BENCH.MIB}
+        self.assertEqual(BENCH.stability_failures(host, after, {"engine": "same"}, {"engine": "same"}, result), [])
+        # Deliberate break: a 6 GiB ending headroom cannot cover its 7040 MiB grant.
+        unsafe = {**host, "effective_memory_headroom_bytes": 6 * 1024 * BENCH.MIB}
+        self.assertIn("ending memory headroom", BENCH.stability_failures(host, unsafe, {"engine": "same"}, {"engine": "same"}, result)[0])
+
+    def test_automatic_budget_does_not_fund_ineligible_or_unfittable_cases(self):
+        arguments = self.arguments()
+        arguments.memory_mib = None
+        arguments.hash_mib = "16,999999"
+        arguments.concurrency = "1,16"
+        result = BENCH.plan(arguments, self.host(), self.options())
+        self.assertEqual(result["memory_mib"], 1056)
+        self.assertEqual([item["concurrency"] for item in result["cutechess"]], [1])
+        self.assertTrue(all(item["hash_mib"] == 16 for item in result["stockfish"]))
+
+    def test_automatic_budget_honors_host_reserve_and_explicit_zero_is_invalid(self):
+        arguments = self.arguments()
+        arguments.memory_mib = None
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, "reserve leaves no"):
+            BENCH.plan(arguments, {**self.host(), "effective_memory_headroom_bytes": 512 * BENCH.MIB}, self.options())
+        arguments.memory_mib = 0
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, "memory budget"):
+            BENCH.plan(arguments, self.host(), self.options())
+
     def test_fractional_sub_cpu_capacity_is_not_rounded_up(self):
         host = {**self.host(), "effective_cpu_equivalents": 0.5}
         for budget in (None, 1):

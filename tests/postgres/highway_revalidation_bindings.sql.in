@@ -5,6 +5,7 @@ SELECT row_to_json(p)::text AS function_record, row_to_json(t)::text AS type_rec
 FROM pg_catalog.pg_proc p CROSS JOIN pg_catalog.pg_type t
 WHERE p.oid='laplace.highway_registry_revalidate_committed(laplace.execution_context,numeric)'::regprocedure
   AND t.oid='laplace.highway_registry_revalidation_result'::regtype;
+CREATE TEMP TABLE highway_revalidation_binding_checks(check_name text PRIMARY KEY);
 
 BEGIN;
 ALTER EXTENSION laplace DROP FUNCTION laplace.highway_registry_revalidate_committed(laplace.execution_context,numeric);
@@ -27,6 +28,8 @@ BEGIN
     END IF;
 END $verify_upgrade$;
 ROLLBACK;
+INSERT INTO highway_revalidation_binding_checks VALUES('repeated-native-binding-upgrade');
+\echo LAPLACE_HIGHWAY_REVALIDATION_BINDING_UPGRADE_OK
 
 DO $reject_binding_corruption$
 DECLARE
@@ -42,6 +45,8 @@ BEGIN
         detected := true;
     END;
     IF NOT detected THEN RAISE EXCEPTION 'renamed native result member was accepted'; END IF;
+    INSERT INTO highway_revalidation_binding_checks VALUES('renamed-result-member-rejected');
+    RAISE NOTICE 'LAPLACE_HIGHWAY_REVALIDATION_BINDING_REJECTED renamed-result-member';
     detected := false;
     BEGIN
         ALTER FUNCTION laplace.highway_registry_revalidate_committed(laplace.execution_context,numeric) SECURITY DEFINER;
@@ -51,6 +56,8 @@ BEGIN
         detected := true;
     END;
     IF NOT detected THEN RAISE EXCEPTION 'elevated native verifier was accepted'; END IF;
+    INSERT INTO highway_revalidation_binding_checks VALUES('security-definer-function-rejected');
+    RAISE NOTICE 'LAPLACE_HIGHWAY_REVALIDATION_BINDING_REJECTED security-definer-function';
     detected := false;
     BEGIN
         ALTER EXTENSION laplace DROP FUNCTION laplace.highway_registry_revalidate_committed(laplace.execution_context,numeric);
@@ -60,6 +67,8 @@ BEGIN
         detected := true;
     END;
     IF NOT detected THEN RAISE EXCEPTION 'unowned native verifier was accepted'; END IF;
+    INSERT INTO highway_revalidation_binding_checks VALUES('detached-extension-function-rejected');
+    RAISE NOTICE 'LAPLACE_HIGHWAY_REVALIDATION_BINDING_REJECTED detached-extension-function';
 END $reject_binding_corruption$;
 
 DO $verify_metadata_unchanged$

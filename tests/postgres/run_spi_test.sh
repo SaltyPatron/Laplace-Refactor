@@ -94,9 +94,12 @@ if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
 fi
-if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     statement_timeout_ms=${LAPLACE_POSTGRES_STATEMENT_TIMEOUT_MS:-60000}
+    if [[ "$mode" == "unicode-root" ]]; then
+        statement_timeout_ms=${LAPLACE_POSTGRES_UNICODE_BOOTSTRAP_TIMEOUT_MS:-300000}
+    fi
     temporary_file_limit_kb=${LAPLACE_POSTGRES_TEMP_FILE_LIMIT_KB:-524288}
     if [[ ! "$statement_timeout_ms" =~ ^[1-9][0-9]*$ ||
           ! "$temporary_file_limit_kb" =~ ^[1-9][0-9]*$ ]]; then
@@ -495,7 +498,7 @@ if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
 fi
 
 psql_command=("$pg_bindir/psql" "${psql_arguments[@]}")
-if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     psql_command+=(-c "SET statement_timeout = '$statement_timeout_ms ms'")
 fi
@@ -504,12 +507,19 @@ if [[ -n "${variable_file:-}" ]]; then
 fi
 psql_command+=(-f "$sql_file")
 
-if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     source_max_wall_seconds=${LAPLACE_POSTGRES_MAX_WALL_SECONDS:-60}
     source_max_data_bytes=${LAPLACE_POSTGRES_MAX_DATA_BYTES:-1073741824}
     source_max_wal_bytes=${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}
     source_max_workspace_bytes=${LAPLACE_POSTGRES_MAX_WORKSPACE_BYTES:-2147483648}
+    if [[ "$mode" == "unicode-root" ]]; then
+        postmaster_pid=$(head -n 1 -- "$data_directory/postmaster.pid")
+        source_max_wall_seconds=${LAPLACE_POSTGRES_UNICODE_MAX_WALL_SECONDS:-300}
+        source_max_data_bytes=${LAPLACE_POSTGRES_UNICODE_MAX_DATA_BYTES:-8589934592}
+        source_max_wal_bytes=${LAPLACE_POSTGRES_UNICODE_MAX_WAL_BYTES:-8589934592}
+        source_max_workspace_bytes=${LAPLACE_POSTGRES_UNICODE_MAX_WORKSPACE_BYTES:-12884901888}
+    fi
     if [[ "$mode" == "source-admission-suite" ]]; then
         source_max_wall_seconds=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WALL_SECONDS:-180}
         source_max_data_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_DATA_BYTES:-3221225472}
