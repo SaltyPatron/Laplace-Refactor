@@ -34,9 +34,12 @@ def fixtures():
     for index,item in enumerate(manifest['artifacts']):
         records.append({'path':item['path'],'sha256':item['sha256'],'output_bytes':item['byte_count'],
             'artifact_index':index,'source_profile_id':admission['profile_id'],
-            **{field:'\\x'+str(index+1)*64 for field in ('root_content_id','source_binding_id',
-                'recipe_id','structural_receipt_id','materialization_receipt_id')},
-            'database_operations':5})
+            'root_content_id':'\\x'+str(index+1)*32,
+            **{field:'\\x'+str(index+1)*64 for field in ('source_binding_id','materialization_receipt_id',
+                'provider_fingerprint','readset_fingerprint','output_fingerprint')},
+            'recipe_id':'\\x'+'5'*64,'structural_receipt_id':'\\x'+'6'*64,
+            'resolved_nodes':3,'trajectory_carriers':1,'codepoint_count':item['byte_count'],
+            'maximum_depth':2,'verified_witnesses':13,'version':1,'database_operations':5})
     result={'schema':'laplace.admit-source/v1','phase':'source-admitted-and-exactly-read-back',
         'profile':'verified-git-code','active_package_id':package,'tool_release':active['release'],
         'executable_semantics_verified':False,'verified_git_input':{'manifest':manifest},
@@ -70,6 +73,38 @@ class ReadbackTests(unittest.TestCase):
         second['readback']['records'][0].update(database_operations=1,materialization_receipt_id='\\x'+'8'*64)
         subject.verify_repeat(self.first,second,self.manifest,self.active)
 
+    def test_every_native_metadata_field_is_required(self):
+        for field in subject.READBACK_FIELDS:
+            with self.subTest(field=field):
+                self.check_bad(lambda r:r['readback']['records'][0].pop(field),'complete result contract')
+
+    def test_native_identity_width_and_nonzero_are_required(self):
+        for field in ('root_content_id',*subject.READBACK_DIGEST_FIELDS):
+            width=64 if field=='root_content_id' else 32
+            for value in ('\\x'+'1'*width,'\\x'+'0'*(32 if field=='root_content_id' else 64)):
+                with self.subTest(field=field,value=value):
+                    self.check_bad(lambda r:r['readback']['records'][0].__setitem__(field,value),
+                        'identity|bytes, path, order or profile')
+
+    def test_native_metadata_counters_have_exact_types_and_bounds(self):
+        for field in subject.READBACK_COUNT_FIELDS:
+            for value in (False,-1,1.5):
+                with self.subTest(field=field,value=value):
+                    self.check_bad(lambda r:r['readback']['records'][0].__setitem__(field,value),'invalid count')
+        for field,value in (('version',2),('maximum_depth',257),('codepoint_count',4),('verified_witnesses',14)):
+            with self.subTest(field=field):
+                self.check_bad(lambda r:r['readback']['records'][0].__setitem__(field,value),'inconsistent|structural receipt')
+
+    def test_rows_cannot_mix_structural_receipts_or_repeat_artifact_bindings(self):
+        for field in ('structural_receipt_id','recipe_id'):
+            with self.subTest(field=field):
+                self.check_bad(lambda r:r['readback']['records'][1].__setitem__(field,'\\x'+'7'*64),'structural receipt')
+        self.check_bad(lambda r:r['readback']['records'][1].__setitem__('source_binding_id',
+            r['readback']['records'][0]['source_binding_id']),'artifact source binding')
+
+    def test_repeated_bytes_require_same_native_output_identity(self):
+        self.check_bad(lambda r:r['readback']['records'][0].__setitem__('output_fingerprint','\\x'+'7'*64),'source root')
+
     def test_missing_file_is_rejected(self):
         self.check_bad(lambda r:r['readback']['records'].pop(),'omitted or repeated')
 
@@ -99,10 +134,14 @@ class ReadbackTests(unittest.TestCase):
     def test_each_scoped_amplification_is_rejected(self):
         for key in ('source_occurrence_count','structural_witness_count'):
             with self.subTest(key=key):
-                self.check_bad(lambda r:r['readback'].__setitem__(key,999),'amplified persistent')
+                def amplify(result):
+                    result['readback'][key]=999
+                    if key=='structural_witness_count':
+                        for row in result['readback']['records']:row['verified_witnesses']=999
+                self.check_bad(amplify,'amplified persistent')
 
     def test_changed_canonical_file_root_is_rejected(self):
-        self.check_bad(lambda r:r['readback']['records'][0].__setitem__('root_content_id','\\x'+'9'*64),'source root')
+        self.check_bad(lambda r:r['readback']['records'][0].__setitem__('root_content_id','\\x'+'9'*32),'source root')
 
     def test_changed_product_package_is_rejected(self):
         self.check_bad(lambda r:r.__setitem__('active_package_id','9'*64),'current-package')
@@ -211,6 +250,35 @@ class PackageTests(unittest.TestCase):
 
 
 class LoadedPlanTests(unittest.TestCase):
+    def test_runtime_selection_uses_activated_build_receipt_independent_of_stockfish_location(self):
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            root=Path(directory);runtime=root/'actual-runtime';runtime.mkdir()
+            stockfish=root/'operator'/'SF_19';stockfish.mkdir(parents=True)
+            retained={'path':str(runtime),'tree_sha256':'1'*64,'file_count':5,
+                'symlink_count':0,'directory_count':2,'total_file_bytes':999}
+            active={'package_id':'2'*64,'manifest':{'provenance':{'build_input_closure':{
+                'schema':'laplace.product-build-input-closure-receipt/v1','complete':True,
+                'build_input_roots':{'tree-sitter':retained}}}}}
+            result=subject.select_runtime_root(active,None)
+            self.assertEqual(result['runtime_root'],str(runtime))
+            self.assertNotEqual(Path(result['runtime_root']),stockfish.parent/'tree-sitter')
+            self.assertEqual(result['activated_package_build_input'],retained)
+            explicit=root/'qualified-copy';explicit.mkdir()
+            result=subject.select_runtime_root(active,explicit)
+            self.assertEqual(result['runtime_root'],str(explicit))
+            self.assertEqual(result['selection'],'explicit-runtime-root')
+            self.assertEqual(result['activated_package_build_input'],retained)
+            for missing in ('complete','tree-sitter'):
+                bad=copy.deepcopy(active)
+                closure=bad['manifest']['provenance']['build_input_closure']
+                if missing=='complete':closure['complete']=False
+                else:closure['build_input_roots'].pop('tree-sitter')
+                with self.subTest(missing=missing),self.assertRaisesRegex(ValueError,'activated package'):
+                    subject.select_runtime_root(bad,None)
+            runtime.rmdir()
+            with self.assertRaisesRegex(ValueError,'runtime checkout is unavailable'):
+                subject.select_runtime_root(active,None)
+
     def test_each_native_receipt_link_rejects_another_generation(self):
         plan={'plan_sha256':'1'*64}
         cluster={'plan_sha256':plan['plan_sha256'],'activation_receipt_sha256':'2'*64}

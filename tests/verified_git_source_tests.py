@@ -173,6 +173,20 @@ class VerifiedGitSourceTests(unittest.TestCase):
         with self.assertRaises(V.GitCorpusError):
             Q.verify_source(self.checkout, locked)
 
+    def test_imported_runtime_requires_locked_archive_and_actual_tracked_bytes(self):
+        locked = self.source_lock()
+        imported_origin = str(self.root / 'verified-runtime-import')
+        self.command('remote', 'set-url', 'origin', imported_origin)
+        observed = Q.verify_source(self.checkout, locked)
+        self.assertEqual(observed['checkout_origin'], imported_origin)
+        self.assertEqual(observed['git_archive_sha256'], locked['git_archive_sha256'])
+        with self.assertRaisesRegex(V.GitCorpusError, 'archive'):
+            Q.verify_source(self.checkout, locked | {'git_archive_sha256':'00'*32})
+        self.command('update-index', '--assume-unchanged', 'src/main.h')
+        (self.checkout / 'src/main.h').write_text('constexpr int fixture = 99;\n')
+        with self.assertRaises(V.GitCorpusError):
+            Q.verify_source(self.checkout, locked)
+
     def test_grammar_build_rejects_wrong_generated_parser_before_creating_output(self):
         grammar = self.source_lock() | {'name': 'fixture',
             'generated_parsers': [{'path': 'src/main.cpp', 'sha256': '0' * 64}],
@@ -227,6 +241,18 @@ class VerifiedGitSourceTests(unittest.TestCase):
             build()
         self.assertIn(b'deliberate source fixture rejection', (output / 'build.stderr.log').read_bytes())
         self.assertFalse((output / 'build-receipt.json').exists())
+
+    @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
+    def test_real_compile_accepts_exact_imported_grammar_and_runtime(self):
+        output = self.root / 'imported-provider'
+        build = self.build_fixture(b'int fixture_value(void) { return 17; }\n', output)
+        origin = str(self.root / 'verified-source-import')
+        self.command('remote', 'set-url', 'origin', origin)
+        receipt = json.loads(build().read_bytes())
+        self.assertEqual(receipt['grammar']['checkout_origin'], origin)
+        self.assertEqual(receipt['runtime']['checkout_origin'], origin)
+        self.assertEqual(ctypes.CDLL(receipt['library']['path']).fixture_value(),17)
+        self.assertFalse(receipt['canonical_corpus_admission_completed'])
 
 
 class CommittedSourceReceiptTests(unittest.TestCase):

@@ -9,7 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from verified_git import GitCorpusError, canonical, digest, exact_file, git, require
+from verified_git import GitCorpusError, canonical, digest, exact_file, git, local_import_origin, require
 from dependencies.git_checkout import GitCheckoutError, snapshot
 
 
@@ -25,7 +25,8 @@ def tracked_files(root: Path) -> dict[str, bytes]:
 
 def verify_source(root: Path, entry: dict) -> dict:
     require(root.is_absolute() and not root.is_symlink(), "source root must be absolute and non-symlink")
-    require(git(root, "remote", "get-url", "origin").decode().strip().removesuffix(".git") == entry["upstream"].removesuffix(".git"),
+    origin = git(root, "remote", "get-url", "origin").decode().strip()
+    require(origin.removesuffix(".git") == entry["upstream"].removesuffix(".git") or local_import_origin(origin),
             "grammar/runtime origin differs from its lock")
     require(git(root, "rev-parse", "HEAD").decode().strip() == entry["revision"],
             "grammar/runtime revision differs from its lock")
@@ -38,7 +39,7 @@ def verify_source(root: Path, entry: dict) -> dict:
         require(digest(exact_file(root, notice["path"], 1024 * 1024)) == notice["sha256"],
                 "grammar/runtime license bytes changed")
     return {"upstream": entry["upstream"], "revision": entry["revision"],
-            "git_archive_sha256": archive_sha}
+            "git_archive_sha256": archive_sha, "checkout_origin": origin}
 
 
 def build(grammar_root: Path, runtime_root: Path, grammar_lock: Path,

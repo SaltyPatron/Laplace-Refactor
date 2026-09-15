@@ -132,6 +132,7 @@ class CustomStackQaTests(unittest.TestCase):
             "engine/src/tree_sitter_grammar.cpp", "engine/src/decomposition_composition.cpp",
             "integrations/postgresql/extension/src/source_admission_pg.c",
             "integrations/postgresql/extension/src/materialization_pg.c",
+            "integrations/postgresql/extension/source_observation_profile.sql.in",
             "tests/postgres/verified_cpp_source_contract.sql",
             ".github/workflows/ci.yml", ".github/workflows/custom-stack.yml",
         ):
@@ -423,12 +424,58 @@ raise SystemExit(exit_code)
         for row in contract["isolated_tests"]:
             if row["ctest_name"] in names:
                 row["required_receipts"] = ["shared_proof"]
+                row.pop("required_receipt_fields", None)
         plan = qa.build_plan(contract, ROOT, [
             "integrations/postgresql/extension/src/highway_registry_revalidate_pg.inc",
             "tests/postgres/verified_cpp_source_contract.sql"], "candidate")
         self.assertEqual(plan["required_physical_receipts"], ["shared_proof"])
         self.assertEqual(plan["required_physical_receipts_by_test"],
                          {name: ["shared_proof"] for name in names})
+
+    def test_cpp_gate_requires_all_current_control_counts_from_its_own_receipt(self) -> None:
+        owner = "postgres.verified-cpp-source-contract"
+        name = "verified_cpp_source_admission"
+        generated = self.plan("tests/postgres/verified_cpp_source_contract.sql")
+        expected = {"schema": "laplace.verified-cpp-source-acceptance/v1",
+                    "negative_controls": 13, "reconciliation_controls": 2,
+                    "profile_schema_controls": 6}
+        self.assertEqual(generated["required_physical_receipt_fields_by_test"][owner][name], expected)
+        changes = [(None, None), ("profile_schema_controls", None),
+                   ("negative_controls", 12), ("reconciliation_controls", 1),
+                   ("profile_schema_controls", 5), ("profile_schema_controls", 6.0),
+                   ("profile_schema_controls", True), ("schema", "laplace.obsolete-proof/v1")]
+        for field, value in changes:
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                receipt = dict(expected)
+                if field and value is None:
+                    receipt.pop(field)
+                elif field:
+                    receipt[field] = value
+                marker = "LAPLACE_QA_RECEIPT " + name + " " + json.dumps(receipt)
+                fake = self._fake_ctest(root, inventory=[owner], output="",
+                    junit='<testsuite><testcase name="' + owner + '"><system-out><![CDATA[' +
+                          marker + ']]></system-out></testcase></testsuite>')
+                plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                        "selected_physical_tests": [owner], "required_physical_receipts": [name],
+                        "required_physical_receipts_by_test": {owner: [name]},
+                        "required_physical_receipt_fields_by_test": {owner: {name: expected}}}
+                path = root / "result.json"
+                self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", path, str(fake)),
+                                 qa.EVIDENCE_RECEIPT_EXIT if field else 0)
+                lane = json.loads(path.read_text())["lanes"][0]
+                self.assertEqual(lane["ctest_exit_code"], 0)
+                self.assertEqual(lane["required_receipt_fields_by_test"], {owner: {name: expected}})
+                if field:
+                    self.assertIn("receipt field differs", lane["primary_failure"]["detail"])
+
+    def test_receipt_field_requirements_cannot_name_an_unrequired_marker(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        row = next(item for item in contract["isolated_tests"]
+                   if item["ctest_name"] == "postgres.verified-cpp-source-contract")
+        row["required_receipt_fields"] = {"unrequired-proof": {"count": 6}}
+        with self.assertRaisesRegex(qa.QaError, "required receipt fields"):
+            qa.validate_contract(contract, ROOT)
 
     def test_same_named_receipts_keep_distinct_testcase_observations(self) -> None:
         for second_count in (18, 19):

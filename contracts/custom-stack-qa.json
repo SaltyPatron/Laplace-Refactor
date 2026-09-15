@@ -26,6 +26,14 @@
       "ctest_name": "postgres.verified-cpp-source-contract",
       "profile": "verified-cpp-source",
       "required_receipts": ["verified_cpp_source_admission"],
+      "required_receipt_fields": {
+        "verified_cpp_source_admission": {
+          "schema": "laplace.verified-cpp-source-acceptance/v1",
+          "negative_controls": 13,
+          "reconciliation_controls": 2,
+          "profile_schema_controls": 6
+        }
+      },
       "order": 25,
       "resource_class": "postgresql-verified-git-cpp-source-admission",
       "reason": "bounded native C++ and exact-text admission, persisted readback, zero-testimony closure and replay with the actual verified grammar provider"
@@ -99,6 +107,7 @@
         "integrations/postgresql/extension/src/materialization_pg.c",
         "integrations/postgresql/extension/src/world_admission_pg.c",
         "integrations/postgresql/extension/source_grammar_admission.sql.in",
+        "integrations/postgresql/extension/source_observation_profile.sql.in",
         "integrations/postgresql/extension/source_content_readback.sql.in",
         "integrations/postgresql/extension/source_readback.sql.in",
         "integrations/postgresql/extension/source_structural_witness.sql.in",

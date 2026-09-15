@@ -86,6 +86,10 @@ set(observation_cognition_sql
     "${CMAKE_CURRENT_BINARY_DIR}/observation_cognition.sql")
 string(JSON LAPLACE_SOURCE_GRAMMAR_MODULE GET
     "${laplace_source_structural_witness_contract}" bindings postgresql module)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/source_observation_profile.sql.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/source_observation_profile.sql" @ONLY)
+file(READ "${CMAKE_CURRENT_BINARY_DIR}/source_observation_profile.sql" source_observation_profile_sql)
+file(APPEND "${public_readback_reconcile_sql}" "\n${source_observation_profile_sql}\n")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/source_grammar_admission.sql.in"
     "${CMAKE_CURRENT_BINARY_DIR}/source_grammar_admission.sql" @ONLY)
 file(READ "${CMAKE_CURRENT_BINARY_DIR}/source_grammar_admission.sql" source_grammar_admission_sql)
@@ -423,9 +427,9 @@ configure_file(
 set(current_extension_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.3.sql")
 file(WRITE "${current_extension_sql}"
-    "${current_base_schema}\n${persisted_cognition_delta}\n${product_cognition_delta}\n${source_grammar_admission_sql}\n${source_readback_sql}")
+    "${current_base_schema}\n${persisted_cognition_delta}\n${product_cognition_delta}\n${source_observation_profile_sql}\n${source_grammar_admission_sql}\n${source_readback_sql}")
 file(APPEND "${structural_witness_103_upgrade_sql}"
-    "\n${source_grammar_admission_sql}\n${source_readback_sql}")
+    "\n${source_observation_profile_sql}\n${source_grammar_admission_sql}\n${source_readback_sql}")
 
 install(TARGETS laplace_pg
     LIBRARY DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/lib")

@@ -39,6 +39,13 @@ def digest(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def local_import_origin(origin: str) -> bool:
+    url = urlsplit(origin)
+    return Path(origin).is_absolute() or (
+        url.scheme == "file" and not url.netloc and Path(url.path).is_absolute()
+        and not url.query and not url.fragment)
+
+
 def git(root: Path, *arguments: str) -> bytes:
     result = subprocess.run(
         ["git", "--no-optional-locks", "-C", str(root), *arguments],
@@ -99,11 +106,7 @@ def observe(checkout: Path, upstream: str, commit: str, *,
             "checkout must be the Git top-level directory")
     origin = git(root, "remote", "get-url", "origin").decode().strip()
     direct = origin.removesuffix(".git") == upstream.removesuffix(".git")
-    origin_url = urlsplit(origin)
-    local_import = Path(origin).is_absolute() or (
-        origin_url.scheme == "file" and not origin_url.netloc and
-        Path(origin_url.path).is_absolute() and not origin_url.query and not origin_url.fragment)
-    require(direct or (local_import and expected_archive_sha256 is not None),
+    require(direct or (local_import_origin(origin) and expected_archive_sha256 is not None),
             "checkout origin differs from selected upstream without locked local-import lineage")
     require(git(root, "rev-parse", "HEAD").decode().strip() == commit and
             git(root, "rev-parse", "--verify", commit + "^{commit}").decode().strip() == commit,

@@ -32,6 +32,11 @@ import admit_source_guard
 
 SCHEMA = 'laplace.stockfish-corpus-acceptance/v1'
 HEX = re.compile(r'[0-9a-f]{64}\Z')
+READBACK_DIGEST_FIELDS = ('source_profile_id','structural_receipt_id','source_binding_id',
+    'recipe_id','materialization_receipt_id','provider_fingerprint','readset_fingerprint','output_fingerprint')
+READBACK_COUNT_FIELDS = ('artifact_index','output_bytes','resolved_nodes','trajectory_carriers',
+    'codepoint_count','maximum_depth','verified_witnesses','database_operations','version')
+READBACK_FIELDS = {'path','sha256','root_content_id',*READBACK_DIGEST_FIELDS,*READBACK_COUNT_FIELDS}
 
 
 def require(condition: bool, message: str) -> None:
@@ -253,6 +258,28 @@ def verify_provider_access(receipt: dict, active: dict) -> dict:
         'postgresql_os_uid':os.geteuid(),'provider_readable_and_parents_traversable':True}
 
 
+def select_runtime_root(active: dict, explicit: Path | None) -> dict:
+    closure = active['manifest'].get('provenance',{}).get('build_input_closure',{})
+    require(closure.get('schema') == 'laplace.product-build-input-closure-receipt/v1' and
+            closure.get('complete') is True,
+            'activated package omits its complete runtime build-input receipt')
+    retained = closure.get('build_input_roots',{}).get('tree-sitter',{})
+    require(isinstance(retained,dict) and HEX.fullmatch(str(retained.get('tree_sha256'))) is not None,
+            'activated package omits its Tree-sitter input identity')
+    for field in ('file_count','symlink_count','directory_count','total_file_bytes'):
+        number(retained.get(field), 'runtime build input '+field)
+    original = Path(retained.get('path',''))
+    require(original.is_absolute(), 'activated package runtime input path is not absolute')
+    selected = explicit if explicit is not None else original
+    require(selected.is_absolute() and selected.is_dir() and not selected.is_symlink(),
+            'selected Tree-sitter runtime checkout is unavailable or not a physical absolute directory')
+    return {'schema':'laplace.stockfish-corpus-runtime-selection/v1',
+        'package_id':active['package_id'],'runtime_root':str(selected),
+        'selection':'explicit-runtime-root' if explicit is not None else 'activated-package-build-input',
+        'activated_package_build_input':retained,
+        'qualification':'selected checkout still requires exact locked revision, archive and tracked-byte verification'}
+
+
 def stable_activation(snapshot: dict) -> dict:
     return {key: snapshot[key] for key in ('package_id','repository_commit','release',
         'cli_sha256','manifest_sha256','installation','cluster_activation',
@@ -286,15 +313,29 @@ def validate_readback(result: dict, manifest: dict, active: dict) -> None:
     require(isinstance(records, list) and len(records) == len(artifacts),
             'source readback omitted or repeated selected files')
     for index, (expected, actual) in enumerate(zip(artifacts, records)):
+        require(isinstance(actual,dict) and set(actual) == READBACK_FIELDS,
+                'native readback metadata fields differ from the complete result contract')
         require(actual.get('path') == expected['path'] and number(actual['artifact_index'],'artifact_index') == index and
                 actual.get('sha256') == expected['sha256'] and
                 number(actual['output_bytes'],'output_bytes') == expected['byte_count'] and
                 actual.get('source_profile_id') == admission['profile_id'],
                 'source readback changed bytes, path, order or profile: ' + expected['path'])
-        for field in ('root_content_id','source_binding_id','recipe_id','structural_receipt_id'):
+        for field in ('root_content_id',*READBACK_DIGEST_FIELDS):
             identity=actual.get(field)
-            require(isinstance(identity,str) and re.fullmatch(r'\\x(?:[0-9a-f]{32}|[0-9a-f]{64})',identity) is not None and
+            width=32 if field=='root_content_id' else 64
+            require(isinstance(identity,str) and re.fullmatch(r'\\x[0-9a-f]{'+str(width)+'}',identity) is not None and
                     set(identity[2:])!={'0'}, 'readback omitted a native root or receipt identity: '+field)
+        for field in READBACK_COUNT_FIELDS:
+            number(actual[field],field,1 if field in ('output_bytes','resolved_nodes','codepoint_count','verified_witnesses') else 0)
+        require(actual['version']==1 and actual['maximum_depth']<=256 and
+                actual['codepoint_count']<=actual['output_bytes'],
+                'native readback version, depth or UTF-8 count is inconsistent')
+        require(actual['verified_witnesses']==readback.get('structural_witness_count') and
+                actual['structural_receipt_id']==records[0]['structural_receipt_id'] and
+                actual['recipe_id']==records[0]['recipe_id'],
+                'native readback rows do not share the verified structural receipt and recipe')
+    require(len({row['source_binding_id'] for row in records})==len(records),
+            'native readback repeated a distinct artifact source binding')
     for field in ('source_occurrence_count','structural_witness_count'):
         number(readback.get(field), field, 1)
     counts = readback.get('database_row_counts')
@@ -317,7 +358,8 @@ def verify_repeat(first: dict, second: dict, manifest: dict, active: dict) -> di
     # Native readback execution receipts may legitimately vary with physical
     # reuse. Canonical roots, exact bytes and their source scope must not vary.
     root_fields = ('path','artifact_index','source_profile_id','root_content_id',
-                   'source_binding_id','recipe_id','structural_receipt_id','sha256','output_bytes')
+                   'source_binding_id','recipe_id','structural_receipt_id','sha256','output_bytes',
+                   'output_fingerprint','codepoint_count')
     for x,y in zip(a['records'],b['records']):
         require(all(key in x and key in y and x[key] == y[key] for key in root_fields),
                 'repeat changed an exact source root')
@@ -414,7 +456,9 @@ def execute(args: argparse.Namespace) -> dict:
                 'installed source grammar/runtime locks differ from accepted repository')
         work=Path('/build/laplace/work')/('stockfish-corpus-'+uuid.uuid4().hex)
         work.mkdir(mode=0o750)
-        runtime=args.runtime_root or source.parent/'tree-sitter'
+        runtime_selection=select_runtime_root(before,args.runtime_root)
+        save(output/'runtime-selection.json',runtime_selection)
+        runtime=Path(runtime_selection['runtime_root'])
         qualifier=[sys.executable,str(ROOT/'tools/sources/qualify_grammar.py'),'--acquire',
             '--grammar-root',str(work/'tree-sitter-cpp'),'--runtime-root',str(runtime),
             '--grammar-lock',str(grammar_lock),'--dependency-lock',str(native_lock),

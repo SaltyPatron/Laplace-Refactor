@@ -2,6 +2,19 @@
 -- The existing source fixture supplies the real Unicode/Highway context.
 \ir source_admission_contract.sql
 
+-- Reproduce the retained historical record/field constraints, then execute the
+-- actual current reconciliation twice before admitting a zero-claim observation.
+ALTER TABLE laplace.source_profile
+ DROP CONSTRAINT source_profile_record_field_coverage,
+ DROP CONSTRAINT source_profile_record_count_check,
+ ADD CONSTRAINT source_profile_record_count_check CHECK(record_count>0),
+ DROP CONSTRAINT source_profile_field_count_check,
+ ADD CONSTRAINT source_profile_field_count_check CHECK(field_count>0);
+DO $source_observation_upgrade$
+DECLARE program text:=pg_catalog.pg_read_file('@CMAKE_BINARY_DIR@/integrations/postgresql/extension/source_observation_profile.sql');
+BEGIN EXECUTE program; EXECUTE program; END
+$source_observation_upgrade$;
+
 CREATE TEMP TABLE cpp_input(ordinal integer PRIMARY KEY, name text UNIQUE, content bytea, media text);
 INSERT INTO cpp_input VALUES
  (0,'clean.cpp',convert_to(E'// café\n#define INC(x) ((x)+1)\nnamespace n { template<class T> T f(T x) { if(x) { while(x) { x=INC(x-2); } } return x; } }\n','UTF8'),'text/x-c++'),
@@ -44,10 +57,11 @@ INSERT INTO cpp_invocation_count VALUES (0);
 CREATE FUNCTION pg_temp.cpp_admit(binding laplace.source_grammar_binding DEFAULT pg_temp.cpp_binding(),
                                  batch numeric DEFAULT 65536)
 RETURNS laplace.tabular_source_admission_result LANGUAGE plpgsql VOLATILE AS $admit$
+DECLARE context laplace.execution_context:=pg_temp.source_admission_context();
 BEGIN
  UPDATE cpp_invocation_count SET value=value+1;
- RETURN laplace.source_admit_with_grammar(pg_temp.source_admission_context(),pg_temp.cpp_profile(),
-   decode(repeat('c0',32),'hex'),sha256(convert_to('verified C++ observation','UTF8')),
+ RETURN laplace.source_admit_with_grammar(context,pg_temp.cpp_profile(),
+   context.epochs[3],sha256(convert_to('verified C++ observation','UTF8')),
    pg_temp.cpp_artifacts(),ARRAY[]::laplace.tabular_reference_rule[],
    ARRAY[]::laplace.tabular_mapping_rule[],batch,binding);
 END
@@ -105,6 +119,31 @@ BEGIN
  END IF;
 END
 $closure$;
+
+DO $source_observation_schema_controls$
+DECLARE rejected integer:=0; constraint_name text;
+BEGIN
+ FOR control IN 1..6 LOOP
+   BEGIN
+     UPDATE laplace.source_profile SET
+       record_count=CASE WHEN control=1 THEN 1 ELSE record_count END,
+       field_count=CASE WHEN control=2 THEN 1 ELSE field_count END,
+       claim_count=CASE WHEN control=3 THEN 1 ELSE claim_count END,
+       flags=CASE WHEN control=4 THEN (flags & ~15) | 1 ELSE flags END,
+       not_applicable_mask=CASE WHEN control=5 THEN not_applicable_mask::bigint & ~16::bigint
+                                WHEN control=6 THEN not_applicable_mask::bigint & ~32::bigint
+                                ELSE not_applicable_mask END
+     WHERE profile_id=(SELECT profile_id FROM cpp_first);
+     RAISE EXCEPTION USING ERRCODE='LP001',MESSAGE='source profile accepted inconsistent RAW observation denominators';
+   EXCEPTION WHEN check_violation THEN
+     GET STACKED DIAGNOSTICS constraint_name=CONSTRAINT_NAME;
+     IF constraint_name<>'source_profile_record_field_coverage' THEN RAISE; END IF;
+     rejected:=rejected+1;
+   END;
+ END LOOP;
+ IF rejected<>6 THEN RAISE EXCEPTION 'source profile schema controls were not all executed'; END IF;
+END
+$source_observation_schema_controls$;
 
 CREATE FUNCTION pg_temp.cpp_read(artifact numeric, output_bound numeric DEFAULT 65536,
                                witness_bound numeric DEFAULT 10000,
@@ -253,5 +292,6 @@ SELECT 'LAPLACE_QA_RECEIPT verified_cpp_source_admission ' || json_build_object(
  'provider_receipt_sha256','@LAPLACE_CPP_GRAMMAR_RECEIPT_SHA256@',
  'profile_id',encode(f.profile_id,'hex'),'structural_receipt_id',encode(s.receipt_id,'hex'),
  'world_receipt_id',encode(f.world_admission_receipt_id,'hex'),'witnesses',s.witness_count,
- 'semantic_testimony',0,'negative_controls',13,'reconciliation_controls',2,'repeat_no_amplification',true,
+ 'semantic_testimony',0,'negative_controls',13,'reconciliation_controls',2,'profile_schema_controls',6,
+ 'repeat_no_amplification',true,
  'executable_semantics_verified',false)::text FROM cpp_first f CROSS JOIN cpp_structural s;

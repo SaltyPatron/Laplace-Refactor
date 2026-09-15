@@ -30,6 +30,16 @@ class QaError(RuntimeError):
     pass
 
 
+def validate_receipt_field_requirements(required: Sequence[str], fields: Any) -> None:
+    if not isinstance(fields, dict):
+        raise QaError("required receipt fields must be an object")
+    for name, expected in fields.items():
+        if (name not in required or not isinstance(expected, dict) or not expected or
+                any(not isinstance(key, str) or not key or type(value) not in (str, int, bool)
+                    for key, value in expected.items())):
+            raise QaError("required receipt fields have an invalid owner, name or scalar expectation")
+
+
 def read_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -180,6 +190,7 @@ def validate_contract(contract: dict[str, Any], repo_root: Path) -> None:
             not isinstance(value, str) or not value for value in required_receipts
         ) or len(set(required_receipts)) != len(required_receipts):
             raise QaError(f"isolated test has invalid required receipts: {name}")
+        validate_receipt_field_requirements(required_receipts, row.get("required_receipt_fields", {}))
         if (
             not isinstance(order, int)
             or isinstance(order, bool)
@@ -297,6 +308,10 @@ def build_plan(
         "required_physical_receipts_by_test": {
             str(row["ctest_name"]): list(row["required_receipts"])
             for row in selected_rows if row.get("required_receipts")
+        },
+        "required_physical_receipt_fields_by_test": {
+            str(row["ctest_name"]): row["required_receipt_fields"]
+            for row in selected_rows if row.get("required_receipt_fields")
         },
         "isolated_test_count": len(isolated_names),
         "eligible_test_count": len(eligible),
@@ -556,6 +571,7 @@ def run_ctest_lane(
     parallel_jobs: int,
     required_receipts: Sequence[str] = (),
     required_receipts_by_test: dict[str, list[str]] | None = None,
+    required_receipt_fields_by_test: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     if not names:
         raise QaError(f"custom-stack QA lane {lane!r} has no executable tests")
@@ -618,6 +634,14 @@ def run_ctest_lane(
         )
         if missing_owned_receipts:
             raise QaError(f"required physical QA receipts are absent from their owning tests: {missing_owned_receipts}")
+        observed_receipts = {(row["test"], row["name"]): row["receipt"] for row in retained_receipts}
+        for owner, receipts in (required_receipt_fields_by_test or {}).items():
+            for name, fields in receipts.items():
+                observed = observed_receipts.get((owner, name), {})
+                for field, expected in fields.items():
+                    actual = observed.get(field)
+                    if type(actual) is not type(expected) or actual != expected:
+                        raise QaError(f"required physical QA receipt field differs: {owner}/{name}/{field}")
         missing_receipts = set(required_receipts) - {row["name"] for row in retained_receipts}
         if missing_receipts:
             raise QaError(f"required physical QA receipts are absent: {sorted(missing_receipts)}")
@@ -654,6 +678,7 @@ def run_ctest_lane(
         "selection_verified": selection_verified,
         "evidence_receipts_verified": evidence_verified,
         "required_receipts_by_test": required_receipts_by_test or {},
+        "required_receipt_fields_by_test": required_receipt_fields_by_test or {},
         "embedded_receipts": retained_receipts,
         "command": command,
         "started_at_utc": started,
@@ -705,6 +730,13 @@ def execute_plan(
         name for required in required_by_test.values() for name in required
     }:
         raise QaError("plan required physical receipt inventory differs from owning tests")
+    required_fields_by_test = plan.get("required_physical_receipt_fields_by_test", {})
+    if not isinstance(required_fields_by_test, dict):
+        raise QaError("plan required physical receipt fields must be an object")
+    for owner, fields in required_fields_by_test.items():
+        if owner not in required_by_test:
+            raise QaError("plan required physical receipt fields have no owning test")
+        validate_receipt_field_requirements(required_by_test[owner], fields)
     available = ctest_names(build_directory, ctest)
     missing = sorted((set(core) | set(selected)) - available)
     if missing:
@@ -758,6 +790,7 @@ def execute_plan(
             parallel_jobs=parallel_jobs,
             required_receipts=required_receipts if lane == "selected-physical" else (),
             required_receipts_by_test=required_by_test if lane == "selected-physical" else {},
+            required_receipt_fields_by_test=required_fields_by_test if lane == "selected-physical" else {},
         )
         result["lanes"].append(lane_result)
         if lane_result["result"] != "passed":
