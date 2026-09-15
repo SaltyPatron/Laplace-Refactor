@@ -404,7 +404,7 @@ def reconcile_indexed_cognition_after_generation_upgrade(
     """Accept the indexed-cognition predecessor and supported successor schemas.
 
     ``upgrade_product`` may advance an existing persistent extension through 1.0.1
-    to 1.0.2 or 1.0.3 before the runner reaches indexed-cognition reconciliation
+    to 1.0.2, 1.0.3 or 1.0.4 before the runner reaches indexed-cognition reconciliation
     step. Re-entering that step must verify the inherited native bindings/indexes,
     not reject the already-upgraded product or attempt a downgrade.
     """
@@ -423,7 +423,7 @@ SELECT pg_catalog.json_build_object('version', extversion, 'owner', current_user
         cluster_contract["instance"]["admin_role"],
         60,
     )
-    if current.get("version") not in ("1.0.2", "1.0.3"):
+    if current.get("version") not in ("1.0.2", "1.0.3", "1.0.4"):
         return fresh_reconcile_indexed_cognition(plan, cluster_contract, package)
 
     relative = (
@@ -453,7 +453,7 @@ BEGIN
     SELECT e.extversion, pg_catalog.pg_get_userbyid(e.extowner) INTO STRICT version, owner
       FROM pg_catalog.pg_extension e WHERE e.extname='laplace';
     IF owner <> current_user THEN RAISE EXCEPTION 'extension reconciliation requires its actual owner'; END IF;
-    IF version NOT IN ('1.0.2', '1.0.3') THEN
+    IF version NOT IN ('1.0.2', '1.0.3', '1.0.4') THEN
         RAISE EXCEPTION 'product cognition successor changed during reconciliation: %', version;
     END IF;
     FOR target IN SELECT * FROM (VALUES

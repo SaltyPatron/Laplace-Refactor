@@ -1,0 +1,83 @@
+{
+  "schema": "laplace.physicality-entity-reflection/v1",
+  "authority": {
+    "governing_instruction": "physicalities are entities themselves; entity unique object; physicality shape/form/usage/observation",
+    "preserved_laws": [
+      "docs/product/INVENTION_MODEL.md#5-s3-placement-and-hilbert-locality",
+      "docs/audits/INVENTOR_DIRECT_SYNTHESIS_2026-09-02.md#12-laplace-self-reasoning-and-dependence",
+      "docs/architecture/PHYSICALITY_COORD_TRAJECTORY_REALIZATION.md",
+      "contracts/identity.json",
+      "contracts/persistence.json"
+    ],
+    "implementation_gap": "The existing persistence record has a storage fingerprint and target entity reference, but no canonical entity representation of the physicality object itself."
+  },
+  "identity": {
+    "owner": "ordinary native Unicode and ordered-composition identity",
+    "target_entity_identity": "unchanged",
+    "physicality_record_identity": "existing native 256-bit immutable record fingerprint; storage and integrity address",
+    "physicality_entity_identity": "ordinary canonical identity of the exact structured descriptor, never truncation of the record fingerprint",
+    "roles": "typed trajectory and recipe metadata; no replacement of canonical child identities",
+    "mutable_observation_context": "retained as occurrence or attestation; does not enter the immutable descriptor identity"
+  },
+  "descriptor": {
+    "version": 1,
+    "reference_values": "existing canonical entity references, not names, JSON or printed hash values",
+    "unsigned_scalar_values": "canonical base-ten Unicode numeral composition through the shared native builder",
+    "binary64_values": "exact unsigned 64-bit payload words; preserve signed zero and every admitted bit pattern without host-locale conversion",
+    "record_digest_values": "exact ordered octet values represented through the same scalar composition owner",
+    "ordered_fields": [
+      "descriptor_version",
+      "realized_entity",
+      "physicality_type",
+      "vertex_class",
+      "recipe_version",
+      "structural_form",
+      "dimension_count",
+      "flags",
+      "recipe_fingerprint",
+      "geometry_epoch",
+      "trajectory_fingerprint",
+      "centroid_binary64_words",
+      "radius_binary64_word",
+      "logical_count",
+      "vertex_count",
+      "ordered_trajectory_occurrences"
+    ],
+    "occurrence_fields": [
+      "constituent_entity",
+      "logical_ordinal",
+      "run_length",
+      "metadata"
+    ],
+    "validation": "Recompute the native physicality identity, actual carrier fingerprint, decoded occurrence law and exact count before constructing or accepting the descriptor. Unsupported record forms and invalid scalar encodings reject explicitly.",
+    "resource_admission": "Independent maximum requests, operands, physical carriers and expanded logical identity count; reject before hashing an over-budget run sequence. The native owner supplies checked conservative peak plan/validation memory bounds covering maps, vector spare capacity and scratch, excluding borrowed original bytes.",
+    "source_identity_validation": "The same native validator returns the full reconstructed composition witness and actual trajectory tier when available. Atomic geometry and non-atom singleton records cannot certify canonical content witnesses or tiers by themselves; the bridge must use an independently verified content owner."
+  },
+  "finite_view": {
+    "authority": "verified original immutable physicality record and canonical descriptor recipe",
+    "index": "record-to-descriptor root and every generated internal entity needed for ordinary indexed entity and trajectory resolution",
+    "readback": "ordinary native provider callbacks and shared materialization kernel",
+    "publication": "canonical identities and indexed derivation ownership are admitted transactionally; generated view physicalities are calculated under the pinned read context",
+    "termination": "Construct only the finite descriptor requested by the operation. Generating a view does not recursively enqueue persistence or reflection of its own generated physicalities.",
+    "cache": "rebuildable derived acceleration, never independent authority",
+    "root_scope": "The native materializer begins each root with its exact source receipt and recipe; a verified view binds selected external representations and native scope receipt. Changing roots cannot reuse a conflicting physical selection or cached node.",
+    "read_context": "Retained full admission context, selected source, native input fingerprint and all four work caps remain bound into the view ID. Cold reads may use a different current resource grant and read-only effect restriction; all semantic epochs and authority remain pinned. The explicit original-source overload requires both the retained owner receipt and exact original root P; generated reads use generated intervals, original reads use historical intervals. The same parent body may legitimately have different selected-child receipts in those two contexts, which remain separate.",
+    "candidate_reconstruction": "At most thirteen SPI operations per bounded derived frontier, independent of selected owner count. Two indexed set-wise queries inventory and fetch each selected complete occurrence binding set once. Native validation and plan memory are pre-admitted; the provider separately bounds logical identity work at one step per granted byte, a physical policy rather than a byte-cost identity. One additional bounded atom-body set authenticates pinned canonical placement; no per-descriptor SQL fallback is used.",
+    "occurrence_selection": "Different physicalities of one canonical entity remain distinct per parent physicality and exact logical occurrence interval. RLE storage cannot erase those selected forms, and an entity-only selector map does not establish complete occurrence semantics.",
+    "entity_reference_geometry": "Every descriptor entity-valued field uses the shared native canonical-content reference recipe under the pinned geometry epoch, reconstructed from authenticated ordered content and actual canonical atom bodies. Historical source physicalities and full witnesses remain separate immutable evidence. Several physicalities of one E never select geometry by minimum, first match, or unrelated batch context.",
+    "reference_nodes": "Ordinary native reference results are indexed after descriptor results within the same finite view and reconstructed cold. Generated historical-free edge selections derive from each program's actual known/prior-result operands; owner recipe is authenticated independently of each generated node recipe. No generated physicality or observation is deposited.",
+    "source_retention": "Each view retains its exact original root tuple. Complete reachable historical scopes retain their authenticated selected-source frontier and reference immutable per-parent interval receipts; unrelated admitted parents cannot change a view or its canonical descriptor."
+  },
+  "acceptance": [
+    "original realized entity identities remain unchanged",
+    "different legitimate physicalities of one target have distinct exact descriptor identities",
+    "the same physicality observed again reuses its descriptor and ordinary constituent entities",
+    "a descriptor and its internal nodes are usable as ordinary entity and trajectory operands",
+    "normal cold-provider readback reconstructs the complete descriptor with the same identity as warm readback",
+    "a changed immutable field, carrier, selector or owner mapping is rejected",
+    "signed-zero bit distinctions survive wherever the original schema admits them",
+    "finite work and output envelopes reject exhaustion rather than truncate topology",
+    "replay and caller rollback preserve exact canonical and observation counts",
+    "no eager unbounded reflection chain is emitted"
+  ]
+}

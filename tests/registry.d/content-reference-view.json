@@ -1,0 +1,164 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "ContentReferenceView.DifferentHistoricalFormsUsePinnedCanonicalGeometry",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "Actual ordinary compositions of one E have different historical P IDs and centroids; pinned canonical atoms determine the same new reference P when either or both source forms are supplied; emitted roles are neutral and no occurrences are produced."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.AlternateCarrierSplitsNormalizeToOneCanonicalRun",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "Different role metadata and carrier splits normalize to the same ordered child-ID run and one ordinary composition operand."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.MissingClosureIsSortedNonExecutableAndCanBeCompleted",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "Missing canonical atom proofs produce a sorted E frontier and zero executable/root buffers; batched retry with pinned atoms completes and verifies every result."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.SingletonFormRequiresIndependentClosureWithoutCreatingCycle",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "Authenticated non-atom singleton [E] supplies a transparent physicality, produces an explicit missing E without independent closure, and agrees with an authenticated noncollapsed form without creating a content cycle."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.EveryFormAndFullWitnessAreValidated",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "A later alternate form with an altered full witness, body geometry or trajectory fingerprint rejects the whole plan without publishing partial execution."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.PinnedAtomTupleBodyWitnessAndEpochMustAgree",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "Pinned atom complete witness, centroid, tier and geometry epoch must agree with native codepoint identity and authenticated atomic physicality."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.RepeatedRootsAndNestedContentShareOnePostorderCalculation",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION"
+      ],
+      "covered_dimensions": [
+        "Nested canonical content and repeated requested roots share one calculation per composite E, preserve exact root mappings and enforce depth even through previously visited nodes."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.WorkAndMemoryBoundsHaveExplicitRefusals",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION"
+      ],
+      "covered_dimensions": [
+        "Root, carrier, logical, node and peak memory envelopes produce explicit finite refusals."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.CalculatedResultTailWitnessCorruptionCannotPass",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "A calculated result retaining the exact E but corrupting the complete witness tail is rejected; truncated result arrays also reject."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.AtomicRootsAndEmptyInputHaveNoCompositionRequests",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "Pinned atom roots map directly to shared known tuples and empty input has an explicit complete zero-request plan."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.CarrierBudgetRefusalDoesNotDereferenceCarrierBody",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE",
+        "LP-TEST-FRAMEWORK-RESOURCE-APPLICATION"
+      ],
+      "covered_dimensions": [
+        "Overflowing carrier envelope rejects before carrier-body hashing or traversal, using a one-carrier payload as the deliberate overclaim control."
+      ]
+    },
+    {
+      "ctest_name": "ContentReferenceView.LongCanonicalRunIsPackedByTheOrdinaryComposer",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "A 65,536-child run remains one canonical planner operand and is realized by the existing ordinary composer with native carrier packing and exact full identity."
+      ]
+    },
+    {
+      "ctest_name": "content-reference.mutation-full-witness-loss-detected",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "An actually compiled mutant omitting complete calculated-witness comparison is detected with the exact E unchanged."
+      ],
+      "kind": "mutation",
+      "controls": "ContentReferenceView.CalculatedResultTailWitnessCorruptionCannotPass"
+    },
+    {
+      "ctest_name": "content-reference.mutation-form-authentication-loss-detected",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "An actually compiled mutant omitting each source physicality/body/carrier validation is detected by corrupt alternate forms."
+      ],
+      "kind": "mutation",
+      "controls": "ContentReferenceView.EveryFormAndFullWitnessAreValidated"
+    },
+    {
+      "ctest_name": "content-reference.mutation-singleton-content-cycle-detected",
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-AST-MERKLE-REUSE"
+      ],
+      "covered_dimensions": [
+        "An actually compiled mutant treating transparent singleton [E] as canonical child topology is detected by the valid alternate representation control."
+      ],
+      "kind": "mutation",
+      "controls": "ContentReferenceView.SingletonFormRequiresIndependentClosureWithoutCreatingCycle"
+    }
+  ]
+}

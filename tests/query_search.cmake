@@ -142,3 +142,26 @@ laplace_add_prompt_structure_mutation(
     LAPLACE_TEST_COMPOSITION_OPERAND_BOUNDARIES tests/composition_tests.cpp
     composition.mutation-operand-boundary-run-splitting-detected
     CompositionWorkingSet.AdjacentOperandPartitionsPackIntoTheSameExactTrajectory)
+
+laplace_add_prompt_structure_mutation(
+    laplace_materialization_scope_receipt_mutation_probe engine/src/observation_query.cpp
+    LAPLACE_TEST_MATERIALIZATION_DROP_SCOPE_RECEIPT tests/cognition_materialization_tests.cpp
+    content-materialization.mutation-root-scope-receipt-omission-detected
+    ContentMaterialization.EveryRootBeginsItsOwnAuthenticatedScope)
+
+laplace_add_prompt_structure_mutation(
+    laplace_materialization_physicality_cache_mutation_probe engine/src/observation_query.cpp
+    LAPLACE_TEST_MATERIALIZATION_COLLAPSE_PHYSICALITY_CACHE tests/cognition_materialization_tests.cpp
+    content-materialization.mutation-physicality-cache-collapse-detected
+    ContentMaterialization.OccurrenceSelectionsSplitOneStoredRunWithoutCollapsingPhysicalities)
+laplace_add_prompt_structure_mutation(
+    laplace_materialization_occurrence_receipt_mutation_probe engine/src/observation_query.cpp
+    LAPLACE_TEST_MATERIALIZATION_DROP_OCCURRENCE_BINDING_RECEIPT tests/cognition_materialization_tests.cpp
+    content-materialization.mutation-occurrence-binding-omission-detected
+    ContentMaterialization.OccurrenceSelectionsSplitOneStoredRunWithoutCollapsingPhysicalities)
+
+laplace_add_prompt_structure_mutation(
+    laplace_materialization_singleton_witness_mutation_probe engine/src/observation_query.cpp
+    LAPLACE_TEST_MATERIALIZATION_DROP_SINGLETON_WITNESS tests/cognition_materialization_tests.cpp
+    content-materialization.mutation-singleton-witness-omission-detected
+    ContentMaterialization.SingletonFormPreservesContentTierThroughItsExactChildPhysicality)

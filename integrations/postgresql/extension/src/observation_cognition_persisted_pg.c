@@ -12,6 +12,7 @@
 #include "utils/builtins.h"
 #include "utils/array.h"
 #include "utils/memutils.h"
+#include "utils/hsearch.h"
 #include "utils/lsyscache.h"
 #include "utils/typcache.h"
 #include "blake3.h"
@@ -28,6 +29,7 @@
 #include "set_pg.h"
 #include "persistence_rows_pg.h"
 #include "cognition_provider_pg.h"
+#include "physicality_entity_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_observation_execute_persisted);
 PG_FUNCTION_INFO_V1(laplace_pg_trajectory_entity_ids);
@@ -244,6 +246,7 @@ Datum laplace_pg_trajectory_entity_ids(PG_FUNCTION_ARGS) {
 }
 
 struct laplace_pg_cognition_provider {
+    laplace_framework_context context;
     laplace_cognition_observation_request request_storage;
     const laplace_cognition_observation_request* request;
     uint64_t memory_limit;
@@ -303,6 +306,113 @@ static void persisted_charge_query(persisted_provider_state* state) {
     ++state->database_operations;
 }
 
+typedef struct persisted_physicality_slot {
+    laplace_digest256 physicality_id;
+    size_t record_index;
+    size_t first_segment;
+} persisted_physicality_slot;
+
+static bool persisted_same_physicality(
+    const laplace_persistence_physicality_record* left,
+    const laplace_persistence_physicality_record* right) {
+    uint8_t a[8u + LAPLACE_PERSISTENCE_PHYSICALITY_PAYLOAD_BYTES];
+    uint8_t b[sizeof(a)];
+    size_t a_bytes = 0u, b_bytes = 0u;
+    if (laplace_persistence_frame_encode_physicality(left, a, sizeof(a), &a_bytes) !=
+            LAPLACE_PERSISTENCE_OK ||
+        laplace_persistence_frame_encode_physicality(right, b, sizeof(b), &b_bytes) !=
+            LAPLACE_PERSISTENCE_OK)
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace combined physicality candidate is invalid")));
+    return a_bytes == b_bytes && memcmp(a, b, a_bytes) == 0;
+}
+
+/* Merge verified derived views into the same native physicality index. A
+ * canonical view may already have a stored realization: reuse only its exact
+ * immutable record and carriers, never count that representation twice. */
+static void persisted_merge_views(
+    laplace_persistence_physicality_record** records, uint64_t* rows,
+    laplace_persistence_trajectory_segment_record** segments, uint64_t* vertices,
+    const laplace_pg_physicality_entity_view* views, size_t view_count) {
+    uint64_t upper_rows = persisted_add(*rows, (uint64_t)view_count);
+    uint64_t upper_vertices = *vertices;
+    laplace_persistence_physicality_record* joined_records;
+    laplace_persistence_trajectory_segment_record* joined_segments;
+    HASHCTL control;
+    HTAB* identities;
+    size_t offset = 0u;
+    for (size_t i = 0u; i < view_count; ++i)
+        upper_vertices = persisted_add(upper_vertices, (uint64_t)views[i].carrier_count);
+    if (upper_rows > MaxAllocSize / sizeof(*joined_records) ||
+        upper_vertices > MaxAllocSize / sizeof(*joined_segments))
+        persisted_limit("combined physicality arrays exceed addressability");
+    joined_records = palloc0((size_t)upper_rows * sizeof(*joined_records));
+    joined_segments = palloc0((size_t)upper_vertices * sizeof(*joined_segments));
+    if (*rows != 0u) memcpy(joined_records, *records, (size_t)*rows * sizeof(*joined_records));
+    if (*vertices != 0u) memcpy(joined_segments, *segments, (size_t)*vertices * sizeof(*joined_segments));
+    memset(&control, 0, sizeof(control));
+    control.keysize = sizeof(laplace_digest256);
+    control.entrysize = sizeof(persisted_physicality_slot);
+    control.hcxt = CurrentMemoryContext;
+    identities = hash_create("Laplace combined physicality candidates", 32,
+        &control, HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+    for (size_t i = 0u; i < (size_t)*rows; ++i) {
+        bool found;
+        persisted_physicality_slot* slot = hash_search(
+            identities, &joined_records[i].physicality_id, HASH_ENTER, &found);
+        if (found) ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace stored physicality candidate identity is duplicated")));
+        slot->record_index = i;
+        slot->first_segment = offset;
+        offset += (size_t)joined_records[i].vertex_count;
+    }
+    for (size_t i = 0u; i < view_count; ++i) {
+        const laplace_pg_physicality_entity_view* view = &views[i];
+        bool found;
+        persisted_physicality_slot* slot = hash_search(
+            identities, &view->physicality.physicality_id, HASH_ENTER, &found);
+        uint64_t ordinal = 1u;
+        if (view->physicality.physicality_type != LAPLACE_PERSISTENCE_PHYSICALITY_COMPOSITION ||
+            view->carrier_count == 0u || view->carriers == NULL ||
+            view->physicality.vertex_count != (uint64_t)view->carrier_count)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace derived structural candidate has invalid carriers")));
+        if (found) {
+            if (!persisted_same_physicality(&joined_records[slot->record_index], &view->physicality))
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace derived and existing physicality identities disagree")));
+            for (size_t vertex = 0u; vertex < view->carrier_count; ++vertex)
+                if (memcmp(&joined_segments[slot->first_segment + vertex].carrier,
+                           &view->carriers[vertex], sizeof(view->carriers[vertex])) != 0)
+                    ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                        errmsg("Laplace derived and existing physicality carriers disagree")));
+            continue;
+        }
+        slot->record_index = (size_t)*rows;
+        slot->first_segment = (size_t)*vertices;
+        joined_records[(*rows)++] = view->physicality;
+        for (size_t vertex = 0u; vertex < view->carrier_count; ++vertex) {
+            laplace_persistence_trajectory_segment_record* segment = &joined_segments[(*vertices)++];
+            segment->physicality_id = view->physicality.physicality_id;
+            segment->vertex_index = (uint64_t)vertex;
+            segment->carrier = view->carriers[vertex];
+            if (laplace_trajectory_composition_decode_one(&segment->carrier, ordinal,
+                    &segment->occurrence) != LAPLACE_TRAJECTORY_OK)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace derived trajectory carrier is invalid")));
+            ordinal = persisted_add(ordinal, (uint64_t)segment->occurrence.run_length);
+        }
+        if (ordinal - 1u != view->physicality.logical_count)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace derived trajectory logical count differs")));
+    }
+    hash_destroy(identities);
+    if (*records != NULL) pfree(*records);
+    if (*segments != NULL) pfree(*segments);
+    *records = joined_records;
+    *segments = joined_segments;
+}
+
 static int persisted_enumerate_impl(
     persisted_provider_state* state, const laplace_observation_query_binding* binding,
     const laplace_id128* source_ids, size_t source_count,
@@ -313,11 +423,11 @@ static int persisted_enumerate_impl(
     Datum* source_values;
     Datum* physicality_values;
     uint64_t max_rows, candidate_workspace, frontier_workspace;
-    uint64_t rows, row, vertices = 0u, encoded_bytes = 0u;
+    uint64_t rows, row, fetched_rows, vertices = 0u, encoded_bytes = 0u;
     uint64_t reserved;
     uint64_t before_operations = state->database_operations;
-    laplace_persistence_physicality_record* records;
-    laplace_persistence_trajectory_segment_record* segments;
+    laplace_persistence_physicality_record* records = NULL;
+    laplace_persistence_trajectory_segment_record* segments = NULL;
     size_t segment_cursor = 0u;
     laplace_observation_query_index_base_input input;
     laplace_observation_query_index_summary summary;
@@ -353,81 +463,135 @@ static int persisted_enumerate_impl(
                               NULL, true, (long)(max_rows + 1u)) != SPI_OK_SELECT)
         ereport(ERROR, (errmsg("Laplace indexed physicality metadata read failed")));
     rows = (uint64_t)SPI_processed;
+    fetched_rows = rows;
     if (rows > max_rows) persisted_limit("matching physicality metadata exceeds workspace");
     state->rows_fetched = persisted_add(state->rows_fetched, rows);
     ++state->batch_count;
+    if (rows != 0u) {
+        if (rows > MaxAllocSize / sizeof(*records) || rows > MaxAllocSize / sizeof(Datum))
+            persisted_limit("physicality array exceeds addressability");
+        records = palloc0((size_t)rows * sizeof(*records));
+        physicality_values = palloc((size_t)rows * sizeof(Datum));
+        for (row = 0u; row < rows; ++row) {
+            int32 bytes;
+            laplace_pg_read_physicality_row(SPI_tuptable->vals[row], SPI_tuptable->tupdesc,
+                                          &records[row]);
+            bytes = DatumGetInt32(persisted_required_attribute(
+                SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 19, "trajectory byte length"));
+            if (bytes < 0 || records[row].vertex_count > UINT64_MAX / 32u ||
+                (uint64_t)bytes != records[row].vertex_count * UINT64_C(32))
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace persisted trajectory metadata has inconsistent length")));
+            vertices = persisted_add(vertices, records[row].vertex_count);
+            encoded_bytes = persisted_add(encoded_bytes, (uint64_t)bytes);
+            physicality_values[row] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+                records[row].physicality_id.bytes, 32u));
+        }
+        /* Conservatively bound metadata, copied payload, decoded carriers, native
+         * maps/vectors and result staging before detoasting trajectory bytes. The
+         * caller separately reserves the native search's declared memory budget. */
+        if (vertices > UINT64_MAX / UINT64_C(1024)) persisted_limit("vertex budget overflow");
+        reserved = persisted_add(reserved, rows * UINT64_C(2048));
+        reserved = persisted_add(reserved, vertices * UINT64_C(1024));
+        if (reserved > state->memory_limit || vertices > MaxAllocSize / sizeof(*segments))
+            persisted_limit("selected trajectories exceed physical-provider workspace");
+        segments = palloc0((size_t)vertices * sizeof(*segments));
+        args[0] = PointerGetDatum(construct_array(physicality_values, (int)rows,
+                                BYTEAOID, -1, false, TYPALIGN_INT));
+        SPI_freetuptable(SPI_tuptable);
+        persisted_charge_query(state);
+        if (SPI_execute_with_args(persisted_payload_sql, 1, types, args, NULL,
+                                  true, (long)(rows + 1u)) != SPI_OK_SELECT || SPI_processed != rows)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace selected physicality payload set changed within snapshot")));
+        for (row = 0u; row < rows; ++row) {
+            laplace_digest256 id;
+            bytea* trajectory;
+            uint64_t vertex, ordinal = 1u;
+            persisted_read_digest_datum(persisted_required_attribute(SPI_tuptable->vals[row],
+                SPI_tuptable->tupdesc, 1, "physicality_id"), &id, "physicality_id");
+            if (memcmp(id.bytes, records[row].physicality_id.bytes, 32u) != 0)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace selected physicality payload identity differs")));
+            trajectory = DatumGetByteaPP(persisted_required_attribute(SPI_tuptable->vals[row],
+                SPI_tuptable->tupdesc, 2, "trajectory"));
+            if ((uint64_t)VARSIZE_ANY_EXHDR(trajectory) != records[row].vertex_count * 32u)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace selected physicality payload length differs")));
+            for (vertex = 0u; vertex < records[row].vertex_count; ++vertex) {
+                laplace_persistence_trajectory_segment_record* segment = &segments[segment_cursor++];
+                segment->physicality_id = id;
+                segment->vertex_index = vertex;
+                memcpy(&segment->carrier, VARDATA_ANY(trajectory) + (size_t)vertex * 32u, 32u);
+                if (laplace_trajectory_composition_decode_one(&segment->carrier, ordinal,
+                                                            &segment->occurrence) != LAPLACE_TRAJECTORY_OK)
+                    ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                        errmsg("Laplace selected trajectory carrier is invalid")));
+                ordinal = persisted_add(ordinal, (uint64_t)segment->occurrence.run_length);
+            }
+            if (ordinal - 1u != records[row].logical_count)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace selected trajectory logical count differs")));
+            blake3_hasher_update(&state->readset, id.bytes, 32u);
+            blake3_hasher_update(&state->readset, records[row].trajectory_fingerprint.bytes, 32u);
+        }
+    } /* stored candidate rows */
+    SPI_freetuptable(SPI_tuptable);
+    {
+        laplace_pg_physicality_entity_view* views = NULL;
+        size_t view_count = 0u;
+        uint64_t operations = 0u;
+        uint64_t database_limit = state->request->search_budget.max_database_operations;
+        uint64_t remaining, view_memory, view_rows, view_vertices = 0u;
+        if (state->request->forward_limits.max_database_operations < database_limit)
+            database_limit = state->request->forward_limits.max_database_operations;
+        if (state->database_operations > database_limit)
+            persisted_limit("database-operation budget exhausted before derived selection");
+        remaining = state->memory_limit - reserved;
+        /* Retained derived views and combined native-index staging coexist.
+         * Give the owner half the remaining grant and reserve the other half
+         * for its returned metadata, decoded carriers and the common index. */
+        view_memory = remaining / 2u;
+        view_rows = (remaining - view_memory) / UINT64_C(2048);
+        if (view_rows > max_rows - rows) view_rows = max_rows - rows;
+        laplace_pg_physicality_entity_candidates(&state->context, source_ids,
+            source_count, binding->relation_mask, view_rows, view_memory,
+            database_limit - state->database_operations,
+            &views, &view_count, &operations);
+        if (operations > database_limit - state->database_operations)
+            persisted_limit("derived provider exceeded its database-operation admission");
+        state->database_operations = persisted_add(state->database_operations, operations);
+        if ((uint64_t)view_count > view_rows || (view_count != 0u && views == NULL))
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace derived provider returned an invalid candidate set")));
+        if (view_count != 0u) {
+            for (size_t i = 0u; i < view_count; ++i)
+                view_vertices = persisted_add(view_vertices, (uint64_t)views[i].carrier_count);
+            if (view_vertices > UINT64_MAX / UINT64_C(1024))
+                persisted_limit("derived vertex budget overflow");
+            reserved = persisted_add(reserved, view_memory);
+            reserved = persisted_add(reserved, (uint64_t)view_count * UINT64_C(2048));
+            reserved = persisted_add(reserved, view_vertices * UINT64_C(1024));
+            if (reserved > state->memory_limit)
+                persisted_limit("combined trajectories exceed physical-provider workspace");
+            state->rows_fetched = persisted_add(state->rows_fetched, (uint64_t)view_count);
+            fetched_rows = persisted_add(fetched_rows, (uint64_t)view_count);
+            for (size_t i = 0u; i < view_count; ++i) {
+                static const uint8_t derived_tag = 2u;
+                blake3_hasher_update(&state->readset, &derived_tag, sizeof(derived_tag));
+                blake3_hasher_update(&state->readset, views[i].physicality.physicality_id.bytes, 32u);
+                blake3_hasher_update(&state->readset, views[i].physicality.trajectory_fingerprint.bytes, 32u);
+                blake3_hasher_update(&state->readset, views[i].identity_witness.bytes, 32u);
+                blake3_hasher_update(&state->readset, views[i].derivation_receipt.bytes, 32u);
+            }
+            persisted_merge_views(&records, &rows, &segments, &vertices, views, view_count);
+            encoded_bytes = vertices * UINT64_C(32);
+        }
+    }
     if (rows == 0u) {
         usage->database_operations = state->database_operations - before_operations;
         return 0;
     }
-    if (rows > MaxAllocSize / sizeof(*records) || rows > MaxAllocSize / sizeof(Datum))
-        persisted_limit("physicality array exceeds addressability");
-    records = palloc0((size_t)rows * sizeof(*records));
-    physicality_values = palloc((size_t)rows * sizeof(Datum));
-    for (row = 0u; row < rows; ++row) {
-        int32 bytes;
-        laplace_pg_read_physicality_row(SPI_tuptable->vals[row], SPI_tuptable->tupdesc,
-                                      &records[row]);
-        bytes = DatumGetInt32(persisted_required_attribute(
-            SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 19, "trajectory byte length"));
-        if (bytes < 0 || records[row].vertex_count > UINT64_MAX / 32u ||
-            (uint64_t)bytes != records[row].vertex_count * UINT64_C(32))
-            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-                errmsg("Laplace persisted trajectory metadata has inconsistent length")));
-        vertices = persisted_add(vertices, records[row].vertex_count);
-        encoded_bytes = persisted_add(encoded_bytes, (uint64_t)bytes);
-        physicality_values[row] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-            records[row].physicality_id.bytes, 32u));
-    }
-    /* Conservatively bound metadata, copied payload, decoded carriers, native
-     * maps/vectors and result staging before detoasting trajectory bytes. The
-     * caller separately reserves the native search's declared memory budget. */
-    if (vertices > UINT64_MAX / UINT64_C(1024)) persisted_limit("vertex budget overflow");
-    reserved = persisted_add(reserved, rows * UINT64_C(2048));
-    reserved = persisted_add(reserved, vertices * UINT64_C(1024));
-    if (reserved > state->memory_limit || vertices > MaxAllocSize / sizeof(*segments))
-        persisted_limit("selected trajectories exceed physical-provider workspace");
-    segments = palloc0((size_t)vertices * sizeof(*segments));
-    args[0] = PointerGetDatum(construct_array(physicality_values, (int)rows,
-                            BYTEAOID, -1, false, TYPALIGN_INT));
-    SPI_freetuptable(SPI_tuptable);
-    persisted_charge_query(state);
-    if (SPI_execute_with_args(persisted_payload_sql, 1, types, args, NULL,
-                              true, (long)(rows + 1u)) != SPI_OK_SELECT || SPI_processed != rows)
-        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-            errmsg("Laplace selected physicality payload set changed within snapshot")));
-    for (row = 0u; row < rows; ++row) {
-        laplace_digest256 id;
-        bytea* trajectory;
-        uint64_t vertex, ordinal = 1u;
-        persisted_read_digest_datum(persisted_required_attribute(SPI_tuptable->vals[row],
-            SPI_tuptable->tupdesc, 1, "physicality_id"), &id, "physicality_id");
-        if (memcmp(id.bytes, records[row].physicality_id.bytes, 32u) != 0)
-            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-                errmsg("Laplace selected physicality payload identity differs")));
-        trajectory = DatumGetByteaPP(persisted_required_attribute(SPI_tuptable->vals[row],
-            SPI_tuptable->tupdesc, 2, "trajectory"));
-        if ((uint64_t)VARSIZE_ANY_EXHDR(trajectory) != records[row].vertex_count * 32u)
-            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-                errmsg("Laplace selected physicality payload length differs")));
-        for (vertex = 0u; vertex < records[row].vertex_count; ++vertex) {
-            laplace_persistence_trajectory_segment_record* segment = &segments[segment_cursor++];
-            segment->physicality_id = id;
-            segment->vertex_index = vertex;
-            memcpy(&segment->carrier, VARDATA_ANY(trajectory) + (size_t)vertex * 32u, 32u);
-            if (laplace_trajectory_composition_decode_one(&segment->carrier, ordinal,
-                                                        &segment->occurrence) != LAPLACE_TRAJECTORY_OK)
-                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-                    errmsg("Laplace selected trajectory carrier is invalid")));
-            ordinal = persisted_add(ordinal, (uint64_t)segment->occurrence.run_length);
-        }
-        if (ordinal - 1u != records[row].logical_count)
-            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-                errmsg("Laplace selected trajectory logical count differs")));
-        blake3_hasher_update(&state->readset, id.bytes, 32u);
-        blake3_hasher_update(&state->readset, records[row].trajectory_fingerprint.bytes, 32u);
-    }
-    SPI_freetuptable(SPI_tuptable);
     memset(&input, 0, sizeof(input));
     input.physicalities = records;
     input.physicality_count = (size_t)rows;
@@ -456,7 +620,7 @@ static int persisted_enumerate_impl(
     state->logical_occurrences = persisted_add(state->logical_occurrences, summary.logical_occurrence_count);
     state->indexed_entities = persisted_add(state->indexed_entities, summary.indexed_entity_count);
     state->trajectory_bytes = persisted_add(state->trajectory_bytes, encoded_bytes);
-    usage->rows_examined = persisted_add(usage->rows_examined, rows);
+    usage->rows_examined = persisted_add(usage->rows_examined, fetched_rows);
     usage->database_operations = state->database_operations - before_operations;
     if ((uint64_t)source_count > UINT64_MAX / state->request->search_budget.transition_batch_capacity ||
         usage->rows_examined > (uint64_t)source_count * state->request->search_budget.transition_batch_capacity ||
@@ -518,17 +682,20 @@ static void persisted_provider_release(void* opaque) {
 }
 
 void laplace_pg_cognition_provider_create(
+    const laplace_framework_context* context,
     const laplace_cognition_observation_request* request,
     uint64_t provider_memory_bytes,
     laplace_pg_cognition_provider** owner,
     laplace_cognition_observation_candidate_provider_v1* provider) {
-    static const char domain[] = "laplace-postgresql-indexed-physicality-provider-v1";
+    static const char domain[] = "laplace-postgresql-indexed-physicality-provider-v2";
     laplace_digest256 request_fingerprint;
+    laplace_digest256 context_fingerprint;
     blake3_hasher identifier;
     persisted_provider_state* state;
     if (owner != NULL) *owner = NULL;
     if (provider != NULL) memset(provider, 0, sizeof(*provider));
-    if (request == NULL || owner == NULL || provider == NULL ||
+    if (context == NULL || request == NULL || owner == NULL || provider == NULL ||
+        laplace_framework_context_fingerprint(context, &context_fingerprint) != LAPLACE_FRAMEWORK_OK ||
         laplace_cognition_observation_request_identify(request, &request_fingerprint) !=
             LAPLACE_COGNITION_OBSERVATION_REQUEST_OK)
         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
@@ -539,6 +706,7 @@ void laplace_pg_cognition_provider_create(
     if (provider_memory_bytes < 2048u)
         persisted_limit("insufficient physical-provider workspace");
     state = palloc0(sizeof(*state));
+    state->context = *context;
     state->request_storage = *request;
     state->request = &state->request_storage;
     state->memory_limit = provider_memory_bytes > MaxAllocSize ? MaxAllocSize : provider_memory_bytes;
@@ -551,6 +719,7 @@ void laplace_pg_cognition_provider_create(
     blake3_hasher_init(&identifier);
     blake3_hasher_update(&identifier, domain, sizeof(domain)-1u);
     blake3_hasher_update(&identifier, request_fingerprint.bytes, 32u);
+    blake3_hasher_update(&identifier, context_fingerprint.bytes, 32u);
     blake3_hasher_finalize(&identifier, state->provider_fingerprint.bytes, 32u);
     blake3_hasher_init(&state->readset);
     blake3_hasher_update(&state->readset, state->provider_fingerprint.bytes, 32u);
@@ -660,7 +829,7 @@ Datum laplace_pg_cognition_observation_execute_persisted(PG_FUNCTION_ARGS) {
     if (request_status != LAPLACE_COGNITION_OBSERVATION_REQUEST_OK)
         ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
             errmsg("Laplace persisted cognition request is invalid: %d", (int)request_status)));
-    laplace_pg_cognition_provider_create(&request,
+    laplace_pg_cognition_provider_create(&context, &request,
         context.resource_grant.memory_bytes - request.search_budget.max_memory_bytes,
         &stored_provider, &provider);
     if (SPI_connect() != SPI_OK_CONNECT)

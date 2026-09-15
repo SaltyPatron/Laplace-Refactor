@@ -20,6 +20,9 @@ const char* laplace_pg_entity_verify_sql(void);
 void laplace_pg_physicality_binding_open(
     laplace_pg_composite_binding* binding);
 
+void laplace_pg_physicality_read_record(
+    Datum value, laplace_persistence_physicality_record* physicality);
+
 Datum laplace_pg_physicality_record(
     const laplace_pg_composite_binding* binding,
     const laplace_persistence_physicality_record* physicality);

@@ -389,6 +389,85 @@ BEGIN
 END
 $grammar_reconciliation$;
 
+CREATE FUNCTION pg_temp.cpp_unbound_content_read(
+ laplace.execution_context,bytea,bytea,bytea)
+RETURNS bytea AS 'laplace_pg','laplace_pg_test_content_materialize_utf8'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+-- Exercise an ambiguity reached only after the generic provider prefetches
+-- a nested child. Both parents are real native compositions; no cognition
+-- result is manufactured. Roll back this isolated test deposition afterward.
+DO $prefetch_ambiguity$
+DECLARE context laplace.execution_context:=pg_temp.source_admission_context();
+ known laplace.composition_known_entity_record[];
+ deposited laplace.composition_deposit_result;
+ recipe bytea:=(SELECT recipe_program_fingerprint FROM laplace.source_profile
+   WHERE profile_id=(SELECT profile_id FROM cpp_first));
+ expected bytea:=(SELECT content||content FROM cpp_input WHERE ordinal=0);
+ positive_passed boolean:=false; ambiguity_rejected boolean:=false;
+ before_entities bigint:=(SELECT count(*) FROM laplace.entity);
+ before_physicalities bigint:=(SELECT count(*) FROM laplace.physicality);
+ before_occurrences bigint:=(SELECT count(*) FROM laplace.attestation);
+ before_receipts bigint:=(SELECT count(*) FROM laplace.composition_execution_receipt);
+BEGIN
+ SELECT array_agg(ROW(w.canonical_entity_id,e.identity_witness,w.canonical_physicality_id,
+   p.centroid_x,p.centroid_y,p.centroid_z,p.centroid_m,0::bigint,1::smallint,false)
+   ::laplace.composition_known_entity_record ORDER BY w.artifact_index)
+ INTO known FROM laplace.source_structural_witness w
+ JOIN cpp_first f ON f.profile_id=w.source_profile_id
+ JOIN laplace.entity e ON e.entity_id=w.canonical_entity_id
+ JOIN laplace.physicality p ON p.physicality_id=w.canonical_physicality_id
+ WHERE w.span_index=0 AND w.artifact_index IN (0,1);
+ IF cardinality(known) IS DISTINCT FROM 2 OR
+    (SELECT count(*) FROM laplace.physicality WHERE entity_id=(known[1]).entity_id
+      AND physicality_type=1 AND geometry_epoch=context.epochs[3])<>1 THEN
+   RAISE EXCEPTION 'generic prefetch fixture lacks its exact unambiguous Unicode child';
+ END IF;
+ BEGIN
+   deposited:=laplace.composition_deposit_batch(context,
+    sha256(convert_to('verified CPP nested prefetch source/v1','UTF8')),recipe,known,
+    ARRAY[
+     ROW(0::numeric,1::numeric,0::bigint,1,0)::laplace.composition_operand_record,
+     ROW(0::numeric,1::numeric,0::bigint,1,0)::laplace.composition_operand_record,
+     ROW(1::numeric,1::numeric,0::bigint,1,0)::laplace.composition_operand_record,
+     ROW(0::numeric,1::numeric,0::bigint,1,0)::laplace.composition_operand_record],
+    ARRAY[
+     ROW(0::numeric,2::numeric,1::numeric,1,0,recipe,context.epochs[3],
+      sha256(convert_to('verified CPP positive nested readback/v1','UTF8')))::laplace.composition_request_record,
+     ROW(2::numeric,2::numeric,2::numeric,1,0,recipe,context.epochs[3],
+      sha256(convert_to('verified CPP ambiguous nested readback/v1','UTF8')))::laplace.composition_request_record],
+    65536::numeric);
+   IF deposited.status IS DISTINCT FROM 0 OR cardinality(deposited.result_entity_ids) IS DISTINCT FROM 2 OR
+      deposited.result_tier_floors IS DISTINCT FROM ARRAY[2,2]::smallint[] THEN
+     RAISE EXCEPTION 'generic prefetch fixture failed native parent composition';
+   END IF;
+   IF pg_temp.cpp_unbound_content_read(context,deposited.result_entity_ids[1],
+      deposited.working_set_receipt,recipe) IS DISTINCT FROM expected THEN
+     RAISE EXCEPTION 'unambiguous nested generic content readback changed exact UTF8 bytes';
+   END IF;
+   positive_passed:=true;
+   BEGIN
+     PERFORM pg_temp.cpp_unbound_content_read(context,deposited.result_entity_ids[2],
+      deposited.working_set_receipt,recipe);
+     RAISE EXCEPTION USING ERRCODE='LP001',MESSAGE='prefetched unbound ambiguous child was accepted';
+   EXCEPTION WHEN SQLSTATE 'XX001' THEN
+     IF SQLERRM<>'Laplace materialization composition is not unique in the pinned geometry epoch' THEN RAISE; END IF;
+     ambiguity_rejected:=true;
+   END;
+   RAISE EXCEPTION USING ERRCODE='LP002',MESSAGE='rollback successful nested prefetch fixture';
+ EXCEPTION WHEN SQLSTATE 'LP002' THEN
+   IF SQLERRM<>'rollback successful nested prefetch fixture' THEN RAISE; END IF;
+ END;
+ IF NOT positive_passed OR NOT ambiguity_rejected OR
+    (SELECT count(*) FROM laplace.entity)<>before_entities OR
+    (SELECT count(*) FROM laplace.physicality)<>before_physicalities OR
+    (SELECT count(*) FROM laplace.attestation)<>before_occurrences OR
+    (SELECT count(*) FROM laplace.composition_execution_receipt)<>before_receipts THEN
+   RAISE EXCEPTION 'nested prefetch controls did not run or roll back their native deposition';
+ END IF;
+END
+$prefetch_ambiguity$;
+
 SELECT 'LAPLACE_QA_RECEIPT verified_cpp_source_admission ' || json_build_object(
  'schema','laplace.verified-cpp-source-acceptance/v1','files',4,'exact_readback_files',4,
  'provider_receipt_sha256','@LAPLACE_CPP_GRAMMAR_RECEIPT_SHA256@',
@@ -397,5 +476,6 @@ SELECT 'LAPLACE_QA_RECEIPT verified_cpp_source_admission ' || json_build_object(
  'semantic_testimony',0,'negative_controls',13,'reconciliation_controls',2,'profile_schema_controls',6,
  'reference_rule_array_controls',2,
  'physicality_binding_controls',4,'same_content_physicality_selection',true,
+ 'prefetch_ambiguity_controls',1,
  'repeat_no_amplification',true,
  'executable_semantics_verified',false)::text FROM cpp_first f CROSS JOIN cpp_structural s;
