@@ -546,6 +546,11 @@
       "controls": "CompositionWorkingSet.PresenceFiltersExactStateBeforePublication"
     },
     {
+      "ctest_name": "PersistenceContract.StoredTrajectoryBytesRetainCanonicalIdentity",
+      "evidence_targets": ["LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["serialized carrier identity parity", "all stored trajectory bytes affect canonical fingerprint", "partial and empty carrier buffers are rejected"]
+    },
+    {
       "ctest_name": "PersistenceContract.WholeTypedStreamValidatesAcrossBatchBoundaries",
       "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-BULK-PARITY", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-OCCURRENCE-PRESERVATION"],
       "covered_dimensions": ["versioned framed record stream", "batch-boundary independence", "entity physicality trajectory occurrence separation", "whole-stream closure"]
