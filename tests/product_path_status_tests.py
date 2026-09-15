@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -28,6 +29,14 @@ SPEC.loader.exec_module(product_path)
 
 
 class ProductPathGitStatusTests(unittest.TestCase):
+    @staticmethod
+    def job_boundary(workflow: str, job: str) -> tuple[int, int]:
+        marker = f"  {job}:\n"
+        start = workflow.index(marker)
+        following = re.search(r"(?m)^  [A-Za-z0-9_-]+:\s*$", workflow[start + len(marker):])
+        end = start + len(marker) + following.start() if following else len(workflow)
+        return start, end
+
     def setUp(self) -> None:
         self.contract = product_path.load_json(REPOSITORY / "contracts/product-path.json")
 
@@ -118,8 +127,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
             "  dev-bat-deployment:\n    needs: product-path\n",
             workflow,
         )
-        start = workflow.index("  dev-bat-deployment:")
-        end = workflow.index("\n  dev-bat-live-substrate:", start)
+        start, end = self.job_boundary(workflow, "dev-bat-deployment")
         deployment = workflow[start:end]
         self.assertIn("      always() &&\n      github.event_name == 'push'", deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deployment)
@@ -370,8 +378,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
-        start = workflow.index("  dev-bat-deployment:")
-        end = workflow.index("\n  dev-bat-live-substrate:", start)
+        start, end = self.job_boundary(workflow, "dev-bat-deployment")
         deployment = workflow[start:end]
         mutant_deployment = deployment.replace(
             "    uses: ./.github/workflows/product-activation.yml\n    with:\n      expected_sha: ${{ github.sha }}\n",
