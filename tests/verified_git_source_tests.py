@@ -285,5 +285,42 @@ class CommittedSourceReceiptTests(unittest.TestCase):
                           'source_profile_receipt_bound':False})
 
 
+class GitReadbackReceiptTests(unittest.TestCase):
+    def execute(self, witness='ab'*32, corrupt_last=False):
+        profile='\\x'+'12'*32
+        artifacts=[{'path':'one.cpp','sha256':hashlib.sha256(b'one').hexdigest(),'byte_count':3},
+                   {'path':'two.cpp','sha256':hashlib.sha256('λ'.encode()).hexdigest(),'byte_count':2}]
+        records=[{'artifact_index':index,'sha256':artifact['sha256'],
+                  'output_bytes':artifact['byte_count'],'source_profile_id':profile}
+                 for index,artifact in enumerate(artifacts)]
+        if corrupt_last:
+            records[-1]['sha256']='ef'*32
+        returned={'structural_receipt_count':1,'structural_witness_fingerprint':witness,'records':records}
+        result={'admission':{'profile_id':profile,'composition_working_set_receipt_id':'\\x'+'34'*32,
+                            'source_fingerprint':'\\x'+'56'*32,'testimony_count':0,'evidence_node_count':0},
+                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':4}}
+        identities={key:'78'*32 for key in ('source_epoch','identity_epoch','evidence_epoch','firmware_epoch',
+                    'dependency_epoch','database_epoch','package_epoch','authority_fingerprint')}
+        with patch.object(A,'run_scalar',return_value=json.dumps(returned)):
+            return A.verify_git_readback(['psql'],result,{'manifest':{'artifacts':artifacts,'byte_count':5}},
+                                        identities,'90'*32,'91'*32,'92'*32)
+
+    def test_readback_retains_semantic_witness_identity_and_all_exact_artifacts(self):
+        result=self.execute()
+        self.assertEqual(result['structural_witness_fingerprint'],'ab'*32)
+        self.assertEqual(result['verified_file_count'],2)
+        self.assertEqual(result['verified_byte_count'],5)
+        self.assertTrue(result['all_artifacts_exact'])
+
+    def test_missing_or_malformed_structural_witness_identity_is_rejected(self):
+        for witness in (None,'malformed','\\x'+'ab'*32):
+            with self.subTest(witness=witness), self.assertRaisesRegex(A.AdmissionError,'verified structural witness fingerprint'):
+                self.execute(witness)
+
+    def test_changed_later_artifact_is_rejected(self):
+        with self.assertRaisesRegex(A.AdmissionError,'two.cpp'):
+            self.execute(corrupt_last=True)
+
+
 if __name__ == '__main__':
     unittest.main()

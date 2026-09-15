@@ -47,6 +47,7 @@ def fixtures():
         **{field:'f'*64 for field in ('geometry_epoch','perfcache_epoch','numeric_epoch',
             'native_source_fingerprint','native_reconstruction_fingerprint')},
         'readback':{'schema':'laplace.verified-git-source-readback/v1',
+            'structural_witness_fingerprint':'7'*64,
             'all_artifacts_exact':True,'structural_receipt_count':1,'verified_file_count':2,
             'verified_byte_count':5,'records':records,'source_occurrence_count':9,
             'structural_witness_count':13,'database_row_counts':{'entity':100,'physicality':100,'attestation':9}}}
@@ -72,6 +73,45 @@ class ReadbackTests(unittest.TestCase):
         second=copy.deepcopy(self.first)
         second['readback']['records'][0].update(database_operations=1,materialization_receipt_id='\\x'+'8'*64)
         subject.verify_repeat(self.first,second,self.manifest,self.active)
+
+    def test_canonical_reuse_accepts_different_structural_execution_receipts_and_bindings(self):
+        second=copy.deepcopy(self.first)
+        for index,row in enumerate(second['readback']['records']):
+            row['structural_receipt_id']='\\x'+'8'*64
+            row['source_binding_id']='\\x'+str(index+3)*64
+        original_first,original_second=copy.deepcopy(self.first),copy.deepcopy(second)
+        result=subject.verify_repeat(self.first,second,self.manifest,self.active)
+        self.assertEqual(result['substrate_row_deltas'],{'entity':0,'physicality':0,'attestation':0})
+        self.assertEqual(self.first,original_first)
+        self.assertEqual(second,original_second)
+        for first_row,second_row in zip(self.first['readback']['records'],second['readback']['records']):
+            self.assertEqual(len(first_row),20)
+            self.assertEqual(len(second_row),20)
+            self.assertNotEqual(first_row['structural_receipt_id'],second_row['structural_receipt_id'])
+            self.assertNotEqual(first_row['source_binding_id'],second_row['source_binding_id'])
+
+    def test_each_result_requires_a_lowercase_semantic_witness_fingerprint(self):
+        for which in (0,1):
+            first,second=copy.deepcopy(self.first),copy.deepcopy(self.first)
+            (first,second)[which]['readback'].pop('structural_witness_fingerprint')
+            with self.subTest(result=which,missing=True), self.assertRaisesRegex(ValueError,'structural witness fingerprint'):
+                subject.verify_repeat(first,second,self.manifest,self.active)
+            for value in (None,False,17,'','a'*63,'a'*65,'AB'*32,'\\x'+'ab'*32):
+                first,second=copy.deepcopy(self.first),copy.deepcopy(self.first)
+                (first,second)[which]['readback']['structural_witness_fingerprint']=value
+                with self.subTest(result=which,value=value), self.assertRaisesRegex(ValueError,'structural witness fingerprint'):
+                    subject.verify_repeat(first,second,self.manifest,self.active)
+
+    def test_repeat_rejects_changed_semantic_witness_with_unchanged_or_new_execution_receipts(self):
+        for changed_execution in (False,True):
+            second=copy.deepcopy(self.first)
+            second['readback']['structural_witness_fingerprint']='9'*64
+            if changed_execution:
+                for index,row in enumerate(second['readback']['records']):
+                    row['structural_receipt_id']='\\x'+'8'*64
+                    row['source_binding_id']='\\x'+str(index+3)*64
+            with self.subTest(changed_execution=changed_execution), self.assertRaisesRegex(ValueError,'semantic structural witness fingerprint'):
+                subject.verify_repeat(self.first,second,self.manifest,self.active)
 
     def test_every_native_metadata_field_is_required(self):
         for field in subject.READBACK_FIELDS:

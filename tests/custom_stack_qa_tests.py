@@ -438,11 +438,16 @@ raise SystemExit(exit_code)
         generated = self.plan("tests/postgres/verified_cpp_source_contract.sql")
         expected = {"schema": "laplace.verified-cpp-source-acceptance/v1",
                     "negative_controls": 13, "reconciliation_controls": 2,
-                    "profile_schema_controls": 6, "reference_rule_array_controls": 2}
+                    "profile_schema_controls": 6, "reference_rule_array_controls": 2,
+                    "physicality_binding_controls": 4, "same_content_physicality_selection": True}
         self.assertEqual(generated["required_physical_receipt_fields_by_test"][owner][name], expected)
         changes = [(None, None), ("profile_schema_controls", None),
                    ("reference_rule_array_controls", None), ("reference_rule_array_controls", 1),
                    ("reference_rule_array_controls", 2.0), ("reference_rule_array_controls", True),
+                   ("physicality_binding_controls", None), ("physicality_binding_controls", 3),
+                   ("physicality_binding_controls", 4.0), ("physicality_binding_controls", True),
+                   ("same_content_physicality_selection", None), ("same_content_physicality_selection", False),
+                   ("same_content_physicality_selection", 1), ("same_content_physicality_selection", "true"),
                    ("negative_controls", 12), ("reconciliation_controls", 1),
                    ("profile_schema_controls", 5), ("profile_schema_controls", 6.0),
                    ("profile_schema_controls", True), ("schema", "laplace.obsolete-proof/v1")]

@@ -32,7 +32,9 @@
           "negative_controls": 13,
           "reconciliation_controls": 2,
           "profile_schema_controls": 6,
-          "reference_rule_array_controls": 2
+          "reference_rule_array_controls": 2,
+          "physicality_binding_controls": 4,
+          "same_content_physicality_selection": true
         }
       },
       "order": 25,

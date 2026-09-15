@@ -409,8 +409,8 @@ def verify_git_readback(command: list[str], result: dict[str, Any], proof: dict[
     if witness_bound > 5000000:
         raise AdmissionError("source readback exceeds its five-million-witness boundary")
     sql = f"""WITH selected AS MATERIALIZED (
- SELECT receipt_id FROM laplace.source_structural_witness_receipt
- WHERE source_profile_id={profile_id} AND composition_working_set_receipt={composition_id} AND version=2
+ SELECT receipt_id,witness_fingerprint FROM laplace.source_structural_witness_receipt
+ WHERE source_profile_id={profile_id} AND composition_working_set_receipt={composition_id} AND version=3
 ), restored AS MATERIALIZED (
  SELECT r.* FROM selected s CROSS JOIN LATERAL laplace.source_readback_utf8_batch(
    {context_sql(identities, geometry_epoch, perfcache_epoch, numeric_epoch)},
@@ -419,10 +419,11 @@ def verify_git_readback(command: list[str], result: dict[str, Any], proof: dict[
        256,1)::laplace.cognition_materialization_request,
    {witness_bound}::numeric,{proof['manifest']['byte_count']}::numeric) r
 )
-SELECT json_build_object(
+SELECT jsonb_build_object(
  'schema','laplace.verified-git-source-readback/v1',
  'structural_receipt_count',(SELECT count(*) FROM selected),
- 'records',(SELECT json_agg((to_jsonb(r)-'content') ||
+ 'structural_witness_fingerprint',(SELECT encode(witness_fingerprint,'hex') FROM selected),
+ 'records',(SELECT jsonb_agg((to_jsonb(r)-'content') ||
         jsonb_build_object('sha256',encode(sha256(r.content),'hex')) ORDER BY artifact_index) FROM restored r),
  'source_occurrence_count',(SELECT count(*) FROM laplace.attestation WHERE source_fingerprint={occurrence_id}),
  'structural_witness_count',(SELECT count(*) FROM laplace.source_structural_witness WHERE source_profile_id={profile_id}),
@@ -439,6 +440,7 @@ SELECT json_build_object(
     if (readback.get("structural_receipt_count") != 1 or not isinstance(records, list) or
             len(records) != len(artifacts)):
         raise AdmissionError("source readback omitted or duplicated selected artifact roots")
+    require_hex(readback.get("structural_witness_fingerprint"), "verified structural witness fingerprint")
     for index, (expected, actual) in enumerate(zip(artifacts, records)):
         if (int(actual["artifact_index"]) != index or actual["sha256"] != expected["sha256"] or
                 int(actual["output_bytes"]) != expected["byte_count"] or

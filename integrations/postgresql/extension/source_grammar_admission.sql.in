@@ -32,6 +32,78 @@ ALTER TABLE @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_structural_witness
         (byte_start=byte_end AND canonical_entity_id IS NULL AND
          syntax_flags IS NOT NULL AND (syntax_flags::bigint & 34)<>0));
 
+-- v3 binds the actual immutable physicality selected by native composition.
+-- Preserve historical NULLs and v1/v2 receipts; only exact native replay may
+-- enrich an existing witness. No epoch/recipe heuristic fills old bindings.
+DO $source_witness_physicality$
+DECLARE witness_table oid:='@LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_structural_witness'::regclass;
+ receipt_table oid:='@LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_structural_witness_receipt'::regclass;
+ selected_column smallint; target_column smallint; expression text;
+BEGIN
+ IF NOT EXISTS (
+   SELECT FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_class c ON c.oid=receipt_table
+   JOIN pg_catalog.pg_depend d ON d.classid='pg_catalog.pg_class'::regclass AND d.objid=c.oid
+    AND d.refclassid='pg_catalog.pg_extension'::regclass AND d.refobjid=e.oid AND d.deptype='e'
+   WHERE e.extname='laplace' AND e.extowner=c.relowner
+    AND e.extowner=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname=current_user)) THEN
+   RAISE EXCEPTION 'source physicality reconciliation requires the extension-owned receipt table';
+ END IF;
+ IF EXISTS(SELECT FROM pg_catalog.pg_attribute WHERE attrelid=witness_table
+    AND attname='canonical_physicality_id' AND NOT attisdropped) THEN
+   IF NOT EXISTS(SELECT FROM pg_catalog.pg_attribute WHERE attrelid=witness_table
+      AND attname='canonical_physicality_id' AND attnum>0 AND NOT attisdropped
+      AND atttypid='@LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.record_id_256'::regtype
+      AND NOT attnotnull AND NOT atthasdef) THEN
+     RAISE EXCEPTION 'source physicality witness column has an incompatible type or presence law';
+   END IF;
+ ELSE
+   ALTER TABLE @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_structural_witness
+     ADD COLUMN canonical_physicality_id @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.record_id_256;
+ END IF;
+ SELECT attnum INTO STRICT selected_column FROM pg_catalog.pg_attribute
+  WHERE attrelid=witness_table AND attname='canonical_physicality_id' AND NOT attisdropped;
+ SELECT attnum INTO STRICT target_column FROM pg_catalog.pg_attribute
+  WHERE attrelid='@LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.physicality'::regclass
+   AND attname='physicality_id' AND NOT attisdropped;
+ IF EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid=witness_table
+    AND conname='source_witness_physicality_fk') THEN
+   IF NOT EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid=witness_table
+      AND conname='source_witness_physicality_fk' AND contype='f' AND convalidated
+      AND conkey=ARRAY[selected_column] AND confkey=ARRAY[target_column]
+      AND confrelid='@LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.physicality'::regclass
+      AND confupdtype='a' AND confdeltype='a' AND confmatchtype='s' AND NOT condeferrable) THEN
+     RAISE EXCEPTION 'source physicality witness foreign key has an incompatible definition';
+   END IF;
+ ELSE
+   ALTER TABLE @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_structural_witness
+    ADD CONSTRAINT source_witness_physicality_fk FOREIGN KEY(canonical_physicality_id)
+      REFERENCES @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.physicality(physicality_id);
+ END IF;
+ IF EXISTS(SELECT FROM pg_catalog.pg_constraint WHERE conrelid=witness_table
+    AND conname='source_witness_physicality_presence') THEN
+   SELECT regexp_replace(lower(pg_catalog.pg_get_expr(conbin,conrelid)),'\s|[()]','','g')
+    INTO expression FROM pg_catalog.pg_constraint WHERE conrelid=witness_table
+     AND conname='source_witness_physicality_presence' AND contype='c' AND convalidated;
+   IF expression IS DISTINCT FROM 'canonical_physicality_idisnullorcanonical_entity_idisnotnull' THEN
+     RAISE EXCEPTION 'source physicality witness presence guard has an incompatible definition';
+   END IF;
+ ELSE
+   ALTER TABLE @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_structural_witness
+    ADD CONSTRAINT source_witness_physicality_presence CHECK (
+     canonical_physicality_id IS NULL OR canonical_entity_id IS NOT NULL);
+ END IF;
+ SELECT regexp_replace(lower(pg_catalog.pg_get_expr(conbin,conrelid)),'\s|[()]|::integer','','g')
+  INTO expression FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+   AND conname='source_structural_witness_receipt_version_check' AND contype='c' AND convalidated;
+ IF expression IS NULL OR expression NOT IN ('version=anyarray[1,2]','version=anyarray[1,2,3]') THEN
+   RAISE EXCEPTION 'source physicality receipt version guard has an incompatible definition';
+ END IF;
+ ALTER TABLE @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_structural_witness_receipt
+  DROP CONSTRAINT source_structural_witness_receipt_version_check,
+  ADD CONSTRAINT source_structural_witness_receipt_version_check CHECK(version IN (1,2,3));
+END
+$source_witness_physicality$;
+
 -- One verified syntax-provider binding for the shared source-admission owner.
 -- Selecting a native library remains an administrator operation. Provider build
 -- receipts are exact provenance; parsing grants no semantic testimony.

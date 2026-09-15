@@ -303,6 +303,9 @@ def validate_readback(result: dict, manifest: dict, active: dict) -> None:
             'observing source code invented semantic testimony')
     readback = result['readback']
     artifacts = manifest['artifacts']
+    witness_fingerprint = readback.get('structural_witness_fingerprint')
+    require(isinstance(witness_fingerprint,str) and HEX.fullmatch(witness_fingerprint) is not None,
+            'source readback omitted a verified structural witness fingerprint')
     require(readback.get('schema') == 'laplace.verified-git-source-readback/v1' and
             readback.get('all_artifacts_exact') is True and
             number(readback.get('structural_receipt_count'),'structural_receipt_count') == 1 and
@@ -355,10 +358,13 @@ def verify_repeat(first: dict, second: dict, manifest: dict, active: dict) -> di
         require(first['admission'][field] == second['admission'][field],
                 'repeat changed native source identity: ' + field)
     a,b = first['readback'],second['readback']
-    # Native readback execution receipts may legitimately vary with physical
-    # reuse. Canonical roots, exact bytes and their source scope must not vary.
+    require(a['structural_witness_fingerprint'] == b['structural_witness_fingerprint'],
+            'repeat changed the semantic structural witness fingerprint')
+    # Structural execution receipts and their artifact bindings may vary with
+    # canonical reuse. Both complete native results remain individually checked;
+    # the semantic witness, canonical roots, exact bytes and source scope agree.
     root_fields = ('path','artifact_index','source_profile_id','root_content_id',
-                   'source_binding_id','recipe_id','structural_receipt_id','sha256','output_bytes',
+                   'recipe_id','sha256','output_bytes',
                    'output_fingerprint','codepoint_count')
     for x,y in zip(a['records'],b['records']):
         require(all(key in x and key in y and x[key] == y[key] for key in root_fields),

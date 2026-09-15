@@ -29,7 +29,7 @@ static void binding_identity(const laplace_framework_context* context,
     const laplace_digest256* profile, const laplace_digest256* structural,
     uint64_t artifact, const laplace_pg_source_readback_binding* binding,
     laplace_digest256* result) {
-    static const char domain[]="laplace.source-canonical-content-readback/v1";
+    static const char domain[]="laplace.source-canonical-content-readback/v2";
     blake3_hasher hasher;
     uint8_t coordinates[16];
     unsigned index;
@@ -42,6 +42,7 @@ static void binding_identity(const laplace_framework_context* context,
     blake3_hasher_update(&hasher,profile->bytes,32u);
     blake3_hasher_update(&hasher,structural->bytes,32u);
     blake3_hasher_update(&hasher,binding->root_content_id.bytes,16u);
+    blake3_hasher_update(&hasher,binding->root_physicality_id.bytes,32u);
     blake3_hasher_update(&hasher,coordinates,sizeof(coordinates));
     blake3_hasher_update(&hasher,context->epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes,32u);
     blake3_hasher_update(&hasher,context->epochs[LAPLACE_FRAMEWORK_EPOCH_PERFCACHE].bytes,32u);
@@ -90,7 +91,9 @@ static Datum source_readback(FunctionCallInfo fcinfo, bool batch) {
     laplace_pg_source_readback_binding* bindings;
     laplace_cognition_materialization_request request;
     laplace_cognition_materialization_provider_v1 provider;
-    laplace_pg_materialization_provider_state* owner = NULL;
+    /* The owner is established after SPI witness verification and must remain
+     * defined across PostgreSQL's setjmp/longjmp error boundary. */
+    laplace_pg_materialization_provider_state* volatile owner = NULL;
     HeapTupleHeader selected = DatumGetHeapTupleHeader(PG_GETARG_DATUM(4));
     uint64_t maximum_witnesses = laplace_pg_uint64_from_numeric(
         PG_GETARG_DATUM(5), "maximum witnesses");
@@ -153,7 +156,6 @@ static Datum source_readback(FunctionCallInfo fcinfo, bool batch) {
         artifacts[0] = laplace_pg_uint64_from_numeric(PG_GETARG_DATUM(3), "artifact index");
     }
     bindings = (laplace_pg_source_readback_binding*)palloc0(artifact_count * sizeof(*bindings));
-    laplace_pg_materialization_provider_create(&context, &owner, &provider);
     PG_TRY();
     {
         if (SPI_connect() != SPI_OK_CONNECT)
@@ -168,6 +170,25 @@ static Datum source_readback(FunctionCallInfo fcinfo, bool batch) {
                 ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                     errmsg("Laplace source artifacts exceed their per-file or aggregate output bound")));
             total_output += bindings[index].byte_count;
+        }
+        {
+            laplace_pg_materialization_selection* selections =
+                (laplace_pg_materialization_selection*)palloc(
+                    artifact_count * sizeof(*selections));
+            laplace_pg_materialization_provider_state* created = NULL;
+            MemoryContext previous;
+            for (index = 0u; index < artifact_count; ++index) {
+                selections[index].entity_id = bindings[index].root_content_id;
+                selections[index].physicality_id = bindings[index].root_physicality_id;
+            }
+            /* The provider survives SPI_finish; selection data is copied into
+             * its own caller-owned cache, and all rows were verified first. */
+            previous = MemoryContextSwitchTo(caller_context);
+            laplace_pg_materialization_provider_create_selected(&context, &structural,
+                selections, artifact_count, &created, &provider);
+            owner = created;
+            MemoryContextSwitchTo(previous);
+            pfree(selections);
         }
         for (index = 0u; index < artifact_count; ++index) {
             laplace_digest256 binding_id;
@@ -220,12 +241,18 @@ static Datum source_readback(FunctionCallInfo fcinfo, bool batch) {
     }
     PG_CATCH();
     {
+        laplace_pg_materialization_provider_state* cleanup_owner = owner;
         if (connected) (void)SPI_finish();
-        laplace_pg_materialization_provider_destroy(&owner);
+        laplace_pg_materialization_provider_destroy(&cleanup_owner);
+        owner = NULL;
         PG_RE_THROW();
     }
     PG_END_TRY();
-    laplace_pg_materialization_provider_destroy(&owner);
+    {
+        laplace_pg_materialization_provider_state* cleanup_owner = owner;
+        laplace_pg_materialization_provider_destroy(&cleanup_owner);
+        owner = NULL;
+    }
     pfree(artifacts);
     pfree(bindings);
     if (batch) return (Datum)0;

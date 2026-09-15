@@ -77,7 +77,7 @@ CREATE TEMP TABLE cpp_first AS SELECT a.* FROM pg_temp.cpp_admit() AS a;
 CREATE TEMP TABLE cpp_structural AS
  SELECT r.* FROM laplace.source_structural_witness_receipt r JOIN cpp_first f
  ON r.source_profile_id=f.profile_id AND r.composition_working_set_receipt=f.composition_working_set_receipt_id
- WHERE r.version=2;
+ WHERE r.version=3;
 
 DO $closure$
 DECLARE p laplace.source_profile%ROWTYPE; f cpp_first%ROWTYPE; roots bigint;
@@ -102,14 +102,16 @@ BEGIN
    RAISE EXCEPTION 'C++ observation lacks exact structural/world closure';
  END IF;
  SELECT count(*) INTO roots FROM laplace.source_structural_witness
- WHERE source_profile_id=f.profile_id AND span_index=0 AND canonical_entity_id IS NOT NULL;
+ WHERE source_profile_id=f.profile_id AND span_index=0 AND canonical_entity_id IS NOT NULL
+   AND canonical_physicality_id IS NOT NULL;
  IF roots<>4 OR EXISTS(SELECT FROM laplace.source_structural_witness WHERE source_profile_id=f.profile_id
        AND artifact_index=0 AND (syntax_flags::bigint & 6)<>0) OR
     NOT EXISTS(SELECT FROM laplace.source_structural_witness WHERE source_profile_id=f.profile_id
-       AND artifact_index=3 AND (syntax_flags::bigint & 2)<>0 AND canonical_entity_id IS NULL) OR
+       AND artifact_index=3 AND (syntax_flags::bigint & 2)<>0 AND canonical_entity_id IS NULL
+       AND canonical_physicality_id IS NULL) OR
     NOT EXISTS(SELECT FROM laplace.source_structural_witness WHERE source_profile_id=f.profile_id
        AND artifact_index=3 AND (syntax_flags::bigint & 32)<>0 AND (syntax_flags::bigint & 2)=0
-       AND byte_start=byte_end AND canonical_entity_id IS NULL) THEN
+       AND byte_start=byte_end AND canonical_entity_id IS NULL AND canonical_physicality_id IS NULL) THEN
    RAISE EXCEPTION 'C++ valid/missing/empty syntax observations were dropped or relabeled';
  END IF;
  IF (SELECT canonical_entity_id FROM laplace.source_structural_witness
@@ -145,6 +147,30 @@ BEGIN
  IF rejected<>6 THEN RAISE EXCEPTION 'source profile schema controls were not all executed'; END IF;
 END
 $source_observation_schema_controls$;
+
+CREATE TEMP TABLE cpp_physicality_choice AS
+ SELECT w.source_profile_id,w.artifact_index,w.span_index,w.canonical_entity_id,
+   w.canonical_physicality_id,other.physicality_id AS alternate_physicality_id
+ FROM laplace.source_structural_witness w
+ JOIN cpp_first f ON f.profile_id=w.source_profile_id
+ JOIN laplace.physicality selected ON selected.physicality_id=w.canonical_physicality_id
+ JOIN laplace.physicality other ON other.entity_id=w.canonical_entity_id
+  AND other.physicality_type=selected.physicality_type
+  AND other.geometry_epoch=selected.geometry_epoch
+  AND other.recipe_fingerprint=selected.recipe_fingerprint
+  AND other.recipe_version=selected.recipe_version
+  AND other.physicality_id<>selected.physicality_id
+ WHERE w.artifact_index=1 AND w.span_index=0;
+DO $physicality_choice$
+BEGIN
+ IF NOT EXISTS(SELECT FROM cpp_physicality_choice) OR EXISTS(
+   SELECT FROM laplace.source_structural_witness w JOIN cpp_first f ON f.profile_id=w.source_profile_id
+   LEFT JOIN laplace.physicality p ON p.physicality_id=w.canonical_physicality_id
+   WHERE w.byte_start<w.byte_end AND (p.physicality_id IS NULL OR p.entity_id IS DISTINCT FROM w.canonical_entity_id)) THEN
+   RAISE EXCEPTION 'source fixture lacks exact selected physicalities and legitimate same-content alternatives';
+ END IF;
+END
+$physicality_choice$;
 
 CREATE FUNCTION pg_temp.cpp_read(artifact numeric, output_bound numeric DEFAULT 65536,
                                witness_bound numeric DEFAULT 10000,
@@ -194,6 +220,51 @@ BEGIN
  END IF;
 END
 $replay$;
+
+DO $physicality_binding_controls$
+DECLARE rejected integer:=0; expected text;
+BEGIN
+ FOR control IN 1..4 LOOP
+   BEGIN
+     IF control=1 THEN
+       expected:='Laplace retained structural witnesses no longer match their receipt';
+       UPDATE laplace.source_structural_witness SET canonical_physicality_id=(
+         SELECT alternate_physicality_id FROM cpp_physicality_choice ORDER BY alternate_physicality_id LIMIT 1)
+       WHERE source_profile_id=(SELECT profile_id FROM cpp_first) AND artifact_index=1 AND span_index=0;
+     ELSIF control=2 THEN
+       expected:='Laplace v3 structural witness lacks its exact physicality binding';
+       UPDATE laplace.source_structural_witness SET canonical_physicality_id=NULL
+       WHERE source_profile_id=(SELECT profile_id FROM cpp_first) AND artifact_index=1 AND span_index=0;
+     ELSIF control=3 THEN
+       expected:='Laplace materialization physicality id cannot be null';
+       UPDATE laplace.physicality SET geometry_epoch=decode(repeat('ff',32),'hex')
+       WHERE physicality_id=(SELECT canonical_physicality_id FROM cpp_physicality_choice LIMIT 1);
+     ELSE
+       expected:='Laplace materialization physicality body differs from its native identity';
+       UPDATE laplace.physicality SET
+        (entity_id,physicality_type,vertex_class,recipe_version,structural_form,dimension_count,flags,
+         recipe_fingerprint,geometry_epoch,trajectory_fingerprint,centroid_x,centroid_y,centroid_z,centroid_m,
+         radius,logical_count,vertex_count,trajectory)=(
+          SELECT p.entity_id,p.physicality_type,p.vertex_class,p.recipe_version,p.structural_form,p.dimension_count,p.flags,
+           p.recipe_fingerprint,p.geometry_epoch,p.trajectory_fingerprint,p.centroid_x,p.centroid_y,p.centroid_z,p.centroid_m,
+           p.radius,p.logical_count,p.vertex_count,p.trajectory
+          FROM laplace.physicality p WHERE p.physicality_id=(SELECT alternate_physicality_id
+           FROM cpp_physicality_choice ORDER BY alternate_physicality_id LIMIT 1))
+        WHERE physicality_id=(SELECT canonical_physicality_id FROM cpp_physicality_choice LIMIT 1);
+     END IF;
+     PERFORM pg_temp.cpp_read(1);
+     RAISE EXCEPTION USING ERRCODE='LP001',MESSAGE='source physicality binding control unexpectedly succeeded';
+   EXCEPTION WHEN SQLSTATE 'XX001' THEN
+     IF SQLERRM IS DISTINCT FROM expected THEN RAISE; END IF;
+     rejected:=rejected+1;
+   END;
+ END LOOP;
+ IF rejected<>4 OR (SELECT content FROM cpp_readback WHERE ordinal=1)
+      IS DISTINCT FROM (pg_temp.cpp_read(1)).content THEN
+   RAISE EXCEPTION 'source physicality binding controls did not preserve exact readback';
+ END IF;
+END
+$physicality_binding_controls$;
 
 DO $reference_rule_arrays$
 DECLARE rule laplace.tabular_reference_rule:=ROW(0::numeric,0::numeric,
@@ -325,5 +396,6 @@ SELECT 'LAPLACE_QA_RECEIPT verified_cpp_source_admission ' || json_build_object(
  'world_receipt_id',encode(f.world_admission_receipt_id,'hex'),'witnesses',s.witness_count,
  'semantic_testimony',0,'negative_controls',13,'reconciliation_controls',2,'profile_schema_controls',6,
  'reference_rule_array_controls',2,
+ 'physicality_binding_controls',4,'same_content_physicality_selection',true,
  'repeat_no_amplification',true,
  'executable_semantics_verified',false)::text FROM cpp_first f CROSS JOIN cpp_structural s;

@@ -27,7 +27,7 @@ BEGIN
     WHERE source_profile_id = first.profile_id
       AND composition_working_set_receipt =
           first.composition_working_set_receipt_id
-      AND version = 2;
+      AND version = 3;
 
     SELECT witness_count, witness_fingerprint
     INTO STRICT replay_receipt_count, replay_witness_fingerprint
@@ -35,7 +35,7 @@ BEGIN
     WHERE source_profile_id = replay.profile_id
       AND composition_working_set_receipt =
           replay.composition_working_set_receipt_id
-      AND version = 2;
+      AND version = 3;
 
     SELECT count(*) INTO STRICT receipt_count
     FROM laplace.source_structural_witness_receipt
@@ -64,15 +64,18 @@ BEGIN
             FROM laplace.source_structural_witness AS witness
             LEFT JOIN laplace.entity AS entity
               ON entity.entity_id = witness.canonical_entity_id
+            LEFT JOIN laplace.physicality AS physicality
+              ON physicality.physicality_id = witness.canonical_physicality_id
             WHERE witness.source_profile_id = first.profile_id
               AND (entity.entity_id IS NULL OR witness.grammar_kind IS NULL
                    OR witness.field_kind IS NULL OR witness.sibling_ordinal IS NULL
-                   OR witness.syntax_flags IS NULL))
+                   OR witness.syntax_flags IS NULL OR physicality.physicality_id IS NULL
+                   OR physicality.entity_id IS DISTINCT FROM witness.canonical_entity_id))
        OR EXISTS (
             SELECT 1
             FROM laplace.source_structural_witness_receipt AS receipt
             WHERE receipt.source_profile_id = first.profile_id
-              AND receipt.version = 2
+              AND receipt.version = 3
               AND (receipt.witness_count <> durable_witness_count
                    OR receipt.witness_fingerprint <>
                       first_witness_fingerprint)) THEN
@@ -81,6 +84,28 @@ BEGIN
     END IF;
 END
 $contract$;
+
+-- Historical bindings remain nullable until the real native source replay
+-- supplies the exact result physicality. Reproduce that missing-column-value
+-- boundary without manufacturing a historical receipt or selecting by epoch.
+DO $physicality_enrichment$
+DECLARE selected laplace.source_structural_witness%ROWTYPE;
+BEGIN
+ SELECT w.* INTO STRICT selected FROM laplace.source_structural_witness w
+ JOIN source_admission_first f ON f.profile_id=w.source_profile_id
+ WHERE w.canonical_physicality_id IS NOT NULL
+ ORDER BY w.artifact_index,w.span_index LIMIT 1;
+ UPDATE laplace.source_structural_witness SET canonical_physicality_id=NULL
+ WHERE source_profile_id=selected.source_profile_id AND artifact_index=selected.artifact_index
+  AND span_index=selected.span_index;
+ PERFORM pg_temp.admit_source();
+ IF (SELECT canonical_physicality_id FROM laplace.source_structural_witness
+     WHERE source_profile_id=selected.source_profile_id AND artifact_index=selected.artifact_index
+      AND span_index=selected.span_index) IS DISTINCT FROM selected.canonical_physicality_id THEN
+   RAISE EXCEPTION 'native source replay did not restore its exact physicality binding';
+ END IF;
+END
+$physicality_enrichment$;
 
 DO $mutation$
 DECLARE
@@ -112,7 +137,7 @@ BEGIN
         WHERE source_profile_id = replay.profile_id
           AND composition_working_set_receipt =
               replay.composition_working_set_receipt_id
-      AND version = 2;
+      AND version = 3;
         PERFORM pg_temp.admit_source();
         RAISE EXCEPTION
             'structural witness receipt mutation was accepted by durable replay';

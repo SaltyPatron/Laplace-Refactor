@@ -6,7 +6,7 @@
 #include "laplace/composition.h"
 #include "laplace/framework.h"
 
-/* Exact PostgreSQL-backed content readback for cognition realization. Unicode
+/* Exact PostgreSQL-backed content readback. Unicode
  * atoms resolve through the active Tier-0 reverse/direct perfcaches; compositions
  * resolve through their canonical physicality/trajectory rows under the pinned
  * geometry epoch. Provider callbacks capture PostgreSQL errors so native C++
@@ -23,8 +23,26 @@ typedef struct laplace_pg_materialization_provider_report {
     uint64_t database_operations;
 } laplace_pg_materialization_provider_report;
 
+/* A caller may pin physical representations from an independently verified
+ * native receipt. Duplicate entity bindings must select the same physicality.
+ * Unbound compositions retain the strict unique-in-geometry resolution law.
+ * The independently verified selection receipt identifies the complete binding
+ * authority, so selecting a subset does not change individual node receipts. */
+typedef struct laplace_pg_materialization_selection {
+    laplace_id128 entity_id;
+    laplace_digest256 physicality_id;
+} laplace_pg_materialization_selection;
+
 void laplace_pg_materialization_provider_create(
     const laplace_framework_context* context,
+    laplace_pg_materialization_provider_state** owner,
+    laplace_cognition_materialization_provider_v1* provider);
+
+void laplace_pg_materialization_provider_create_selected(
+    const laplace_framework_context* context,
+    const laplace_digest256* selection_receipt,
+    const laplace_pg_materialization_selection* selections,
+    size_t selection_count,
     laplace_pg_materialization_provider_state** owner,
     laplace_cognition_materialization_provider_v1* provider);
 

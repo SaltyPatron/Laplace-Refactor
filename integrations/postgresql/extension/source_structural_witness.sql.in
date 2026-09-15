@@ -22,6 +22,9 @@ CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witnes
     provider_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
     canonical_entity_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_id_128
         REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.entity(entity_id),
+    canonical_physicality_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256
+        CONSTRAINT source_witness_physicality_fk
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality(physicality_id),
     byte_start numeric(20, 0) NOT NULL
         CHECK (byte_start BETWEEN 0 AND 18446744073709551615),
     byte_end numeric(20, 0) NOT NULL
@@ -46,6 +49,8 @@ CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witnes
         (byte_start < byte_end AND canonical_entity_id IS NOT NULL) OR
         (byte_start = byte_end AND canonical_entity_id IS NULL AND
          syntax_flags IS NOT NULL AND (syntax_flags::bigint & 34) <> 0)),
+    CONSTRAINT source_witness_physicality_presence CHECK (
+        canonical_physicality_id IS NULL OR canonical_entity_id IS NOT NULL),
     CHECK (
         parent_span_index = 18446744073709551615 OR
         parent_span_index < span_index),
@@ -65,7 +70,7 @@ CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witnes
         REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_execution_receipt(working_set_receipt),
     witness_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
     witness_count numeric(20, 0) NOT NULL CHECK (witness_count > 0),
-    version integer NOT NULL CHECK (version IN (1, 2)),
+    version integer NOT NULL CHECK (version IN (1, 2, 3)),
     recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     recorded_by name NOT NULL DEFAULT current_user,
     CONSTRAINT source_structural_witness_receipt_profile_execution_version_key
