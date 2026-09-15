@@ -63,6 +63,13 @@ class PublicReadbackBindings(unittest.TestCase):
             self.assertIn(condition,self.sql)
         self.assertNotIn('GRANT ',self.sql)
         self.assertNotIn('ALTER ROLE',self.sql)
+        world = (self.root/'world-admission-optional-evidence.sql').read_text()
+        self.assertIn(world,self.sql)
+        self.assertIn('world_admission_evidence_coverage',world)
+        self.assertIn('evidence_lineage_receipt_id IS NULL',world)
+        self.assertIn('evidence_testimony_receipt_id IS NULL',world)
+        self.assertIn('profile_claim_count>0',world)
+
 
     def test_existing_installation_applies_verified_program_in_one_transaction(self):
         outcome={'schema':'laplace.public-readback-bindings/v1','functions':3,'owner':'laplace_admin'}

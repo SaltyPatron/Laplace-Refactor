@@ -65,3 +65,10 @@ Feature: Sources and grammar providers remain witnesses rather than semantic aut
     When the lowering recipe executes
     Then both structures retain exact source positions and typed dispositions
     And the provider cannot mint content identity assert interpretation discard the error or publish testimony by itself
+
+  Scenario: Ordinary observations do not manufacture semantic claims
+    Given an exact admitted source profile with zero semantic claims
+    When the common native world admission closes its composition and readback
+    Then its evidence and testimony references are absent and every evidence count is zero
+    And its source profile composition closed subjects and explicit absence remain bound by the native receipt
+    But a supplied dangling receipt mixed evidence state or nonzero claim without lineage and testimony is rejected

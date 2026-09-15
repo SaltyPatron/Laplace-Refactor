@@ -38,6 +38,7 @@
       "dependencies/chess-release-selection.json",
       "contracts/chess-benchmark.json",
       "tools/dependencies/chess_tools.py",
+      "tools/dependencies/git_checkout.py",
       "tools/dependencies/chess_benchmark.py",
       "tools/dependencies/chess_calibration_request.py",
       "scripts/setup-chess.sh",

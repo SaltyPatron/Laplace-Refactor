@@ -240,3 +240,40 @@ engine, source, network, resource, and PGN evidence. Candidate dependency result
 not assert that product activation succeeded. Accepted main changes still run the
 separate calibration after successful product deployment; core benchmark scheduling
 is unchanged.
+
+## Measured hart-server configuration (2026-09-15)
+
+[Candidate calibration run 34958542147](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/34958542147)
+completed on the actual Intel Core i7-6850K host: six physical cores, twelve logical
+CPUs, affinity 0–11 and one NUMA node. The accepted observation ran from
+10:51:49.006804 to 10:55:57.770316 UTC (248.764 seconds). Its memory grant was
+7,040 MiB including a 512 MiB margin; peak sampled RSS was 6,154.48 MiB. Binary
+identities and the observed resource envelope remained stable.
+
+| Workload | Best measured starting setting | Median result |
+| --- | --- | --- |
+| One Stockfish process, 51-position depth-12 suite | Threads=4, Hash=64 MiB | 2.186 seconds |
+| CuteChess short-game throughput | Concurrency=4; each engine Threads=1, Hash=16 MiB; ponder off | 11.518 games/second |
+| Next CuteChess concurrency point | Concurrency=6; same engine settings | 11.297 games/second |
+
+The full grid tested Stockfish Threads=1,2,4,6,8,12 with Hash=16,64,256 MiB, and
+CuteChess concurrency=1,2,4,6,8,12. Each profile has one warmup and three measured
+samples: 96 timed processes, 24 PGNs, and 384 games including warmups. Every game
+ended at the imposed 24-ply limit. All transcript/PGN hashes and the medians were
+independently checked. The single-process winner's measured range was
+2.128–2.511 seconds. CuteChess concurrency four led six by about 1.96%, with
+overlapping ranges. Repeat calibration for a different machine, CPU reservation,
+search budget, opening suite, tablebase configuration or executable.
+
+These settings describe two different measured workloads. Do not turn the
+single-process four-thread result into four threads for every concurrent game,
+or treat the CuteChess result as a measured Laplace evaluation-worker count.
+The captured fresh Stockfish defaults were Threads=1, Hash=16 MiB and
+NumaPolicy=auto. This candidate receipt does not establish the deployed services'
+configuration. It also does not establish Laplace playing strength or Elo.
+
+Retained evidence is the `candidate-chess-dependencies-34958542147-1` artifact,
+ID `10392833423`, ZIP SHA-256
+`15b902f010a6a4a9d1d0f5dd65e562ca91a4293af8337a34a879a69aef3afb62`.
+The earlier candidate attempt failed its final memory-headroom check and remains
+failed; only this completed attempt supports these provisional settings.

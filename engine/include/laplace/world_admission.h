@@ -22,6 +22,8 @@ typedef struct laplace_world_admission_record {
     laplace_digest256 composition_presence_receipt_id;
     laplace_digest256 composition_producer_receipt_id;
     laplace_digest256 composition_stream_receipt_id;
+    /* Both evidence references are zero only for a zero-claim observation with
+     * all evidence and testimony counts zero. No empty evidence is fabricated. */
     laplace_digest256 evidence_lineage_receipt_id;
     laplace_digest256 evidence_testimony_receipt_id;
     laplace_digest256 readback_fingerprint;

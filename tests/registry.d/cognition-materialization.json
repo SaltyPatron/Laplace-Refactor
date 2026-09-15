@@ -97,6 +97,51 @@
         "unrepresentable trajectory size is rejected before any trajectory read",
         "limit failure clears receipt and output length without publishing partial bytes"
       ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.SourceBoundReadbackSharesExactUnicodeKernelWithoutRealization",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE"
+      ],
+      "covered_dimensions": [
+        "source-bound Unicode readback reuses the canonical materialization kernel without a cognition realization",
+        "changing the source binding changes the receipt while replay remains exact",
+        "source and cognition materialization have distinct receipt domains"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.ExplicitOctetsPreserveBytesAndRejectUnicodeOutsideByteRange",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "explicit octet serialization preserves byte-valued RAW content separately from UTF-8",
+        "Unicode outside the byte range is rejected without output or a success receipt"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.InvalidIdentityMissingBindingAndFiniteLimitPublishNoOutput",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "source materialization requires a nonzero source binding and valid canonical identity",
+        "finite output limits are enforced with atomic failure and no success receipt"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.SourceRootUsesSharedTrajectoryValidationAndPublishesAtomically",
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "source roots reconstruct exact ordered Unicode through the shared trajectory validator",
+        "a changed trajectory fails canonical identity and publishes no partial bytes"
+      ]
     }
   ]
 }

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import argparse
 import hashlib
 import importlib.util
 import io
@@ -45,6 +46,10 @@ class ChessDependencies(unittest.TestCase):
         subprocess.run(["git", "init", "--quiet", str(source)], check=True)
         (source / "license").write_text("upstream fixture license\n")
         (source / "source.cpp").write_text("int main() { return 0; }\n")
+        (source / "include").mkdir()
+        (source / "include/source.h").write_text("#define FIXTURE_VALUE 1\n")
+        (source / "empty").write_bytes(b"")
+        (source / "binary.bin").write_bytes(b"\x00\xff\x01")
         subprocess.run(["git", "-C", str(source), "add", "."], check=True)
         subprocess.run(["git", "-C", str(source), "-c", "user.name=Dependency Test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "source fixture"], check=True)
         upstream = "https://github.com/official-stockfish/Stockfish.git"
@@ -78,6 +83,37 @@ class ChessDependencies(unittest.TestCase):
         self.assertEqual(self.selected["releases"]["stockfish"]["tag"], "sf_19")
         self.assertNotIn("stockfish-nnue-small", self.artifacts)
         self.assertEqual(self.network["filename"], "nn-1a298aa575a0.nnue")
+        source = self.directory / "sources/stockfish"
+        (source / "src").mkdir(parents=True)
+        (source / "src/evaluate.h").write_text(f'#define EvalFileDefaultName "{self.network["filename"]}"\n')
+        downloaded = self.directory / "network-fixture"
+        downloaded.write_bytes(b"fixture network; never loaded")
+        entry = {"revision": "fixture", "git_archive_sha256": "0" * 64}
+        arguments = argparse.Namespace(tool="stockfish", source_root=source.parent,
+            build_root=self.directory / "build", prefix=self.directory / "receipt",
+            cache=self.directory / "cache", offline=True, jobs=1, profile=True,
+            arch="x86-64", compiler="gcc")
+        commands = []
+        def make_command(command, **kwargs):
+            self.assertEqual("make", command[0])
+            self.assertEqual("1", kwargs["env"]["GIT_NO_REPLACE_OBJECTS"])
+            commands.append(command)
+            if "profile-build" in command:
+                filename = "stockfish.exe" if platform.system() == "Windows" else "stockfish"
+                (source / "src" / filename).write_bytes(b"fixture executable; never run")
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        with patch.dict(os.environ, {"GIT_NO_REPLACE_OBJECTS": "0"}), \
+             patch.object(TOOLS, "json_read", return_value={"dependencies": {"stockfish": entry}}), \
+             patch.object(TOOLS, "update_source"), \
+             patch.object(TOOLS, "verify_source", return_value={"fixture": True}), \
+             patch.object(TOOLS, "acquire", return_value=downloaded), \
+             patch.object(TOOLS, "probe_stockfish", return_value={"fixture": True}), \
+             patch.object(TOOLS.subprocess, "run", side_effect=make_command):
+            TOOLS.build_tools(arguments, self.selected, self.artifacts)
+            self.assertEqual("0", os.environ["GIT_NO_REPLACE_OBJECTS"])
+        self.assertEqual(2, len(commands))
+        self.assertEqual("clean", commands[0][-1])
+        self.assertIn("profile-build", commands[1])
 
     def test_exact_source_passes_and_changed_archive_fails(self) -> None:
         source, entry = self.source_fixture()
@@ -85,6 +121,76 @@ class ChessDependencies(unittest.TestCase):
         entry["git_archive_sha256"] = "0" * 64
         with self.assertRaisesRegex(TOOLS.ChessToolError, "source archive differs"):
             TOOLS.verify_source(source, entry)
+
+    def test_tracked_snapshot_retains_binary_empty_and_exact_git_identities(self) -> None:
+        source, entry = self.source_fixture()
+        observed, files = TOOLS.git_snapshot(source, entry["revision"], retain_bytes=True)
+        self.assertEqual(5, observed["file_count"])
+        self.assertEqual(sum(len(data) for data in files.values()), observed["byte_count"])
+        self.assertEqual(b"", files["empty"])
+        self.assertEqual(b"\x00\xff\x01", files["binary.bin"])
+        self.assertEqual(entry["revision"], observed["commit"])
+        self.assertEqual(TOOLS.git(source, "rev-parse", "HEAD^{tree}"), observed["tree"])
+        for artifact in observed["artifacts"]:
+            self.assertEqual(hashlib.sha256(files[artifact["path"]]).hexdigest(), artifact["sha256"])
+            self.assertEqual(TOOLS.git(source, "rev-parse", "HEAD:" + artifact["path"]), artifact["git_blob"])
+
+    def test_snapshot_stops_when_a_file_grows_past_its_observed_bound(self) -> None:
+        source, entry = self.source_fixture()
+        path = source / "source.cpp"
+        identity = (path.stat().st_dev, path.stat().st_ino)
+        verifier = sys.modules[TOOLS.git_snapshot.__module__]
+        original_fstat = os.fstat
+        changed = False
+        def grow_after_stat(fd):
+            nonlocal changed
+            before = original_fstat(fd)
+            if not changed and (before.st_dev, before.st_ino) == identity:
+                changed = True
+                with path.open("ab") as stream:
+                    stream.write(b"x" * (1024 * 1024))
+            return before
+        with patch.object(verifier.os, "fstat", side_effect=grow_after_stat):
+            with self.assertRaisesRegex(TOOLS.GitCheckoutError, "grew beyond"):
+                TOOLS.git_snapshot(source, entry["revision"], retain_bytes=True, maximum_file_bytes=1024)
+        self.assertTrue(changed)
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX file kinds")
+    def test_tracked_symlink_and_fifo_replacements_reject_without_following(self) -> None:
+        source, entry = self.source_fixture()
+        path = source / "source.cpp"
+        original = path.read_bytes()
+        TOOLS.git(source, "update-index", "--assume-unchanged", "source.cpp")
+        for kind in ("symlink", "fifo"):
+            with self.subTest(kind=kind):
+                path.unlink()
+                if kind == "symlink":
+                    path.symlink_to("license")
+                else:
+                    os.mkfifo(path)
+                with self.assertRaises(TOOLS.ChessToolError):
+                    TOOLS.verify_source(source, entry)
+                path.unlink()
+                path.write_bytes(original)
+
+    def test_local_replacement_commit_does_not_redefine_locked_input(self) -> None:
+        source, entry = self.source_fixture()
+        original = (source / "source.cpp").read_bytes()
+        (source / "source.cpp").write_bytes(b"replacement source bytes\n")
+        TOOLS.git(source, "add", "source.cpp")
+        TOOLS.git(source, "-c", "user.name=Dependency Test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "replacement fixture")
+        replacement = TOOLS.git(source, "rev-parse", "HEAD")
+        TOOLS.git(source, "update-ref", "HEAD", entry["revision"])
+        TOOLS.git(source, "replace", entry["revision"], replacement)
+        TOOLS.git(source, "update-index", "--assume-unchanged", "source.cpp")
+        with self.assertRaises(TOOLS.ChessToolError):
+            TOOLS.verify_source(source, entry)
+        # The actual original bytes still verify even while the local replacement
+        # exists; it has no authority over the selected locked commit or archive.
+        (source / "source.cpp").write_bytes(original)
+        TOOLS.git(source, "reset", "--mixed", "HEAD")
+        observed = TOOLS.verify_source(source, entry)
+        self.assertEqual(entry["revision"], observed["commit"])
 
     def test_source_edits_are_preserved_before_update(self) -> None:
         source, entry = self.source_fixture()
@@ -94,6 +200,70 @@ class ChessDependencies(unittest.TestCase):
             TOOLS.update_source(source, entry, False)
         self.assertEqual((source / "source.cpp").read_text(), "operator work\n")
         self.assertEqual(TOOLS.git(source, "rev-parse", "HEAD"), original_head)
+
+    def test_index_flags_cannot_hide_changed_compiler_inputs(self) -> None:
+        source, entry = self.source_fixture()
+        for flag, relative in (("--assume-unchanged", "source.cpp"), ("--skip-worktree", "include/source.h")):
+            with self.subTest(flag=flag, relative=relative):
+                path = source / relative
+                original = path.read_bytes()
+                TOOLS.git(source, "update-index", flag, "--", relative)
+                path.write_bytes(b"hidden operator changes\n")
+                self.assertEqual("", TOOLS.git(source, "status", "--porcelain=v1", "--untracked-files=all"))
+                with self.assertRaises(TOOLS.ChessToolError):
+                    TOOLS.verify_source(source, entry)
+                with self.assertRaises(TOOLS.ChessToolError):
+                    TOOLS.update_source(source, entry, True)
+                self.assertEqual(b"hidden operator changes\n", path.read_bytes())
+                self.assertEqual(entry["revision"], TOOLS.git(source, "rev-parse", "HEAD"))
+                path.write_bytes(original)
+                TOOLS.git(source, "update-index", "--no-" + flag[2:], "--", relative)
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX executable mode")
+    def test_filemode_configuration_cannot_hide_changed_executable_mode(self) -> None:
+        source, entry = self.source_fixture()
+        TOOLS.git(source, "config", "core.fileMode", "false")
+        path = source / "source.cpp"
+        path.chmod(path.stat().st_mode | 0o100)
+        self.assertEqual("", TOOLS.git(source, "status", "--porcelain=v1", "--untracked-files=all"))
+        with self.assertRaises(TOOLS.ChessToolError):
+            TOOLS.verify_source(source, entry)
+        with self.assertRaises(TOOLS.ChessToolError):
+            TOOLS.update_source(source, entry, True)
+        self.assertTrue(path.stat().st_mode & 0o100)
+
+    def test_changed_header_during_build_cannot_publish_official_receipt(self) -> None:
+        source, entry = self.source_fixture()
+        selected_source = self.directory / "sources/cutechess"
+        selected_source.parent.mkdir()
+        source.rename(selected_source)
+        source = selected_source
+        work = self.directory / "build/cutechess" / entry["revision"]
+        qt = self.directory / "qt"
+        qt.mkdir()
+        arguments = argparse.Namespace(tool="cutechess", source_root=source.parent,
+            build_root=self.directory / "build", prefix=self.directory / "receipt",
+            offline=True, qt_prefix=qt, jobs=1)
+        original_run = subprocess.run
+        def build_command(command, **kwargs):
+            if command[0] == "cmake":
+                self.assertEqual("1", kwargs["env"]["GIT_NO_REPLACE_OBJECTS"])
+                if "--build" in command:
+                    self.assertIn("--clean-first", command)
+                    (work / "cutechess-cli").write_bytes(b"fixture executable; never run")
+                    TOOLS.git(source, "update-index", "--assume-unchanged", "include/source.h")
+                    (source / "include/source.h").write_text("hidden build-time mutation\n")
+                return subprocess.CompletedProcess(command, 0)
+            return original_run(command, **kwargs)
+        with patch.dict(os.environ, {"GIT_NO_REPLACE_OBJECTS": "0"}), \
+             patch.object(TOOLS, "json_read", return_value={"dependencies": {"cutechess": entry}}), \
+             patch.object(TOOLS, "probe_cutechess", return_value={"fixture": True}), \
+             patch.object(TOOLS.subprocess, "run", side_effect=build_command):
+            with self.assertRaises(TOOLS.ChessToolError):
+                TOOLS.build_tools(arguments, self.selected, self.artifacts)
+            self.assertEqual("0", os.environ["GIT_NO_REPLACE_OBJECTS"])
+        self.assertFalse((arguments.prefix / "current.json").exists())
+        self.assertEqual("hidden build-time mutation\n", (source / "include/source.h").read_text())
 
     def test_unrelated_git_origin_is_rejected(self) -> None:
         source, entry = self.source_fixture()

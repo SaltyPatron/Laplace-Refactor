@@ -313,7 +313,9 @@ laplace_tabular_source_status DecompositionTrace(
 
     for (std::size_t index = 0u; index < count; ++index) {
         const laplace_decomposition_span& span = spans[index];
-        if (span.byte_start >= span.byte_end ||
+        if (span.byte_start > span.byte_end ||
+            (span.byte_start == span.byte_end &&
+             (span.syntax_flags & (LAPLACE_DECOMPOSITION_SYNTAX_MISSING | LAPLACE_DECOMPOSITION_SYNTAX_EMPTY)) == 0u) ||
             span.byte_end > content.byte_count ||
             (index == 0u &&
              span.parent_span_index !=
@@ -409,10 +411,12 @@ laplace_tabular_source_status BuildRecursiveWithProviders(
     const laplace_tabular_source_input* input,
     const laplace_decomposition_provider_v1* common_providers,
     const std::uint64_t common_provider_count,
-    laplace_tabular_source_plan** plan) {
+    laplace_tabular_source_plan** plan,
+    const std::uint32_t maximum_depth = 8u) {
     if (input == nullptr || plan == nullptr || *plan != nullptr ||
         (common_provider_count != 0u && common_providers == nullptr) ||
-        common_provider_count >= static_cast<std::uint64_t>(SIZE_MAX)) {
+        common_provider_count >= static_cast<std::uint64_t>(SIZE_MAX) ||
+        maximum_depth == 0u || maximum_depth > 4096u) {
         return LAPLACE_TABULAR_SOURCE_INVALID_ARGUMENT;
     }
 
@@ -548,7 +552,7 @@ laplace_tabular_source_status BuildRecursiveWithProviders(
         decomposition_input.provider_count =
             static_cast<std::uint64_t>(providers.size());
         decomposition_input.maximum_spans = maximum_spans;
-        decomposition_input.maximum_depth = 8u;
+        decomposition_input.maximum_depth = maximum_depth;
 
         laplace_decomposition_result* decomposition = nullptr;
         const auto decomposition_status =
@@ -647,6 +651,15 @@ laplace_tabular_source_status BuildRecursiveWithProviders(
                     goto recursive_failure;
                 }
                 const laplace_decomposition_span& span = spans[span_index];
+                if ((span.syntax_flags & (LAPLACE_DECOMPOSITION_SYNTAX_ERROR |
+                        LAPLACE_DECOMPOSITION_SYNTAX_MISSING)) != 0u &&
+                    !RecursiveAdd(created->view.profile.error_count, 1u,
+                        created->view.profile.error_count)) {
+                    status = LAPLACE_TABULAR_SOURCE_OVERFLOW;
+                    laplace_decomposition_composition_plan_destroy(&composition_plan);
+                    laplace_decomposition_result_destroy(&decomposition);
+                    goto recursive_failure;
+                }
                 laplace::internal::RecursiveDecompositionWitnessInput witness{};
                 witness.provider_fingerprint = span.provider_fingerprint;
                 witness.media_type = media_type;
@@ -842,6 +855,21 @@ laplace_source_decomposition_plan_create(
     try {
         return recursive_admission::BuildRecursiveWithProviders(
             input, providers, provider_count, plan);
+    } catch (const std::bad_alloc&) {
+        return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
+    }
+}
+
+extern "C" laplace_tabular_source_status
+laplace_source_decomposition_plan_create_bounded(
+    const laplace_tabular_source_input* input,
+    const laplace_decomposition_provider_v1* providers,
+    const std::uint64_t provider_count,
+    const std::uint32_t maximum_depth,
+    laplace_tabular_source_plan** plan) {
+    try {
+        return recursive_admission::BuildRecursiveWithProviders(
+            input, providers, provider_count, plan, maximum_depth);
     } catch (const std::bad_alloc&) {
         return LAPLACE_TABULAR_SOURCE_MEMORY_FAILURE;
     }

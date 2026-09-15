@@ -22,6 +22,8 @@ from pathlib import Path, PurePosixPath
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from tools.dependencies.git_checkout import GitCheckoutError, snapshot as git_snapshot
 SCRATCH = Path("/build/laplace/work")
 USER_AGENT = "Laplace-Refactor-chess-dependency-check/1"
 
@@ -121,9 +123,14 @@ def require_build(condition: bool, message: str, log: Path) -> None:
         raise ChessToolError(f"{message}; see {log}\n{tail}")
 
 
+def build_environment() -> dict[str, str]:
+    """Keep child Git commands bound to the verified original object identities."""
+    return {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"}
+
+
 def qt_environment(prefix: Path) -> dict[str, str]:
     """Keep selected SDK tools and their libraries together in child processes."""
-    environment = os.environ.copy()
+    environment = build_environment()
     paths = {"PATH": prefix / "bin"}
     if platform.system() == "Linux":
         paths["LD_LIBRARY_PATH"] = prefix / "lib"
@@ -214,14 +221,22 @@ def probe_stockfish(argv: list[str], network: dict) -> dict:
 
 
 def git(source: Path, *arguments: str) -> str:
-    return execute(["git", "-c", f"safe.directory={source}", "-C", str(source), *arguments], timeout=180).strip()
+    return execute(["git", "--no-optional-locks", "--no-replace-objects", "-c", f"safe.directory={source}", "-C", str(source), *arguments], timeout=180).strip()
 
 
-def verify_source(source: Path, entry: dict) -> None:
+def verify_tracked_inputs(source: Path, revision: str | None = None) -> dict:
+    try:
+        return git_snapshot(source, revision)[0]
+    except GitCheckoutError as error:
+        raise ChessToolError(str(error) + "; preserving source: " + str(source)) from error
+
+
+def verify_source(source: Path, entry: dict) -> dict:
     verify_origin(source, entry)
     require(git(source, "status", "--porcelain=v1", "--untracked-files=all") == "", f"source has local changes; preserving them: {source}")
     require(git(source, "rev-parse", "HEAD") == entry["revision"], f"source revision differs: {source}")
-    process = subprocess.Popen(["git", "-c", f"safe.directory={source}", "-C", str(source), "archive", "--format=tar", "HEAD"], stdout=subprocess.PIPE)
+    observed = verify_tracked_inputs(source, entry["revision"])
+    process = subprocess.Popen(["git", "--no-optional-locks", "--no-replace-objects", "-c", f"safe.directory={source}", "-C", str(source), "archive", "--format=tar", entry["revision"]], stdout=subprocess.PIPE)
     checksum = hashlib.sha256()
     assert process.stdout is not None
     for block in iter(lambda: process.stdout.read(1024 * 1024), b""):
@@ -230,6 +245,7 @@ def verify_source(source: Path, entry: dict) -> None:
     require(process.wait() == 0 and checksum.hexdigest() == entry["git_archive_sha256"], f"source archive differs: {source}")
     for license_file in entry["licenses"]:
         require(digest(source / license_file["path"]) == license_file["sha256"], f"source license differs: {source}")
+    return observed
 
 
 def verify_origin(source: Path, entry: dict) -> None:
@@ -241,6 +257,7 @@ def verify_origin(source: Path, entry: dict) -> None:
 
 
 def update_source(source: Path, entry: dict, offline: bool) -> None:
+    created = not source.exists()
     if not source.exists():
         require(not offline, f"offline source checkout is missing: {source}")
         source.parent.mkdir(parents=True, exist_ok=True)
@@ -249,6 +266,10 @@ def update_source(source: Path, entry: dict, offline: bool) -> None:
     require((source / ".git").exists(), f"source is not a Git checkout: {source}")
     verify_origin(source, entry)
     require(git(source, "status", "--porcelain=v1", "--untracked-files=all") == "", f"source has local changes; preserving them: {source}")
+    if not created:
+        # Check the current tree before checkout, even when it is an older release.
+        # Index flags must not allow checkout to overwrite hidden operator changes.
+        verify_tracked_inputs(source)
     if not offline:
         # Fetch the declared upstream even when a verified import keeps a local
         # origin; preserve that provenance instead of rewriting its remote.
@@ -279,9 +300,10 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
             command = ["make", "-C", str(source / "src"), f"-j{arguments.jobs}", "profile-build" if arguments.profile else "build", f"ARCH={arguments.arch}", f"COMP={arguments.compiler}"]
             # Upstream make owns its ignored intermediate objects; clear them before a
             # rebuild so a changed CPU/compiler cannot reuse an incompatible object.
-            execute(["make", "-C", str(source / "src"), "clean"])
+            environment = build_environment()
+            execute(["make", "-C", str(source / "src"), "clean"], env=environment)
             with log.open("w") as output:
-                completed = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)
+                completed = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False, env=environment)
             require_build(completed.returncode == 0, "Stockfish source build failed", log)
             executable = source / "src" / ("stockfish.exe" if platform.system() == "Windows" else "stockfish")
             checks = probe_stockfish([str(executable)], network)
@@ -296,7 +318,9 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
             with log.open("w") as output:
                 configured = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False, env=environment)
                 require_build(configured.returncode == 0, "Cute Chess configure failed; requires CMake >=3.20, C++17 and Qt >=6.8 (Core, Widgets, Svg, Concurrent, PrintSupport, Core5Compat); set --qt-prefix for the installed Qt SDK", log)
-                built = subprocess.run(["cmake", "--build", str(work), "--config", "Release", "--target", "cli", "--parallel", str(arguments.jobs)], stdout=output, stderr=subprocess.STDOUT, check=False, env=environment)
+                # Verified current source bytes cannot authenticate a cached object
+                # that was compiled before a hidden local edit was restored.
+                built = subprocess.run(["cmake", "--build", str(work), "--clean-first", "--config", "Release", "--target", "cli", "--parallel", str(arguments.jobs)], stdout=output, stderr=subprocess.STDOUT, check=False, env=environment)
                 require_build(built.returncode == 0, "Cute Chess source build failed", log)
             executable = single_match(work, "cutechess-cli.exe" if platform.system() == "Windows" else "cutechess-cli")
             if platform.system() == "Windows":
@@ -306,8 +330,8 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
                 require(deployment.is_file(), f"Qt runtime deployment tool is missing: {deployment}")
                 execute([str(deployment), "--release", "--no-translations", str(executable)], timeout=180, env=environment)
             checks = probe_cutechess([str(executable)], environment=environment)
-        verify_source(source, entry)
-        result["tools"][name] = {"source": str(source), "revision": entry["revision"], "source_archive_sha256": entry["git_archive_sha256"], "executable": str(executable), "sha256": digest(executable), "build_command": command, "build_log": str(log), "checks": checks}
+        source_observation = verify_source(source, entry)
+        result["tools"][name] = {"source": str(source), "revision": entry["revision"], "source_archive_sha256": entry["git_archive_sha256"], "tracked_source": source_observation, "source_verifier_sha256": digest(Path(__file__).with_name("git_checkout.py")), "executable": str(executable), "sha256": digest(executable), "build_command": command, "build_log": str(log), "checks": checks}
         if name == "cutechess":
             result["tools"][name]["qt_prefix"] = str(arguments.qt_prefix)
     arguments.prefix.mkdir(parents=True, exist_ok=True)

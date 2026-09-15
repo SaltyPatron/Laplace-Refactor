@@ -213,7 +213,7 @@ inline laplace_tabular_source_status AppendRecursiveDecompositionWitnesses(
     std::vector<laplace_tabular_decomposition_witness>& destination_witnesses,
     std::vector<std::uint8_t>& destination_media_types) {
     if (span_count == 0u || spans == nullptr || source.span_count != span_count ||
-        source.span_references == nullptr || source.atom_count == 0u ||
+        source.span_references == nullptr || source.span_has_content == nullptr || source.atom_count == 0u ||
         source.atom_positions == nullptr ||
         span_count > static_cast<std::uint64_t>(SIZE_MAX) ||
         destination_witnesses.size() >
@@ -234,7 +234,11 @@ inline laplace_tabular_source_status AppendRecursiveDecompositionWitnesses(
 
     for (std::size_t index = 0u; index < count; ++index) {
         const RecursiveDecompositionWitnessInput& span = spans[index];
-        if (span.byte_start >= span.byte_end ||
+        const bool missing = span.byte_start == span.byte_end &&
+            (span.syntax_flags & (LAPLACE_DECOMPOSITION_SYNTAX_MISSING | LAPLACE_DECOMPOSITION_SYNTAX_EMPTY)) != 0u;
+        if (span.byte_start > span.byte_end ||
+            (span.byte_start == span.byte_end && !missing) ||
+            source.span_has_content[index] != (missing ? 0u : 1u) ||
             (index == 0u && span.parent_span_index !=
                                 std::numeric_limits<std::uint64_t>::max()) ||
             (index != 0u &&
@@ -245,41 +249,48 @@ inline laplace_tabular_source_status AppendRecursiveDecompositionWitnesses(
         }
 
         laplace_composition_operand canonical = source.span_references[index];
-        if (canonical.multiplicity != 1u ||
-            canonical.relationship_metadata != 0u || canonical.flags != 0u) {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-        }
-        if (canonical.reference_kind ==
-            LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
-            if (canonical.reference_index >= source.atom_count) {
+        if (missing) {
+            const laplace_composition_operand absent{};
+            if (std::memcmp(&canonical, &absent, sizeof(canonical)) != 0) {
                 return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
             }
-            const std::uint32_t position = source.atom_positions[
-                static_cast<std::size_t>(canonical.reference_index)];
-            std::uint64_t destination_index =
-                std::numeric_limits<std::uint64_t>::max();
-            for (std::size_t candidate = 0u;
-                 candidate < destination_atoms.size();
-                 ++candidate) {
-                if (destination_atoms[candidate] == position) {
-                    destination_index = static_cast<std::uint64_t>(candidate);
-                    break;
-                }
-            }
-            if (destination_index == std::numeric_limits<std::uint64_t>::max()) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            canonical.reference_index = destination_index;
-        } else if (canonical.reference_kind ==
-                   LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
-            if (canonical.reference_index >= source.request_count ||
-                canonical.reference_index >
-                    std::numeric_limits<std::uint64_t>::max() - request_base) {
-                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
-            }
-            canonical.reference_index += request_base;
         } else {
-            return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            if (canonical.multiplicity != 1u ||
+                canonical.relationship_metadata != 0u || canonical.flags != 0u) {
+                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            }
+            if (canonical.reference_kind ==
+                LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY) {
+                if (canonical.reference_index >= source.atom_count) {
+                    return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                }
+                const std::uint32_t position = source.atom_positions[
+                    static_cast<std::size_t>(canonical.reference_index)];
+                std::uint64_t destination_index =
+                    std::numeric_limits<std::uint64_t>::max();
+                for (std::size_t candidate = 0u;
+                     candidate < destination_atoms.size();
+                     ++candidate) {
+                    if (destination_atoms[candidate] == position) {
+                        destination_index = static_cast<std::uint64_t>(candidate);
+                        break;
+                    }
+                }
+                if (destination_index == std::numeric_limits<std::uint64_t>::max()) {
+                    return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                }
+                canonical.reference_index = destination_index;
+            } else if (canonical.reference_kind ==
+                       LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
+                if (canonical.reference_index >= source.request_count ||
+                    canonical.reference_index >
+                        std::numeric_limits<std::uint64_t>::max() - request_base) {
+                    return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+                }
+                canonical.reference_index += request_base;
+            } else {
+                return LAPLACE_TABULAR_SOURCE_GRAMMAR_INVALID;
+            }
         }
 
         const std::size_t media_count =

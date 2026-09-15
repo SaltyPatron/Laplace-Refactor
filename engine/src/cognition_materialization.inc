@@ -583,10 +583,12 @@ void OutputFingerprint(
 
 void ReceiptIdentity(
     const laplace_cognition_materialization_receipt& receipt,
-    laplace_digest256* const identity) {
+    laplace_digest256* const identity, const bool generic_content = false) {
     blake3_hasher hasher{};
     blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, ReceiptDomain, sizeof(ReceiptDomain) - 1U);
+    static constexpr char ContentDomain[] = "laplace-content-materialization-receipt-v1";
+    if (generic_content) blake3_hasher_update(&hasher, ContentDomain, sizeof(ContentDomain)-1U);
+    else blake3_hasher_update(&hasher, ReceiptDomain, sizeof(ReceiptDomain) - 1U);
     HashDigest(&hasher, receipt.source_candidate_receipt_id);
     HashDigest(&hasher, receipt.source_recipe_id);
     HashDigest(&hasher, receipt.provider_fingerprint);
@@ -603,9 +605,11 @@ void ReceiptIdentity(
 
 }  // namespace laplace_cognition_materialization_detail
 
-extern "C" laplace_cognition_materialization_status
-laplace_cognition_realization_materialize_encoded(
-    const laplace_cognition_realization_result* const realization,
+static laplace_cognition_materialization_status MaterializeBoundContent(
+    const laplace_id128* const root_content_id,
+    const laplace_digest256* const source_receipt_id,
+    const laplace_digest256* const source_recipe_id,
+    const bool generic_content,
     const laplace_cognition_materialization_request* const request,
     const laplace_cognition_materialization_provider_v1* const provider,
     const std::uint32_t output_encoding,
@@ -617,7 +621,8 @@ laplace_cognition_realization_materialize_encoded(
 
     if (output_bytes != nullptr) *output_bytes = 0U;
     if (receipt != nullptr) *receipt = laplace_cognition_materialization_receipt{};
-    if (realization == nullptr || request == nullptr || provider == nullptr ||
+    if (root_content_id == nullptr || source_receipt_id == nullptr ||
+        source_recipe_id == nullptr || request == nullptr || provider == nullptr ||
         output == nullptr || output_bytes == nullptr || receipt == nullptr) {
         return LAPLACE_COGNITION_MATERIALIZATION_INVALID_ARGUMENT;
     }
@@ -625,8 +630,8 @@ laplace_cognition_realization_materialize_encoded(
         output_encoding != LAPLACE_COGNITION_OUTPUT_OCTETS) {
         return LAPLACE_COGNITION_MATERIALIZATION_ENCODING_INVALID;
     }
-    if (!RealizationValid(*realization)) {
-        return LAPLACE_COGNITION_MATERIALIZATION_INVALID_REALIZATION;
+    if (IdZero(*root_content_id) || DigestZero(*source_receipt_id) || DigestZero(*source_recipe_id)) {
+        return LAPLACE_COGNITION_MATERIALIZATION_INVALID_ARGUMENT;
     }
     if (!RequestValid(*request)) {
         return LAPLACE_COGNITION_MATERIALIZATION_INVALID_ARGUMENT;
@@ -657,7 +662,7 @@ laplace_cognition_realization_materialize_encoded(
     laplace_cognition_materialization_status status;
     try {
         status = MaterializeEntity(
-            context, realization->content_id, 0U, false, 0U, &height);
+            context, *root_content_id, 0U, false, 0U, &height);
     } catch (const std::length_error&) {
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
     } catch (const std::bad_alloc&) {
@@ -674,24 +679,67 @@ laplace_cognition_realization_materialize_encoded(
     }
 
     laplace_cognition_materialization_receipt resolved{};
-    resolved.source_candidate_receipt_id = realization->candidate_receipt_id;
-    resolved.source_recipe_id = realization->realization_recipe_id;
+    resolved.source_candidate_receipt_id = *source_receipt_id;
+    resolved.source_recipe_id = *source_recipe_id;
     resolved.provider_fingerprint = provider->provider_fingerprint;
     Finish(&context.readset, &resolved.readset_fingerprint);
     OutputFingerprint(materialized, output_encoding, &resolved.output_fingerprint);
-    resolved.root_content_id = realization->content_id;
+    resolved.root_content_id = *root_content_id;
     resolved.resolved_node_count = context.counters.nodes;
     resolved.trajectory_carrier_count = context.counters.carriers;
     resolved.codepoint_count = context.counters.codepoints;
     resolved.output_bytes = static_cast<std::uint64_t>(materialized.size());
     resolved.maximum_depth_observed = context.counters.maximum_depth;
     resolved.version = LAPLACE_COGNITION_MATERIALIZATION_RECEIPT_VERSION;
-    ReceiptIdentity(resolved, &resolved.materialization_id);
+    ReceiptIdentity(resolved, &resolved.materialization_id, generic_content);
 
     std::memcpy(output, materialized.data(), materialized.size());
     *output_bytes = materialized.size();
     *receipt = resolved;
     return LAPLACE_COGNITION_MATERIALIZATION_OK;
+}
+
+extern "C" laplace_cognition_materialization_status
+laplace_cognition_realization_materialize_encoded(
+    const laplace_cognition_realization_result* realization,
+    const laplace_cognition_materialization_request* request,
+    const laplace_cognition_materialization_provider_v1* provider,
+    std::uint32_t encoding, std::uint8_t* output, std::size_t capacity,
+    std::size_t* output_bytes, laplace_cognition_materialization_receipt* receipt) {
+    if (output_bytes != nullptr) *output_bytes = 0u;
+    if (receipt != nullptr) *receipt = {};
+    if (realization == nullptr || request == nullptr || provider == nullptr ||
+        output == nullptr || output_bytes == nullptr || receipt == nullptr)
+        return LAPLACE_COGNITION_MATERIALIZATION_INVALID_ARGUMENT;
+    if (encoding != LAPLACE_COGNITION_OUTPUT_UTF8 && encoding != LAPLACE_COGNITION_OUTPUT_OCTETS)
+        return LAPLACE_COGNITION_MATERIALIZATION_ENCODING_INVALID;
+    if (!laplace_cognition_materialization_detail::RealizationValid(*realization))
+        return LAPLACE_COGNITION_MATERIALIZATION_INVALID_REALIZATION;
+    return MaterializeBoundContent(&realization->content_id, &realization->candidate_receipt_id,
+        &realization->realization_recipe_id, false, request, provider, encoding,
+        output, capacity, output_bytes, receipt);
+}
+
+extern "C" laplace_cognition_materialization_status
+laplace_content_materialize_encoded(
+    const laplace_id128* root_content_id, const laplace_digest256* source_receipt_id,
+    const laplace_digest256* source_recipe_id,
+    const laplace_cognition_materialization_request* request,
+    const laplace_cognition_materialization_provider_v1* provider,
+    std::uint32_t encoding, std::uint8_t* output, std::size_t capacity,
+    std::size_t* output_bytes, laplace_content_materialization_receipt* receipt) {
+    if (output_bytes != nullptr) *output_bytes = 0u;
+    if (receipt == nullptr) return LAPLACE_COGNITION_MATERIALIZATION_INVALID_ARGUMENT;
+    *receipt = {};
+    laplace_cognition_materialization_receipt shared{};
+    const auto status = MaterializeBoundContent(root_content_id, source_receipt_id,
+        source_recipe_id, true, request, provider, encoding, output, capacity,
+        output_bytes, &shared);
+    if (status == LAPLACE_COGNITION_MATERIALIZATION_OK) {
+        static_assert(sizeof(shared) == sizeof(*receipt));
+        std::memcpy(receipt, &shared, sizeof(shared));
+    }
+    return status;
 }
 
 // Compatibility route: one canonical implementation, not a second text engine.

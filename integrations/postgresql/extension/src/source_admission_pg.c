@@ -15,6 +15,8 @@
 #include "lib/stringinfo.h"
 #include "utils/builtins.h"
 #include "utils/errcodes.h"
+#include "utils/memutils.h"
+#include "miscadmin.h"
 
 #include <inttypes.h>
 #include <string.h>
@@ -24,10 +26,12 @@
 #include "laplace/decomposition_xml.h"
 #include "laplace/source_decomposition.h"
 #include "laplace/source_profile.h"
+#include "laplace/tree_sitter_grammar.h"
 #include "laplace/uax29.h"
 #include "composition_pg.h"
 #include "source_structural_witness_pg.h"
 #include "uax29_active_pg.h"
+#include "laplace_pg_internal.h"
 
 PG_FUNCTION_INFO_V1(laplace_source_admission_last_execution_metrics);
 
@@ -54,6 +58,39 @@ static uint8_t laplace_pg_source_uax_authority_valid = 0u;
 static laplace_pg_source_execution_metrics laplace_pg_source_metrics_previous;
 static laplace_pg_source_execution_metrics laplace_pg_source_metrics_active;
 static uint64_t laplace_pg_source_metrics_sequence = 0u;
+
+typedef struct laplace_pg_source_grammar_owner {
+    MemoryContextCallback cleanup;
+    laplace_tree_sitter_grammar* grammar;
+    laplace_uax29_tables* uax_tables;
+} laplace_pg_source_grammar_owner;
+
+static HeapTupleHeader laplace_pg_source_selected_grammar = NULL;
+
+static void laplace_pg_source_grammar_cleanup(void* pointer) {
+    laplace_pg_source_grammar_owner* owner = pointer;
+    laplace_tree_sitter_grammar_close(&owner->grammar);
+    laplace_uax29_tables_destroy(&owner->uax_tables);
+}
+
+static void laplace_pg_source_select_grammar(
+    FunctionCallInfo fcinfo, const laplace_source_profile_manifest* profile) {
+    laplace_digest256 declaration;
+    laplace_pg_source_selected_grammar = NULL;
+    if (PG_NARGS() == 8) return;
+    if (PG_NARGS() != 9 || !superuser()) {
+        ereport(ERROR, (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+            errmsg("Laplace grammar selection requires the authorized product administrator")));
+    }
+    laplace_pg_source_selected_grammar = DatumGetHeapTupleHeader(PG_GETARG_DATUM(8));
+    laplace_pg_read_digest(laplace_pg_required_composite_attribute(
+        laplace_pg_source_selected_grammar, 5, "declaration_fingerprint"),
+        &declaration, "grammar declaration fingerprint");
+    if (memcmp(declaration.bytes, profile->syntax_authority_fingerprint.bytes, 32u) != 0) {
+        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+            errmsg("Laplace source profile does not bind the selected grammar receipt")));
+    }
+}
 
 static void laplace_pg_source_metrics_begin(void) {
     laplace_pg_source_metrics_previous = laplace_pg_source_metrics_active;
@@ -221,7 +258,10 @@ laplace_pg_source_decomposition_plan_create(
     laplace_uax29_tables* uax_tables = NULL;
     laplace_decomposition_uax29_provider uax_provider;
     laplace_decomposition_xml_provider xml_provider;
-    laplace_decomposition_provider_v1 providers[2];
+    laplace_decomposition_provider_v1 providers[3];
+    laplace_pg_source_grammar_owner* grammar_owner = NULL;
+    uint32_t maximum_depth = 8u;
+    uint64_t provider_count = 2u;
     laplace_pg_active_uax_authority uax_authority;
     laplace_digest256 uax_fingerprint;
     laplace_digest256 xml_fingerprint;
@@ -253,7 +293,12 @@ laplace_pg_source_decomposition_plan_create(
      * The provider fingerprint remains bound to the canonical root's retained
      * source+recipe identity, so replacing the physical provider does not change
      * the logical UAX authority. */
-    laplace_pg_uax29_tables_from_active_unicode(&uax_tables, &uax_authority);
+    grammar_owner = palloc0(sizeof(*grammar_owner));
+    grammar_owner->cleanup.func = laplace_pg_source_grammar_cleanup;
+    grammar_owner->cleanup.arg = grammar_owner;
+    MemoryContextRegisterResetCallback(CurrentMemoryContext, &grammar_owner->cleanup);
+    laplace_pg_uax29_tables_from_active_unicode(&grammar_owner->uax_tables, &uax_authority);
+    uax_tables = grammar_owner->uax_tables;
     if (uax_tables == NULL) {
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
@@ -263,7 +308,7 @@ laplace_pg_source_decomposition_plan_create(
     if (laplace_decomposition_uax29_provider_init(
             &uax_provider, uax_tables, &uax_fingerprint) !=
         LAPLACE_DECOMPOSITION_OK) {
-        laplace_uax29_tables_destroy(&uax_tables);
+        laplace_pg_source_grammar_cleanup(grammar_owner);
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
 
@@ -274,14 +319,58 @@ laplace_pg_source_decomposition_plan_create(
     if (laplace_decomposition_xml_provider_init(
             &xml_provider, UINT64_C(0x584d4c0000000000), &xml_fingerprint) !=
         LAPLACE_DECOMPOSITION_OK) {
-        laplace_uax29_tables_destroy(&uax_tables);
+        laplace_pg_source_grammar_cleanup(grammar_owner);
         return LAPLACE_TABULAR_SOURCE_PROFILE_INVALID;
     }
     providers[0] = uax_provider.provider;
     providers[1] = xml_provider.provider;
-    status = laplace_source_decomposition_plan_create(
-        &runtime_input, providers, 2u, plan);
-    laplace_uax29_tables_destroy(&uax_tables);
+    if (laplace_pg_source_selected_grammar != NULL) {
+        HeapTupleHeader selected = laplace_pg_source_selected_grammar;
+        const char* path = TextDatumGetCString(laplace_pg_required_composite_attribute(selected, 1, "library_path"));
+        const char* symbol = TextDatumGetCString(laplace_pg_required_composite_attribute(selected, 2, "language_symbol"));
+        const char* media = TextDatumGetCString(laplace_pg_required_composite_attribute(selected, 3, "media_type"));
+        const uint64_t kind_base = laplace_pg_uint64_from_numeric(
+            laplace_pg_required_composite_attribute(selected, 4, "kind_base"), "grammar kind base");
+        laplace_digest256 declaration;
+        laplace_digest256 library_sha;
+        const int64 library_bytes = DatumGetInt64(laplace_pg_required_composite_attribute(selected, 7, "library_bytes"));
+        const int32 depth = DatumGetInt32(laplace_pg_required_composite_attribute(selected, 8, "maximum_depth"));
+        laplace_tree_sitter_grammar_status grammar_status;
+        uint64_t artifact;
+        laplace_pg_read_digest(laplace_pg_required_composite_attribute(selected, 5, "declaration_fingerprint"),
+            &declaration, "grammar declaration fingerprint");
+        laplace_pg_read_digest(laplace_pg_required_composite_attribute(selected, 6, "library_sha256"),
+            &library_sha, "grammar shared object SHA-256");
+        if (library_bytes <= 0 || depth <= 0 || depth > 4096) {
+            ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                errmsg("Laplace grammar resource bounds are invalid")));
+        }
+        grammar_status = laplace_tree_sitter_grammar_open_verified(path, symbol, media,
+            (uint64_t)strlen(media), kind_base, &declaration, library_sha.bytes,
+            (uint64_t)library_bytes, &grammar_owner->grammar);
+        if (grammar_status != LAPLACE_TREE_SITTER_GRAMMAR_OK) {
+            laplace_pg_source_grammar_cleanup(grammar_owner);
+            ereport(ERROR, (errcode(ERRCODE_DATA_EXCEPTION),
+                errmsg("Laplace selected grammar provider is unavailable or failed exact verification"),
+                errdetail("status=%u", (unsigned int)grammar_status)));
+        }
+        providers[2] = *laplace_tree_sitter_grammar_provider(grammar_owner->grammar);
+        provider_count = 3u;
+        maximum_depth = (uint32_t)depth;
+        for (artifact = 0u; artifact < runtime_input.artifact_count; ++artifact) {
+            const laplace_tabular_artifact* item = &runtime_input.artifacts[artifact];
+            if (item->media_type == NULL ||
+                !((item->media_type_byte_count == (uint64_t)strlen(media) &&
+                   memcmp(item->media_type, media, (size_t)item->media_type_byte_count) == 0) ||
+                  (item->media_type_byte_count == 10u && memcmp(item->media_type, "text/plain", 10u) == 0))) {
+                ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                    errmsg("Laplace artifact has no selected grammar or exact-text observation provider")));
+            }
+        }
+    }
+    status = laplace_source_decomposition_plan_create_bounded(
+        &runtime_input, providers, provider_count, maximum_depth, plan);
+    laplace_pg_source_grammar_cleanup(grammar_owner);
     if (status == LAPLACE_TABULAR_SOURCE_OK && plan != NULL && *plan != NULL) {
         laplace_pg_active_source_plan = *plan;
         laplace_pg_source_uax_authority = uax_authority;

@@ -407,6 +407,21 @@ jobs:
           ' "$result" >/dev/null
           printf 'LAPLACE_PRODUCT_ACTIVATION_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
 
+      - name: Retain exact runner activation for deployed source acceptance
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
+          from sources.stockfish_corpus_acceptance import load, retain_activation, runner
+          runner.require_runner()
+          contract = load(Path('contracts/postgresql-cluster.json'))
+          retained = retain_activation(Path(os.environ['LAPLACE_PRODUCT_ACTIVATION_RESULT']),
+              os.environ['GITHUB_SHA'], Path(contract['instance']['receipt_directory']))
+          print(retained)
+          PY
+
       - name: Verify the persistent DEV/BAT product directly
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |

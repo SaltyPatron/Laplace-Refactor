@@ -1403,6 +1403,16 @@ int main() {
         laplace_composition_working_set_destroy(&composition_working_set);
         return 47;
     }
+    auto observation_profile = world_profile;
+    observation_profile.claim_count = 0u;
+    observation_profile.not_applicable_mask |= UINT64_C(1) << 11u;
+    if (laplace_source_profile_identify(
+            &observation_profile, &observation_profile.profile_id) !=
+        LAPLACE_SOURCE_PROFILE_OK) {
+        laplace_composition_working_set_destroy(&composition_working_set);
+        return 48;
+    }
+    PrintDigest("WORLD_OBSERVATION_PROFILE_ID", observation_profile.profile_id);
     PrintDigest("WORLD_PROFILE_ID", world_profile.profile_id);
     PrintDigest("WORLD_OCCURRENCE_ID", world_occurrence.attestation_id);
     PrintDigest("WORLD_EVIDENCE_NODE", world_evidence.node_id);

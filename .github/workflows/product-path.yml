@@ -301,6 +301,17 @@ jobs:
       needs.classify.outputs.requires_chess_calibration == 'true'
     uses: ./.github/workflows/chess-calibration.yml
 
+  deployed-stockfish-corpus:
+    needs: dev-bat-deployment
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.dev-bat-deployment.result == 'success'
+    uses: ./.github/workflows/stockfish-corpus-acceptance.yml
+    with:
+      expected_sha: ${{ github.sha }}
+
   dev-bat-live-substrate:
     needs: dev-bat-deployment
     if: always() && needs.dev-bat-deployment.result == 'success'

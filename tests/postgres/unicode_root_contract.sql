@@ -815,7 +815,12 @@ BEGIN
         IF admitted.staged_stream_receipt IS NULL OR admitted.producer_receipt IS NULL
            OR NOT EXISTS (SELECT FROM laplace.canonical_deposit_receipt
                WHERE receipt_id=admitted.staged_stream_receipt
-                 AND total_records>0 AND occurrence_count>0) THEN
+                 AND total_records>0 AND occurrence_count>0
+                 AND physicality_count=0 AND trajectory_vertex_count=0
+                 AND logical_occurrence_count=0)
+           OR NOT EXISTS (SELECT FROM laplace.composition_execution_receipt
+               WHERE working_set_receipt=admitted.working_set_receipt
+                 AND logical_occurrence_count>0) THEN
             RAISE EXCEPTION 'zero bootstrap canonical reuse did not stage its actual occurrences';
         END IF;
         IF (SELECT expected_epoch_fingerprint FROM laplace.highway_registry_activation_event)
@@ -936,6 +941,12 @@ SELECT pg_temp.highway_revalidation_rejects(
 SELECT pg_temp.highway_revalidation_rejects(
     $$UPDATE laplace.composition_execution_receipt SET stream_fingerprint=decode(repeat('ff',32),'hex') WHERE working_set_receipt=(SELECT working_set_receipt FROM laplace.highway_registry_generation)$$,
     'present composition body differs');
+SELECT pg_temp.highway_revalidation_rejects(
+    'WITH changed AS (UPDATE laplace.composition_execution_receipt SET logical_occurrence_count=logical_occurrence_count+1 WHERE working_set_receipt=(SELECT working_set_receipt FROM laplace.highway_registry_generation) RETURNING staged_stream_receipt) UPDATE laplace.canonical_deposit_receipt d SET logical_occurrence_count=d.logical_occurrence_count+1 FROM changed WHERE d.receipt_id=changed.staged_stream_receipt',
+    'present composition body differs');
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.canonical_deposit_receipt SET logical_occurrence_count=logical_occurrence_count+1 WHERE receipt_id=(SELECT staged_stream_receipt FROM laplace.highway_registry_generation)',
+    'present composition body differs');
 
 SELECT pg_temp.highway_revalidation_rejects(
     'UPDATE laplace.highway_registry_activation_event SET expected_epoch_fingerprint=NULL',
@@ -950,7 +961,7 @@ BEGIN
     IF pg_temp.highway_revalidation_state() <> (SELECT state FROM highway_revalidation_before) THEN
         RAISE EXCEPTION 'negative controls or caller rollback changed committed Highway state';
     END IF;
-    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 24 THEN
+    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 26 THEN
         RAISE EXCEPTION 'committed Highway corruption controls did not all execute';
     END IF;
     IF (SELECT count(*) FROM highway_revalidation_coverage_controls) <> 5 THEN

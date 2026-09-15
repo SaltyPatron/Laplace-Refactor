@@ -359,6 +359,11 @@ function(laplace_configure_postgresql_bindings
         "${revalidation_sql}" @ONLY)
     file(READ "${revalidation_sql}" revalidation_bindings)
     file(APPEND "${public_readback_sql}" "\n${revalidation_bindings}")
+    set(world_observation_sql "${extension_output_directory}/world-admission-optional-evidence.sql")
+    configure_file("${extension_source_directory}/world_admission_optional_evidence.sql.in"
+        "${world_observation_sql}" @ONLY)
+    file(READ "${world_observation_sql}" world_observation_bindings)
+    file(APPEND "${public_readback_sql}" "\n${world_observation_bindings}")
     file(READ "${public_readback_sql}" public_readback_bindings)
     file(APPEND "${sql_output}" "\n${public_readback_bindings}")
 endfunction()

@@ -37,6 +37,7 @@ class HostEvidence(unittest.TestCase):
         network = REQUEST.select(['dependencies/artifact-lock.json'], policy, lambda _: {'artifacts': {'stockfish-nnue': {'sha': 'old'}}}, lambda _: {'artifacts': {'stockfish-nnue': {'sha': 'new'}}})
         self.assertEqual(network, ['dependencies/artifact-lock.json:stockfish-nnue'])
         self.assertEqual(REQUEST.select(['tools/dependencies/chess_tools.py'], policy, lambda _: {}, lambda _: {}), ['tools/dependencies/chess_tools.py'])
+        self.assertEqual(REQUEST.select(['tools/dependencies/git_checkout.py'], policy, lambda _: {}, lambda _: {}), ['tools/dependencies/git_checkout.py'])
 
     def test_deployment_calibration_is_gated_and_core_benchmark_policy_is_preserved(self):
         workflow = (ROOT / '.github/workflows/product-path.yml').read_text()

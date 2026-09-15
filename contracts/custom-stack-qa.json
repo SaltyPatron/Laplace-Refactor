@@ -23,6 +23,14 @@
   },
   "isolated_tests": [
     {
+      "ctest_name": "postgres.verified-cpp-source-contract",
+      "profile": "verified-cpp-source",
+      "required_receipts": ["verified_cpp_source_admission"],
+      "order": 25,
+      "resource_class": "postgresql-verified-git-cpp-source-admission",
+      "reason": "bounded native C++ and exact-text admission, persisted readback, zero-testimony closure and replay with the actual verified grammar provider"
+    },
+    {
       "ctest_name": "postgres.highway-committed-revalidation-contract",
       "profile": "highway-committed-revalidation",
       "required_receipts": ["highway_committed_revalidation"],
@@ -70,6 +78,56 @@
     }
   ],
   "selection_rules": [
+    {
+      "id": "verified-cpp-source",
+      "patterns": [
+        "dependencies/tree-sitter-grammars.lock.json",
+        "contracts/source-profile-execution.json",
+        "engine/include/laplace/cognition_materialization.h",
+        "engine/include/laplace/source_decomposition.h",
+        "engine/include/laplace/tree_sitter_grammar.h",
+        "engine/include/laplace/world_admission.h",
+        "engine/src/decomposition*",
+        "engine/src/source_profile.c",
+        "engine/src/tabular_source*",
+        "engine/src/tree_sitter_grammar.cpp",
+        "engine/src/world_admission.c",
+        "engine/src/cognition_materialization*",
+        "integrations/postgresql/extension/src/source_admission*",
+        "integrations/postgresql/extension/src/source_materialization*",
+        "integrations/postgresql/extension/src/source_readback*",
+        "integrations/postgresql/extension/src/materialization_pg.c",
+        "integrations/postgresql/extension/src/world_admission_pg.c",
+        "integrations/postgresql/extension/source_grammar_admission.sql.in",
+        "integrations/postgresql/extension/source_content_readback.sql.in",
+        "integrations/postgresql/extension/source_readback.sql.in",
+        "integrations/postgresql/extension/source_structural_witness.sql.in",
+        "integrations/postgresql/extension/src/source_structural_witness*",
+        "integrations/postgresql/extension/CMakeLists.txt",
+        "integrations/postgresql/extension/world_admission_optional_evidence.sql.in",
+        "tools/sources/verified_git.py",
+        "tools/sources/git_profile.py",
+        "tools/sources/qualify_grammar.py",
+        "tools/sources/stockfish_corpus_acceptance.py",
+        "tools/dependencies/git_checkout.py",
+        "tools/contracts/generate-tabular-source-profile.py",
+        "tools/admit_source.py",
+        "tests/verified_cpp*",
+        "tests/CMakeLists.txt",
+        "tests/verified_git_source_tests.py",
+        "tests/stockfish_corpus_acceptance_tests.py",
+        "tests/registry.d/stockfish-corpus-acceptance.json",
+        "tests/registry.d/verified-cpp-source.json",
+        "tests/postgres/verified_cpp*",
+        "tests/postgres/run_spi_test.sh",
+        "tools/tests/configure-custom-stack.sh",
+        "tools/tests/custom_stack_qa.py",
+        ".github/workflows/ci.yml",
+        ".github/workflows/stockfish-corpus-acceptance.yml",
+        ".github/workflows/custom-stack.yml"
+      ],
+      "profiles": ["verified-cpp-source"]
+    },
     {
       "id": "highway-committed-revalidation",
       "patterns": [

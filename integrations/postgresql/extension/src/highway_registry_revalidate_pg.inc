@@ -145,7 +145,15 @@ static highway_committed_snapshot highway_verify_committed_generation(
         "AND EXISTS(SELECT 1 FROM " LAPLACE_PG_SCHEMA ".canonical_deposit_receipt d WHERE "
         "d.receipt_id=g.staged_stream_receipt AND x.effect_disposition=d.effect_disposition "
         "AND x.stream_record_count=d.total_records AND x.occurrence_count=d.occurrence_count "
-        "AND x.logical_occurrence_count=d.logical_occurrence_count)) AS matches FROM ("
+        /* Composition counts the complete canonical working set; deposition
+         * counts only novel physicality trajectories emitted after presence.
+         * Compare the former to native reconstruction and bound the latter as
+         * a staged subset, including the exact all-reused zero case. */
+        "AND x.logical_occurrence_count=$2 "
+        "AND d.logical_occurrence_count<=x.logical_occurrence_count "
+        "AND d.logical_occurrence_count>=d.trajectory_vertex_count "
+        "AND ((d.physicality_count=0 AND d.trajectory_vertex_count=0 AND d.logical_occurrence_count=0) "
+        "OR (d.physicality_count>0 AND d.trajectory_vertex_count>0 AND d.logical_occurrence_count>0)))) AS matches FROM ("
         "(SELECT * FROM " LAPLACE_PG_SCHEMA ".composition_execution_receipt WHERE working_set_receipt=g.working_set_receipt) "
         "UNION ALL (SELECT * FROM " LAPLACE_PG_SCHEMA ".composition_execution_receipt "
         "WHERE staged_stream_receipt=g.staged_stream_receipt AND working_set_receipt<>g.working_set_receipt LIMIT 2)"
@@ -163,8 +171,11 @@ static highway_committed_snapshot highway_verify_committed_generation(
         "JOIN " LAPLACE_PG_SCHEMA ".execution_receipt i ON i.receipt_id=g.isa_receipt "
         "ORDER BY e.sequence";
     highway_committed_snapshot snapshot;
-    Oid opcode_type = INT4OID;
-    Datum opcode = Int32GetDatum(LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH);
+    Oid generation_types[2] = {INT4OID, INT8OID};
+    Datum generation_values[2] = {
+        Int32GetDatum(LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH),
+        Int64GetDatum(laplace_pg_checked_int64(execution->summary.logical_occurrence_count,
+            "reconstructed Highway logical occurrence count"))};
     HeapTuple row;
     TupleDesc descriptor;
     blake3_hasher hasher;
@@ -186,7 +197,7 @@ static highway_committed_snapshot highway_verify_committed_generation(
     if (SPI_connect() != SPI_OK_CONNECT) {
         highway_revalidation_error("generation connection");
     }
-    result = SPI_execute_with_args(generation_sql, 1, &opcode_type, &opcode,
+    result = SPI_execute_with_args(generation_sql, 2, generation_types, generation_values,
                                    NULL, true, 2);
     if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL) {
         highway_revalidation_error("one active generation required");

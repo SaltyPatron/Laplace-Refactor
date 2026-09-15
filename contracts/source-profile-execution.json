@@ -63,6 +63,7 @@
   "closure": {
     "disposition_sum": "all eleven disposition counts sum exactly to closure_subject_count",
     "required_nonzero_denominators": ["bytes", "files", "records", "fields", "syntax-nodes", "spans", "occurrences", "outputs"],
+    "raw_observation_exception": "an exact RAW observation with zero records, fields and claims marks only record and field denominators not-applicable; exact source bytes, files, syntax, spans, occurrences and outputs remain required; source semantics and testimony are not invented",
     "not_applicable": "one bit per denominator; a nonzero denominator cannot be marked not-applicable",
     "exact_reconstruction": "exact reconstruction rejects a nonzero lossy disposition",
     "selected_boundary_homogeneity": "one batch may contain multiple strictly ordered profile identities, all belonging to one exact selected boundary"

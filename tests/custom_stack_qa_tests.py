@@ -9,7 +9,9 @@ from pathlib import Path
 import stat
 import sys
 import tempfile
+import textwrap
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -114,12 +116,30 @@ class CustomStackQaTests(unittest.TestCase):
     ) -> None:
         plan = self.plan("integrations/postgresql/extension/src/source_admission_pg.c")
         self.assertEqual(
-            plan["selected_profiles"], ["source-admission-suite"],
+            plan["selected_profiles"], ["source-admission-suite", "verified-cpp-source"],
         )
         self.assertEqual(
             plan["selected_physical_tests"],
-            [],
+            ["postgres.verified-cpp-source-contract"],
         )
+
+    def test_verified_cpp_sources_require_automatic_native_receipt(self):
+        name = "postgres.verified-cpp-source-contract"
+        for path in (
+            "tools/sources/verified_git.py", "tools/sources/qualify_grammar.py",
+            "engine/src/tree_sitter_grammar.cpp", "engine/src/decomposition_composition.cpp",
+            "integrations/postgresql/extension/src/source_admission_pg.c",
+            "integrations/postgresql/extension/src/materialization_pg.c",
+            "tests/postgres/verified_cpp_source_contract.sql",
+            ".github/workflows/ci.yml", ".github/workflows/custom-stack.yml",
+        ):
+            with self.subTest(path=path):
+                plan = self.plan(path)
+                self.assertIn(name, plan["selected_physical_tests"])
+                self.assertNotIn(name, plan["core_tests"])
+                self.assertNotIn(name, plan["manual_source_acceptance_tests"])
+                self.assertFalse(plan["source_acceptance_authorized"])
+                self.assertIn("verified_cpp_source_admission", plan["required_physical_receipts"])
 
     def test_iso_profile_change_does_not_select_cili(self) -> None:
         plan = self.plan("contracts/sources/iso-639-3-20260415.json")
@@ -136,6 +156,21 @@ class CustomStackQaTests(unittest.TestCase):
         automatic = self.plan("contracts/sources/cili-pwn-mappings-20240611.json")
         self.assertTrue(set(automatic["manual_source_acceptance_tests"]).isdisjoint(
             automatic["core_tests"] + automatic["selected_physical_tests"]))
+
+    def test_manual_workflow_requires_receipts_only_for_its_actual_selection(self):
+        workflow = (ROOT / '.github/workflows/source-corpus-acceptance.yml').read_text()
+        block = workflow.split("<<'PY'\n", 1)[1].split('\n          PY', 1)[0]
+        selection = textwrap.dedent(block).split('work = pathlib.Path(sys.argv[2])', 1)[0]
+        namespace = {}
+        with patch.object(Path, 'cwd', return_value=ROOT):
+            exec(selection, namespace)
+        plan = namespace['plan']
+        self.assertEqual(plan['selected_physical_tests'], plan['manual_source_acceptance_tests'])
+        required = sorted({name for row in self.contract['isolated_tests']
+                           if row['ctest_name'] in plan['selected_physical_tests']
+                           for name in row.get('required_receipts', [])})
+        self.assertEqual(plan['required_physical_receipts'], required)
+        self.assertNotIn('verified_cpp_source_admission', required)
 
     def test_missing_isolated_registry_test_fails_closed(self) -> None:
         broken = copy.deepcopy(self.contract)

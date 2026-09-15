@@ -354,6 +354,63 @@ if(UNIX)
 endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(LAPLACE_CPP_GRAMMAR_RECEIPT "" CACHE FILEPATH "Exact locked C++ grammar provider build receipt")
+set(LAPLACE_CPP_GRAMMAR_LIBRARY "/unconfigured/required-cpp-provider.so")
+set(LAPLACE_CPP_GRAMMAR_LIBRARY_SHA256 "0000000000000000000000000000000000000000000000000000000000000000")
+set(LAPLACE_CPP_GRAMMAR_RECEIPT_SHA256 "0000000000000000000000000000000000000000000000000000000000000000")
+set(LAPLACE_CPP_GRAMMAR_LIBRARY_BYTES 1)
+if(LAPLACE_CPP_GRAMMAR_RECEIPT)
+    if(NOT IS_ABSOLUTE "${LAPLACE_CPP_GRAMMAR_RECEIPT}" OR NOT EXISTS "${LAPLACE_CPP_GRAMMAR_RECEIPT}")
+        message(FATAL_ERROR "LAPLACE_CPP_GRAMMAR_RECEIPT must name an actual provider build receipt")
+    endif()
+    file(READ "${LAPLACE_CPP_GRAMMAR_RECEIPT}" cpp_grammar_receipt)
+    string(JSON cpp_grammar_schema GET "${cpp_grammar_receipt}" schema)
+    string(JSON cpp_grammar_phase GET "${cpp_grammar_receipt}" phase)
+    string(JSON cpp_grammar_name GET "${cpp_grammar_receipt}" grammar_name)
+    string(JSON LAPLACE_CPP_GRAMMAR_LIBRARY GET "${cpp_grammar_receipt}" library path)
+    string(JSON LAPLACE_CPP_GRAMMAR_LIBRARY_SHA256 GET "${cpp_grammar_receipt}" library sha256)
+    string(JSON LAPLACE_CPP_GRAMMAR_LIBRARY_BYTES GET "${cpp_grammar_receipt}" library byte_count)
+    if(NOT cpp_grammar_schema STREQUAL "laplace.grammar-provider-build/v1" OR
+       NOT cpp_grammar_phase STREQUAL "source-built" OR NOT cpp_grammar_name STREQUAL "tree-sitter-cpp")
+        message(FATAL_ERROR "C++ provider receipt is not a locked successful source build")
+    endif()
+    file(SHA256 "${LAPLACE_CPP_GRAMMAR_LIBRARY}" cpp_grammar_actual_sha)
+    file(SIZE "${LAPLACE_CPP_GRAMMAR_LIBRARY}" cpp_grammar_actual_bytes)
+    if(NOT cpp_grammar_actual_sha STREQUAL LAPLACE_CPP_GRAMMAR_LIBRARY_SHA256 OR
+       NOT cpp_grammar_actual_bytes EQUAL LAPLACE_CPP_GRAMMAR_LIBRARY_BYTES)
+        message(FATAL_ERROR "C++ provider bytes differ from the exact build receipt")
+    endif()
+    file(SHA256 "${LAPLACE_CPP_GRAMMAR_RECEIPT}" LAPLACE_CPP_GRAMMAR_RECEIPT_SHA256)
+endif()
+string(HEX "${LAPLACE_CPP_GRAMMAR_LIBRARY}" LAPLACE_CPP_GRAMMAR_LIBRARY_PATH_HEX)
+add_executable(laplace_verified_cpp_source_probe verified_cpp_source_probe.cpp)
+target_link_libraries(laplace_verified_cpp_source_probe PRIVATE Laplace::TabularSource)
+target_include_directories(laplace_verified_cpp_source_probe PRIVATE "${PROJECT_SOURCE_DIR}/engine/src")
+target_compile_options(laplace_verified_cpp_source_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME source.verified-cpp-native-contract
+    COMMAND laplace_verified_cpp_source_probe "${LAPLACE_CPP_GRAMMAR_LIBRARY}")
+set_tests_properties(source.verified-cpp-native-contract PROPERTIES
+    LABELS "implementation;source-profile;grammar;reconstruction;receipt")
+add_executable(laplace_verified_grammar_loader_probe verified_grammar_loader_probe.cpp)
+target_link_libraries(laplace_verified_grammar_loader_probe PRIVATE Laplace::TabularSource)
+target_include_directories(laplace_verified_grammar_loader_probe PRIVATE "${PROJECT_SOURCE_DIR}/engine/src")
+target_compile_options(laplace_verified_grammar_loader_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME source.verified-grammar-loader-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/verified_grammar_loader_tests.py"
+        --compiler "${CMAKE_C_COMPILER}" --library "${LAPLACE_CPP_GRAMMAR_LIBRARY}"
+        --probe "$<TARGET_FILE:laplace_verified_grammar_loader_probe>")
+set_tests_properties(source.verified-grammar-loader-contract PROPERTIES
+    LABELS "implementation;source-profile;grammar;identity;negative")
+add_test(NAME source.verified-git-acquisition-contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/verified_git_source_tests.py")
+set_tests_properties(source.verified-git-acquisition-contract PROPERTIES
+    LABELS "implementation;source-profile;provenance;negative")
+add_test(NAME sources.stockfish-corpus-acceptance
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/stockfish_corpus_acceptance_tests.py")
+set_tests_properties(sources.stockfish-corpus-acceptance PROPERTIES
+    LABELS "implementation;source-profile;provenance;receipt")
 add_test(NAME source-profile.verified-local-provenance
     COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/verified_local_source_profile_tests.py")
@@ -2769,6 +2826,8 @@ endif()
 
 if(LAPLACE_POSTGRES_ENABLED)
     find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/postgres/verified_cpp_source_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/verified_cpp_source_contract.sql" @ONLY)
     configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/spi_contract.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/spi_contract.sql"
@@ -3244,6 +3303,22 @@ if(LAPLACE_POSTGRES_ENABLED)
         RUN_SERIAL TRUE
         SKIP_RETURN_CODE 77
         TIMEOUT 3600)
+
+    add_test(NAME postgres.verified-cpp-source-contract
+        COMMAND "${CMAKE_COMMAND}" -E env
+            "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+            "${LAPLACE_BASH_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
+            source-admission "${LAPLACE_POSTGRES_BINDIR}"
+            "$<TARGET_FILE_DIR:laplace_pg>/share"
+            "$<TARGET_FILE_DIR:laplace_pg>" "$<TARGET_FILE_DIR:laplace_engine>"
+            "$<TARGET_FILE:laplace_postgres_native_receipt_probe>"
+            "$<TARGET_FILE:laplace_postgres_perfcache_manifest_probe>"
+            "${CMAKE_CURRENT_BINARY_DIR}/postgres/verified_cpp_source_contract.sql"
+            "${laplace_sanitizer_preload}")
+    set_tests_properties(postgres.verified-cpp-source-contract PROPERTIES
+        LABELS "implementation;postgresql;source-profile;grammar;readback;receipt;negative"
+        RUN_SERIAL TRUE TIMEOUT 1200)
 
     add_test(
         NAME postgres.mutation-receipt-collision-detected

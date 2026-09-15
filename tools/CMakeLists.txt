@@ -137,12 +137,23 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/laplace_inspect.py"
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-admit-source-core)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/sources/git_profile.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sources/verified_git.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sources/qualify_grammar.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}/sources")
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/git_checkout.py"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}/dependencies")
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/admit_source_guard.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
     RENAME laplace-admit-source)
 install(FILES "${CMAKE_SOURCE_DIR}/contracts/selected-source-boundary-20260903.json"
     DESTINATION "share/laplace/source-contracts"
     RENAME "selected-source-boundary.json")
+install(FILES "${CMAKE_SOURCE_DIR}/dependencies/lock.json"
+    DESTINATION "share/laplace/source-contracts" RENAME "native-dependency-lock.json")
+install(FILES "${CMAKE_SOURCE_DIR}/dependencies/tree-sitter-grammars.lock.json"
+    DESTINATION "share/laplace/source-contracts" RENAME "grammar-lock.json")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/contracts/sources/"
     DESTINATION "share/laplace/source-contracts/profiles"
     FILES_MATCHING

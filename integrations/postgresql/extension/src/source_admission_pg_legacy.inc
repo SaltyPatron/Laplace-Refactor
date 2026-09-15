@@ -960,6 +960,8 @@ static ArrayType* world_request_array(
     fields[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(execution->summary.receipt_id.bytes, 32u));
     fields[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipts->evidence_lineage.bytes, 32u));
     fields[5] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipts->evidence_testimony.bytes, 32u));
+    nulls[4] = receipts->evidence_node_count == 0u;
+    nulls[5] = receipts->testimony_count == 0u;
     row = laplace_pg_composite_record(&binding, fields, nulls);
     result = laplace_pg_composite_array(&binding, &row, 1u);
     *array_oid = binding.array_oid;
@@ -1470,6 +1472,7 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
     }
     laplace_pg_read_source_profile(
         DatumGetHeapTupleHeader(PG_GETARG_DATUM(1)), &profile_declaration);
+    laplace_pg_source_select_grammar(fcinfo, &profile_declaration);
     laplace_pg_read_digest(
         PG_GETARG_DATUM(2), &geometry_epoch, "source geometry_epoch");
     laplace_pg_read_digest(
@@ -1501,7 +1504,7 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
                  errdetail("status=%d", (int)source_status)));
     }
     if (plan.atom_count == 0u || plan.atom_count > SIZE_MAX ||
-        plan.request_count == 0u || plan.claim_count == 0u ||
+        plan.request_count == 0u ||
         plan.root_result_index >= plan.request_count) {
         laplace_tabular_source_plan_destroy(&source_plan);
         ereport(ERROR,
@@ -1644,19 +1647,21 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
                     (errcode(ERRCODE_DATA_CORRUPTED),
                      errmsg("Laplace source mapping bypassed reference topology")));
         }
-        claims = build_claims(&plan, &execution);
-        lineage = lineage_array(
-            claims, (size_t)plan.claim_count, &lineage_array_oid);
-        call_lineage(
-            context_datum, lineage, lineage_array_oid,
-            plan.claim_count, &receipts);
-        testimonies = build_testimony(
-            claims, (size_t)plan.claim_count, &profile,
-            &plan.source_fingerprint);
-        testimony = testimony_array(
-            testimonies, (size_t)plan.claim_count, &testimony_array_oid);
-        call_testimony(
-            context_datum, testimony, testimony_array_oid, &receipts);
+        if (plan.claim_count != 0u) {
+            claims = build_claims(&plan, &execution);
+            lineage = lineage_array(
+                claims, (size_t)plan.claim_count, &lineage_array_oid);
+            call_lineage(
+                context_datum, lineage, lineage_array_oid,
+                plan.claim_count, &receipts);
+            testimonies = build_testimony(
+                claims, (size_t)plan.claim_count, &profile,
+                &plan.source_fingerprint);
+            testimony = testimony_array(
+                testimonies, (size_t)plan.claim_count, &testimony_array_oid);
+            call_testimony(
+                context_datum, testimony, testimony_array_oid, &receipts);
+        }
         world_request = world_request_array(
             &profile, &execution, &receipts, &world_request_array_oid);
         call_world_admission(
@@ -1691,6 +1696,12 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
         result_values[13] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipts.evidence_lineage_isa.bytes, 32u));
         result_values[14] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipts.evidence_testimony.bytes, 32u));
         result_values[15] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipts.evidence_testimony_isa.bytes, 32u));
+        if (plan.claim_count == 0u) {
+            result_nulls[12] = true;
+            result_nulls[13] = true;
+            result_nulls[14] = true;
+            result_nulls[15] = true;
+        }
         result_values[16] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipts.world_admission_id.bytes, 32u));
         result_values[17] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipts.world_admission.bytes, 32u));
         result_values[18] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipts.world_admission_isa.bytes, 32u));

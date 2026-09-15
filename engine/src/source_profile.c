@@ -203,11 +203,19 @@ static int denominators_valid(const laplace_source_profile_manifest* profile) {
         profile->reference_count, profile->occurrence_count, profile->claim_count,
         profile->mapping_count, profile->error_count, profile->unknown_count,
         profile->transformation_count, profile->output_count};
-    const uint64_t required_mask =
+    const uint64_t raw_observation_mask = (UINT64_C(1) << 4u) | (UINT64_C(1) << 5u);
+    const int raw_observation =
+        LAPLACE_SOURCE_PROFILE_GET_EPISTEMIC_CLASS(profile->flags) ==
+            LAPLACE_SOURCE_PROFILE_EPISTEMIC_OBSERVATION &&
+        profile->record_count == 0u && profile->field_count == 0u &&
+        profile->claim_count == 0u &&
+        (profile->not_applicable_mask & raw_observation_mask) == raw_observation_mask;
+    const uint64_t required_mask = (
         (UINT64_C(1) << 0u) | (UINT64_C(1) << 3u) |
         (UINT64_C(1) << 4u) | (UINT64_C(1) << 5u) |
         (UINT64_C(1) << 6u) | (UINT64_C(1) << 7u) |
-        (UINT64_C(1) << 10u) | (UINT64_C(1) << 16u);
+        (UINT64_C(1) << 10u) | (UINT64_C(1) << 16u)) &
+        (raw_observation ? ~raw_observation_mask : UINT64_MAX);
     size_t index;
     if ((profile->not_applicable_mask >> LAPLACE_SOURCE_PROFILE_DENOMINATOR_COUNT) != 0u ||
         (profile->not_applicable_mask & required_mask) != 0u) {
@@ -220,7 +228,7 @@ static int denominators_valid(const laplace_source_profile_manifest* profile) {
         }
     }
     return profile->byte_count != 0u && profile->file_count != 0u &&
-        profile->record_count != 0u && profile->field_count != 0u &&
+        (raw_observation || (profile->record_count != 0u && profile->field_count != 0u)) &&
         profile->syntax_node_count != 0u && profile->span_count != 0u &&
         profile->occurrence_count != 0u && profile->output_count != 0u;
 }

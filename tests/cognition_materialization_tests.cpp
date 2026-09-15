@@ -514,4 +514,108 @@ TEST(CognitionMaterialization, IncompleteRealizationCannotReachPersistenceProvid
     EXPECT_EQ(output_bytes, 0U);
 }
 
+TEST(ContentMaterialization, SourceBoundReadbackSharesExactUnicodeKernelWithoutRealization) {
+    auto atom = Atom(0x03bbU, 10U);
+    ProviderState state{{atom}};
+    auto provider = Provider(&state);
+    auto request = Request();
+    auto source = Digest(51U), recipe = Digest(52U);
+    std::array<std::uint8_t, 32> output{};
+    std::size_t bytes = 0;
+    laplace_content_materialization_receipt receipt{}, replay{}, changed{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&atom.node.entity_id, &source, &recipe,
+        &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8, output.data(), output.size(),
+        &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(std::vector<std::uint8_t>(output.begin(),output.begin()+static_cast<std::ptrdiff_t>(bytes)), ExpectedBytes({0x03bbU}));
+    EXPECT_EQ(std::memcmp(receipt.source_receipt_id.bytes, source.bytes,32u),0);
+    ASSERT_EQ(laplace_content_materialize_encoded(&atom.node.entity_id, &source, &recipe,
+        &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8, output.data(), output.size(),
+        &bytes, &replay), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(std::memcmp(&receipt,&replay,sizeof(receipt)),0);
+    source.bytes[0] ^= 1u;
+    ASSERT_EQ(laplace_content_materialize_encoded(&atom.node.entity_id, &source, &recipe,
+        &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8, output.data(), output.size(),
+        &bytes, &changed), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_NE(std::memcmp(receipt.materialization_id.bytes,changed.materialization_id.bytes,32u),0);
+    auto realization=Realization(atom.node.entity_id);
+    realization.candidate_receipt_id=receipt.source_receipt_id;
+    realization.realization_recipe_id=recipe;
+    laplace_cognition_materialization_receipt cognition{};
+    ASSERT_EQ(laplace_cognition_realization_materialize_utf8(&realization,&request,&provider,
+        output.data(),output.size(),&bytes,&cognition),LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(std::memcmp(receipt.output_fingerprint.bytes,cognition.output_fingerprint.bytes,32u),0);
+    EXPECT_NE(std::memcmp(receipt.materialization_id.bytes,cognition.materialization_id.bytes,32u),0);
+}
+
+TEST(ContentMaterialization, ExplicitOctetsPreserveBytesAndRejectUnicodeOutsideByteRange) {
+    auto atom = Atom(0xe9U, 10U);
+    ProviderState state{{atom}};
+    auto provider=Provider(&state); auto request=Request();
+    auto source=Digest(51U),recipe=Digest(52U);
+    std::array<std::uint8_t,32> output{};
+    std::size_t bytes=0;
+    laplace_content_materialization_receipt octets{},utf8{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&atom.node.entity_id,&source,&recipe,
+        &request,&provider,LAPLACE_COGNITION_OUTPUT_OCTETS,output.data(),output.size(),
+        &bytes,&octets),LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(bytes,1u); EXPECT_EQ(output[0],0xe9u);
+    ASSERT_EQ(laplace_content_materialize_encoded(&atom.node.entity_id,&source,&recipe,
+        &request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,output.data(),output.size(),
+        &bytes,&utf8),LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(bytes,2u);
+    EXPECT_NE(std::memcmp(octets.output_fingerprint.bytes,utf8.output_fingerprint.bytes,32u),0);
+    state.entries[0]=Atom(0x03bbU,11U); output.fill(0xa5);
+    EXPECT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,&source,&recipe,
+        &request,&provider,LAPLACE_COGNITION_OUTPUT_OCTETS,output.data(),output.size(),
+        &bytes,&octets),LAPLACE_COGNITION_MATERIALIZATION_ENCODING_RANGE);
+    EXPECT_EQ(bytes,0u); EXPECT_TRUE(ZeroDigest(octets.materialization_id));
+    EXPECT_TRUE(std::all_of(output.begin(),output.end(),[](auto b){return b==0xa5;}));
+}
+
+TEST(ContentMaterialization, InvalidIdentityMissingBindingAndFiniteLimitPublishNoOutput) {
+    auto atom=Atom(0x03bbU,10U);
+    ProviderState state{{atom}};
+    auto provider=Provider(&state); auto request=Request();
+    auto source=Digest(51U),recipe=Digest(52U);
+    std::array<std::uint8_t,32> output{};
+    std::size_t bytes=0;
+    laplace_content_materialization_receipt receipt{};
+    for(int failure=0;failure<3;++failure) {
+        state.entries[0]=atom;request=Request();source=Digest(51U);output.fill(0xa5);
+        if(failure==0) source={};
+        if(failure==1) state.entries[0].node.identity_witness.bytes[20]^=1u;
+        if(failure==2) request.maximum_output_bytes=1u;
+        EXPECT_NE(laplace_content_materialize_encoded(&atom.node.entity_id,&source,&recipe,
+            &request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,output.data(),output.size(),
+            &bytes,&receipt),LAPLACE_COGNITION_MATERIALIZATION_OK);
+        EXPECT_EQ(bytes,0u);EXPECT_TRUE(ZeroDigest(receipt.materialization_id));
+        EXPECT_TRUE(std::all_of(output.begin(),output.end(),[](auto b){return b==0xa5;}));
+    }
+}
+
+TEST(ContentMaterialization, SourceRootUsesSharedTrajectoryValidationAndPublishesAtomically) {
+    const auto a=Codepoint(0x03bbU),b=Codepoint(0x61U);
+    auto root=Composite({DirectChild{a,1u,0x03bbU,0u,true},
+        DirectChild{b,1u,0x61U,0u,true}},1u,20u);
+    ProviderState state{{root}};
+    auto provider=Provider(&state);auto request=Request();
+    auto source=Digest(51U),recipe=Digest(52U);
+    std::array<std::uint8_t,32> output{};
+    std::size_t bytes=0;
+    laplace_content_materialization_receipt receipt{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&root.node.entity_id,&source,&recipe,
+        &request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,output.data(),output.size(),
+        &bytes,&receipt),LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(std::vector<std::uint8_t>(output.begin(),
+        output.begin()+static_cast<std::ptrdiff_t>(bytes)),ExpectedBytes({0x03bbU,0x61U}));
+    ASSERT_EQ(laplace_trajectory_composition_encode(&b,1u,1u,Metadata(0u,true,0x61U),
+        &state.entries[0].carriers[0]),LAPLACE_TRAJECTORY_OK);
+    output.fill(0xa5);
+    EXPECT_NE(laplace_content_materialize_encoded(&root.node.entity_id,&source,&recipe,
+        &request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,output.data(),output.size(),
+        &bytes,&receipt),LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(bytes,0u);EXPECT_TRUE(ZeroDigest(receipt.materialization_id));
+    EXPECT_TRUE(std::all_of(output.begin(),output.end(),[](auto value){return value==0xa5;}));
+}
+
 }  // namespace
