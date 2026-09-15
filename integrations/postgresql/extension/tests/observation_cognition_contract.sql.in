@@ -466,8 +466,10 @@ BEGIN
 END $firmware$;
 
 -- All predecessor assertions above execute against genuine 1.0.1. Now exercise
--- the packaged upgrade chain and its empty derived index with the same request.
-ALTER EXTENSION laplace UPDATE TO '1.0.4';
+-- the installed recurring reconciliation program, including its upgrade chain,
+-- repeated current-version verification, and empty derived index with the same request.
+\ir @CMAKE_BINARY_DIR@/integrations/postgresql/extension/share/extension/laplace-public-readback.sql
+\ir @CMAKE_BINARY_DIR@/integrations/postgresql/extension/share/extension/laplace-public-readback.sql
 DO $descriptor_upgrade$
 DECLARE upgraded laplace.cognition_observation_persisted_result;
     before observation_cognition_persisted_actual%ROWTYPE;
