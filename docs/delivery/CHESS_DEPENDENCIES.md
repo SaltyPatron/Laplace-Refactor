@@ -204,3 +204,10 @@ cannot perform a needed `sudo -n` group/mode repair, it prints the exact command
 and observed ownership/mode and stops. It does not alter sudo policy, recurse
 through source contents, or redirect the configured dependency root. A complete
 verified source generation remains usable without acquiring a publication lock.
+
+The configured `/opt/laplace/external` estate may be an existing directory alias
+onto another volume. Source setup resolves that alias, reports its physical target,
+and preserves the alias and every existing owner. It repairs group access only on
+the physical estate and `source-generations` parents and the acquisition lock;
+generation leaves and lock files cannot redirect elsewhere. Host setup and recurring
+source acquisition use the same preparation helper.

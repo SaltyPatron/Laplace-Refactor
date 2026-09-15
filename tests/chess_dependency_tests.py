@@ -159,6 +159,36 @@ class ChessDependencies(unittest.TestCase):
         self.assertIn("physical source-cache", result.stderr)
         self.assertEqual(target.stat().st_mode & 0o777, 0o700)
 
+    @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "requires POSIX source-parent permissions")
+    def test_configured_source_alias_is_preserved_while_physical_parents_are_repaired(self) -> None:
+        target = self.directory / "operator-estate"
+        target.mkdir(mode=0o700)
+        generations = target / "source-generations"
+        generations.mkdir(mode=0o700)
+        lock = generations / ".source-acquisition.lock"
+        lock.write_text("preserve acquisition lock")
+        lock.chmod(0o600)
+        link = self.directory / "configured-estate"
+        link.symlink_to(target, target_is_directory=True)
+        before = {path: path.lstat() for path in (target, generations, lock, link)}
+        group = subprocess.check_output(["id", "-gn"], text=True).strip()
+        command = ['bash', '-c', 'source "$1"; prepare_source_cache "$2" "$3"', 'test', str(ROOT / "tools/dependencies/prepare-source-parents.sh"), str(link), group]
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertIn(f"{link} -> {target}", result.stderr)
+        for path, previous in before.items():
+            self.assertEqual((path.lstat().st_ino, path.lstat().st_uid), (previous.st_ino, previous.st_uid))
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(link.resolve(), target)
+        self.assertEqual(generations.stat().st_mode & 0o2070, 0o2070)
+        self.assertEqual(lock.read_text(), "preserve acquisition lock")
+        # Only the explicitly configured estate alias may resolve a symlink.
+        lock.unlink()
+        lock.symlink_to(target / "operator-file")
+        (target / "operator-file").write_text("untouched")
+        rejected = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertEqual((target / "operator-file").read_text(), "untouched")
+
     def test_cached_artifact_corruption_is_rejected(self) -> None:
         artifact = {"filename": "network", "size": 4, "sha256": hashlib.sha256(b"good").hexdigest()}
         (self.directory / "network").write_bytes(b"evil")

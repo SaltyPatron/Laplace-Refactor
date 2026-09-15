@@ -14,7 +14,8 @@ if [[ $EUID == 0 ]]; then
         libgl-dev libegl-dev libopengl-dev libxkbcommon-dev libxcb-cursor0 \
         libfontconfig1 libdbus-1-3
     if id laplace-runner >/dev/null 2>&1; then
-        for path in /opt/laplace/external /opt/laplace/external/source-generations /opt/laplace/tools /opt/laplace/tools/chess /build/laplace/build/chess; do
+        bash "$repository/tools/dependencies/prepare-source-parents.sh"
+        for path in /opt/laplace/tools /opt/laplace/tools/chess /build/laplace/build/chess; do
             [[ ! -L "$path" ]] || { echo "Expected physical dependency parent: $path" >&2; exit 1; }
             existing_owner=0
             [[ ! -e "$path" ]] || existing_owner=$(stat -c '%u' "$path")

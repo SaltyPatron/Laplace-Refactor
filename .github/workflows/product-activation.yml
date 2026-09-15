@@ -588,6 +588,7 @@ jobs:
         run: |
           python3 tools/delivery/highway_receipt_diagnostic.py \
             --search-root /opt/laplace/receipts \
+            --search-root /build/laplace/recovery/highway-admission-20260915 \
             --search-root /build/laplace/recovery \
             --output "$RUNNER_TEMP/highway-activation-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
       - name: Upload bounded Highway activation receipt evidence

@@ -77,10 +77,35 @@ repair_source_lock() {
     }
 }
 
+prepare_source_cache() {
+    local configured=$1 group=$2 physical=$1 alias_identity=
+    # The configured estate may be an operator-owned alias onto another volume.
+    # Resolve only that declared alias; generation and lock leaves stay physical.
+    if [[ -L "$configured" ]]; then
+        alias_identity=$(stat -c '%d:%i:%u' "$configured")
+        physical=$(readlink -e -- "$configured") || {
+            echo "Configured source-cache alias has no existing target: $configured" >&2
+            return 65
+        }
+        [[ -d "$physical" && "$physical" != / && ! -e "$physical/PG_VERSION" ]] || {
+            echo "Configured source-cache alias does not name a source directory: $configured -> $physical" >&2
+            return 65
+        }
+    fi
+    printf 'Configured source cache: %s -> %s\n' "$configured" "$physical" >&2
+    repair_source_parent "$physical" "$group"
+    repair_source_parent "$physical/source-generations" "$group"
+    repair_source_lock "$physical/source-generations/.source-acquisition.lock" "$group"
+    if [[ -n "$alias_identity" ]]; then
+        [[ -L "$configured" && $(stat -c '%d:%i:%u' "$configured") == "$alias_identity" && $(readlink -e -- "$configured") == "$physical" ]] || {
+            echo "Configured source-cache alias changed during preparation: $configured" >&2
+            return 73
+        }
+    fi
+    stat -c 'Prepared source parent: %n owner=%U group=%G mode=%a' "$physical/source-generations" >&2
+}
+
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
     [[ $# == 0 ]] || { echo 'prepare-source-parents.sh takes no path arguments' >&2; exit 64; }
-    for path in /opt/laplace/external /opt/laplace/external/source-generations; do
-        repair_source_parent "$path" laplace-runner
-    done
-    repair_source_lock /opt/laplace/external/source-generations/.source-acquisition.lock laplace-runner
+    prepare_source_cache /opt/laplace/external laplace-runner
 fi

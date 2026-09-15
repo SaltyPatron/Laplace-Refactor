@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import hashlib
 import json
 import os
@@ -10,6 +11,7 @@ from pathlib import Path
 import stat
 
 MAX_ENTRIES = 4096
+MAX_ROOTS = 8
 MAX_DEPTH = 8
 MAX_FILE_BYTES = 1024 * 1024
 MAX_CAPTURE_BYTES = 16 * 1024 * 1024
@@ -36,35 +38,44 @@ def inspect(receipt_root: Path, output: Path, additional_roots: list[Path]) -> d
     report = {"schema": "laplace.highway-receipt-diagnostic/v1", "scope": "filesystem evidence only; no database execution or reconstructed admission", "receipt_root": metadata(receipt_root), "retained_admission_directory": metadata(receipt_root / "highway"), "search_roots": [], "candidates": [], "symlinks_not_followed": [], "errors": [], "examined_entries": 0, "captured_bytes": 0, "truncated": False, "limits": {"entries": MAX_ENTRIES, "depth": MAX_DEPTH, "single_file_bytes": MAX_FILE_BYTES, "captured_bytes": MAX_CAPTURE_BYTES}}
     seen = set()
 
-    def walk(directory: Path, depth: int) -> None:
-        if depth > MAX_DEPTH or report["examined_entries"] >= MAX_ENTRIES:
+    def walk(root: Path) -> None:
+        # Give every explicitly selected archive a bounded fair search. Breadth
+        # first traversal reaches sibling receipt trees before large build leaves.
+        pending = deque([(root, 0)])
+        examined = 0
+        while pending and examined < MAX_ENTRIES:
+            directory, depth = pending.popleft()
+            if depth > MAX_DEPTH:
+                report["truncated"] = True
+                continue
+            try:
+                with os.scandir(directory) as entries:
+                    for entry in entries:
+                        if examined >= MAX_ENTRIES:
+                            report["truncated"] = True
+                            break
+                        examined += 1
+                        report["examined_entries"] += 1
+                        path = Path(entry.path)
+                        if entry.is_symlink():
+                            report["symlinks_not_followed"].append(metadata(path))
+                        elif entry.is_dir(follow_symlinks=False):
+                            pending.append((path, depth + 1))
+                        elif entry.is_file(follow_symlinks=False) and entry.name.endswith(".json"):
+                            capture(path)
+            except OSError as error:
+                report["errors"].append({"path": str(directory), "error": str(error)})
+        if pending:
             report["truncated"] = True
-            return
-        try:
-            with os.scandir(directory) as entries:
-                for entry in entries:
-                    if report["examined_entries"] >= MAX_ENTRIES:
-                        report["truncated"] = True
-                        return
-                    report["examined_entries"] += 1
-                    path = Path(entry.path)
-                    if entry.is_symlink():
-                        report["symlinks_not_followed"].append(metadata(path))
-                    elif entry.is_dir(follow_symlinks=False):
-                        walk(path, depth + 1)
-                    elif entry.is_file(follow_symlinks=False) and (entry.name in {"request.json", "receipt.json"} or "highway" in entry.name.lower() and entry.name.endswith(".json")):
-                        capture(path)
-        except OSError as error:
-            report["errors"].append({"path": str(directory), "error": str(error)})
 
     def capture(path: Path) -> None:
         if str(path) in seen:
             return
         seen.add(str(path))
-        if path.stat().st_size > MAX_FILE_BYTES:
-            report["errors"].append({"path": str(path), "error": "candidate exceeds single-file evidence bound"})
-            return
         try:
+            if path.stat().st_size > MAX_FILE_BYTES:
+                report["errors"].append({"path": str(path), "error": "candidate exceeds single-file evidence bound"})
+                return
             descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
             with os.fdopen(descriptor, "rb") as source:
                 raw = source.read(MAX_FILE_BYTES + 1)
@@ -88,13 +99,17 @@ def inspect(receipt_root: Path, output: Path, additional_roots: list[Path]) -> d
         except (OSError, ValueError) as error:
             report["errors"].append({"path": str(path), "error": str(error)})
 
-    for root in [receipt_root, *additional_roots]:
+    roots = list(dict.fromkeys([receipt_root, *additional_roots]))
+    if len(roots) > MAX_ROOTS:
+        report["truncated"] = True
+    report["limits"].update({"entries_per_root": MAX_ENTRIES, "roots": MAX_ROOTS, "entries": MAX_ENTRIES * min(len(roots), MAX_ROOTS)})
+    for root in roots[:MAX_ROOTS]:
         ancestry = [metadata(path) for path in reversed([root, *root.parents])]
         report["search_roots"].append({"path": str(root), "ancestry": ancestry})
         if any(item["kind"] != "directory" for item in ancestry):
             report["errors"].append({"path": str(root), "error": "search root or ancestor is absent, unreadable, non-directory or symlink; not traversed"})
             continue
-        walk(root, 0)
+        walk(root)
     report["candidate_count"] = len(report["candidates"])
     report["recovery_status"] = "candidate-evidence-requires-native-identity-validation" if report["candidates"] else "no-retained-highway-evidence-found-within-declared-search-roots"
     (output / "diagnostic.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

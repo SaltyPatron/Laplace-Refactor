@@ -40,6 +40,7 @@ jobs:
         run: |
           python3 tools/delivery/highway_receipt_diagnostic.py \
             --search-root /opt/laplace/receipts \
+            --search-root /build/laplace/recovery/highway-admission-20260915 \
             --search-root /build/laplace/recovery \
             --output "$RUNNER_TEMP/highway-receipt-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
       - name: Upload bounded retained Highway receipt evidence

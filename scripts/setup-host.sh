@@ -114,8 +114,6 @@ for path in \
     /build/laplace/worktrees \
     /build/laplace/recovery \
     /opt/laplace \
-    /opt/laplace/external \
-    /opt/laplace/external/source-generations \
     /opt/laplace/releases \
     /opt/laplace/runtime \
     /opt/laplace/runtime/postgresql \
@@ -137,6 +135,9 @@ for path in \
     [[ ! -e "$path" ]] || existing_owner=$(stat -c '%u' "$path")
     "$INSTALL_BIN" -d -o "$existing_owner" -g "$RUNNER_GROUP" -m 2770 "$path"
 done
+
+# Preserve the configured source-estate alias and repair its physical parents.
+bash "$REPOSITORY/tools/dependencies/prepare-source-parents.sh"
 
 # An existing socket leaf needs operator group traversal; fresh activation owns creation.
 if [[ -d /opt/laplace/runtime/postgresql/refactor && ! -L /opt/laplace/runtime/postgresql/refactor ]]; then

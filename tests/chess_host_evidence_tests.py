@@ -93,6 +93,24 @@ class HostEvidence(unittest.TestCase):
             self.assertEqual(result['examined_entries'], 2)
             self.assertTrue(result['truncated'])
 
+    def test_large_archive_cannot_starve_later_explicit_recovery_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            busy = root / 'busy'
+            recovery = root / 'recovery'
+            busy.mkdir()
+            recovery.mkdir()
+            for number in range(4):
+                (busy / f'{number}.json').write_text('{}')
+            raw = b'{"schema":"laplace.highway-product-activation-request/v1"}\n'
+            (recovery / 'historical-admission.json').write_bytes(raw)
+            with patch.object(D, 'MAX_ENTRIES', 2):
+                result = D.inspect(busy, root / 'diagnostic', [recovery])
+            self.assertTrue(result['truncated'])
+            self.assertEqual(result['examined_entries'], 3)
+            self.assertEqual(result['candidate_count'], 1)
+            self.assertEqual((root / 'diagnostic' / result['candidates'][0]['capture']).read_bytes(), raw)
+
     def test_shared_host_lock_serializes_distinct_callers(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
