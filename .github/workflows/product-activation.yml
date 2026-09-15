@@ -616,6 +616,7 @@ jobs:
         if: always()
         run: |
           python3 tools/delivery/highway_receipt_diagnostic.py \
+            --inspect-committed-state \
             --search-root /opt/laplace/receipts \
             --search-root /build/laplace/recovery/20260912-cleanup/remaining-batch/refactor-integration \
             --search-root /build/laplace/recovery \

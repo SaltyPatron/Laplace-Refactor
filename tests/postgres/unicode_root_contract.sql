@@ -855,6 +855,125 @@ BEGIN
 END
 $zero_bootstrap_coverage$;
 
+-- Diagnostic evidence distinguishes absent canonical E from a new expected P
+-- and an existing alternate P of the same E. Corruption is isolated inside
+-- caught subtransactions; normal foreign-key enforcement is restored on exit.
+CREATE TEMP TABLE highway_revalidation_novelty_controls(case_name text PRIMARY KEY, diagnostic jsonb NOT NULL);
+DO $novelty_diagnostic$
+DECLARE
+    label text;
+    details text;
+    proof jsonb;
+    root_e bytea;
+    root_p bytea;
+    named_e bytea;
+    alternate_p bytea;
+    context laplace.execution_context;
+    atoms laplace.unicode_tier0_batch_result;
+    positions integer[];
+    known laplace.composition_known_entity_record[];
+    operands laplace.composition_operand_record[];
+    deposited laplace.composition_deposit_result;
+BEGIN
+    SELECT root_entity_id,root_physicality_id INTO STRICT root_e,root_p
+    FROM laplace.highway_registry_generation;
+    FOREACH label IN ARRAY ARRAY['missing-entity','missing-physicality','same-entity-alternate-physicality'] LOOP
+        alternate_p := NULL;
+        BEGIN
+            context := pg_temp.highway_revalidation_context();
+            IF label='same-entity-alternate-physicality' THEN
+                SELECT array_agg(ascii(substr('grammar-symbol',n,1)) ORDER BY n)
+                INTO positions FROM generate_series(1,length('grammar-symbol')) n;
+                SELECT (laplace.unicode_tier0_resolve_batch(
+                    decode(repeat('42',16),'hex'),decode(repeat('43',32),'hex'),positions)).*
+                INTO STRICT atoms;
+                IF atoms.found IS DISTINCT FROM array_fill(true,ARRAY[cardinality(positions)]) THEN
+                    RAISE EXCEPTION 'alternate physicality fixture lacks actual pinned Unicode atoms';
+                END IF;
+                SELECT array_agg(ROW(atoms.entity_ids[n],atoms.identity_preimage_fingerprints[n],
+                    atoms.physicality_ids[n],atoms.coordinate_x[n],atoms.coordinate_y[n],
+                    atoms.coordinate_z[n],atoms.coordinate_m[n],positions[n]::bigint,0::smallint,true)
+                    ::laplace.composition_known_entity_record ORDER BY n),
+                    array_agg(ROW((n-1)::numeric,1::numeric,0::bigint,1,0)
+                    ::laplace.composition_operand_record ORDER BY n)
+                INTO known,operands FROM generate_subscripts(positions,1) n;
+                SELECT * INTO STRICT deposited FROM laplace.composition_deposit_batch(context,
+                    decode(repeat('5a',32),'hex'),decode(repeat('5b',32),'hex'),known,operands,
+                    ARRAY[ROW(0::numeric,cardinality(positions)::numeric,1::numeric,1,0,
+                        decode(repeat('5b',32),'hex'),context.epochs[3],decode(repeat('00',32),'hex'))
+                        ::laplace.composition_request_record],1048576::numeric);
+                SELECT name_entity_id INTO STRICT named_e FROM laplace.highway_registry_kind_projection WHERE kind_id=1;
+                IF deposited.status<>0 OR deposited.result_entity_ids[1]<>named_e OR
+                    deposited.novel_entity_count<>0 OR deposited.novel_physicality_count<>1 OR
+                    deposited.physicality_inserted<>1 THEN
+                    RAISE EXCEPTION 'native alternate fixture did not preserve E and add exactly one real P';
+                END IF;
+                alternate_p := deposited.result_physicality_ids[1];
+            END IF;
+            SET LOCAL session_replication_role=replica;
+            IF label='missing-entity' THEN
+                DELETE FROM laplace.entity WHERE entity_id=root_e;
+            ELSIF label='missing-physicality' THEN
+                DELETE FROM laplace.physicality WHERE physicality_id=root_p;
+            ELSE
+                DELETE FROM laplace.physicality WHERE entity_id=named_e AND physicality_id<>alternate_p;
+            END IF;
+            PERFORM laplace.highway_registry_revalidate_committed(context,1048576::numeric);
+            RAISE EXCEPTION USING ERRCODE='check_violation',MESSAGE='novel reconstruction was accepted as committed state';
+        EXCEPTION WHEN data_corrupted THEN
+            IF position('canonical entity or physicality was missing' IN SQLERRM)=0 THEN RAISE; END IF;
+            GET STACKED DIAGNOSTICS details=PG_EXCEPTION_DETAIL;
+            IF left(details,length('LAPLACE_HIGHWAY_REVALIDATION_DIAGNOSTIC '))<>'LAPLACE_HIGHWAY_REVALIDATION_DIAGNOSTIC ' THEN
+                RAISE EXCEPTION 'native novelty rejection omitted its structured diagnostic: %',details;
+            END IF;
+            proof:=substr(details,length('LAPLACE_HIGHWAY_REVALIDATION_DIAGNOSTIC ')+1)::jsonb;
+            IF proof->>'schema' IS DISTINCT FROM 'laplace.highway-reconstruction-novelty/v1'
+               OR proof->'alternate_exclusions_complete' IS DISTINCT FROM 'true'::jsonb
+               OR proof->>'reconstructed_root_entity_id' IS DISTINCT FROM encode(root_e,'hex')
+               OR proof->>'reconstructed_root_physicality_id' IS DISTINCT FROM encode(root_p,'hex')
+               OR proof#>>'{committed_snapshot,stored_generation,root_entity_id}' IS DISTINCT FROM encode(root_e,'hex')
+               OR jsonb_typeof(proof->'novel_entity_samples') IS DISTINCT FROM 'array'
+               OR jsonb_typeof(proof->'novel_physicality_samples') IS DISTINCT FROM 'array'
+               OR EXISTS(SELECT FROM unnest(ARRAY['novel_entity_count','novel_physicality_count',
+                    'inserted_entity_count','inserted_physicality_count','inserted_trajectory_count']) key
+                    WHERE jsonb_typeof(proof->key) IS DISTINCT FROM 'number')
+               OR jsonb_array_length(proof->'novel_entity_samples')>4
+               OR jsonb_array_length(proof->'novel_physicality_samples')>4 THEN
+                RAISE EXCEPTION 'native novelty diagnostic lost bounded reconstruction provenance: %',proof;
+            END IF;
+            IF label='missing-entity' THEN
+                IF proof->'novel_entity_count' IS DISTINCT FROM '1'::jsonb
+                   OR proof->'novel_physicality_count' IS DISTINCT FROM '0'::jsonb
+                   OR proof->'novel_entity_samples' IS DISTINCT FROM jsonb_build_array(encode(root_e,'hex')) THEN
+                    RAISE EXCEPTION 'entity absence was mislabeled as physicality novelty: %',proof;
+                END IF;
+            ELSE
+                IF proof->'novel_entity_count' IS DISTINCT FROM '0'::jsonb
+                   OR (proof->>'novel_physicality_count')::integer<1 THEN
+                    RAISE EXCEPTION 'physicality novelty was mislabeled as entity absence: %',proof;
+                END IF;
+                IF label='missing-physicality' AND
+                    proof#>>'{novel_physicality_samples,0,physicality_id}' IS DISTINCT FROM encode(root_p,'hex') THEN
+                    RAISE EXCEPTION 'missing physicality diagnostic reported the wrong native candidate: %',proof;
+                END IF;
+                IF label='same-entity-alternate-physicality' AND NOT EXISTS(
+                    SELECT FROM jsonb_array_elements(proof#>'{committed_snapshot,preexisting_alternate_samples}') e,
+                        jsonb_array_elements(e->'physicalities') p
+                    WHERE e->>'entity_id'=encode(named_e,'hex') AND p->>'physicality_id'=encode(alternate_p,'hex')) THEN
+                    RAISE EXCEPTION 'native diagnostic omitted the real preexisting alternate physicality: %',proof;
+                END IF;
+            END IF;
+            INSERT INTO highway_revalidation_novelty_controls VALUES(label,proof);
+            RAISE NOTICE 'LAPLACE_HIGHWAY_NOVELTY_DIAGNOSTIC_OK case=% proof=%',label,proof;
+        END;
+        IF current_setting('session_replication_role')<>'origin' OR
+            pg_temp.highway_revalidation_state() IS DISTINCT FROM (SELECT state FROM highway_revalidation_before) THEN
+            RAISE EXCEPTION 'novelty diagnostic or fixture leaked writes across its rejection';
+        END IF;
+    END LOOP;
+END
+$novelty_diagnostic$;
+
 CREATE TEMP TABLE highway_revalidation_rejections(mutation text PRIMARY KEY, detail text NOT NULL);
 
 CREATE FUNCTION pg_temp.highway_revalidation_rejects(mutation text, expected_detail text)
@@ -961,6 +1080,9 @@ BEGIN
     IF pg_temp.highway_revalidation_state() <> (SELECT state FROM highway_revalidation_before) THEN
         RAISE EXCEPTION 'negative controls or caller rollback changed committed Highway state';
     END IF;
+    IF (SELECT count(*) FROM highway_revalidation_novelty_controls) <> 3 THEN
+        RAISE EXCEPTION 'native reconstruction novelty diagnostics did not all execute';
+    END IF;
     IF (SELECT count(*) FROM highway_revalidation_rejections) <> 26 THEN
         RAISE EXCEPTION 'committed Highway corruption controls did not all execute';
     END IF;
@@ -999,6 +1121,7 @@ SELECT 'LAPLACE_QA_RECEIPT highway_committed_revalidation ' || jsonb_build_objec
     'recovered_expected_epoch_count',recovered_expected_epoch_count,
     'caller_commit_preserved_state',true,
     'caller_rollback_preserved_state',true,
+    'novelty_diagnostic_controls',(SELECT count(*) FROM highway_revalidation_novelty_controls),
     'corruption_controls',(SELECT count(*) FROM highway_revalidation_rejections),
     'rejections',(SELECT json_agg(r ORDER BY mutation) FROM highway_revalidation_rejections r),
     'binding_checks',(SELECT json_agg(check_name ORDER BY check_name) FROM highway_revalidation_binding_checks),

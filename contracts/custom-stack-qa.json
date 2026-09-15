@@ -45,6 +45,12 @@
       "ctest_name": "postgres.highway-committed-revalidation-contract",
       "profile": "highway-committed-revalidation",
       "required_receipts": ["highway_committed_revalidation"],
+      "required_receipt_fields": {
+        "highway_committed_revalidation": {
+          "schema": "laplace.highway-committed-revalidation-test/v1",
+          "novelty_diagnostic_controls": 3
+        }
+      },
       "order": 5,
       "resource_class": "postgresql-unicode-registry-integrity",
       "reason": "actual native committed-state revalidation and corruption/rollback proof on a disposable Unicode and Highway generation"

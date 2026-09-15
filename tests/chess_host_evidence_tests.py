@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Counterexamples for shared host exclusion and retained admission diagnostics."""
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,170 @@ request_spec.loader.exec_module(REQUEST)
 
 
 class HostEvidence(unittest.TestCase):
+    def database_fixture(self, root, behavior):
+        contract = json.loads((ROOT / 'contracts/postgresql-cluster.json').read_text())
+        release = root / 'releases' / ('a' * 64)
+        executable = release / 'pgsql-18/bin/psql'
+        executable.parent.mkdir(parents=True)
+        active = root / 'current'
+        active.symlink_to(release, target_is_directory=True)
+        contract['package'].update(release_root=str(release.parent), active_link=str(active))
+        output = root / 'evidence'
+        output.mkdir()
+        executable.write_text(f'#!{sys.executable}\n' + textwrap.dedent(behavior))
+        executable.chmod(0o750)
+        return contract, output
+
+    def observe_database_fixture(self, contract, output):
+        runner = D.load_runner()
+        with patch.object(D, 'load_runner', return_value=runner), patch.object(runner, 'require_runner'):
+            return D.observe_committed_state(contract, output)
+
+    def test_database_snapshot_uses_actual_shared_psql_transport_and_retains_output(self):
+        behavior = '''
+            import json, os, sys
+            sql = sys.stdin.read()
+            assert sql.startswith('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;')
+            assert sql.endswith('ROLLBACK;\\n')
+            assert "SET LOCAL statement_timeout = '20s'" in sql
+            assert "SET LOCAL lock_timeout = '2s'" in sql
+            assert '--no-psqlrc' in sys.argv and 'ON_ERROR_STOP=1' in sys.argv
+            assert set(os.environ) <= {'LANG', 'LC_ALL', 'PATH'}
+            print(json.dumps({'schema':'laplace.highway-committed-state-observation/v1',
+                'transaction_read_only':'on', 'transaction_isolation':'repeatable read',
+                'control': {'highway_present': True}}))
+            sys.stderr.write('observed diagnostic message\\n')
+        '''
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, output = self.database_fixture(Path(temporary), behavior)
+            result = self.observe_database_fixture(contract, output)
+            self.assertEqual(result['status'], 'observed', result)
+            self.assertEqual(result['process']['exit_code'], 0)
+            self.assertEqual(result['sql_sha256'], hashlib.sha256((output / 'committed-state.sql').read_bytes()).hexdigest())
+            self.assertEqual((output / 'committed-state.stderr').read_bytes(), b'observed diagnostic message\n')
+            self.assertEqual(result['process']['stdout_sha256'], result['outputs']['stdout']['observed_sha256'])
+            self.assertEqual(result['transport']['selected_release_directory_name'], 'a' * 64)
+            self.assertFalse(result['transport']['loaded_server_package_verified'])
+            self.assertEqual(json.loads((output / 'committed-state.json').read_text()), result)
+
+    def test_native_failure_is_retained_before_exception_preview_and_collected_separately(self):
+        body = 'LAPLACE_HIGHWAY_REVALIDATION_DIAGNOSTIC {"candidate":"exact"}\n' + 'x' * 5000
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            contract, _ = self.database_fixture(root, f'import sys\nsys.stderr.write({body!r})\nsys.exit(3)\n')
+            runner = D.load_runner()
+            transport = {'package_root': str(Path(contract['package']['active_link']).resolve()),
+                'postgresql_major': 18, 'instance': contract['instance']}
+            failures = root / 'receipts/highway/failures'
+            with patch.object(runner, 'require_runner'):
+                with self.assertRaises(runner.RunnerActivationError) as raised:
+                    runner.runner_sql(transport, contract, 'SELECT 1;', 'native-failure',
+                        'laplace-runner', 'laplace_admin', 3,
+                        completed_observer=lambda process, receipt: runner.retain_failed_sql(process, receipt, directory=failures))
+            self.assertNotIn('LAPLACE_HIGHWAY_REVALIDATION_DIAGNOSTIC', str(raised.exception))
+            files = list(failures.glob('sql-failure-*.json'))
+            self.assertEqual(len(files), 1)
+            evidence = json.loads(files[0].read_text())
+            self.assertEqual(bytes.fromhex(evidence['outputs']['stderr']['retained_hex']), body.encode())
+            self.assertFalse(evidence['outputs']['stderr']['truncated'])
+            self.assertEqual(evidence['command']['exit_code'], 3)
+            self.assertEqual(evidence['command']['stderr_sha256'], hashlib.sha256(body.encode()).hexdigest())
+            report = D.inspect(root / 'receipts', root / 'captured', [])
+            self.assertEqual(report['candidate_count'], 0)
+            self.assertEqual(len(report['failure_evidence']), 1)
+            self.assertEqual((root / 'captured' / report['failure_evidence'][0]['capture']).read_bytes(), files[0].read_bytes())
+
+    def test_failure_retention_bounds_exact_bytes_without_recording_success_as_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runner = D.load_runner()
+            success = subprocess.CompletedProcess(['psql'], 0, 'ok', '')
+            runner.retain_failed_sql(success, {'exit_code': 0}, directory=root / 'success')
+            self.assertFalse((root / 'success').exists())
+            content = 'é' * 40
+            failed = subprocess.CompletedProcess(['psql'], 1, '', content)
+            with patch.object(runner, 'MAX_FAILURE_OUTPUT_BYTES', 7):
+                runner.retain_failed_sql(failed, {'exit_code': 1}, directory=root / 'failure')
+                runner.retain_failed_sql(failed, {'exit_code': 1}, directory=root / 'failure')
+            files = list((root / 'failure').glob('*.json'))
+            self.assertEqual(len(files), 1)
+            captured = json.loads(files[0].read_text())['outputs']['stderr']
+            self.assertTrue(captured['truncated'])
+            self.assertEqual(bytes.fromhex(captured['retained_hex']), content.encode()[:7])
+            self.assertEqual(captured['observed_bytes'], len(content.encode()))
+
+    def test_database_process_failure_preserves_both_outputs_and_nonzero_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, output = self.database_fixture(Path(temporary), "import sys\nsys.stdout.write('partial row\\n')\nsys.stderr.write('exact failure\\n')\nsys.exit(7)\n")
+            result = self.observe_database_fixture(contract, output)
+            self.assertEqual(result['status'], 'failed')
+            self.assertEqual(result['process']['exit_code'], 7)
+            self.assertEqual((output / 'committed-state.stdout').read_bytes(), b'partial row\n')
+            self.assertEqual((output / 'committed-state.stderr').read_bytes(), b'exact failure\n')
+            self.assertNotIn('observation', result)
+
+    def test_database_timeout_preserves_actual_partial_subprocess_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, output = self.database_fixture(Path(temporary), "import sys,time\nprint('partial timeout',flush=True)\nsys.stderr.write('waiting\\n')\nsys.stderr.flush()\ntime.sleep(2)\n")
+            with patch.object(D, 'DATABASE_TIMEOUT_SECONDS', 0.2):
+                result = self.observe_database_fixture(contract, output)
+            self.assertEqual(result['status'], 'timed-out')
+            self.assertTrue(result['partial_output'])
+            self.assertEqual((output / 'committed-state.stdout').read_bytes(), b'partial timeout\n')
+            self.assertEqual((output / 'committed-state.stderr').read_bytes(), b'waiting\n')
+            self.assertIsNone(result['process'])
+
+    def test_database_invalid_json_and_snapshot_boundary_are_retained_failures(self):
+        for body in ('not json', '{}', '{"schema":"laplace.highway-committed-state-observation/v1","transaction_read_only":"off","transaction_isolation":"repeatable read"}'):
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as temporary:
+                contract, output = self.database_fixture(Path(temporary), f'print({body!r})\n')
+                result = self.observe_database_fixture(contract, output)
+                self.assertEqual(result['status'], 'failed')
+                self.assertEqual((output / 'committed-state.stdout').read_text(), body + '\n')
+                self.assertNotIn('observation', result)
+
+    def test_database_output_cap_is_explicit_and_never_reports_complete_observation(self):
+        body = json.dumps({'schema': 'laplace.highway-committed-state-observation/v1',
+            'transaction_read_only': 'on', 'transaction_isolation': 'repeatable read', 'extra': 'x' * 2048})
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, output = self.database_fixture(Path(temporary), f'print({body!r})\n')
+            with patch.object(D, 'MAX_DATABASE_OUTPUT_BYTES', 256):
+                result = self.observe_database_fixture(contract, output)
+            self.assertEqual(result['status'], 'failed')
+            self.assertTrue(result['outputs']['stdout']['truncated'])
+            self.assertEqual((output / 'committed-state.stdout').stat().st_size, 256)
+            self.assertEqual(result['outputs']['stdout']['observed_sha256'], hashlib.sha256((body + '\n').encode()).hexdigest())
+            self.assertNotIn('observation', result)
+
+    def test_database_missing_active_package_is_unavailable_without_process(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            contract, output = self.database_fixture(Path(temporary), 'raise AssertionError("must not execute")\n')
+            Path(contract['package']['active_link']).unlink()
+            result = self.observe_database_fixture(contract, output)
+            self.assertEqual(result['status'], 'unavailable')
+            self.assertIsNone(result['process'])
+            self.assertIn('error', result['outputs'])
+
+    def test_database_selection_cannot_escape_the_declared_release_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            contract, output = self.database_fixture(root, 'raise AssertionError("must not execute")\n')
+            active = Path(contract['package']['active_link'])
+            active.unlink()
+            active.symlink_to(root)
+            result = self.observe_database_fixture(contract, output)
+            self.assertEqual(result['status'], 'unavailable')
+            self.assertIsNone(result['process'])
+
+    def test_filesystem_diagnostic_does_not_select_database_execution_by_default(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            contract = root / 'contract.json'
+            contract.write_text(json.dumps({'instance': {'receipt_directory': str(root / 'receipts')}}))
+            with patch.object(sys, 'argv', ['diagnostic', '--contract', str(contract), '--output', str(root / 'output')]), patch.object(D, 'load_runner', side_effect=AssertionError('database was selected')):
+                D.main()
+            self.assertFalse((root / 'output/committed-state.json').exists())
+
     def policy(self):
         return json.loads((ROOT / 'contracts/chess-benchmark.json').read_text())['deployment_calibration']
 
