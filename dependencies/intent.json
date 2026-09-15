@@ -368,11 +368,13 @@
         "testing"
       ],
       "intent": [
-        "Qt Core, Core5Compat, Svg, Gui, Widgets, Concurrent and PrintSupport needed to configure and execute the upstream Cute Chess CLI build"
+        "Qt Core, Core5Compat, Svg, Gui, Widgets, Concurrent and PrintSupport needed to configure and execute the upstream Cute Chess CLI build",
+        "pinned pip bootstrap inside the dedicated Qt SDK virtual environment so aqt acquisition can retain installation reports"
       ],
-      "boundary": "Qt and aqt supply external tool build and runtime mechanics; they do not execute Laplace semantic operations. Acquisition and actual loaded version are recorded separately.",
+      "boundary": "Qt, aqt and the dedicated SDK virtual environment's pip bootstrap supply external tool acquisition, build and runtime mechanics; they do not execute Laplace semantic operations. Acquisition and actual loaded version are recorded separately.",
       "selection": "locked-acquisition-tool-sdk-version-selected",
       "lock_entries": [
+        "artifact:pip",
         "artifact:aqtinstall"
       ]
     },
