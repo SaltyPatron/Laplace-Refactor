@@ -158,6 +158,97 @@ class RetainedUnicodeAdmission(unittest.TestCase):
             u.retained_root_identities(
                 self.root,self.inspection,self.current,self.contract,Path('/verified/native-identify'),current_native)
 
+    def retain_projected_admission(self):
+        shutil.rmtree(self.folder)
+        native=dict(self.identity,request_fingerprint='e1'*32,
+            activation_epoch_id='e2'*16,activation_epoch_fingerprint='e3'*32,
+            geometry_epoch='e4'*32)
+        payload=u.canonical_bytes(self.current)
+        staging=self.root/'.unicode-activation';staging.mkdir(parents=True,exist_ok=True)
+        (staging/f'request-{u.sha256_bytes(payload)}.json').write_bytes(payload)
+        self.inspection.update(active_present=True,generation_count=1,deposit_count=1,
+            root_receipt=self.contract['expected_result']['root_receipt'],
+            root_geometry_epoch='a1'*32,
+            root_postgresql_contract_fingerprint=self.contract['authority']['unicode_postgresql_contract_fingerprint'],
+            deposit_activation_epoch_id=self.identity['activation_epoch_id'],
+            deposit_activation_epoch_fingerprint=self.identity['activation_epoch_fingerprint'])
+        def identify(_exe,path,_contract):
+            self.calls.append(path)
+            self.assertEqual(path.read_bytes(),payload)
+            return copy.deepcopy(native),{'exit_code':0,'label':'real retained request boundary'}
+        effective,original,command=u.retained_root_identities(self.root,self.inspection,
+            self.current,self.contract,Path('/verified/native-identify'),identify)
+        folder=self.root/'unicode'/native['request_fingerprint']
+        # These are exactly the two writes performed by core.activate after
+        # the recovery owner returns its projected effective identity.
+        u.write_immutable(folder/'request.json',original)
+        u.write_immutable(folder/'identities.json',effective)
+        self.calls.clear()
+        return folder,effective,identify,command['runtime_context_projection']
+
+    def test_recovered_projection_survives_next_deployment_without_rewriting_history(self):
+        folder,effective,identify,projection=self.retain_projected_admission()
+        before={p.name:p.read_bytes() for p in folder.iterdir()}
+        later=dict(self.current,package_id='third-package',orchestrator_sha256='third-code')
+        observed,original,command=u.retained_root_identities(self.root,self.inspection,
+            later,self.contract,Path('/verified/native-identify'),identify)
+        self.assertEqual(observed,effective)
+        self.assertEqual(original,self.current)
+        self.assertEqual(command['runtime_context_projection'],projection)
+        self.assertEqual(self.calls,[folder/'request.json'])
+        self.assertEqual(before,{p.name:p.read_bytes() for p in folder.iterdir()})
+
+    def test_projected_admission_requires_every_exact_retained_proof_field(self):
+        folder,_effective,identify,_projection=self.retain_projected_admission()
+        originals={p.name:p.read_bytes() for p in folder.iterdir()}
+        controls=[('native-identities.json','source_epoch','ff'*32),
+            ('identities.json','source_epoch','ff'*32),
+            ('identities.json','geometry_epoch','ff'*32),
+            ('runtime-context-projection.json','request_sha256','ff'*32),
+            ('runtime-context-projection.json','native_geometry_epoch','ff'*32),
+            ('runtime-context-projection.json','committed_root_receipt','ff'*32),
+            ('runtime-context-projection.json','projection_sha256','ff'*32),
+            ('runtime-context-projection.json','unexpected_field',True)]
+        for filename,field,value in controls:
+            with self.subTest(filename=filename,field=field):
+                path=folder/filename;document=u.load_json(path);document[field]=value
+                path.write_bytes(u.canonical_bytes(document))
+                try:
+                    with self.assertRaises(u.UnicodeActivationError):
+                        u.retained_root_identities(self.root,self.inspection,self.current,
+                            self.contract,Path('/verified/native-identify'),identify)
+                finally: path.write_bytes(originals[filename])
+        for filename in ('native-identities.json','runtime-context-projection.json'):
+            path=folder/filename
+            for kind in ('missing','symlink','noncanonical'):
+                with self.subTest(filename=filename,kind=kind):
+                    path.unlink()
+                    if kind=='symlink': path.symlink_to(folder/'request.json')
+                    if kind=='noncanonical': path.write_bytes(originals[filename]+b' ')
+                    try:
+                        with self.assertRaises(u.UnicodeActivationError):
+                            u.retained_root_identities(self.root,self.inspection,self.current,
+                                self.contract,Path('/verified/native-identify'),identify)
+                    finally:
+                        if path.exists() or path.is_symlink(): path.unlink()
+                        path.write_bytes(originals[filename])
+        self.assertEqual(originals,{p.name:p.read_bytes() for p in folder.iterdir()})
+
+    def test_projected_replay_rechecks_live_committed_root_and_native_output(self):
+        _folder,_effective,identify,_projection=self.retain_projected_admission()
+        for field,value in [('root_geometry_epoch','f1'*32),('generation_count',2),
+                ('deposit_activation_epoch_id','f2'*16),('root_receipt','f3'*32)]:
+            with self.subTest(field=field),self.assertRaises(u.UnicodeActivationError):
+                u.retained_root_identities(self.root,dict(self.inspection,**{field:value}),
+                    self.current,self.contract,Path('/verified/native-identify'),identify)
+        def changed(*args):
+            native,command=identify(*args)
+            native['numeric_epoch']='f4'*32
+            return native,command
+        with self.assertRaisesRegex(u.UnicodeActivationError,'native identities differ'):
+            u.retained_root_identities(self.root,self.inspection,self.current,
+                self.contract,Path('/verified/native-identify'),changed)
+
     def test_staged_request_filename_must_bind_exact_canonical_bytes(self):
         shutil.rmtree(self.folder)
         staging=self.root/'.unicode-activation';staging.mkdir(parents=True)

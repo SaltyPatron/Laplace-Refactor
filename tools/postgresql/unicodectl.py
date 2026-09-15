@@ -85,15 +85,13 @@ def _has_committed_root_projection_boundary(inspection: dict[str, Any]) -> bool:
     return required.issubset(inspection)
 
 
-def _committed_root_runtime_context(
-    receipt_root: Path,
+def _projection_documents(
     inspection: dict[str, Any],
     request: dict[str, Any],
     contract: dict[str, Any],
-    identity_executable: Path,
-    identity_runner: Callable[..., Any],
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """Compose an auditable runtime context without inventing historical evidence."""
+    native: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """One projection law for initial recovery and later authenticated replay."""
     epoch_id = inspection.get("activation_epoch_id")
     epoch_fingerprint = inspection.get("activation_epoch_fingerprint")
     geometry_epoch = inspection.get("root_geometry_epoch")
@@ -130,17 +128,6 @@ def _committed_root_runtime_context(
 
     request_bytes = _core.canonical_bytes(request)
     request_sha = _core.sha256_bytes(request_bytes)
-    request_path = receipt_root / ".unicode-activation" / f"request-{request_sha}.json"
-    if (
-        request_path.is_symlink()
-        or not request_path.is_file()
-        or request_path.read_bytes() != request_bytes
-    ):
-        raise _core.UnicodeActivationError(
-            "current canonical Unicode deployment request is not retained"
-        )
-
-    native, command = identity_runner(identity_executable, request_path, contract)
     _core.validate_identities(native, contract)
     effective = dict(native)
     effective["activation_epoch_id"] = epoch_id
@@ -166,6 +153,24 @@ def _committed_root_runtime_context(
     projection["projection_sha256"] = _core.document_identity(
         projection, "projection_sha256"
     )
+    return effective, projection
+
+
+def _committed_root_runtime_context(
+    receipt_root: Path, inspection: dict[str, Any], request: dict[str, Any],
+    contract: dict[str, Any], identity_executable: Path,
+    identity_runner: Callable[..., Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Compose an auditable runtime context without inventing historical evidence."""
+    request_bytes = _core.canonical_bytes(request)
+    request_sha = _core.sha256_bytes(request_bytes)
+    request_path = receipt_root / ".unicode-activation" / f"request-{request_sha}.json"
+    if (request_path.is_symlink() or not request_path.is_file()
+            or request_path.read_bytes() != request_bytes):
+        raise _core.UnicodeActivationError(
+            "current canonical Unicode deployment request is not retained")
+    native, command = identity_runner(identity_executable, request_path, contract)
+    effective, projection = _projection_documents(inspection, request, contract, native)
     evidence = (
         receipt_root
         / contract["receipt"]["directory_name"]
@@ -177,6 +182,45 @@ def _committed_root_runtime_context(
     command = dict(command)
     command["runtime_context_projection"] = projection
     return effective, request, command
+
+
+_native_retained_identity_proof = _core.validate_retained_identity_proof
+
+
+def validate_retained_identity_proof(
+    folder: Path, candidate: dict[str, Any], verified: dict[str, Any],
+    original: dict[str, Any], inspection: dict[str, Any], contract: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Authenticate a projected runtime context as a projection, never history.
+
+    Both immutable companion documents must be present and canonical. Fresh
+    native recomputation authenticates the complete original native object;
+    the common projection law binds only its three root-owned fields to the
+    independently inspected committed root. All other identity fields stay exact.
+    """
+    native_path = folder / "native-identities.json"
+    projection_path = folder / "runtime-context-projection.json"
+    if not any(path.exists() or path.is_symlink() for path in (native_path, projection_path)):
+        return _native_retained_identity_proof(
+            folder, candidate, verified, original, inspection, contract)
+    documents = []
+    for path in (native_path, projection_path):
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 65536:
+            raise _core.UnicodeActivationError("unsafe or missing retained Unicode projection proof")
+        document = _core.load_json(path)
+        if path.read_bytes() != _core.canonical_bytes(document):
+            raise _core.UnicodeActivationError("retained Unicode projection proof is not canonical")
+        documents.append(document)
+    native, projection = documents
+    _core.validate_identities(native, contract)
+    if native != verified:
+        raise _core.UnicodeActivationError("retained Unicode projection native identities differ from recomputation")
+    effective, expected_projection = _projection_documents(inspection, original, contract, verified)
+    if projection != expected_projection:
+        raise _core.UnicodeActivationError("retained Unicode runtime projection differs from its exact proof")
+    if candidate != effective:
+        raise _core.UnicodeActivationError("retained Unicode effective identities differ from their verified projection")
+    return projection
 
 
 def retained_root_identities(
@@ -219,6 +263,7 @@ def retained_root_identities(
 # two recovery boundaries there so every existing caller gets the same law.
 _core.render_inspection_sql = render_inspection_sql
 _core.retained_root_identities = retained_root_identities
+_core.validate_retained_identity_proof = validate_retained_identity_proof
 globals()["render_inspection_sql"] = render_inspection_sql
 globals()["retained_root_identities"] = retained_root_identities
 
