@@ -26,6 +26,7 @@
 #include "laplace/trajectory.h"
 #include "laplace_pg_internal.h"
 #include "set_pg.h"
+#include "persistence_rows_pg.h"
 #include "cognition_provider_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_cognition_observation_execute_persisted);
@@ -200,55 +201,6 @@ static void persisted_read_request(
     request->version = persisted_read_u32_attribute(tuple, 15, "version");
 }
 
-static void persisted_read_physicality_row(
-    HeapTuple tuple,
-    TupleDesc descriptor,
-    laplace_persistence_physicality_record* value) {
-    memset(value, 0, sizeof(*value));
-    persisted_read_digest_datum(
-        persisted_required_attribute(tuple, descriptor, 1, "physicality_id"),
-        &value->physicality_id, "physicality_id");
-    persisted_read_id_datum(
-        persisted_required_attribute(tuple, descriptor, 2, "entity_id"),
-        &value->entity_id, "entity_id");
-    value->physicality_type = (uint32_t)DatumGetInt32(
-        persisted_required_attribute(tuple, descriptor, 3, "physicality_type"));
-    value->vertex_class = (uint32_t)DatumGetInt32(
-        persisted_required_attribute(tuple, descriptor, 4, "vertex_class"));
-    value->recipe_version = (uint32_t)DatumGetInt32(
-        persisted_required_attribute(tuple, descriptor, 5, "recipe_version"));
-    value->structural_form = (uint32_t)DatumGetInt32(
-        persisted_required_attribute(tuple, descriptor, 6, "structural_form"));
-    value->dimension_count = (uint32_t)DatumGetInt32(
-        persisted_required_attribute(tuple, descriptor, 7, "dimension_count"));
-    value->flags = (uint32_t)DatumGetInt32(
-        persisted_required_attribute(tuple, descriptor, 8, "flags"));
-    persisted_read_digest_datum(
-        persisted_required_attribute(tuple, descriptor, 9, "recipe_fingerprint"),
-        &value->recipe_fingerprint, "recipe_fingerprint");
-    persisted_read_digest_datum(
-        persisted_required_attribute(tuple, descriptor, 10, "geometry_epoch"),
-        &value->geometry_epoch, "geometry_epoch");
-    persisted_read_digest_datum(
-        persisted_required_attribute(tuple, descriptor, 11, "trajectory_fingerprint"),
-        &value->trajectory_fingerprint, "trajectory_fingerprint");
-    value->centroid.component[0] = DatumGetFloat8(
-        persisted_required_attribute(tuple, descriptor, 12, "centroid_x"));
-    value->centroid.component[1] = DatumGetFloat8(
-        persisted_required_attribute(tuple, descriptor, 13, "centroid_y"));
-    value->centroid.component[2] = DatumGetFloat8(
-        persisted_required_attribute(tuple, descriptor, 14, "centroid_z"));
-    value->centroid.component[3] = DatumGetFloat8(
-        persisted_required_attribute(tuple, descriptor, 15, "centroid_m"));
-    value->radius = DatumGetFloat8(
-        persisted_required_attribute(tuple, descriptor, 16, "radius"));
-    value->logical_count = laplace_pg_uint64_from_numeric(
-        persisted_required_attribute(tuple, descriptor, 17, "logical_count"),
-        "persisted cognition logical_count");
-    value->vertex_count = laplace_pg_uint64_from_numeric(
-        persisted_required_attribute(tuple, descriptor, 18, "vertex_count"),
-        "persisted cognition vertex_count");
-}
 
 
 /* GIN keys are a rebuildable structural projection of the canonical packed
@@ -414,7 +366,7 @@ static int persisted_enumerate_impl(
     physicality_values = palloc((size_t)rows * sizeof(Datum));
     for (row = 0u; row < rows; ++row) {
         int32 bytes;
-        persisted_read_physicality_row(SPI_tuptable->vals[row], SPI_tuptable->tupdesc,
+        laplace_pg_read_physicality_row(SPI_tuptable->vals[row], SPI_tuptable->tupdesc,
                                       &records[row]);
         bytes = DatumGetInt32(persisted_required_attribute(
             SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 19, "trajectory byte length"));

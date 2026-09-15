@@ -21,6 +21,7 @@
 #include "laplace/contract/postgresql_bindings.h"
 #include "composition_pg.h"
 #include "laplace_pg_internal.h"
+#include "persistence_rows_pg.h"
 #include "unicode_atoms_pg.h"
 
 PG_FUNCTION_INFO_V1(LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SYMBOL);

@@ -1,6 +1,7 @@
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
+#include "utils/builtins.h"
 
 #include "laplace/contract/postgresql_bindings.h"
 #include "laplace/persistence.h"
@@ -109,6 +110,77 @@ Datum laplace_pg_physicality_record(
     fields[17] = laplace_pg_numeric_from_uint64(physicality->vertex_count);
     return laplace_pg_composite_record(binding, fields, nulls);
 }
+
+static Datum physicality_required_attribute(
+    HeapTuple tuple, TupleDesc descriptor, int attribute, const char* field) {
+    bool is_null = false;
+    Datum value = heap_getattr(tuple, attribute, descriptor, &is_null);
+    if (is_null) {
+        ereport(ERROR, (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+            errmsg("Laplace physicality %s cannot be null", field)));
+    }
+    return value;
+}
+
+static void physicality_read_id(Datum datum, laplace_id128* id, const char* field) {
+    bytea* value = DatumGetByteaPP(datum);
+    if (VARSIZE_ANY_EXHDR(value) != (int)sizeof(id->bytes)) {
+        ereport(ERROR, (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+            errmsg("Laplace physicality %s must contain exactly 16 bytes", field)));
+    }
+    memcpy(id->bytes, VARDATA_ANY(value), sizeof(id->bytes));
+}
+
+void laplace_pg_read_physicality_row(
+    HeapTuple tuple,
+    TupleDesc descriptor,
+    laplace_persistence_physicality_record* value) {
+    memset(value, 0, sizeof(*value));
+    laplace_pg_read_digest(
+        physicality_required_attribute(tuple, descriptor, 1, "physicality_id"),
+        &value->physicality_id, "physicality_id");
+    physicality_read_id(
+        physicality_required_attribute(tuple, descriptor, 2, "entity_id"),
+        &value->entity_id, "entity_id");
+    value->physicality_type = (uint32_t)DatumGetInt32(
+        physicality_required_attribute(tuple, descriptor, 3, "physicality_type"));
+    value->vertex_class = (uint32_t)DatumGetInt32(
+        physicality_required_attribute(tuple, descriptor, 4, "vertex_class"));
+    value->recipe_version = (uint32_t)DatumGetInt32(
+        physicality_required_attribute(tuple, descriptor, 5, "recipe_version"));
+    value->structural_form = (uint32_t)DatumGetInt32(
+        physicality_required_attribute(tuple, descriptor, 6, "structural_form"));
+    value->dimension_count = (uint32_t)DatumGetInt32(
+        physicality_required_attribute(tuple, descriptor, 7, "dimension_count"));
+    value->flags = (uint32_t)DatumGetInt32(
+        physicality_required_attribute(tuple, descriptor, 8, "flags"));
+    laplace_pg_read_digest(
+        physicality_required_attribute(tuple, descriptor, 9, "recipe_fingerprint"),
+        &value->recipe_fingerprint, "recipe_fingerprint");
+    laplace_pg_read_digest(
+        physicality_required_attribute(tuple, descriptor, 10, "geometry_epoch"),
+        &value->geometry_epoch, "geometry_epoch");
+    laplace_pg_read_digest(
+        physicality_required_attribute(tuple, descriptor, 11, "trajectory_fingerprint"),
+        &value->trajectory_fingerprint, "trajectory_fingerprint");
+    value->centroid.component[0] = DatumGetFloat8(
+        physicality_required_attribute(tuple, descriptor, 12, "centroid_x"));
+    value->centroid.component[1] = DatumGetFloat8(
+        physicality_required_attribute(tuple, descriptor, 13, "centroid_y"));
+    value->centroid.component[2] = DatumGetFloat8(
+        physicality_required_attribute(tuple, descriptor, 14, "centroid_z"));
+    value->centroid.component[3] = DatumGetFloat8(
+        physicality_required_attribute(tuple, descriptor, 15, "centroid_m"));
+    value->radius = DatumGetFloat8(
+        physicality_required_attribute(tuple, descriptor, 16, "radius"));
+    value->logical_count = laplace_pg_uint64_from_numeric(
+        physicality_required_attribute(tuple, descriptor, 17, "logical_count"),
+        "physicality logical_count");
+    value->vertex_count = laplace_pg_uint64_from_numeric(
+        physicality_required_attribute(tuple, descriptor, 18, "vertex_count"),
+        "physicality vertex_count");
+}
+
 
 void laplace_pg_physicality_deposit_binding_open(
     laplace_pg_composite_binding* binding) {

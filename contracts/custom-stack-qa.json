@@ -48,7 +48,8 @@
       "required_receipt_fields": {
         "highway_committed_revalidation": {
           "schema": "laplace.highway-committed-revalidation-test/v1",
-          "novelty_diagnostic_controls": 3
+          "novelty_diagnostic_controls": 3,
+          "historical_geometry_controls": 1
         }
       },
       "order": 5,

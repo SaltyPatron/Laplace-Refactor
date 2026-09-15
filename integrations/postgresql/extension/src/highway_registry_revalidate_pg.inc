@@ -32,6 +32,44 @@ static void highway_revalidation_error(const char* field) {
         errmsg("Committed Highway revalidation failed: %s", field)));
 }
 
+/* A retained physicality binds the geometry used to create its shape. The
+ * current execution context still authorizes this observation; its geometry
+ * epoch must not replace that historical reconstruction input. Authenticate
+ * the complete stored body before using any of its fields. Existing SHARE
+ * locks keep the selected generation and physicality stable throughout. */
+static laplace_digest256 highway_committed_geometry_epoch(void) {
+    static const char query[] =
+        "SELECT p.physicality_id,p.entity_id,p.physicality_type,p.vertex_class,"
+        "p.recipe_version,p.structural_form,p.dimension_count,p.flags,"
+        "p.recipe_fingerprint,p.geometry_epoch,p.trajectory_fingerprint,"
+        "p.centroid_x,p.centroid_y,p.centroid_z,p.centroid_m,p.radius,"
+        "p.logical_count,p.vertex_count FROM " LAPLACE_PG_SCHEMA
+        ".highway_registry_active_control c JOIN " LAPLACE_PG_SCHEMA
+        ".highway_registry_generation g ON g.activation_epoch_id=c.activation_epoch_id "
+        "AND g.activation_epoch_fingerprint=c.activation_epoch_fingerprint "
+        "JOIN " LAPLACE_PG_SCHEMA ".physicality p "
+        "ON p.physicality_id=g.root_physicality_id AND p.entity_id=g.root_entity_id "
+        "WHERE c.singleton AND c.active_present";
+    laplace_persistence_physicality_record physicality;
+    laplace_digest256 identified;
+    if (SPI_connect() != SPI_OK_CONNECT) {
+        highway_revalidation_error("stored root physicality connection");
+    }
+    if (SPI_execute(query, true, 2) != SPI_OK_SELECT || SPI_processed != 1u) {
+        highway_revalidation_error("stored root physicality unavailable");
+    }
+    laplace_pg_read_physicality_row(
+        SPI_tuptable->vals[0], SPI_tuptable->tupdesc, &physicality);
+    if (laplace_persistence_physicality_identify(&physicality, &identified) != LAPLACE_PERSISTENCE_OK ||
+        !digest_equal(&identified, &physicality.physicality_id)) {
+        highway_revalidation_error("native stored root physicality identity");
+    }
+    if (SPI_finish() != SPI_OK_FINISH) {
+        highway_revalidation_error("stored root physicality connection cleanup");
+    }
+    return physicality.geometry_epoch;
+}
+
 /* Evidence describes the pre-presence disposition and the exact newly
  * reconstructed candidate. It never claims a historical row was deleted. */
 static void highway_novelty_diagnostic(
@@ -67,7 +105,7 @@ static void highway_novelty_diagnostic(
         "ORDER BY p.physicality_id LIMIT 2) p) a ON true),'[]'::jsonb))::text";
     StringInfoData detail;
     const laplace_composition_entity_candidate* entities;
-    size_t entity_count = 0u, sampled = 0u, novel_count = 0u;
+    size_t entity_count = 0u, sampled = 0u, novel_count = 0u, novel_entities = 0u;
     Datum entity_samples[sample_limit];
     Datum* excluded = NULL;
     bool exclusions_complete = execution->summary.novel_physicality_count <= exclusion_limit;
@@ -98,12 +136,17 @@ static void highway_novelty_diagnostic(
     HIGHWAY_DIAGNOSTIC_HEX("current_geometry_epoch", context->epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes, 32u);
     appendStringInfoString(&detail, "\"novel_entity_samples\":[");
     entities = laplace_composition_working_set_entity_candidates(execution->working_set, &entity_count);
-    if (entities != NULL && entity_count == execution->entity_disposition_count)
-        for (size_t index=0u; index<entity_count && sampled<sample_limit; ++index) {
-            if (execution->entity_dispositions[index] != LAPLACE_COMPOSITION_NOVEL) continue;
-            hex_encode((const char*)entities[index].entity.entity_id.bytes,16u,hex);hex[32]='\0';
-            appendStringInfo(&detail,"%s\"%s\"",sampled++ == 0u ? "" : ",",hex);
-        }
+    if (entity_count != execution->entity_disposition_count || (entity_count != 0u && entities == NULL))
+        highway_revalidation_error("novel entity diagnostic candidate storage is unavailable");
+    for (size_t index=0u; index<entity_count; ++index) {
+        if (execution->entity_dispositions[index] != LAPLACE_COMPOSITION_NOVEL) continue;
+        ++novel_entities;
+        if (sampled >= sample_limit) continue;
+        hex_encode((const char*)entities[index].entity.entity_id.bytes,16u,hex);hex[32]='\0';
+        appendStringInfo(&detail,"%s\"%s\"",sampled++ == 0u ? "" : ",",hex);
+    }
+    if (novel_entities != execution->summary.novel_entity_count)
+        highway_revalidation_error("novel entity diagnostic count differs");
     appendStringInfoString(&detail, "],\"novel_physicality_samples\":[");
     sampled = 0u;
     if (exclusions_complete)
@@ -151,6 +194,23 @@ static void highway_novelty_diagnostic(
     ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
         errmsg("Committed Highway revalidation failed: canonical entity or physicality was missing"),
         errdetail("LAPLACE_HIGHWAY_REVALIDATION_DIAGNOSTIC %s",detail.data)));
+}
+
+typedef struct highway_reconstruction_observation {
+    const laplace_highway_registry_receipt* registry;
+    const laplace_highway_registry_ast_view* ast;
+    const laplace_framework_context* context;
+} highway_reconstruction_observation;
+
+static void highway_observe_reconstruction(
+    const laplace_pg_composition_execution* execution, void* opaque) {
+    const highway_reconstruction_observation* observation = opaque;
+    if (execution->summary.novel_entity_count == 0u &&
+        execution->summary.novel_physicality_count == 0u) return;
+    if (observation->ast->root_result_index >= execution->result_count)
+        highway_revalidation_error("novel diagnostic canonical root result");
+    highway_novelty_diagnostic(execution, observation->registry, observation->ast,
+        &execution->results[observation->ast->root_result_index], observation->context);
 }
 
 static void highway_hash_tuple_bytes(
@@ -553,12 +613,14 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
         laplace_isa_receipt isa;
         laplace_highway_registry_ast_view ast;
         laplace_pg_active_unicode_root unicode;
+        highway_reconstruction_observation observation;
         laplace_composition_working_set_input input;
         laplace_composition_known_entity* known;
         const laplace_composition_result* root;
         highway_committed_snapshot snapshot;
         blake3_hasher proof;
         laplace_digest256 proof_id;
+        laplace_digest256 reconstruction_geometry;
         Datum values[39];
         bool nulls[39] = {false};
         const laplace_highway_kind_contract_row* kinds;
@@ -592,7 +654,8 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
         memset(&registry, 0, sizeof(registry));
         memset(&isa, 0, sizeof(isa));
         execute_registry_instruction(&context, &registry, &isa, false);
-        if (laplace_highway_registry_ast_plan_create(&context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY],
+        reconstruction_geometry = highway_committed_geometry_epoch();
+        if (laplace_highway_registry_ast_plan_create(&reconstruction_geometry,
                 &registry.context_fingerprint, &resources->ast_plan) != LAPLACE_HIGHWAY_OK ||
             laplace_highway_registry_ast_plan_view(resources->ast_plan, &ast) != LAPLACE_HIGHWAY_OK ||
             !digest_equal(&ast.source_fingerprint, &registry.registry_fingerprint)) {
@@ -612,7 +675,11 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
         input.requests = ast.requests;
         input.request_count = ast.request_count;
         input.preferred_batch_bytes = batch_bytes;
-        LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(&input, execution);
+        observation.registry = &registry;
+        observation.ast = &ast;
+        observation.context = &context;
+        LAPLACE_PG_COMPOSITION_EXECUTE_OBSERVED_SYMBOL(
+            &input, execution, highway_observe_reconstruction, &observation);
         if (ast.root_result_index >= execution->result_count) {
             highway_revalidation_error("canonical root result");
         }

@@ -898,6 +898,14 @@ void LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(
 void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
     const laplace_composition_working_set_input* input,
     laplace_pg_composition_execution* execution) {
+    LAPLACE_PG_COMPOSITION_EXECUTE_OBSERVED_SYMBOL(input, execution, NULL, NULL);
+}
+
+void LAPLACE_PG_COMPOSITION_EXECUTE_OBSERVED_SYMBOL(
+    const laplace_composition_working_set_input* input,
+    laplace_pg_composition_execution* execution,
+    laplace_pg_composition_observer observer,
+    void* observer_state) {
     laplace_composition_presence_provider_v1 presence_provider;
     laplace_framework_producer_v1 producer;
     laplace_composition_status status;
@@ -942,6 +950,31 @@ void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
                     (errcode(ERRCODE_INTERNAL_ERROR),
                      errmsg("Laplace composition effect is unavailable")));
         }
+        execution->results = laplace_composition_working_set_results(
+            execution->working_set, &execution->result_count);
+        execution->entity_dispositions =
+            laplace_composition_working_set_entity_dispositions(
+                execution->working_set,
+                &execution->entity_disposition_count);
+        execution->physicality_dispositions =
+            laplace_composition_working_set_physicality_dispositions(
+                execution->working_set,
+                &execution->physicality_disposition_count);
+        if (execution->results == NULL ||
+            execution->result_count != input->request_count ||
+            execution->result_count > INT_MAX ||
+            execution->entity_dispositions == NULL ||
+            execution->entity_disposition_count !=
+                execution->summary.unique_entity_count ||
+            execution->physicality_disposition_count !=
+                execution->summary.unique_physicality_count ||
+            (execution->physicality_disposition_count != 0u &&
+             execution->physicality_dispositions == NULL)) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace composition execution result is incomplete")));
+        }
+        if (observer != NULL) observer(execution, observer_state);
         if (execution->effect_disposition ==
                 LAPLACE_FRAMEWORK_EFFECT_STAGED_INERT) {
             status = laplace_composition_working_set_producer(
@@ -974,30 +1007,6 @@ void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_CORRUPTED),
                      errmsg("Laplace composition effect disposition is invalid")));
-        }
-        execution->results = laplace_composition_working_set_results(
-            execution->working_set, &execution->result_count);
-        execution->entity_dispositions =
-            laplace_composition_working_set_entity_dispositions(
-                execution->working_set,
-                &execution->entity_disposition_count);
-        execution->physicality_dispositions =
-            laplace_composition_working_set_physicality_dispositions(
-                execution->working_set,
-                &execution->physicality_disposition_count);
-        if (execution->results == NULL ||
-            execution->result_count != input->request_count ||
-            execution->result_count > INT_MAX ||
-            execution->entity_dispositions == NULL ||
-            execution->entity_disposition_count !=
-                execution->summary.unique_entity_count ||
-            execution->physicality_disposition_count !=
-                execution->summary.unique_physicality_count ||
-            (execution->physicality_disposition_count != 0u &&
-             execution->physicality_dispositions == NULL)) {
-            ereport(ERROR,
-                    (errcode(ERRCODE_DATA_CORRUPTED),
-                     errmsg("Laplace composition execution result is incomplete")));
         }
     }
     PG_CATCH();

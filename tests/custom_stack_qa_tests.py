@@ -480,17 +480,19 @@ raise SystemExit(exit_code)
         owner = "postgres.highway-committed-revalidation-contract"
         name = "highway_committed_revalidation"
         expected = {"schema": "laplace.highway-committed-revalidation-test/v1",
-                    "novelty_diagnostic_controls": 3}
+                    "novelty_diagnostic_controls": 3, "historical_geometry_controls": 1}
         generated = self.plan("integrations/postgresql/extension/src/highway_registry_revalidate_pg.inc")
         self.assertEqual(generated["required_physical_receipt_fields_by_test"][owner][name], expected)
-        for count in (3, None, 0, 2, 3.0, True):
-            with self.subTest(count=count), tempfile.TemporaryDirectory() as temporary:
+        cases = [("novelty_diagnostic_controls", value) for value in (3, None, 0, 2, 3.0, True)]
+        cases += [("historical_geometry_controls", value) for value in (1, None, 0, 2, 1.0, True)]
+        for field, count in cases:
+            with self.subTest(field=field, count=count), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 receipt = dict(expected)
                 if count is None:
-                    receipt.pop("novelty_diagnostic_controls")
+                    receipt.pop(field)
                 else:
-                    receipt["novelty_diagnostic_controls"] = count
+                    receipt[field] = count
                 marker = "LAPLACE_QA_RECEIPT " + name + " " + json.dumps(receipt)
                 fake = self._fake_ctest(root, inventory=[owner], output="",
                     junit='<testsuite><testcase name="' + owner + '"><system-out><![CDATA[' +
@@ -501,7 +503,7 @@ raise SystemExit(exit_code)
                         "required_physical_receipt_fields_by_test": {owner: {name: expected}}}
                 path = root / "result.json"
                 self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", path, str(fake)),
-                                 0 if type(count) is int and count == 3 else qa.EVIDENCE_RECEIPT_EXIT)
+                                 0 if type(count) is int and count == expected[field] else qa.EVIDENCE_RECEIPT_EXIT)
 
     def test_receipt_field_requirements_cannot_name_an_unrequired_marker(self) -> None:
         contract = copy.deepcopy(self.contract)

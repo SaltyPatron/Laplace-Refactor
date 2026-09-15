@@ -2,6 +2,7 @@
 #define LAPLACE_POSTGRES_PERSISTENCE_ROWS_PG_H
 
 #include "postgres.h"
+#include "access/htup_details.h"
 
 #include "laplace/persistence.h"
 #include "set_pg.h"
@@ -22,6 +23,12 @@ void laplace_pg_physicality_binding_open(
 Datum laplace_pg_physicality_record(
     const laplace_pg_composite_binding* binding,
     const laplace_persistence_physicality_record* physicality);
+
+/* Decode the 18 columns in physicality_record order, preserving float bits.
+ * Identity and trajectory authentication remain with the native caller. */
+void laplace_pg_read_physicality_row(
+    HeapTuple tuple, TupleDesc descriptor,
+    laplace_persistence_physicality_record* physicality);
 
 void laplace_pg_physicality_deposit_binding_open(
     laplace_pg_composite_binding* binding);

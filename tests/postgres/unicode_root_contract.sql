@@ -867,6 +867,7 @@ DECLARE
     root_e bytea;
     root_p bytea;
     named_e bytea;
+    named_p bytea;
     alternate_p bytea;
     context laplace.execution_context;
     atoms laplace.unicode_tier0_batch_result;
@@ -877,6 +878,9 @@ DECLARE
 BEGIN
     SELECT root_entity_id,root_physicality_id INTO STRICT root_e,root_p
     FROM laplace.highway_registry_generation;
+    SELECT name_entity_id INTO STRICT named_e
+    FROM laplace.highway_registry_kind_projection WHERE kind_id=1;
+    SELECT physicality_id INTO STRICT named_p FROM laplace.physicality WHERE entity_id=named_e;
     FOREACH label IN ARRAY ARRAY['missing-entity','missing-physicality','same-entity-alternate-physicality'] LOOP
         alternate_p := NULL;
         BEGIN
@@ -914,7 +918,7 @@ BEGIN
             IF label='missing-entity' THEN
                 DELETE FROM laplace.entity WHERE entity_id=root_e;
             ELSIF label='missing-physicality' THEN
-                DELETE FROM laplace.physicality WHERE physicality_id=root_p;
+                DELETE FROM laplace.physicality WHERE physicality_id=named_p;
             ELSE
                 DELETE FROM laplace.physicality WHERE entity_id=named_e AND physicality_id<>alternate_p;
             END IF;
@@ -953,7 +957,7 @@ BEGIN
                     RAISE EXCEPTION 'physicality novelty was mislabeled as entity absence: %',proof;
                 END IF;
                 IF label='missing-physicality' AND
-                    proof#>>'{novel_physicality_samples,0,physicality_id}' IS DISTINCT FROM encode(root_p,'hex') THEN
+                    proof#>>'{novel_physicality_samples,0,physicality_id}' IS DISTINCT FROM encode(named_p,'hex') THEN
                     RAISE EXCEPTION 'missing physicality diagnostic reported the wrong native candidate: %',proof;
                 END IF;
                 IF label='same-entity-alternate-physicality' AND NOT EXISTS(
@@ -973,6 +977,37 @@ BEGIN
     END LOOP;
 END
 $novelty_diagnostic$;
+
+-- A changed current geometry is a new observation context, not permission to
+-- replace the historical shape input authenticated by the stored root P.
+CREATE TEMP TABLE highway_revalidation_geometry_controls(case_name text PRIMARY KEY);
+DO $historical_geometry$
+DECLARE
+    context laplace.execution_context;
+    first highway_revalidation_first%ROWTYPE;
+    changed laplace.highway_registry_revalidation_result;
+BEGIN
+    context := pg_temp.highway_revalidation_context();
+    SELECT * INTO STRICT first FROM highway_revalidation_first;
+    context.epochs[3] := decode(repeat('a6',32),'hex');
+    IF context.epochs[3]=(SELECT p.geometry_epoch FROM laplace.physicality p
+        JOIN laplace.highway_registry_generation g ON g.root_physicality_id=p.physicality_id) THEN
+        RAISE EXCEPTION 'changed-context fixture failed to change geometry';
+    END IF;
+    SELECT * INTO STRICT changed FROM laplace.highway_registry_revalidate_committed(context,1048576::numeric);
+    IF changed.status IS DISTINCT FROM 0 OR changed.root_entity_id IS DISTINCT FROM first.root_entity_id
+       OR changed.root_physicality_id IS DISTINCT FROM first.root_physicality_id
+       OR changed.stored_generation_fingerprint IS DISTINCT FROM first.stored_generation_fingerprint
+       OR changed.current_context_fingerprint IS NOT DISTINCT FROM first.current_context_fingerprint
+       OR changed.current_isa_receipt IS NOT DISTINCT FROM first.current_isa_receipt
+       OR changed.verification_receipt IS NOT DISTINCT FROM first.verification_receipt
+       OR changed.activation_performed IS DISTINCT FROM false
+       OR pg_temp.highway_revalidation_state() IS DISTINCT FROM (SELECT state FROM highway_revalidation_before) THEN
+        RAISE EXCEPTION 'historical geometry reconstruction lost current observation or changed committed state';
+    END IF;
+    INSERT INTO highway_revalidation_geometry_controls VALUES('changed-current-geometry');
+END
+$historical_geometry$;
 
 CREATE TEMP TABLE highway_revalidation_rejections(mutation text PRIMARY KEY, detail text NOT NULL);
 
@@ -1005,13 +1040,13 @@ SELECT pg_temp.highway_revalidation_rejects(
     'highway_registry_alias_projection');
 SELECT pg_temp.highway_revalidation_rejects(
     'UPDATE laplace.highway_registry_generation SET root_entity_id=(SELECT entity_id FROM laplace.attestation WHERE attestation_kind=3 AND source_ordinal=66 LIMIT 1)',
-    'canonical root entity');
+    'stored root physicality unavailable');
 SELECT pg_temp.highway_revalidation_rejects(
     $$UPDATE laplace.entity SET identity_witness=set_byte(identity_witness,31,get_byte(identity_witness,31)#1) WHERE entity_id=(SELECT root_entity_id FROM laplace.highway_registry_generation)$$,
     'different canonical fields');
 SELECT pg_temp.highway_revalidation_rejects(
     'UPDATE laplace.physicality SET radius=CASE WHEN radius=0 THEN 0.125 ELSE radius/2 END WHERE physicality_id=(SELECT root_physicality_id FROM laplace.highway_registry_generation)',
-    'different canonical fields');
+    'native stored root physicality identity');
 SELECT pg_temp.highway_revalidation_rejects(
     'UPDATE laplace.physicality SET trajectory=set_byte(trajectory,0,get_byte(trajectory,0)#1) WHERE physicality_id=(SELECT root_physicality_id FROM laplace.highway_registry_generation)',
     'stored trajectory bytes differ');
@@ -1074,16 +1109,26 @@ SELECT pg_temp.highway_revalidation_rejects(
     $$UPDATE laplace.highway_registry_activation_event SET expected_epoch_fingerprint=decode(repeat('00',32),'hex')$$,
     'native admission/final activation receipt identity');
 
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.physicality SET geometry_epoch=decode(repeat('a7',32),'hex') WHERE physicality_id=(SELECT root_physicality_id FROM laplace.highway_registry_generation)$$,
+    'native stored root physicality identity');
+SELECT pg_temp.highway_revalidation_rejects(
+    'SET LOCAL session_replication_role=replica; DELETE FROM laplace.physicality WHERE physicality_id=(SELECT root_physicality_id FROM laplace.highway_registry_generation)',
+    'stored root physicality unavailable');
+
 DO $revalidation$
 DECLARE context laplace.execution_context;
 BEGIN
     IF pg_temp.highway_revalidation_state() <> (SELECT state FROM highway_revalidation_before) THEN
         RAISE EXCEPTION 'negative controls or caller rollback changed committed Highway state';
     END IF;
+    IF (SELECT count(*) FROM highway_revalidation_geometry_controls) <> 1 THEN
+        RAISE EXCEPTION 'historical geometry control did not execute';
+    END IF;
     IF (SELECT count(*) FROM highway_revalidation_novelty_controls) <> 3 THEN
         RAISE EXCEPTION 'native reconstruction novelty diagnostics did not all execute';
     END IF;
-    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 26 THEN
+    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 28 THEN
         RAISE EXCEPTION 'committed Highway corruption controls did not all execute';
     END IF;
     IF (SELECT count(*) FROM highway_revalidation_coverage_controls) <> 5 THEN
@@ -1122,6 +1167,7 @@ SELECT 'LAPLACE_QA_RECEIPT highway_committed_revalidation ' || jsonb_build_objec
     'caller_commit_preserved_state',true,
     'caller_rollback_preserved_state',true,
     'novelty_diagnostic_controls',(SELECT count(*) FROM highway_revalidation_novelty_controls),
+    'historical_geometry_controls',(SELECT count(*) FROM highway_revalidation_geometry_controls),
     'corruption_controls',(SELECT count(*) FROM highway_revalidation_rejections),
     'rejections',(SELECT json_agg(r ORDER BY mutation) FROM highway_revalidation_rejections r),
     'binding_checks',(SELECT json_agg(check_name ORDER BY check_name) FROM highway_revalidation_binding_checks),
