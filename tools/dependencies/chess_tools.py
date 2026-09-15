@@ -113,6 +113,14 @@ def execute(argv: list[str], **options) -> str:
     return result.stdout + result.stderr
 
 
+def require_build(condition: bool, message: str, log: Path) -> None:
+    if not condition:
+        with log.open("rb") as source:
+            source.seek(max(0, log.stat().st_size - 8192))
+            tail = source.read().decode("utf-8", "replace")
+        raise ChessToolError(f"{message}; see {log}\n{tail}")
+
+
 def single_match(root: Path, pattern: str) -> Path:
     found = [p for p in root.rglob(pattern) if p.is_file()]
     require(len(found) == 1, f"expected one {pattern} in {root}; found {len(found)}")
@@ -253,7 +261,7 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
             execute(["make", "-C", str(source / "src"), "clean"])
             with log.open("w") as output:
                 completed = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)
-            require(completed.returncode == 0, f"Stockfish source build failed; see {log}")
+            require_build(completed.returncode == 0, "Stockfish source build failed", log)
             executable = source / "src" / ("stockfish.exe" if platform.system() == "Windows" else "stockfish")
             checks = probe_stockfish([str(executable)], network)
         else:
@@ -264,9 +272,9 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
                 command.append(f"-DCMAKE_PREFIX_PATH={arguments.qt_prefix}")
             with log.open("w") as output:
                 configured = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=False)
-                require(configured.returncode == 0, f"Cute Chess configure failed; requires CMake >=3.20, C++17 and Qt >=6.8 (Core, Widgets, Svg, Concurrent, PrintSupport, Core5Compat); see {log}; set --qt-prefix for the installed Qt SDK")
+                require_build(configured.returncode == 0, "Cute Chess configure failed; requires CMake >=3.20, C++17 and Qt >=6.8 (Core, Widgets, Svg, Concurrent, PrintSupport, Core5Compat); set --qt-prefix for the installed Qt SDK", log)
                 built = subprocess.run(["cmake", "--build", str(work), "--config", "Release", "--target", "cli", "--parallel", str(arguments.jobs)], stdout=output, stderr=subprocess.STDOUT, check=False)
-                require(built.returncode == 0, f"Cute Chess source build failed; see {log}")
+                require_build(built.returncode == 0, "Cute Chess source build failed", log)
             executable = single_match(work, "cutechess-cli.exe" if platform.system() == "Windows" else "cutechess-cli")
             if platform.system() == "Windows":
                 # Retain the source-build executable and deploy its SDK DLLs next
@@ -321,16 +329,44 @@ def acquire_qt(arguments: argparse.Namespace, selected: dict, artifacts: dict) -
     python = environment / ("Scripts/python.exe" if platform.system() == "Windows" else "bin/python")
     if not python.is_file():
         execute([sys.executable, "-m", "venv", str(environment)], timeout=120)
+    bootstrap_pip(python, qt_root, arguments.cache, artifacts[sdk["pip_artifact"]])
     wheel = acquire(artifacts[sdk["aqt_artifact"]], arguments.cache, False)
     # pip's report records exact transitive wheels, versions and acquisition hashes.
     # aqt verifies the Qt archive digests published in the official Qt repository.
-    execute([str(python), "-m", "pip", "install", "--disable-pip-version-check", "--report", str(qt_root / "aqt-acquisition.json"), str(wheel)], timeout=600)
+    install_aqt(python, qt_root, wheel)
     # In Qt 6.11 the base SDK includes Svg; requesting a separate qtsvg module
     # fails because that package is not present in the official catalog.
     execute([str(python), "-m", "aqt", "install-qt", provider["host"], "desktop", sdk["version"], provider["architecture"], "--outputdir", str(qt_root), "--modules", "qt5compat"], timeout=1800)
     require((qt_prefix / "lib/cmake/Qt6Core5Compat/Qt6Core5CompatConfig.cmake").is_file(), f"Qt Core5Compat missing after acquisition: {qt_prefix}")
     require((qt_prefix / "lib/cmake/Qt6Svg/Qt6SvgConfig.cmake").is_file(), f"Qt Svg missing after acquisition: {qt_prefix}")
     return qt_prefix
+
+
+def bootstrap_pip(python: Path, qt_root: Path, cache: Path, artifact: dict) -> None:
+    """Upgrade only the SDK venv from verified bytes before using pip reports."""
+    wheel = acquire(artifact, cache, False)
+    # Ubuntu 22.04 ensurepip seeds pip 22.0.2, predating --report (22.2).
+    # The bootstrap command intentionally needs no report or package index.
+    execute([str(python), "-m", "pip", "install", "--disable-pip-version-check",
+             "--no-index", "--no-deps", "--upgrade", str(wheel)], timeout=120)
+    observed = execute([str(python), "-m", "pip", "--version"]).strip()
+    require(observed.startswith(f"pip {artifact['version']} "), "Qt acquisition pip version differs from selected artifact")
+    json_write(qt_root / "pip-bootstrap.json", {
+        "schema": "laplace.chess-pip-bootstrap/v1", "version": artifact["version"],
+        "artifact_sha256": artifact["sha256"], "artifact_size": artifact["size"],
+        "python": str(python), "observed": observed,
+    })
+
+
+def install_aqt(python: Path, qt_root: Path, wheel: Path) -> Path:
+    # A retry after a Qt download failure may install no wheels. Give every pip
+    # attempt its own report so that this empty delta cannot erase acquisition
+    # provenance from the successful earlier aqt installation.
+    attempt = Path(tempfile.mkdtemp(prefix="aqt-acquisition-", dir=qt_root))
+    report = attempt / "report.json"
+    execute([str(python), "-m", "pip", "install", "--disable-pip-version-check",
+             "--report", str(report), str(wheel)], timeout=600)
+    return report
 
 
 def probe_cutechess(argv: list[str]) -> dict:

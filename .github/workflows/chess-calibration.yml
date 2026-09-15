@@ -46,7 +46,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build and verify official chess sources in the configured dependency estate
-        run: scripts/setup-chess.sh
+        run: |
+          output="$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$output"
+          scripts/setup-chess.sh 2>&1 | tee "$output/source-setup.log"
       - name: Measure the actual runner with bounded resource admission
         env:
           CPU_BUDGET: ${{ inputs.cpu_budget }}
@@ -57,7 +60,7 @@ jobs:
           [[ -z "$MEMORY_MIB" ]] || limits+=(--memory-mib "$MEMORY_MIB")
           # The surrounding shell owns the shared host lock for the complete sweep.
           python3 tools/dependencies/chess_benchmark.py run \
-            --output "$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --output "$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/measurements" \
             --hash-mib 16,64,256 --depth 12 --samples 3 --warmups 1 \
             --games 16 --game-depth 8 --max-moves 12 --timeout 120 "${limits[@]}"
       - name: Retain exact execution context separately from product activation

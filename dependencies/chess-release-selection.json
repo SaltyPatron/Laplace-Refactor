@@ -42,6 +42,7 @@
   "source_root": "LAPLACE_VERIFIED_SOURCE_ROOT or /opt/laplace/external/source-generations/<dependencies-lock-sha256>",
   "qt": {
     "version": "6.11.2",
+    "pip_artifact": "pip",
     "aqt_artifact": "aqtinstall",
     "platforms": {
       "Linux-x86_64": {

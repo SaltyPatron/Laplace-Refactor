@@ -257,6 +257,67 @@ class ChessDependencies(unittest.TestCase):
             with self.assertRaisesRegex(TOOLS.ChessToolError, "Qt >=6.8"):
                 TOOLS.probe_cutechess(["fixture"])
 
+    def test_sdk_pip_bootstrap_does_not_require_unsupported_report_option(self) -> None:
+        _, artifacts = TOOLS.configuration()
+        artifact = artifacts["pip"]
+        wheel = self.directory / artifact["filename"]
+        python = self.directory / "sdk-venv/bin/python"
+        commands = []
+
+        def old_then_selected_pip(command, **kwargs):
+            commands.append(command)
+            if "install" in command:
+                self.assertNotIn("--report", command)
+                self.assertIn("--no-index", command)
+                self.assertIn("--no-deps", command)
+                self.assertEqual(command[-1], str(wheel))
+                return "Successfully installed selected pip"
+            return f"pip {artifact['version']} from {python.parent}/site-packages/pip (python 3.10)"
+
+        with patch.object(TOOLS, "acquire", return_value=wheel) as acquire, patch.object(TOOLS, "execute", side_effect=old_then_selected_pip):
+            TOOLS.bootstrap_pip(python, self.directory, self.directory / "cache", artifact)
+        acquire.assert_called_once_with(artifact, self.directory / "cache", False)
+        self.assertEqual(len(commands), 2)
+        receipt = json.loads((self.directory / "pip-bootstrap.json").read_text())
+        self.assertEqual(receipt["artifact_sha256"], artifact["sha256"])
+        self.assertEqual(receipt["python"], str(python))
+
+    def test_sdk_pip_wrong_installed_version_cannot_publish_bootstrap(self) -> None:
+        _, artifacts = TOOLS.configuration()
+        with patch.object(TOOLS, "acquire", return_value=self.directory / "pip.whl"), patch.object(TOOLS, "execute", return_value="pip 22.0.2 from old pip"):
+            with self.assertRaisesRegex(TOOLS.ChessToolError, "version differs"):
+                TOOLS.bootstrap_pip(self.directory / "python", self.directory, self.directory, artifacts["pip"])
+        self.assertFalse((self.directory / "pip-bootstrap.json").exists())
+
+    def test_failed_source_build_retains_bounded_diagnostic_tail(self) -> None:
+        log = self.directory / "build.log"
+        log.write_text("early lines\n" * 10000 + "actual compiler failure\n")
+        with self.assertRaises(TOOLS.ChessToolError) as caught:
+            TOOLS.require_build(False, "source build failed", log)
+        self.assertIn("actual compiler failure", str(caught.exception))
+        self.assertLess(len(str(caught.exception)), 8500)
+
+    def test_qt_retry_preserves_original_and_each_aqt_acquisition_report(self) -> None:
+        original = self.directory / "aqt-acquisition.json"
+        original.write_text('{"install":[{"download_info":{"url":"original-wheel"}}]}\n')
+        original_bytes = original.read_bytes()
+        reports = [{"install": [{"download_info": {"url": "first-wheel"}}]}, {"install": []}]
+
+        def install(command, **kwargs):
+            report = Path(command[command.index("--report") + 1])
+            self.assertFalse(report.exists())
+            report.write_text(json.dumps(reports.pop(0)))
+            return "installed"
+
+        with patch.object(TOOLS, "execute", side_effect=install):
+            first = TOOLS.install_aqt(self.directory / "python", self.directory, self.directory / "aqt.whl")
+            first_bytes = first.read_bytes()
+            second = TOOLS.install_aqt(self.directory / "python", self.directory, self.directory / "aqt.whl")
+        self.assertNotEqual(first, second)
+        self.assertEqual(original.read_bytes(), original_bytes)
+        self.assertEqual(first.read_bytes(), first_bytes)
+        self.assertEqual(json.loads(second.read_text()), {"install": []})
+
     def test_tablebase_bytes_do_not_claim_probe_capability(self) -> None:
         files = []
         for suffix in (".rtbw", ".rtbz"):
