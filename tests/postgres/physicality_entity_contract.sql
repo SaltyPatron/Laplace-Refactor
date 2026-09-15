@@ -141,7 +141,7 @@ DO $read_only_context$
 DECLARE context laplace.execution_context; rejected boolean:=false;
     before jsonb:=physicality_entity_contract.counts();
 BEGIN
-    SELECT value INTO STRICT context FROM physicality_entity_contract.context;
+    SELECT (value).* INTO STRICT context FROM physicality_entity_contract.context;
     context.flags:=context.flags | @LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY@;
     BEGIN
         PERFORM laplace.physicality_entity_admit_batch(context,
@@ -239,7 +239,7 @@ DECLARE context laplace.execution_context; first physicality_entity_contract.fir
     recipe bytea; request laplace.cognition_materialization_request;
     actual laplace.content_materialization_result; variant integer; rejected boolean;
 BEGIN
-    SELECT value INTO STRICT context FROM physicality_entity_contract.context;
+    SELECT (value).* INTO STRICT context FROM physicality_entity_contract.context;
     SELECT * INTO STRICT first FROM physicality_entity_contract.first;
     SELECT descriptor_recipe INTO STRICT recipe FROM laplace.physicality_entity_view WHERE view_id=first.view_id;
     rejected:=false;
@@ -318,7 +318,7 @@ SELECT physicality_entity_contract.query() AS result;
 DO $derived_only$
 DECLARE result laplace.cognition_observation_persisted_result; goal bytea;
 BEGIN
-    SELECT search.result INTO STRICT result FROM physicality_entity_contract.search search;
+    SELECT (search.result).* INTO STRICT result FROM physicality_entity_contract.search search;
     SELECT node.child_ids[1] INTO STRICT goal FROM laplace.physicality_entity_node node
     JOIN physicality_entity_contract.first first
         ON node.view_id=first.view_id AND node.entity_id=first.root_entity_id;
@@ -504,11 +504,11 @@ BEGIN
                 UPDATE laplace.physicality_entity_view SET native_input_fingerprint=set_byte(native_input_fingerprint,0,get_byte(native_input_fingerprint,0)#1)
                 WHERE view_id=selected_view;
             ELSIF variant=3 THEN
-                SELECT external_known[1] INTO STRICT source FROM laplace.physicality_entity_view WHERE view_id=selected_view;
+                SELECT (external_known[1]).* INTO STRICT source FROM laplace.physicality_entity_view WHERE view_id=selected_view;
                 source.identity_witness:=set_byte(source.identity_witness,31,get_byte(source.identity_witness,31)#1);
                 UPDATE laplace.physicality_entity_view SET external_known=ARRAY[source] WHERE view_id=selected_view;
             ELSIF variant=4 THEN
-                SELECT admission_context INTO STRICT changed_context FROM laplace.physicality_entity_view WHERE view_id=selected_view;
+                SELECT (admission_context).* INTO STRICT changed_context FROM laplace.physicality_entity_view WHERE view_id=selected_view;
                 changed_context.epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@]:=set_byte(
                     changed_context.epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@],0,
                     get_byte(changed_context.epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@],0)#1);
@@ -670,7 +670,7 @@ DECLARE expected record; actual laplace.content_materialization_result; rejected
     context laplace.execution_context; recipe bytea; before jsonb:=physicality_entity_contract.counts();
 BEGIN
     SELECT * INTO STRICT expected FROM physicality_entity_contract.occurrence_warm;
-    SELECT value INTO STRICT context FROM physicality_entity_contract.context;
+    SELECT (value).* INTO STRICT context FROM physicality_entity_contract.context;
     SELECT descriptor_recipe INTO STRICT recipe FROM laplace.physicality_entity_view WHERE view_id=expected.view_id;
     actual:=laplace.content_materialize_utf8(context,expected.root_entity_id,expected.view_id,recipe,
         ROW(16384::numeric,65536::numeric,4194304::numeric,64,1)::laplace.cognition_materialization_request);
@@ -719,11 +719,11 @@ DECLARE context laplace.execution_context; parent physicality_entity_contract.oc
     first physicality_entity_contract.occurrence_first%ROWTYPE; actual record; variant integer;
     before jsonb:=physicality_entity_contract.counts(); prior_parent_count bigint;
 BEGIN
-    SELECT value INTO STRICT context FROM physicality_entity_contract.context;
+    SELECT (value).* INTO STRICT context FROM physicality_entity_contract.context;
     SELECT * INTO STRICT parent FROM physicality_entity_contract.occurrence_parent;
     SELECT * INTO STRICT first FROM physicality_entity_contract.occurrence_first;
-    SELECT selected INTO STRICT atom_a FROM physicality_entity_contract.sources WHERE ordinal=1;
-    SELECT selected INTO STRICT atom_b FROM physicality_entity_contract.sources WHERE ordinal=2;
+    SELECT (selected).* INTO STRICT atom_a FROM physicality_entity_contract.sources WHERE ordinal=1;
+    SELECT (selected).* INTO STRICT atom_b FROM physicality_entity_contract.sources WHERE ordinal=2;
     BEGIN
         FOR variant IN 1..2 LOOP
             deposited:=laplace.composition_deposit_batch(context,decode(repeat('db',32),'hex'),
@@ -915,7 +915,7 @@ FROM (
 DO $same_entity_shapes$
 DECLARE deposited laplace.canonical_deposit_result;
 BEGIN
-    SELECT result INTO STRICT deposited FROM physicality_entity_contract.singleton_deposit;
+    SELECT (result).* INTO STRICT deposited FROM physicality_entity_contract.singleton_deposit;
     IF (SELECT count(*) FROM physicality_entity_contract.forms) IS DISTINCT FROM 4::bigint
        OR (SELECT count(DISTINCT entity_id) FROM physicality_entity_contract.forms WHERE ordinal<=3) IS DISTINCT FROM 1::bigint
        OR (SELECT count(DISTINCT record_id) FROM physicality_entity_contract.forms) IS DISTINCT FROM 4::bigint
@@ -1182,7 +1182,7 @@ BEGIN
             RAISE EXCEPTION 'new backend lost exact original-P content or materialization receipt';
         END IF;
     END LOOP;
-    SELECT value INTO STRICT context FROM physicality_entity_contract.context;
+    SELECT (value).* INTO STRICT context FROM physicality_entity_contract.context;
     FOR expected IN SELECT warm.*,parent.entity_id,parent.record_id,owner.descriptor_recipe
         FROM physicality_entity_contract.form_reverse_warm warm
         JOIN laplace.physicality_entity_view owner USING(view_id)

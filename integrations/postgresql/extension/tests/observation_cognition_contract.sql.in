@@ -504,8 +504,10 @@ BEGIN
         RAISE EXCEPTION 'physicality descriptor successor schema was not installed completely';
     END IF;
     SELECT * INTO STRICT before FROM observation_cognition_persisted_actual;
-    SELECT laplace.cognition_observation_execute_persisted(pg_temp.execution_context(),request)
-    INTO STRICT upgraded FROM observation_cognition_fixture;
+    SELECT result.* INTO STRICT upgraded
+    FROM observation_cognition_fixture fixture
+    CROSS JOIN LATERAL laplace.cognition_observation_execute_persisted(
+        pg_temp.execution_context(),fixture.request) AS result;
     IF cardinality(upgraded.answers)<>1
        OR (upgraded.answers[1]).entity_id IS DISTINCT FROM (before.answers[1]).entity_id
        OR (upgraded.answers[1]).transition_count<>2
