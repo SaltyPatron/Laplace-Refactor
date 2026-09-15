@@ -222,3 +222,14 @@ archives. Each explicit root gets its own entry budget; named receipt/Highway
 subtrees and an independently supplied request identity are visited first. This
 supports narrowing subsequent recovery searches without treating a truncated scan
 or a missing file as proof that historical admission never occurred.
+
+A same-repository pull request that changes the selected chess sources, network,
+installer, or calibration configuration also runs **Candidate chess dependency
+calibration on hart-server** after hosted checks and the source/custom-stack proof
+succeed. This reuses the bounded calibration workflow and shared machine lock.
+Its `candidate-chess-dependencies-<run>-<attempt>` artifact retains the exact
+checkout and input hashes in `execution-context.json`, alongside measured compiler,
+engine, source, network, resource, and PGN evidence. Candidate dependency results do
+not assert that product activation succeeded. Accepted main changes still run the
+separate calibration after successful product deployment; core benchmark scheduling
+is unchanged.

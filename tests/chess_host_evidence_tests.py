@@ -47,6 +47,19 @@ class HostEvidence(unittest.TestCase):
         self.assertEqual(core['dispatch']['source_triggers_forbidden'], ['push', 'pull_request', 'merge'])
         self.assertEqual(core['dispatch']['long_running_default'], 'explicit-only')
 
+    def test_candidate_calibration_requires_same_repository_chess_and_source_proof(self):
+        workflow = (ROOT / '.github/workflows/product-path.yml').read_text()
+        block = workflow.split('  candidate-chess-calibration:\n', 1)[1].split('\n  postgresql-product-proof:', 1)[0]
+        for gate in ("github.event_name == 'pull_request'", "github.event.pull_request.head.repo.full_name == github.repository", "needs.classify.outputs.requires_chess_calibration == 'true'", "needs.hosted-proof.result == 'success'", "needs.custom-stack-proof.result == 'success'"):
+            self.assertIn(gate, block)
+        self.assertIn('uses: ./.github/workflows/chess-calibration.yml', block)
+        self.assertNotIn('product_activation', block)
+        calibration = (ROOT / '.github/workflows/chess-calibration.yml').read_text()
+        self.assertIn('candidate-chess-dependencies', calibration)
+        self.assertIn('execution-context.json', calibration)
+        self.assertIn('checked_out_sha', calibration)
+        self.assertIn('tools/host/run-exclusive.sh', calibration)
+
     def test_missing_admission_is_reported_without_creating_it(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

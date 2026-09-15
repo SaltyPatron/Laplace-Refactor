@@ -35,12 +35,14 @@ defaults:
 
 jobs:
   calibrate:
+    name: ${{ github.event_name == 'pull_request' && 'Candidate dependency calibration' || 'Chess machine calibration' }}
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
     timeout-minutes: 60
     env:
       TMPDIR: /build/laplace/work
       TMP: /build/laplace/work
       TEMP: /build/laplace/work
+      CHESS_EVIDENCE_CONTEXT: ${{ github.event_name == 'pull_request' && 'candidate-chess-dependencies' || 'chess-dependencies' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build and verify official chess sources in the configured dependency estate
@@ -58,11 +60,41 @@ jobs:
             --output "$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --hash-mib 16,64,256 --depth 12 --samples 3 --warmups 1 \
             --games 16 --game-depth 8 --max-moves 12 --timeout 120 "${limits[@]}"
+      - name: Retain exact execution context separately from product activation
+        if: always()
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import subprocess
+          output = Path(os.environ["RUNNER_TEMP"]) / f"chess-calibration-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
+          output.mkdir(parents=True, exist_ok=True)
+          paths = ["dependencies/lock.json", "dependencies/artifact-lock.json", "dependencies/chess-release-selection.json", "tools/dependencies/chess_tools.py", "tools/dependencies/chess_benchmark.py", "tools/dependencies/source_estate.py"]
+          context = {
+              "schema": "laplace.chess-calibration-execution-context/v1",
+              "scope": os.environ["CHESS_EVIDENCE_CONTEXT"],
+              "capability": "Stockfish and CuteChess source dependency builds and machine calibration",
+              "product_activation_evidence": "separate product activation workflow; this dependency report does not establish product activation",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "event": os.environ["GITHUB_EVENT_NAME"],
+              "requested_sha": os.environ["GITHUB_SHA"],
+              "checked_out_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "runner_name": os.environ["RUNNER_NAME"],
+              "hostname": platform.node(),
+              "input_sha256": {path: hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in paths},
+          }
+          (output / "execution-context.json").write_text(json.dumps(context, indent=2, sort_keys=True) + "\n")
+          PYTHON
       - name: Retain machine observations, all timed samples and paired PGNs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: chess-calibration-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ env.CHESS_EVIDENCE_CONTEXT }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/chess-calibration-${{ github.run_id }}-${{ github.run_attempt }}/
           if-no-files-found: error
           retention-days: 14

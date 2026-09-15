@@ -162,6 +162,18 @@ jobs:
        needs.publication-recovery.result == 'skipped')
     uses: ./.github/workflows/custom-stack.yml
 
+  candidate-chess-calibration:
+    name: Candidate chess dependency calibration on hart-server
+    needs: [classify, hosted-proof, custom-stack-proof]
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      needs.classify.outputs.requires_chess_calibration == 'true' &&
+      needs.hosted-proof.result == 'success' &&
+      needs.custom-stack-proof.result == 'success'
+    uses: ./.github/workflows/chess-calibration.yml
+
   postgresql-product-proof:
     needs:
       - classify
