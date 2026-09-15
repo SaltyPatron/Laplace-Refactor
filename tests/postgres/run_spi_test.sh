@@ -16,15 +16,14 @@ native_probe=$6
 auxiliary_probe=$7
 sql_file=$8
 sanitizer_preload=$9
-temporary_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
-test_root=$(mktemp -d "$temporary_parent/laplace-postgres-test.XXXXXX")
-data_directory="$test_root/data"
-socket_directory=$(mktemp -d /tmp/lp-pg.XXXXXX)
-server_log="$test_root/postgres.log"
+temporary_parent=${TMPDIR:-/build/laplace/work}
+test_root=
+data_directory=
+socket_directory=
+server_log=
 port=${LAPLACE_POSTGRES_TEST_PORT:-55432}
 server_started=0
-perfcache_root="$test_root/perfcache-root"
-mkdir -p -- "$perfcache_root"
+perfcache_root=
 server_asan_options=${ASAN_OPTIONS:-}
 if [[ -n "$sanitizer_preload" ]]; then
     server_asan_options="${server_asan_options}${server_asan_options:+:}detect_leaks=0"
@@ -45,7 +44,7 @@ collect_process_tree() {
 cleanup() {
     exit_code=$?
     test_processes=()
-    if [[ -r "$data_directory/postmaster.pid" ]]; then
+    if [[ -n "$data_directory" && -r "$data_directory/postmaster.pid" ]]; then
         postmaster_pid=$(head -n 1 -- "$data_directory/postmaster.pid" || true)
         if [[ "$postmaster_pid" =~ ^[0-9]+$ ]]; then
             mapfile -t test_processes < <(collect_process_tree "$postmaster_pid" | sort -un)
@@ -63,10 +62,12 @@ cleanup() {
             kill -KILL "$pid" 2>/dev/null || true
         fi
     done
-    if [[ "$socket_directory" == /tmp/lp-pg.* ]]; then
-        rmdir -- "$socket_directory" 2>/dev/null || true
+    if [[ -n "$socket_directory" && "$socket_directory" == "$temporary_parent"/lp-pg.* ]]; then
+        rm -rf -- "$socket_directory"
     fi
-    if [[ "$test_root" != "$temporary_parent"/laplace-postgres-test.* ]]; then
+    if [[ -z "$test_root" ]]; then
+        exit "$exit_code"
+    elif [[ "$test_root" != "$temporary_parent"/laplace-postgres-test.* ]]; then
         echo "refusing to clean unexpected PostgreSQL test root: $test_root" >&2
         exit 91
     fi
@@ -80,6 +81,23 @@ cleanup() {
     exit "$exit_code"
 }
 trap cleanup EXIT
+
+if [[ "$temporary_parent" != /* || ! -d "$temporary_parent" || ! -w "$temporary_parent" ]]; then
+    echo "PostgreSQL tests require an existing writable absolute TMPDIR (default /build/laplace/work)." >&2
+    exit 72
+fi
+temporary_parent=$(realpath -e -- "$temporary_parent")
+test_root=$(mktemp -d "$temporary_parent/laplace-postgres-test.XXXXXX")
+data_directory="$test_root/data"
+server_log="$test_root/postgres.log"
+perfcache_root="$test_root/perfcache-root"
+socket_directory=$(mktemp -d "$temporary_parent/lp-pg.XXXXXX")
+socket_path_bytes=$(LC_ALL=C printf '%s' "$socket_directory/.s.PGSQL.$port" | wc -c)
+if (( socket_path_bytes >= 104 )); then
+    echo "PostgreSQL socket path is too long; select a shorter dedicated TMPDIR." >&2
+    exit 64
+fi
+mkdir -p -- "$perfcache_root"
 
 "$pg_bindir/initdb" -D "$data_directory" \
     --no-locale --encoding=UTF8 --auth=trust >/dev/null

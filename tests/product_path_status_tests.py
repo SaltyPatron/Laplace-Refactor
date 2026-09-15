@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -108,16 +109,14 @@ class ProductPathGitStatusTests(unittest.TestCase):
                 workflow,
                 f"legacy protected context {check_name} can bypass product-path",
             )
-            start = workflow.index(marker)
-            end = workflow.find("\n  ", start + len(marker))
-            if end < 0:
-                end = len(workflow)
+            start, end = self.job_boundary(workflow, job_id)
             block = workflow[start:end]
             self.assertIn(
-                "    if: always() && needs.product-path.result == 'success'",
+                "    if: always()\n",
                 block,
-                f"legacy protected context {check_name} can be transitively skipped",
+                f"legacy protected context {check_name} must run and fail after an unsuccessful aggregate",
             )
+            self.assertIn('      - run: test "${{ needs.product-path.result }}" = success', block)
         self.assertGreaterEqual(workflow.count("needs.product-path.result"), len(aliases))
 
     def assert_main_push_deployment_boundary(
@@ -339,12 +338,40 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def test_deliberate_legacy_skip_cascade_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        start, end = self.job_boundary(workflow, "legacy-requirements")
+        block = workflow[start:end]
         mutant = workflow.replace(
-            "    if: always() && needs.product-path.result == 'success'\n",
-            "",
+            block,
+            block.replace("    if: always()\n", ""),
             1,
         )
         self.assertNotEqual(workflow, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_legacy_branch_protection_bridge(mutant)
+
+    def test_legacy_alias_commands_fail_for_unsuccessful_aggregate(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        for job_id in ("legacy-requirements", "legacy-native-dev", "legacy-native-sanitize"):
+            start, end = self.job_boundary(workflow, job_id)
+            block = workflow[start:end]
+            self.assertIn("    if: always()\n", block)
+            command = block.split("      - run: ", 1)[1].strip()
+            for result in ("success", "failure", "cancelled", "skipped", ""):
+                with self.subTest(job=job_id, result=result):
+                    execution = subprocess.run(
+                        ["bash", "-c", command.replace("${{ needs.product-path.result }}", result)],
+                        capture_output=True,
+                    )
+                    self.assertEqual(execution.returncode == 0, result == "success")
+
+    def test_success_only_legacy_condition_is_rejected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        start, end = self.job_boundary(workflow, "legacy-requirements")
+        block = workflow[start:end]
+        mutant = workflow.replace(block, block.replace(
+            "    if: always()\n",
+            "    if: always() && needs.product-path.result == 'success'\n",
+        ), 1)
         with self.assertRaises(AssertionError):
             self.assert_legacy_branch_protection_bridge(mutant)
 

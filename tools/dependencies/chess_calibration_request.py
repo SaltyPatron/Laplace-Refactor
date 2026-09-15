@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select the user-authorized chess calibration after a relevant product deployment."""
+"""Select chess calibration for a same-repository candidate or accepted deployment."""
 from __future__ import annotations
 
 import argparse
@@ -44,7 +44,7 @@ def main() -> None:
     classification = json.loads(arguments.classification.read_text())
     policy = json.loads(arguments.contract.read_text())['deployment_calibration']
     reasons = select(classification['paths'], policy, lambda path: document(arguments.base, path), lambda path: document(arguments.head, path))
-    print(json.dumps({'schema': 'laplace.chess-calibration-request/v1', 'base': arguments.base, 'head': arguments.head, 'requested': bool(reasons), 'reasons': reasons, 'execution_gate': 'successful accepted-main product activation only'}))
+    print(json.dumps({'schema': 'laplace.chess-calibration-request/v1', 'base': arguments.base, 'head': arguments.head, 'requested': bool(reasons), 'reasons': reasons, 'execution_gate': 'same-repository candidate after hosted and source proof, or accepted main after successful product activation'}))
 
 
 if __name__ == '__main__':

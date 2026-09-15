@@ -44,15 +44,30 @@ class ProductActivationRunnerTests(unittest.TestCase):
                 "highway_revalidation_receipt_sha256": "47" * 32,
                 "highway_activation_performed": False,
                 "highway_historical_request_present": False,
+                "highway_stored_working_set_receipt": "51" * 32,
+                "highway_stored_producer_receipt": "52" * 32,
+                "highway_historical_composition_receipt_present": False,
+                "highway_historical_intermediate_receipts_verified": False,
                 "result_sha256": "48" * 32}
         normal = copy.deepcopy(base)
         normal["phase"] = "product-unicode-and-highway-activated"
         normal["highway_activation_receipt_sha256"] = normal.pop("highway_revalidation_receipt_sha256")
         normal.pop("highway_activation_performed")
         normal.pop("highway_historical_request_present")
+        for field in ("highway_stored_working_set_receipt", "highway_stored_producer_receipt",
+                      "highway_historical_composition_receipt_present", "highway_historical_intermediate_receipts_verified"):
+            normal.pop(field)
+        present_composition = {**base, "highway_historical_composition_receipt_present": True}
         mutants = []
         for field, value in (("highway_activation_performed", True),
                 ("highway_historical_request_present", True),
+                ("highway_historical_composition_receipt_present", 0),
+                ("highway_historical_intermediate_receipts_verified", True),
+                ("highway_historical_intermediate_receipts_verified", 0),
+                ("highway_stored_working_set_receipt", "00" * 32),
+                ("highway_stored_producer_receipt", "00" * 32),
+                ("highway_stored_working_set_receipt", "51" * 16),
+                ("highway_stored_producer_receipt", "52" * 16),
                 ("highway_activation_receipt_sha256", "49" * 32),
                 ("highway_revalidation_receipt_sha256", ""),
                 ("phase", "product-unicode-and-highway-activated"),
@@ -60,11 +75,14 @@ class ProductActivationRunnerTests(unittest.TestCase):
             invalid = copy.deepcopy(base)
             invalid[field] = value
             mutants.append(invalid)
-        missing = copy.deepcopy(base)
-        missing.pop("highway_activation_performed")
-        mutants.append(missing)
+        for field in ("highway_activation_performed", "highway_stored_working_set_receipt",
+                      "highway_stored_producer_receipt", "highway_historical_composition_receipt_present",
+                      "highway_historical_intermediate_receipts_verified"):
+            missing = copy.deepcopy(base)
+            missing.pop(field)
+            mutants.append(missing)
         for source, predicate in (("workflow", workflow_match[1]), ("setup", setup_match[1])):
-            for expected, document in [(True, base), (True, normal)] + [(False, mutant) for mutant in mutants]:
+            for expected, document in [(True, base), (True, present_composition), (True, normal)] + [(False, mutant) for mutant in mutants]:
                 with self.subTest(source=source, phase=document["phase"], expected=expected, document=document):
                     completed = subprocess.run(["jq", "-e", "--arg", "package_id", base["package_id"],
                         "--arg", "package", base["package_id"], "--arg", "repository_commit", base["repository_commit"], predicate],

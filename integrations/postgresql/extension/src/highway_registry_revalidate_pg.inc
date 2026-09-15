@@ -10,6 +10,9 @@ typedef struct highway_committed_snapshot {
     laplace_digest256 activation;
     laplace_digest256 activation_fingerprint;
     laplace_digest256 original_isa;
+    laplace_digest256 working_set_reference;
+    laplace_digest256 producer_reference;
+    bool composition_receipt_present;
     laplace_digest256 generation_fingerprint;
     laplace_digest256 event_chain_fingerprint;
 } highway_committed_snapshot;
@@ -34,6 +37,77 @@ static void highway_hash_tuple_bytes(
     blake3_hasher_update(hasher, bytes, width);
 }
 
+/* These are the receipt bodies the original Highway owner actually persisted.
+ * Reuse their native hash laws; a reference digest is not a receipt body. */
+static void highway_verify_original_receipt_bodies(Datum epoch_id, Datum epoch) {
+    static const char sql[] =
+        "SELECT i.receipt_id,i.context_fingerprint,i.program_fingerprint,"
+        "i.input_fingerprint,i.output_fingerprint,i.instruction_count,"
+        "i.executed_instruction_count,i.isa_major,i.isa_minor,i.receipt_detail,i.status,"
+        "d.receipt_id,d.context_fingerprint,d.source_fingerprint,d.recipe_fingerprint,"
+        "d.stream_fingerprint,d.sink_artifacts_fingerprint,d.total_records,d.total_bytes,"
+        "d.batch_count,d.sink_count,d.record_type,d.effect_disposition,d.status "
+        "FROM " LAPLACE_PG_SCHEMA ".highway_registry_generation g "
+        "JOIN " LAPLACE_PG_SCHEMA ".execution_receipt i ON i.receipt_id=g.isa_receipt "
+        "JOIN " LAPLACE_PG_SCHEMA ".canonical_deposit_receipt d ON d.receipt_id=g.staged_stream_receipt "
+        "AND d.context_fingerprint=i.context_fingerprint AND d.source_fingerprint=g.source_fingerprint "
+        "AND d.recipe_fingerprint=g.recipe_fingerprint AND d.stream_fingerprint=g.stream_fingerprint "
+        "AND d.sink_artifacts_fingerprint=g.sink_artifacts_fingerprint "
+        "WHERE g.activation_epoch_id=$1 AND g.activation_epoch_fingerprint=$2 "
+        "AND i.opcode=$3 AND i.item_count=1";
+    Oid types[3] = {BYTEAOID, BYTEAOID, INT4OID};
+    Datum values[3] = {epoch_id, epoch,
+        Int32GetDatum(LAPLACE_ISA_OPCODE_HIGHWAY_REGISTRY_MATERIALIZE_BATCH)};
+    laplace_isa_receipt isa;
+    laplace_framework_stream_receipt stream;
+    HeapTuple row;
+    TupleDesc descriptor;
+    int result;
+    memset(&isa, 0, sizeof(isa));
+    memset(&stream, 0, sizeof(stream));
+    if (SPI_connect() != SPI_OK_CONNECT) highway_revalidation_error("original receipt body connection");
+    result = SPI_execute_with_args(sql, 3, types, values, NULL, true, 2);
+    if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL)
+        highway_revalidation_error("original receipt links");
+    row = SPI_tuptable->vals[0];
+    descriptor = SPI_tuptable->tupdesc;
+#define ORIGINAL_BYTES(column, field) read_exact_bytes(required_tuple_value(row, descriptor, column, #field), field.bytes, 32u, #field)
+#define ORIGINAL_U64(column, label) laplace_pg_uint64_from_numeric(required_tuple_value(row, descriptor, column, label), label)
+    ORIGINAL_BYTES(1, isa.receipt_id);
+    ORIGINAL_BYTES(2, isa.context_fingerprint);
+    ORIGINAL_BYTES(3, isa.program_fingerprint);
+    ORIGINAL_BYTES(4, isa.input_fingerprint);
+    ORIGINAL_BYTES(5, isa.output_fingerprint);
+    isa.instruction_count = (uint64)DatumGetInt64(required_tuple_value(row, descriptor, 6, "ISA instruction count"));
+    isa.executed_instruction_count = (uint64)DatumGetInt64(required_tuple_value(row, descriptor, 7, "ISA executed count"));
+    isa.major = (uint16)DatumGetInt16(required_tuple_value(row, descriptor, 8, "ISA major"));
+    isa.minor = (uint16)DatumGetInt16(required_tuple_value(row, descriptor, 9, "ISA minor"));
+    isa.receipt_detail = (uint32)DatumGetInt32(required_tuple_value(row, descriptor, 10, "ISA detail"));
+    isa.status = (laplace_isa_status)DatumGetInt32(required_tuple_value(row, descriptor, 11, "ISA status"));
+    if (isa.instruction_count != 1u || laplace_isa_receipt_validate(&isa) != LAPLACE_ISA_OK)
+        highway_revalidation_error("native original ISA receipt identity");
+    ORIGINAL_BYTES(12, stream.receipt_id);
+    ORIGINAL_BYTES(13, stream.context_fingerprint);
+    ORIGINAL_BYTES(14, stream.source_fingerprint);
+    ORIGINAL_BYTES(15, stream.recipe_fingerprint);
+    ORIGINAL_BYTES(16, stream.stream_fingerprint);
+    ORIGINAL_BYTES(17, stream.sink_artifacts_fingerprint);
+    stream.total_records = ORIGINAL_U64(18, "stream record count");
+    stream.total_bytes = ORIGINAL_U64(19, "stream byte count");
+    stream.batch_count = ORIGINAL_U64(20, "stream batch count");
+    stream.sink_count = ORIGINAL_U64(21, "stream sink count");
+    stream.record_type = (uint32)DatumGetInt32(required_tuple_value(row, descriptor, 22, "stream record type"));
+    stream.effect_disposition = (uint32)DatumGetInt32(required_tuple_value(row, descriptor, 23, "stream effect"));
+    stream.status = (laplace_framework_status)DatumGetInt32(required_tuple_value(row, descriptor, 24, "stream status"));
+    stream.failed_batch_index = LAPLACE_FRAMEWORK_NO_INDEX;
+    stream.failed_sink_index = LAPLACE_FRAMEWORK_NO_INDEX;
+    if (laplace_framework_stream_receipt_identity_validate(&stream) != LAPLACE_FRAMEWORK_OK)
+        highway_revalidation_error("native original staged-stream receipt identity");
+#undef ORIGINAL_U64
+#undef ORIGINAL_BYTES
+    if (SPI_finish() != SPI_OK_FINISH) highway_revalidation_error("original receipt body cleanup");
+}
+
 static highway_committed_snapshot highway_verify_committed_generation(
     const laplace_framework_context* context,
     const laplace_highway_registry_receipt* registry,
@@ -49,22 +123,31 @@ static highway_committed_snapshot highway_verify_committed_generation(
         "g.staged_stream_receipt,g.stream_fingerprint,g.sink_artifacts_fingerprint,"
         "g.kind_count,g.alias_count,g.disposition_count,"
         "EXISTS(SELECT 1 FROM " LAPLACE_PG_SCHEMA ".execution_receipt i "
-        "JOIN " LAPLACE_PG_SCHEMA ".composition_execution_receipt x ON "
-        "x.working_set_receipt=g.working_set_receipt AND "
-        "x.producer_receipt=g.producer_receipt AND x.staged_stream_receipt=g.staged_stream_receipt "
-        "AND x.stream_fingerprint=g.stream_fingerprint AND "
-        "x.sink_artifacts_fingerprint=g.sink_artifacts_fingerprint "
         "JOIN " LAPLACE_PG_SCHEMA ".canonical_deposit_receipt d ON "
         "d.receipt_id=g.staged_stream_receipt AND d.context_fingerprint=i.context_fingerprint "
         "AND d.source_fingerprint=g.source_fingerprint AND d.recipe_fingerprint=g.recipe_fingerprint "
         "AND d.stream_fingerprint=g.stream_fingerprint "
         "AND d.sink_artifacts_fingerprint=g.sink_artifacts_fingerprint "
         "WHERE i.receipt_id=g.isa_receipt AND i.status=0 AND i.instruction_count=1 "
-        "AND i.executed_instruction_count=1 AND i.opcode=$1) "
+        "AND i.executed_instruction_count=1 AND i.opcode=$1),"
+        "coverage.present_count>0,coverage.present_count<=1 AND coalesce(coverage.matches,true) "
         "FROM " LAPLACE_PG_SCHEMA ".highway_registry_active_control c "
         "JOIN " LAPLACE_PG_SCHEMA ".highway_registry_generation g ON "
         "g.activation_epoch_id=c.activation_epoch_id AND "
         "g.activation_epoch_fingerprint=c.activation_epoch_fingerprint "
+        "LEFT JOIN LATERAL (SELECT count(*) AS present_count,bool_and("
+        "x.working_set_receipt=g.working_set_receipt AND x.producer_receipt IS NOT DISTINCT FROM g.producer_receipt "
+        "AND x.staged_stream_receipt IS NOT DISTINCT FROM g.staged_stream_receipt "
+        "AND x.stream_fingerprint=g.stream_fingerprint "
+        "AND x.sink_artifacts_fingerprint IS NOT DISTINCT FROM g.sink_artifacts_fingerprint "
+        "AND EXISTS(SELECT 1 FROM " LAPLACE_PG_SCHEMA ".canonical_deposit_receipt d WHERE "
+        "d.receipt_id=g.staged_stream_receipt AND x.effect_disposition=d.effect_disposition "
+        "AND x.stream_record_count=d.total_records AND x.occurrence_count=d.occurrence_count "
+        "AND x.logical_occurrence_count=d.logical_occurrence_count)) AS matches FROM ("
+        "(SELECT * FROM " LAPLACE_PG_SCHEMA ".composition_execution_receipt WHERE working_set_receipt=g.working_set_receipt) "
+        "UNION ALL (SELECT * FROM " LAPLACE_PG_SCHEMA ".composition_execution_receipt "
+        "WHERE staged_stream_receipt=g.staged_stream_receipt AND working_set_receipt<>g.working_set_receipt LIMIT 2)"
+        ") x) coverage ON true "
         "WHERE c.singleton AND c.active_present";
     static const char events_sql[] =
         "SELECT e.sequence,e.activation_epoch_id,e.activation_epoch_fingerprint,"
@@ -84,6 +167,7 @@ static highway_committed_snapshot highway_verify_committed_generation(
     TupleDesc descriptor;
     blake3_hasher hasher;
     uint64 event_count;
+    SPITupleTable* event_table;
     uint64 previous_version = 0u;
     laplace_digest256 previous_epoch = {{0}};
     uint64 index;
@@ -129,6 +213,11 @@ static highway_committed_snapshot highway_verify_committed_generation(
         !DatumGetBool(required_tuple_value(row, descriptor, 22, "original receipt links"))) {
         highway_revalidation_error("generation descriptors or original receipt links");
     }
+    if (!DatumGetBool(required_tuple_value(row, descriptor, 24, "composition receipt links")))
+        highway_revalidation_error("original receipt links: present composition body differs");
+    snapshot.composition_receipt_present = DatumGetBool(required_tuple_value(row, descriptor, 23, "composition receipt presence"));
+    read_exact_bytes(required_tuple_value(row, descriptor, 14, "stored working-set reference"), snapshot.working_set_reference.bytes, 32u, "stored working-set reference");
+    read_exact_bytes(required_tuple_value(row, descriptor, 15, "stored producer reference"), snapshot.producer_reference.bytes, 32u, "stored producer reference");
     snapshot.epoch_id = registry->activation_epoch_id;
     snapshot.epoch = registry->activation_epoch_fingerprint;
     read_exact_bytes(required_tuple_value(row, descriptor, 4, "original admission"), snapshot.admission.bytes, 32u, "original admission");
@@ -152,6 +241,7 @@ static highway_committed_snapshot highway_verify_committed_generation(
         highway_revalidation_error("contiguous activation event chain");
     }
     event_count = SPI_processed;
+    event_table = SPI_tuptable;
     blake3_hasher_init(&hasher);
     blake3_hasher_update(&hasher, "laplace-highway-committed-event-chain-v1",
                         sizeof("laplace-highway-committed-event-chain-v1") - 1u);
@@ -166,8 +256,8 @@ static highway_committed_snapshot highway_verify_committed_generation(
         laplace_digest256 staged_receipt;
         laplace_framework_activation_request activation_request;
         uint64 version;
-        row = SPI_tuptable->vals[index];
-        descriptor = SPI_tuptable->tupdesc;
+        row = event_table->vals[index];
+        descriptor = event_table->tupdesc;
         if ((uint64)DatumGetInt64(required_tuple_value(row, descriptor, 1, "event sequence")) != index + 1u) {
             highway_revalidation_error("activation event sequence gap");
         }
@@ -184,6 +274,9 @@ static highway_committed_snapshot highway_verify_committed_generation(
             "event staged receipt"), staged_receipt.bytes, 32u, "event staged receipt");
         read_exact_bytes(required_tuple_value(row, descriptor, 16,
             "original event context"), original_context.bytes, 32u, "original event context");
+        highway_verify_original_receipt_bodies(
+            required_tuple_value(row, descriptor, 2, "original epoch id"),
+            required_tuple_value(row, descriptor, 3, "original epoch"));
         blake3_hasher_init(&preparation);
         blake3_hasher_update(&preparation, "laplace-highway-registry-activation-preparation-v1",
                             sizeof("laplace-highway-registry-activation-preparation-v1") - 1u);
@@ -307,8 +400,8 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
         highway_committed_snapshot snapshot;
         blake3_hasher proof;
         laplace_digest256 proof_id;
-        Datum values[33];
-        bool nulls[33] = {false};
+        Datum values[37];
+        bool nulls[37] = {false};
         const laplace_highway_kind_contract_row* kinds;
         const laplace_highway_alias_contract_row* aliases;
         const laplace_highway_disposition_contract_row* dispositions;
@@ -418,6 +511,8 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
             sizeof("laplace-highway-committed-revalidation-v1") - 1u);
         blake3_hasher_update(&proof, snapshot.generation_fingerprint.bytes, 32u);
         blake3_hasher_update(&proof, snapshot.event_chain_fingerprint.bytes, 32u);
+        hash_u64(&proof, snapshot.composition_receipt_present ? 1u : 0u);
+        hash_u64(&proof, 0u); /* Original intermediate receipt bodies are unavailable. */
         blake3_hasher_update(&proof, isa.receipt_id.bytes, 32u);
         blake3_hasher_update(&proof, execution->summary.receipt_id.bytes, 32u);
         blake3_hasher_update(&proof, execution->presence.semantic_receipt_id.bytes, 32u);
@@ -467,14 +562,18 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
         values[column++] = laplace_pg_numeric_from_uint64(execution->summary.unique_entity_count);
         values[column++] = laplace_pg_numeric_from_uint64(execution->summary.unique_physicality_count);
         values[column++] = laplace_pg_numeric_from_uint64(execution->persistence.inserted[3]);
+        HIGHWAY_BYTES(snapshot.working_set_reference.bytes, 32u);
+        HIGHWAY_BYTES(snapshot.producer_reference.bytes, 32u);
+        values[column++] = BoolGetDatum(snapshot.composition_receipt_present);
+        values[column++] = BoolGetDatum(false);
         values[column++] = BoolGetDatum(false);
         values[column++] = Int32GetDatum(0);
 #undef HIGHWAY_BYTES
-        if (column != 33) {
+        if (column != 37) {
             highway_revalidation_error("typed result width");
         }
         {
-            HeapTuple transient = laplace_pg_form_result_tuple(fcinfo, values, nulls, 33);
+            HeapTuple transient = laplace_pg_form_result_tuple(fcinfo, values, nulls, 37);
             MemoryContextSwitchTo(outer_context);
             result_tuple = heap_copytuple(transient);
         }

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 CONTRACT_SCHEMA = "laplace.highway-committed-revalidation-contract/v1"
-CONTRACT_SHA256 = "3e3d18fe1726a2a8fcecc22a0a6ee6af033e19d33d9757952dc274b80b44bc28"
+CONTRACT_SHA256 = "f53d899c48621dfd889ae9dd59779f366002bb48144a7dfed5905713555d11fd"
 REQUEST_SCHEMA = "laplace.highway-committed-revalidation-request/v1"
 RECEIPT_SCHEMA = "laplace.highway-committed-revalidation-receipt/v1"
 HEX128_FIELDS = ("root_entity_id", "registry_epoch_id", "unicode_activation_epoch_id")
@@ -25,8 +25,12 @@ HEX256_FIELDS = (
     "current_presence_execution_receipt", "current_producer_receipt",
     "current_staged_stream_receipt", "current_sink_artifacts_fingerprint",
     "unicode_root_receipt", "unicode_activation_epoch_fingerprint",
+    "stored_working_set_receipt", "stored_producer_receipt",
 )
 COUNT_FIELDS = ("canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count")
+HISTORY_FIELDS = ("historical_composition_receipt_present", "historical_intermediate_receipts_verified")
+VALUE_FIELDS = ("registry_version", "activation_sequence", "kind_count", "alias_count", "disposition_count",
+                *COUNT_FIELDS, *HISTORY_FIELDS, "activation_performed", "status")
 
 
 def write_immutable(h: Any, path: Path, value: dict) -> None:
@@ -69,9 +73,7 @@ def render_sql(h: Any, contract: dict, identities: dict, unicode_receipt: dict, 
     context = h.context_sql(identities, contract,
         unicode_receipt["activation_epoch_fingerprint"], inspection["highway_epoch_fingerprint"], False)
     fields = [f"'{name}',encode({name},'hex')" for name in HEX128_FIELDS + HEX256_FIELDS]
-    fields.extend(f"'{name}',{name}" for name in (
-        "registry_version", "activation_sequence", "kind_count", "alias_count", "disposition_count",
-        *COUNT_FIELDS, "activation_performed", "status"))
+    fields.extend(f"'{name}',{name}" for name in VALUE_FIELDS)
     return ("BEGIN;\nSET LOCAL statement_timeout = '" + str(contract["operation"]["statement_timeout_seconds"]) + "s';\n"
         "WITH proof AS MATERIALIZED (SELECT * FROM laplace.highway_registry_revalidate_committed("
         + context + "," + str(contract["operation"]["preferred_batch_bytes"]) + "::numeric))\n"
@@ -79,6 +81,8 @@ def render_sql(h: Any, contract: dict, identities: dict, unicode_receipt: dict, 
 
 
 def validate_result(h: Any, result: dict, contract: dict, unicode_receipt: dict, inspection: dict) -> None:
+    if not isinstance(result, dict) or set(result) != set(HEX128_FIELDS + HEX256_FIELDS + VALUE_FIELDS):
+        raise h.HighwayActivationError("native committed Highway result fields differ")
     expected = contract["expected_result"]
     values = {name: expected[name] for name in ("registry_version", "registry_fingerprint", "kind_count", "alias_count", "disposition_count", "status")}
     values.update({"registry_epoch_id": inspection["highway_epoch_id"],
@@ -89,6 +93,9 @@ def validate_result(h: Any, result: dict, contract: dict, unicode_receipt: dict,
     if result.get("activation_performed") is not False or any(
             result.get(k) != v or type(result[k]) is not type(v) for k, v in values.items()):
         raise h.HighwayActivationError("native committed Highway revalidation result differs")
+    if (type(result["historical_composition_receipt_present"]) is not bool
+            or result["historical_intermediate_receipts_verified"] is not False):
+        raise h.HighwayActivationError("native committed Highway historical coverage differs")
     for names, pattern in ((HEX128_FIELDS, h.unicodectl.HEX_128), (HEX256_FIELDS, h.unicodectl.HEX_256)):
         for name in names:
             if not isinstance(result.get(name), str) or pattern.fullmatch(result[name]) is None or set(result[name]) == {"0"}:

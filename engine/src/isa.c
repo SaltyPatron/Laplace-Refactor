@@ -1934,6 +1934,34 @@ static void hash_receipt(laplace_isa_receipt* receipt) {
     finish_digest(&hasher, &receipt->receipt_id);
 }
 
+laplace_isa_status laplace_isa_receipt_validate(
+    const laplace_isa_receipt* receipt) {
+    laplace_isa_receipt expected;
+    if (receipt == NULL) {
+        return LAPLACE_ISA_INVALID_ARGUMENT;
+    }
+    if (receipt->major != LAPLACE_ISA_MAJOR ||
+        receipt->minor > LAPLACE_ISA_MINOR) {
+        return LAPLACE_ISA_UNSUPPORTED_VERSION;
+    }
+    if (receipt->receipt_detail != LAPLACE_ISA_RECEIPT_DETAIL_FULL ||
+        receipt->reserved != 0u) {
+        return LAPLACE_ISA_UNKNOWN_FLAGS;
+    }
+    if (receipt->instruction_count == 0u) {
+        return LAPLACE_ISA_EMPTY_PROGRAM;
+    }
+    if (receipt->status != LAPLACE_ISA_OK ||
+        receipt->executed_instruction_count != receipt->instruction_count) {
+        return LAPLACE_ISA_VALUE_INVALID;
+    }
+    expected = *receipt;
+    hash_receipt(&expected);
+    return memcmp(expected.receipt_id.bytes, receipt->receipt_id.bytes,
+                  sizeof(expected.receipt_id.bytes)) == 0
+        ? LAPLACE_ISA_OK : LAPLACE_ISA_VALUE_INVALID;
+}
+
 static laplace_isa_status execute_identity_codepoint_batch(
     laplace_isa_program* program,
     const laplace_isa_instruction* instruction) {

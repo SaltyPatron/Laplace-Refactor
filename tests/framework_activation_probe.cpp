@@ -87,6 +87,49 @@ int main() {
             &context, &stream, &sink, 1u, &staged) != LAPLACE_FRAMEWORK_OK) {
         return 3;
     }
+    const auto retained_stream = staged;
+    if (laplace_framework_stream_receipt_identity_validate(&staged) != LAPLACE_FRAMEWORK_OK ||
+        std::memcmp(&staged, &retained_stream, sizeof(staged)) != 0 ||
+        laplace_framework_stream_receipt_identity_validate(nullptr) != LAPLACE_FRAMEWORK_STREAM_INVALID) {
+        std::fputs("framework-stored-stream-identity\n", stderr);
+        return 2;
+    }
+    const std::array<laplace_digest256 laplace_framework_stream_receipt::*, 6> stream_digests{{
+        &laplace_framework_stream_receipt::receipt_id,
+        &laplace_framework_stream_receipt::context_fingerprint,
+        &laplace_framework_stream_receipt::source_fingerprint,
+        &laplace_framework_stream_receipt::recipe_fingerprint,
+        &laplace_framework_stream_receipt::stream_fingerprint,
+        &laplace_framework_stream_receipt::sink_artifacts_fingerprint}};
+    for (const auto field : stream_digests) {
+        for (std::size_t byte = 0u; byte < sizeof(staged.receipt_id.bytes); ++byte) {
+            auto corrupted = staged;
+            (corrupted.*field).bytes[byte] ^= UINT8_C(1);
+            if (laplace_framework_stream_receipt_identity_validate(&corrupted) != LAPLACE_FRAMEWORK_STREAM_INVALID) {
+                std::fputs("framework-stored-stream-digest-corruption\n", stderr);
+                return 2;
+            }
+        }
+    }
+    for (std::size_t field = 0u; field < 10u; ++field) {
+        auto corrupted = staged;
+        switch (field) {
+            case 0: corrupted.status = LAPLACE_FRAMEWORK_STREAM_INVALID; break;
+            case 1: ++corrupted.record_type; break;
+            case 2: corrupted.effect_disposition = LAPLACE_FRAMEWORK_EFFECT_NONE; break;
+            case 3: ++corrupted.total_records; break;
+            case 4: ++corrupted.total_bytes; break;
+            case 5: ++corrupted.batch_count; break;
+            case 6: ++corrupted.sink_count; break;
+            case 7: corrupted.failed_batch_index = 0u; break;
+            case 8: corrupted.failed_sink_index = 0u; break;
+            default: corrupted.reserved = 1u; break;
+        }
+        if (laplace_framework_stream_receipt_identity_validate(&corrupted) != LAPLACE_FRAMEWORK_STREAM_INVALID) {
+            std::fputs("framework-stored-stream-metadata-corruption\n", stderr);
+            return 2;
+        }
+    }
 
     State state{};
     laplace_framework_activation_provider_v1 provider{
@@ -126,6 +169,11 @@ int main() {
 
     auto other_context = context;
     other_context.authority_fingerprint.bytes[0] ^= UINT8_C(1);
+    if (laplace_framework_stream_receipt_identity_validate(&staged) != LAPLACE_FRAMEWORK_OK ||
+        laplace_framework_stream_receipt_validate(&other_context, &staged) != LAPLACE_FRAMEWORK_STREAM_INVALID) {
+        std::fputs("framework-stored-identity-does-not-authorize-current-context\n", stderr);
+        return 2;
+    }
     const auto cross_context_status = laplace_framework_admit_staged_stream(
         &other_context, &staged, &request, &provider, &receipt);
     if (cross_context_status != LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID ||

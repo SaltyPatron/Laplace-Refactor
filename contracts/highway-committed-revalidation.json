@@ -1,6 +1,6 @@
 {
   "schema": "laplace.highway-committed-revalidation-contract/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "selection": {
     "mode": "missing-retention-revalidation",
     "require_original_request_absent": true,
@@ -13,7 +13,12 @@
     "function": "laplace.highway_registry_revalidate_committed",
     "result_type": "laplace.highway_registry_revalidation_result",
     "input": "exact current execution context and selected batch bytes",
-    "proof": "canonical ISA, active Unicode, universal AST and composition reconstruction; exact committed generation, root, projection, stored receipt links, active control and contiguous event chain",
+    "proof": "canonical ISA, active Unicode, universal AST and current composition reconstruction; exact committed generation, root, projection, stored receipt references, active control and contiguous event chain; present historical composition summary consistency",
+    "stored_reference_fields": ["stored_working_set_receipt", "stored_producer_receipt"],
+    "stored_reference_rule": "Required nonzero 32-byte observed generation references are bound into the new proof, including when the historical composition row is absent. They are not reconstructed historical receipt bodies.",
+    "historical_composition_receipt_present": "A native boolean observation of related composition-row presence; any present link or count mismatch rejects the proof. Legacy absence is explicit and creates no historical rows.",
+    "historical_intermediate_receipts_verified": false,
+    "historical_coverage_rule": "A present composition summary proves consistency only. Original working-set, producer and checkpoint bodies are unavailable, so historical intermediate receipt verification remains false in every accepted result.",
     "transaction": "native internal subtransaction rolls back all verifier deposition before return; caller commits no registry activation",
     "activation_performed": false
   },

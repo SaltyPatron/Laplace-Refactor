@@ -78,9 +78,9 @@ product programs are functional. The readback includes this boundary explicitly.
 `tools/dependencies/chess_benchmark.py` observes the actual Linux execution
 environment and measures the recorded executable paths. Its governing contract is
 `contracts/chess-benchmark.json`, under the common `contracts/benchmark-suite.json`
-law. Chess calibration is explicitly requested manually or by its user-authorized
-chess-change deployment policy; ordinary PR CI runs only the small
-resource/receipt failure controls.
+law. Chess calibration runs manually, for selected chess changes on a
+same-repository candidate, or after successful deployment of those changes.
+Unrelated PRs run the small resource/receipt failure controls.
 
 ```bash
 # Capability and resource observation, without running the timed sweeps.
@@ -98,14 +98,17 @@ scripts/benchmark-chess.sh run \
 ```
 
 The numeric budget in the example must fit the machine on which it runs. Without
-explicit sweep values, thread and concurrency candidates use powers of two and
-the final observed CPU bound. CPU capacity is the minimum of process affinity and
+explicit sweep values, thread and concurrency candidates include powers of two,
+the observed physical-core boundary, and the final observed CPU bound. A game's
+thread count adjusts the corresponding concurrency boundary. CPU capacity is the minimum of process affinity and
 every visible cgroup ancestor quota, including fractional quota values.
 Sub-CPU quotas cannot admit a full search thread and receive an explicit rejection
 instead of rounding the observed CPU capacity upward. Memory
 headroom is the minimum of host `MemAvailable` and every visible ancestor's
-`memory.max - memory.current`; the default plan leaves an explicitly reported
-512 MiB reserve. Namespace-hidden limits remain unobservable. A resource grant
+`memory.max - memory.current`. The default memory grant covers the largest admitted
+engine or tournament configuration plus a bounded margin; it leaves an explicitly
+reported 512 MiB reserve outside that grant. It does not claim all free host memory
+for a small workload. Namespace-hidden limits remain unobservable. A resource grant
 does not reserve those resources against other running applications.
 
 The receipt records CPU model/features, visible physical cores and SMT siblings,
@@ -168,8 +171,8 @@ estate and repeats this measurement on the actual self-hosted runner. It support
 manual dispatch and the user-authorized chess-specific deployment calibration. It keeps
 all raw evidence in the `chess-calibration-<run>-<attempt>` artifact. The deployment call requires a successful accepted-main activation and
 a change to chess source/network selections, tooling, or calibration configuration.
-Unrelated dependency-lock changes, documentation changes, and PR checks do not
-launch it. The common benchmark suite retains its existing explicit-only scheduling
+Unrelated dependency-lock and documentation changes do not launch it. Selected
+same-repository PRs use the candidate call described below. The common benchmark suite retains its existing explicit-only scheduling
 policy; this bounded chess calibration has its own declared deployment policy.
 Blank resource inputs use the observed bounds; explicit inputs must fit them.
 
@@ -227,6 +230,8 @@ A same-repository pull request that changes the selected chess sources, network,
 installer, or calibration configuration also runs **Candidate chess dependency
 calibration on hart-server** after hosted checks and the source/custom-stack proof
 succeed. This reuses the bounded calibration workflow and shared machine lock.
+The product-path gate requires that selected candidate calibration to succeed;
+a failed or missing calibration cannot produce passing protected check aliases.
 Its `candidate-chess-dependencies-<run>-<attempt>` artifact retains the exact
 checkout and input hashes in `execution-context.json`, alongside measured compiler,
 engine, source, network, resource, and PGN evidence. Candidate dependency results do

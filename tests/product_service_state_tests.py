@@ -328,6 +328,9 @@ class ProductServiceStateTests(unittest.TestCase):
             self.assertNotIn("highway_activation_receipt_sha256", identity)
             self.assertFalse(identity["highway_activation_performed"])
             self.assertFalse(identity["highway_historical_request_present"])
+            for name in ("stored_working_set_receipt", "stored_producer_receipt",
+                         "historical_composition_receipt_present", "historical_intermediate_receipts_verified"):
+                self.assertEqual(identity["highway_" + name], receipt["revalidation"][name])
             self.physical(root, self.gateway["service_state"]["boot_id_path"]).write_text(BOOT_B + "\n")
             cold = service_state.cold_boot_readback(self.gateway, self.cluster,
                 "62" * 32, root, ClusterModuleStub, self.loaded_observer, self.runner)

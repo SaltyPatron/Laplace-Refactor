@@ -300,6 +300,13 @@ LAPLACE_API laplace_framework_status laplace_framework_stream_receipt_validate(
     const laplace_framework_context* context,
     const laplace_framework_stream_receipt* receipt);
 
+/* Check the complete successful retained body against its canonical identity.
+ * No execution context is supplied or reconstructed, and this check grants no
+ * execution authority. The receipt is not modified. */
+LAPLACE_API laplace_framework_status
+laplace_framework_stream_receipt_identity_validate(
+    const laplace_framework_stream_receipt* receipt);
+
 LAPLACE_API laplace_framework_status laplace_framework_canonical_stream_fingerprint(
     const laplace_framework_canonical_batch* batches,
     size_t batch_count,

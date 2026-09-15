@@ -35,6 +35,10 @@ jq -e --arg package "$package" '
      (.phase == "product-unicode-activated-and-highway-revalidated" and
       .highway_activation_performed == false and
       .highway_historical_request_present == false and
+      (.highway_historical_composition_receipt_present | type == "boolean") and
+      .highway_historical_intermediate_receipts_verified == false and
+      (.highway_stored_working_set_receipt | test("^[0-9a-f]{64}$") and test("[1-9a-f]")) and
+      (.highway_stored_producer_receipt | test("^[0-9a-f]{64}$") and test("[1-9a-f]")) and
       (has("highway_activation_receipt_sha256") | not) and
       (.highway_revalidation_receipt_sha256 | test("^[0-9a-f]{64}$")))) and
     .package_id == $package and .execution_owner == "laplace-runner" and

@@ -714,6 +714,12 @@ static int stream_receipt_is_valid(
     return digest_equal(&receipt->receipt_id, &expected.receipt_id);
 }
 
+laplace_framework_status laplace_framework_stream_receipt_identity_validate(
+    const laplace_framework_stream_receipt* receipt) {
+    return stream_receipt_is_valid(receipt)
+        ? LAPLACE_FRAMEWORK_OK : LAPLACE_FRAMEWORK_STREAM_INVALID;
+}
+
 laplace_framework_status laplace_framework_stream_receipt_validate(
     const laplace_framework_context* context,
     const laplace_framework_stream_receipt* receipt) {

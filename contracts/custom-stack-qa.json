@@ -78,6 +78,8 @@
         "cmake/LaplacePostgreSQLBindings.cmake",
         "engine/src/framework.c",
         "engine/include/laplace/framework.h",
+        "engine/src/isa.c",
+        "engine/include/laplace/isa.h",
         "engine/src/persistence.c",
         "engine/include/laplace/persistence.h",
         "integrations/postgresql/extension/src/highway_registry*",

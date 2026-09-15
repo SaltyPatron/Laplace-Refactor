@@ -259,8 +259,11 @@ def validate_pgn(text: str, games: int) -> dict:
     return {"games": games, "plies": plies, "records": records, "result_fingerprint": tools.hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()}
 
 
-def powers(limit: int) -> list[int]:
-    return sorted({1, limit, *[2 ** index for index in range(limit.bit_length()) if 2 ** index <= limit]})
+def automatic_sweep_values(limit: int, physical_boundary: int | None) -> list[int]:
+    values = {1, limit, *[2 ** index for index in range(limit.bit_length()) if 2 ** index <= limit]}
+    if type(physical_boundary) is int and 0 < physical_boundary <= limit:
+        values.add(physical_boundary)
+    return sorted(values)
 
 
 def plan(arguments: argparse.Namespace, host: dict, options: dict) -> dict:
@@ -268,9 +271,11 @@ def plan(arguments: argparse.Namespace, host: dict, options: dict) -> dict:
     tools.require(0 < cpu <= host["effective_cpu_equivalents"], "CPU budget exceeds the observed affinity/quota boundary or less than one full CPU equivalent is available")
     if not host["cgroups"]:
         tools.require(arguments.cpu_budget is not None and arguments.memory_mib is not None, "unobserved cgroup limits require explicit CPU and memory budgets")
-    threads = integer_list(arguments.threads) if arguments.threads else powers(math.floor(cpu))
+    physical_cores = host.get("visible_physical_cores")
+    threads = integer_list(arguments.threads) if arguments.threads else automatic_sweep_values(math.floor(cpu), physical_cores)
     hashes = integer_list(arguments.hash_mib)
-    concurrency = integer_list(arguments.concurrency) if arguments.concurrency else powers(max(1, math.floor(cpu / arguments.game_threads)))
+    physical_games = physical_cores // arguments.game_threads if type(physical_cores) is int else None
+    concurrency = integer_list(arguments.concurrency) if arguments.concurrency else automatic_sweep_values(max(1, math.floor(cpu / arguments.game_threads)), physical_games)
     if arguments.memory_mib is None:
         # Available host memory is a ceiling, not the sweep's working grant.
         # Charging nearly all available memory made unrelated background growth

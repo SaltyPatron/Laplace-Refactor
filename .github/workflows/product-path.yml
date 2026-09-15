@@ -214,6 +214,7 @@ jobs:
       - hosted-proof
       - publication-recovery
       - custom-stack-proof
+      - candidate-chess-calibration
       - postgresql-product-proof
       - package-product-proof
     runs-on: ubuntu-24.04
@@ -226,6 +227,8 @@ jobs:
           HOSTED_RESULT: ${{ needs.hosted-proof.result }}
           PUBLICATION_RECOVERY_RESULT: ${{ needs.publication-recovery.result }}
           CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
+          CHESS_RESULT: ${{ needs.candidate-chess-calibration.result }}
+          REQUIRES_CANDIDATE_CHESS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.requires_chess_calibration == 'true' }}
           POSTGRESQL_RESULT: ${{ needs.postgresql-product-proof.result }}
           PACKAGE_RESULT: ${{ needs.package-product-proof.result }}
           REQUIRES_CUSTOM: ${{ needs.classify.outputs.requires_custom_stack }}
@@ -248,6 +251,11 @@ jobs:
           else
             test "$CUSTOM_RESULT" = skipped
           fi
+          if [[ "$REQUIRES_CANDIDATE_CHESS" == true ]]; then
+            test "$CHESS_RESULT" = success
+          else
+            test "$CHESS_RESULT" = skipped
+          fi
           if [[ "$REQUIRES_POSTGRESQL" == true ]]; then
             test "$POSTGRESQL_RESULT" = success
           else
@@ -268,6 +276,7 @@ jobs:
             echo "Hosted proof: $HOSTED_RESULT"
             echo "Publication recovery: $PUBLICATION_RECOVERY_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
+            echo "Candidate chess calibration: $CHESS_RESULT"
             echo "PostgreSQL-product proof: $POSTGRESQL_RESULT"
             echo "Package-product proof: $PACKAGE_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -356,7 +365,7 @@ jobs:
   legacy-requirements:
     name: requirements
     needs: product-path
-    if: always() && needs.product-path.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -365,7 +374,7 @@ jobs:
   legacy-native-dev:
     name: native (linux-dev)
     needs: product-path
-    if: always() && needs.product-path.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -374,7 +383,7 @@ jobs:
   legacy-native-sanitize:
     name: native (linux-sanitize)
     needs: product-path
-    if: always() && needs.product-path.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

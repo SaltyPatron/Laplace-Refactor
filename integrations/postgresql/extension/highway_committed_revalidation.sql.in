@@ -12,6 +12,21 @@ BEGIN
     JOIN pg_catalog.pg_namespace n ON n.nspname='@LAPLACE_PG_SCHEMA@'
     WHERE e.extname='laplace' AND pg_catalog.pg_get_userbyid(e.extowner)=current_user
       AND n.nspname='@LAPLACE_PG_SCHEMA@' AND n.nspowner=e.extowner;
+    CREATE INDEX IF NOT EXISTS composition_execution_receipt_staged_stream_idx
+        ON @LAPLACE_PG_SCHEMA@.composition_execution_receipt(staged_stream_receipt);
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+        JOIN pg_catalog.pg_index i ON i.indexrelid=c.oid
+        JOIN pg_catalog.pg_am a ON a.oid=c.relam
+        WHERE n.nspname='@LAPLACE_PG_SCHEMA@'
+          AND c.relname='composition_execution_receipt_staged_stream_idx'
+          AND i.indrelid='@LAPLACE_PG_SCHEMA@.composition_execution_receipt'::pg_catalog.regclass
+          AND a.amname='btree' AND i.indisvalid AND i.indisready
+          AND NOT i.indisunique AND i.indnkeyatts=1 AND i.indnatts=1
+          AND i.indpred IS NULL AND i.indexprs IS NULL
+          AND pg_catalog.pg_get_indexdef(c.oid,1,true)='staged_stream_receipt') THEN
+        RAISE EXCEPTION 'committed Highway composition receipt index differs';
+    END IF;
     result_oid := pg_catalog.to_regtype('@LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result');
     IF result_oid IS NULL THEN
         EXECUTE $type$@LAPLACE_PG_HIGHWAY_REVALIDATION_TYPE_SQL@$type$;
@@ -43,12 +58,15 @@ BEGIN
         'current_staged_stream_receipt','current_sink_artifacts_fingerprint','unicode_root_receipt',
         'unicode_activation_epoch_id','unicode_activation_epoch_fingerprint',
         'kind_count','alias_count','disposition_count','canonical_entity_count',
-        'canonical_physicality_count','transient_occurrence_count','activation_performed','status']::text[]
+        'canonical_physicality_count','transient_occurrence_count','stored_working_set_receipt',
+        'stored_producer_receipt','historical_composition_receipt_present',
+        'historical_intermediate_receipts_verified','activation_performed','status']::text[]
        OR member_types IS DISTINCT FROM ARRAY[
         'bytea','bytea','bytea','bigint','bytea','bytea','bytea','bigint',
         'bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea',
         'bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea',
-        'bigint','bigint','bigint','numeric(20,0)','numeric(20,0)','numeric(20,0)','boolean','integer']::text[] THEN
+        'bigint','bigint','bigint','numeric(20,0)','numeric(20,0)','numeric(20,0)',
+        'bytea','bytea','boolean','boolean','boolean','integer']::text[] THEN
         RAISE EXCEPTION 'committed Highway result type members differ';
     END IF;
     function_oid := pg_catalog.to_regprocedure('@LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SQL@(@LAPLACE_PG_SCHEMA@.execution_context,numeric)');

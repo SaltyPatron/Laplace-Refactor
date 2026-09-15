@@ -177,6 +177,9 @@ class ProductActivationRuntimeAdapterTests(unittest.TestCase):
         self.assertEqual(aggregate["phase"], original.HIGHWAY_REVALIDATION_PHASE)
         self.assertNotIn("highway_activation_receipt_sha256", aggregate)
         self.assertFalse(aggregate["highway_activation_performed"])
+        for name in ("stored_working_set_receipt", "stored_producer_receipt",
+                     "historical_composition_receipt_present", "historical_intermediate_receipts_verified"):
+            self.assertEqual(aggregate["highway_" + name], receipt["revalidation"][name])
         self.assertNotEqual(receipt["revalidation"]["stored_isa_receipt"], receipt["revalidation"]["current_isa_receipt"])
         self.assertNotEqual(receipt["readback"]["isa_receipt"], receipt["revalidation"]["stored_isa_receipt"])
 
@@ -194,6 +197,19 @@ class ProductActivationRuntimeAdapterTests(unittest.TestCase):
             "zero native receipt": lambda r: r["revalidation"].update(verification_receipt="00" * 32),
             "wrong physicality width": lambda r: r["revalidation"].update(root_physicality_id="ab" * 16),
             "native activation": lambda r: r["revalidation"].update(activation_performed=True),
+            "historical verification invented": lambda r: r["revalidation"].update(historical_intermediate_receipts_verified=True),
+            "historical verification mistyped": lambda r: r["revalidation"].update(historical_intermediate_receipts_verified=0),
+            "composition presence mistyped": lambda r: r["revalidation"].update(historical_composition_receipt_present=0),
+            "composition presence omitted": lambda r: r["revalidation"].pop("historical_composition_receipt_present"),
+            "historical verification omitted": lambda r: r["revalidation"].pop("historical_intermediate_receipts_verified"),
+            "stored working set omitted": lambda r: r["revalidation"].pop("stored_working_set_receipt"),
+            "stored producer omitted": lambda r: r["revalidation"].pop("stored_producer_receipt"),
+            "stored working set zero": lambda r: r["revalidation"].update(stored_working_set_receipt="00" * 32),
+            "stored producer width differs": lambda r: r["revalidation"].update(stored_producer_receipt="ab" * 16),
+            "cold native stored working set changed": lambda r: r["cold_revalidation"].update(stored_working_set_receipt="f7" * 32),
+            "cold native stored producer changed": lambda r: r["cold_revalidation"].update(stored_producer_receipt="f7" * 32),
+            "cold native composition presence changed": lambda r: r["cold_revalidation"].update(historical_composition_receipt_present=True),
+            "cold native historical verification changed": lambda r: r["cold_revalidation"].update(historical_intermediate_receipts_verified=True),
             "empty reconstruction": lambda r: r["revalidation"].update(canonical_entity_count=0),
             "changed current numeric epoch": lambda r: r["revalidation_request"]["context_epochs"].update(numeric_epoch="f1" * 32),
             "changed execution context": lambda r: r["revalidation_request"]["execution_context"].update(cpu_slots=100),
@@ -218,6 +234,32 @@ class ProductActivationRuntimeAdapterTests(unittest.TestCase):
                 resign_revalidation(invalid)
                 with self.assertRaises(adapter.activation.ActivationGatewayError):
                     adapter.validate_highway_success(self.contract, invalid, invalid["package_id"])
+
+    def test_composition_presence_is_supported_without_promoting_historical_coverage(self) -> None:
+        receipt = producer_revalidation(self)
+        for present in (False, True):
+            with self.subTest(present=present):
+                for field in ("revalidation", "cold_revalidation"):
+                    receipt[field]["historical_composition_receipt_present"] = present
+                resign_revalidation(receipt)
+                adapter.validate_highway_success(self.contract, receipt, receipt["package_id"])
+                aggregate = original.highway_aggregate_fields(receipt)
+                original.validate_product_terminal_result(aggregate)
+                self.assertIs(aggregate["highway_historical_composition_receipt_present"], present)
+                self.assertIs(aggregate["highway_historical_intermediate_receipts_verified"], False)
+                for name, value in (("highway_historical_composition_receipt_present", 0),
+                                    ("highway_historical_intermediate_receipts_verified", True),
+                                    ("highway_historical_intermediate_receipts_verified", 0),
+                                    ("highway_stored_working_set_receipt", "00" * 32),
+                                    ("highway_stored_producer_receipt", "ab" * 16)):
+                    with self.subTest(field=name, value=value), self.assertRaises(original.ActivationGatewayError):
+                        original.validate_product_terminal_result({**aggregate, name: value})
+                for name in ("highway_stored_working_set_receipt", "highway_stored_producer_receipt",
+                             "highway_historical_composition_receipt_present", "highway_historical_intermediate_receipts_verified"):
+                    invalid = dict(aggregate)
+                    invalid.pop(name)
+                    with self.subTest(missing=name), self.assertRaises(original.ActivationGatewayError):
+                        original.validate_product_terminal_result(invalid)
 
     def test_revalidation_requires_explicit_pinned_contract_and_distinct_aggregate(self) -> None:
         receipt = producer_revalidation(self)

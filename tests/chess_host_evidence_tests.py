@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import unittest
 from unittest.mock import patch
@@ -59,6 +60,44 @@ class HostEvidence(unittest.TestCase):
         self.assertIn('execution-context.json', calibration)
         self.assertIn('checked_out_sha', calibration)
         self.assertIn('tools/host/run-exclusive.sh', calibration)
+
+    def candidate_gate(self):
+        workflow = (ROOT / '.github/workflows/product-path.yml').read_text()
+        block = workflow.split('  product-path:\n', 1)[1].split('\n  dev-bat-deployment:', 1)[0]
+        self.assertIn('      - candidate-chess-calibration\n', block)
+        self.assertIn('CHESS_RESULT: ${{ needs.candidate-chess-calibration.result }}', block)
+        self.assertIn("REQUIRES_CANDIDATE_CHESS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.requires_chess_calibration == 'true' }}", block)
+        return textwrap.dedent(block.split('        run: |\n', 1)[1])
+
+    def run_candidate_gate(self, script, required, result):
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = os.environ | {
+                'CLASSIFY_RESULT': 'success', 'HOSTED_RESULT': 'success',
+                'PUBLICATION_RECOVERY_RESULT': 'success', 'CUSTOM_RESULT': 'success',
+                'POSTGRESQL_RESULT': 'success', 'PACKAGE_RESULT': 'success',
+                'REQUIRES_CUSTOM': 'true', 'REQUIRES_POSTGRESQL': 'true',
+                'REQUIRES_PACKAGE': 'true', 'REQUIRES_CANDIDATE_CHESS': required,
+                'CHESS_RESULT': result, 'BLOCKED': 'false',
+                'REQUIRED_EVIDENCE': '[]', 'UNIMPLEMENTED_EVIDENCE': '[]',
+                'GITHUB_STEP_SUMMARY': str(Path(temporary) / 'summary.md'),
+            }
+            return subprocess.run(['bash', '-c', script], env=environment, capture_output=True).returncode
+
+    def test_selected_candidate_failure_or_missing_proof_blocks_actual_aggregate_shell(self):
+        script = self.candidate_gate()
+        for result in ('success', 'failure', 'cancelled', 'skipped', ''):
+            with self.subTest(result=result):
+                self.assertEqual(self.run_candidate_gate(script, 'true', result) == 0, result == 'success')
+        for result in ('success', 'failure', 'skipped'):
+            with self.subTest(unselected=result):
+                self.assertEqual(self.run_candidate_gate(script, 'false', result) == 0, result == 'skipped')
+
+    def test_removed_candidate_check_would_admit_failed_measurement(self):
+        script = self.candidate_gate()
+        conditional = 'if [[ "$REQUIRES_CANDIDATE_CHESS" == true ]]; then\n  test "$CHESS_RESULT" = success\nelse\n  test "$CHESS_RESULT" = skipped\nfi\n'
+        self.assertIn(conditional, script)
+        self.assertNotEqual(self.run_candidate_gate(script, 'true', 'failure'), 0)
+        self.assertEqual(self.run_candidate_gate(script.replace(conditional, ''), 'true', 'failure'), 0)
 
     def test_missing_admission_is_reported_without_creating_it(self):
         with tempfile.TemporaryDirectory() as temporary:

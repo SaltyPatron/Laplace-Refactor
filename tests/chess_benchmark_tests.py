@@ -103,6 +103,40 @@ class ChessBenchmarks(unittest.TestCase):
         unsafe = {**host, "effective_memory_headroom_bytes": 6 * 1024 * BENCH.MIB}
         self.assertIn("ending memory headroom", BENCH.stability_failures(host, unsafe, {"engine": "same"}, {"engine": "same"}, result)[0])
 
+    def test_automatic_sweep_includes_affinity_visible_physical_core_boundary(self):
+        arguments = self.arguments()
+        arguments.memory_mib = None
+        arguments.cpu_budget = 12
+        arguments.threads = None
+        arguments.concurrency = None
+        arguments.games = 16
+        host = {**self.host(), "effective_cpu_equivalents": 12, "visible_physical_cores": 6}
+        result = BENCH.plan(arguments, host, self.options())
+        self.assertEqual(sorted({item["threads"] for item in result["stockfish"]}), [1, 2, 4, 6, 8, 12])
+        self.assertEqual([item["concurrency"] for item in result["cutechess"]], [1, 2, 4, 6, 8, 12])
+        arguments.game_threads = 2
+        result = BENCH.plan(arguments, host, self.options())
+        self.assertEqual([item["concurrency"] for item in result["cutechess"]], [1, 2, 3, 4, 6])
+        self.assertTrue(all(item["concurrency"] * item["threads"] <= 12 for item in result["cutechess"]))
+
+    def test_physical_boundary_cannot_override_explicit_grid_or_resource_grant(self):
+        arguments = self.arguments()
+        arguments.memory_mib = None
+        arguments.cpu_budget = 4
+        arguments.threads = None
+        arguments.concurrency = None
+        host = {**self.host(), "effective_cpu_equivalents": 12, "visible_physical_cores": 6}
+        result = BENCH.plan(arguments, host, self.options())
+        self.assertEqual(sorted({item["threads"] for item in result["stockfish"]}), [1, 2, 4])
+        self.assertEqual([item["concurrency"] for item in result["cutechess"]], [1, 2, 4])
+        arguments.cpu_budget = 12
+        arguments.threads = "1,8"
+        arguments.concurrency = "1,4"
+        result = BENCH.plan(arguments, host, self.options())
+        self.assertEqual(sorted({item["threads"] for item in result["stockfish"]}), [1, 8])
+        self.assertEqual([item["concurrency"] for item in result["cutechess"]], [1, 4])
+        self.assertEqual(BENCH.automatic_sweep_values(12, None), [1, 2, 4, 8, 12])
+
     def test_automatic_budget_does_not_fund_ineligible_or_unfittable_cases(self):
         arguments = self.arguments()
         arguments.memory_mib = None

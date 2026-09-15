@@ -689,6 +689,10 @@ BEGIN
     SELECT * INTO STRICT active FROM highway_registry_active;
     IF first IS DISTINCT FROM second OR first.status <> 0
        OR first.activation_performed IS DISTINCT FROM false
+       OR first.historical_composition_receipt_present IS DISTINCT FROM true
+       OR first.historical_intermediate_receipts_verified IS DISTINCT FROM false
+       OR first.stored_working_set_receipt <> (SELECT working_set_receipt FROM laplace.highway_registry_generation)
+       OR first.stored_producer_receipt <> (SELECT producer_receipt FROM laplace.highway_registry_generation)
        OR octet_length(first.verification_receipt) <> 32
        OR octet_length(first.event_chain_fingerprint) <> 32
        OR octet_length(first.stored_generation_fingerprint) <> 32
@@ -715,6 +719,71 @@ BEGIN;
 SELECT verification_receipt FROM laplace.highway_registry_revalidate_committed(
     pg_temp.highway_revalidation_context(), 1048576::numeric);
 ROLLBACK;
+
+-- Older Highway admissions did not persist the independent composition row.
+-- A current proof must expose that absence and bind its observed references,
+-- without turning those references into authenticated historical receipt bodies.
+CREATE TEMP TABLE highway_revalidation_coverage_controls(
+    case_name text PRIMARY KEY,
+    proof laplace.highway_registry_revalidation_result NOT NULL);
+DO $coverage$
+DECLARE
+    original laplace.highway_registry_revalidation_result;
+    legacy laplace.highway_registry_revalidation_result;
+    changed_working_set laplace.highway_registry_revalidation_result;
+    changed_producer laplace.highway_registry_revalidation_result;
+BEGIN
+    SELECT * INTO STRICT original FROM highway_revalidation_first;
+    BEGIN
+        DELETE FROM laplace.composition_execution_occurrence_member
+          WHERE working_set_receipt=original.stored_working_set_receipt;
+        DELETE FROM laplace.composition_execution_receipt
+          WHERE working_set_receipt=original.stored_working_set_receipt;
+        SELECT * INTO STRICT legacy FROM laplace.highway_registry_revalidate_committed(
+            pg_temp.highway_revalidation_context(),1048576::numeric);
+        IF legacy.historical_composition_receipt_present IS DISTINCT FROM false
+           OR legacy.historical_intermediate_receipts_verified IS DISTINCT FROM false
+           OR legacy.activation_performed IS DISTINCT FROM false OR legacy.status<>0
+           OR legacy.root_entity_id<>original.root_entity_id
+           OR legacy.root_physicality_id<>original.root_physicality_id
+           OR legacy.stored_working_set_receipt<>original.stored_working_set_receipt
+           OR legacy.stored_producer_receipt<>original.stored_producer_receipt
+           OR legacy.verification_receipt=original.verification_receipt THEN
+            RAISE EXCEPTION 'legacy receipt absence was not represented truthfully';
+        END IF;
+        UPDATE laplace.highway_registry_generation SET working_set_receipt=decode(repeat('ff',32),'hex');
+        SELECT * INTO STRICT changed_working_set FROM laplace.highway_registry_revalidate_committed(
+            pg_temp.highway_revalidation_context(),1048576::numeric);
+        IF changed_working_set.historical_intermediate_receipts_verified IS DISTINCT FROM false
+           OR changed_working_set.historical_composition_receipt_present IS DISTINCT FROM false
+           OR changed_working_set.stored_working_set_receipt<>decode(repeat('ff',32),'hex')
+           OR changed_working_set.verification_receipt=legacy.verification_receipt
+           OR changed_working_set.stored_generation_fingerprint=legacy.stored_generation_fingerprint
+           OR changed_working_set.root_physicality_id<>legacy.root_physicality_id THEN
+            RAISE EXCEPTION 'opaque historical working-set mutation was mislabeled or not observed';
+        END IF;
+        UPDATE laplace.highway_registry_generation SET working_set_receipt=original.stored_working_set_receipt,
+            producer_receipt=decode(repeat('ff',32),'hex');
+        SELECT * INTO STRICT changed_producer FROM laplace.highway_registry_revalidate_committed(
+            pg_temp.highway_revalidation_context(),1048576::numeric);
+        IF changed_producer.historical_intermediate_receipts_verified IS DISTINCT FROM false
+           OR changed_producer.historical_composition_receipt_present IS DISTINCT FROM false
+           OR changed_producer.stored_producer_receipt<>decode(repeat('ff',32),'hex')
+           OR changed_producer.verification_receipt=legacy.verification_receipt
+           OR changed_producer.stored_generation_fingerprint=legacy.stored_generation_fingerprint
+           OR changed_producer.root_physicality_id<>legacy.root_physicality_id THEN
+            RAISE EXCEPTION 'opaque historical producer mutation was mislabeled or not observed';
+        END IF;
+        RAISE EXCEPTION USING ERRCODE='no_data_found', MESSAGE='rollback historical coverage fixture';
+    EXCEPTION WHEN no_data_found THEN
+        IF SQLERRM<>'rollback historical coverage fixture' THEN RAISE; END IF;
+    END;
+    INSERT INTO highway_revalidation_coverage_controls VALUES
+        ('legacy-composition-body-absent',legacy),
+        ('opaque-working-set-reference-observed',changed_working_set),
+        ('opaque-producer-reference-observed',changed_producer);
+END
+$coverage$;
 
 CREATE TEMP TABLE highway_revalidation_rejections(mutation text PRIMARY KEY, detail text NOT NULL);
 
@@ -790,6 +859,18 @@ SELECT pg_temp.highway_revalidation_rejects(
 SELECT pg_temp.highway_revalidation_rejects(
     $$UPDATE laplace.highway_registry_active_control SET admission_receipt=decode(repeat('ff',32),'hex')$$,
     'event/control admission');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.composition_execution_receipt SET producer_receipt=decode(repeat('ff',32),'hex') WHERE working_set_receipt=(SELECT working_set_receipt FROM laplace.highway_registry_generation)$$,
+    'present composition body differs');
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.canonical_deposit_receipt SET total_bytes=total_bytes+1 WHERE receipt_id=(SELECT staged_stream_receipt FROM laplace.highway_registry_generation)',
+    'native original staged-stream receipt identity');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.execution_receipt SET program_fingerprint=decode(repeat('ff',32),'hex') WHERE receipt_id=(SELECT isa_receipt FROM laplace.highway_registry_generation)$$,
+    'native original ISA receipt identity');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.composition_execution_receipt SET stream_fingerprint=decode(repeat('ff',32),'hex') WHERE working_set_receipt=(SELECT working_set_receipt FROM laplace.highway_registry_generation)$$,
+    'present composition body differs');
 
 DO $revalidation$
 DECLARE context laplace.execution_context;
@@ -797,8 +878,14 @@ BEGIN
     IF pg_temp.highway_revalidation_state() <> (SELECT state FROM highway_revalidation_before) THEN
         RAISE EXCEPTION 'negative controls or caller rollback changed committed Highway state';
     END IF;
-    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 18 THEN
+    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 22 THEN
         RAISE EXCEPTION 'committed Highway corruption controls did not all execute';
+    END IF;
+    IF (SELECT count(*) FROM highway_revalidation_coverage_controls) <> 3 THEN
+        RAISE EXCEPTION 'historical intermediate coverage controls did not all execute';
+    END IF;
+    IF (SELECT count(*) FROM highway_revalidation_binding_checks) <> 5 THEN
+        RAISE EXCEPTION 'native binding and receipt-index controls did not all execute';
     END IF;
     BEGIN
         -- Forward verification must not change the existing activation law.
@@ -829,6 +916,11 @@ SELECT 'LAPLACE_QA_RECEIPT highway_committed_revalidation ' || json_build_object
     'corruption_controls',(SELECT count(*) FROM highway_revalidation_rejections),
     'rejections',(SELECT json_agg(r ORDER BY mutation) FROM highway_revalidation_rejections r),
     'binding_checks',(SELECT json_agg(check_name ORDER BY check_name) FROM highway_revalidation_binding_checks),
+    'coverage_controls',(SELECT json_agg(c ORDER BY case_name) FROM highway_revalidation_coverage_controls c),
+    'stored_working_set_receipt',encode(stored_working_set_receipt,'hex'),
+    'stored_producer_receipt',encode(stored_producer_receipt,'hex'),
+    'historical_composition_receipt_present',historical_composition_receipt_present,
+    'historical_intermediate_receipts_verified',historical_intermediate_receipts_verified,
     'activation_performed',activation_performed,
     'historical_admission_distinct_from_final',stored_admission_receipt<>stored_activation_receipt,
     'status',status)::text AS highway_revalidation_test_receipt

@@ -18,7 +18,7 @@ on:
         required: false
         type: string
       memory_mib:
-        description: Memory budget in MiB (blank uses observed headroom minus reserve)
+        description: Memory budget in MiB (blank fits the sweep demand within observed headroom)
         required: false
         type: string
 

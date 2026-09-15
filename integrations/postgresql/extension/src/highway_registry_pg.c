@@ -999,6 +999,7 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SYMBOL(PG_FUNCTION_ARGS) {
         input.request_count = ast.request_count;
         input.preferred_batch_bytes = preferred_batch_bytes;
         LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(&input, &execution);
+        LAPLACE_PG_COMPOSITION_PERSIST_RECEIPT_SYMBOL(&execution, &input);
         if (ast.root_result_index >= execution.result_count) {
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_CORRUPTED),

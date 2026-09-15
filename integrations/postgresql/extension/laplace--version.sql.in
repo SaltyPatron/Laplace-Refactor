@@ -1460,6 +1460,9 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_execution_receipt (
          AND stream_record_count > 0))
 );
 
+CREATE INDEX composition_execution_receipt_staged_stream_idx
+    ON @LAPLACE_PG_SCHEMA@.composition_execution_receipt(staged_stream_receipt);
+
 CREATE TABLE @LAPLACE_PG_SCHEMA@.composition_execution_occurrence_member (
     working_set_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL
         REFERENCES @LAPLACE_PG_SCHEMA@.composition_execution_receipt(working_set_receipt),
@@ -2031,6 +2034,10 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result AS (
     canonical_entity_count numeric(20, 0),
     canonical_physicality_count numeric(20, 0),
     transient_occurrence_count numeric(20, 0),
+    stored_working_set_receipt bytea,
+    stored_producer_receipt bytea,
+    historical_composition_receipt_present boolean,
+    historical_intermediate_receipts_verified boolean,
     activation_performed boolean,
     status integer
 );

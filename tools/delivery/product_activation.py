@@ -618,7 +618,7 @@ def validate_unicode_success(contract: dict[str, Any], result: dict[str, Any], p
 
 
 HIGHWAY_REVALIDATION_SCHEMA = "laplace.highway-committed-revalidation-receipt/v1"
-HIGHWAY_REVALIDATION_CONTRACT_SHA256 = "3e3d18fe1726a2a8fcecc22a0a6ee6af033e19d33d9757952dc274b80b44bc28"
+HIGHWAY_REVALIDATION_CONTRACT_SHA256 = "f53d899c48621dfd889ae9dd59779f366002bb48144a7dfed5905713555d11fd"
 HIGHWAY_REVALIDATION_PHASE = "product-unicode-activated-and-highway-revalidated"
 
 
@@ -715,8 +715,11 @@ def validate_highway_revalidation(gateway: dict[str, Any], result: dict[str, Any
             or canonical_bytes(result["cold_revalidation"]) != canonical_bytes(proof)):
         raise ActivationGatewayError("committed Highway native proof changed or is absent after restart")
     fields128 = ("root_entity_id", "registry_epoch_id", "unicode_activation_epoch_id")
-    fields256 = ("verification_receipt", "root_physicality_id", "registry_fingerprint", "registry_epoch_fingerprint", "stored_isa_receipt", "current_isa_receipt", "current_context_fingerprint", "stored_admission_receipt", "stored_activation_receipt", "stored_activation_fingerprint", "stored_generation_fingerprint", "event_chain_fingerprint", "current_working_set_receipt", "current_presence_semantic_receipt", "current_presence_execution_receipt", "current_producer_receipt", "current_staged_stream_receipt", "current_sink_artifacts_fingerprint", "unicode_root_receipt", "unicode_activation_epoch_fingerprint")
-    require_exact_keys(proof, set(fields128 + fields256) | {"registry_version", "activation_sequence", "kind_count", "alias_count", "disposition_count", "canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count", "activation_performed", "status"}, "committed Highway native result")
+    fields256 = ("verification_receipt", "root_physicality_id", "registry_fingerprint", "registry_epoch_fingerprint", "stored_isa_receipt", "current_isa_receipt", "current_context_fingerprint", "stored_admission_receipt", "stored_activation_receipt", "stored_activation_fingerprint", "stored_generation_fingerprint", "event_chain_fingerprint", "current_working_set_receipt", "current_presence_semantic_receipt", "current_presence_execution_receipt", "current_producer_receipt", "current_staged_stream_receipt", "current_sink_artifacts_fingerprint", "unicode_root_receipt", "unicode_activation_epoch_fingerprint", "stored_working_set_receipt", "stored_producer_receipt")
+    require_exact_keys(proof, set(fields128 + fields256) | {"registry_version", "activation_sequence", "kind_count", "alias_count", "disposition_count", "canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count", "historical_composition_receipt_present", "historical_intermediate_receipts_verified", "activation_performed", "status"}, "committed Highway native result")
+    if (type(proof["historical_composition_receipt_present"]) is not bool
+            or proof["historical_intermediate_receipts_verified"] is not False):
+        raise ActivationGatewayError("committed Highway historical coverage differs")
     for fields, length in ((fields128, 32), (fields256, 64)):
         for name in fields:
             value = require_hex(proof.get(name), re.compile(r"[0-9a-f]{" + str(length) + r"}\Z"), name)
@@ -788,7 +791,10 @@ def highway_aggregate_fields(receipt: dict[str, Any]) -> dict[str, Any]:
     if receipt.get("schema") == HIGHWAY_REVALIDATION_SCHEMA:
         return {"phase": HIGHWAY_REVALIDATION_PHASE,
                 "highway_revalidation_receipt_sha256": receipt["receipt_sha256"],
-                "highway_activation_performed": False, "highway_historical_request_present": False}
+                "highway_activation_performed": False, "highway_historical_request_present": False,
+                **{"highway_" + name: receipt["revalidation"][name] for name in (
+                    "stored_working_set_receipt", "stored_producer_receipt",
+                    "historical_composition_receipt_present", "historical_intermediate_receipts_verified")}}
     return {"phase": "product-unicode-and-highway-activated",
             "highway_activation_receipt_sha256": receipt["receipt_sha256"]}
 
@@ -797,9 +803,14 @@ def validate_product_terminal_result(result: dict[str, Any]) -> None:
     if result.get("phase") == HIGHWAY_REVALIDATION_PHASE:
         if (result.get("highway_activation_performed") is not False
                 or result.get("highway_historical_request_present") is not False
+                or type(result.get("highway_historical_composition_receipt_present")) is not bool
+                or result.get("highway_historical_intermediate_receipts_verified") is not False
                 or "highway_activation_receipt_sha256" in result):
             raise ActivationGatewayError("product revalidation was mislabeled as activation")
         require_hex(result.get("highway_revalidation_receipt_sha256"), HEX_64, "Highway revalidation receipt")
+        for name in ("highway_stored_working_set_receipt", "highway_stored_producer_receipt"):
+            if set(require_hex(result.get(name), HEX_64, name)) == {"0"}:
+                raise ActivationGatewayError(f"product revalidation stored reference is empty: {name}")
     elif result.get("phase") != "product-unicode-and-highway-activated" or "highway_revalidation_receipt_sha256" in result:
         raise ActivationGatewayError("product did not reach an exact terminal phase")
 

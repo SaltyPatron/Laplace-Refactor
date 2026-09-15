@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import threading
 import unittest
@@ -37,7 +38,10 @@ class CommittedRevalidationTests(unittest.TestCase):
             unicode_activation_epoch_id=self.fixture.unicode_receipt["activation_epoch_id"],
             unicode_activation_epoch_fingerprint=self.fixture.unicode_receipt["activation_epoch_fingerprint"],
             activation_performed=False, canonical_entity_count=25, canonical_physicality_count=25,
-            transient_occurrence_count=25)
+            transient_occurrence_count=25, historical_composition_receipt_present=False,
+            historical_intermediate_receipts_verified=False)
+        self.proof["stored_working_set_receipt"] = "a3" * 32
+        self.proof["stored_producer_receipt"] = "a4" * 32
         self.proof["current_isa_receipt"] = "c3" * 32
         self.readback = self.fixture.readback({**self.proof,
             "activation_receipt": self.proof["stored_activation_receipt"],
@@ -92,6 +96,11 @@ class CommittedRevalidationTests(unittest.TestCase):
         self.assertNotIn("activation", receipt)
         self.assertEqual(receipt["revalidation"]["stored_isa_receipt"], "b2" * 32)
         self.assertEqual(receipt["revalidation"]["current_isa_receipt"], "c3" * 32)
+        self.assertEqual(len(receipt["revalidation"]), 37)
+        self.assertEqual(receipt["revalidation"]["stored_working_set_receipt"], "a3" * 32)
+        self.assertEqual(receipt["revalidation"]["stored_producer_receipt"], "a4" * 32)
+        self.assertFalse(receipt["revalidation"]["historical_composition_receipt_present"])
+        self.assertFalse(receipt["revalidation"]["historical_intermediate_receipts_verified"])
         request = receipt["revalidation_request"]
         self.assertEqual(receipt["request_sha256"], h.unicodectl.sha256_bytes(h.unicodectl.canonical_bytes(request)))
         self.assertEqual(request["context_epochs"]["numeric_epoch"], self.inspection["highway_epoch_fingerprint"])
@@ -99,6 +108,10 @@ class CommittedRevalidationTests(unittest.TestCase):
         self.assertEqual(request["historical_reference"]["status"], "external-log-reference-only")
         native = next(text for label, text, _ in self.calls if label == "revalidate-committed-highway-registry")
         self.assertIn("highway_registry_revalidate_committed", native)
+        for name in ("stored_working_set_receipt", "stored_producer_receipt"):
+            self.assertIn(f"'{name}',encode({name},'hex')", native)
+        for name in ("historical_composition_receipt_present", "historical_intermediate_receipts_verified"):
+            self.assertIn(f"'{name}',{name}", native)
         self.assertNotIn("admit_and_activate", native)
         self.assertTrue(native.endswith("COMMIT;\n"))
         self.assertIn(("cold-application-highway-revalidation-readback", self.fixture.cluster["instance"]["app_role"]),
@@ -107,6 +120,49 @@ class CommittedRevalidationTests(unittest.TestCase):
         self.assertFalse(old_directory.exists())
         path = old_directory.parent / "highway-revalidation" / receipt["request_sha256"] / "receipt.json"
         self.assertEqual(json.loads(path.read_text()), receipt)
+
+    def test_present_composition_summary_does_not_promote_historical_verification(self):
+        self.proof["historical_composition_receipt_present"] = True
+        receipt = self.execute()
+        self.assertTrue(receipt["revalidation"]["historical_composition_receipt_present"])
+        self.assertFalse(receipt["revalidation"]["historical_intermediate_receipts_verified"])
+        self.assertEqual(receipt["revalidation"], receipt["cold_revalidation"])
+        for name in ("working_set_receipt", "producer_receipt"):
+            self.assertNotEqual(receipt["revalidation"]["stored_" + name], receipt["revalidation"]["current_" + name])
+
+    def test_json_transport_matches_every_native_result_field_and_bytea_encoding(self):
+        source = (fixture.REPOSITORY / "integrations/postgresql/extension/laplace--version.sql.in").read_text()
+        declaration = source.split(".highway_registry_revalidation_result AS (", 1)[1].split("\n);", 1)[0]
+        members = dict(line.strip().removesuffix(",").split(maxsplit=1)
+                       for line in declaration.splitlines() if line.strip())
+        sql = r.render_sql(h, self.fixture.contract, self.fixture.identities,
+                           self.fixture.unicode_receipt, self.inspection)
+        expressions = re.findall(r"'([a-z_]+)',(encode\([a-z_]+,'hex'\)|[a-z_]+)", sql)
+        self.assertEqual(len(expressions), 37)
+        self.assertEqual(set(members), {name for name, _ in expressions})
+        for name, expression in expressions:
+            self.assertEqual(expression, f"encode({name},'hex')" if members[name] == "bytea" else name)
+        self.assertEqual(set(self.proof), set(members))
+
+    def test_stored_references_and_historical_coverage_are_required_and_typed(self):
+        changes = [("historical_composition_receipt_present", 0),
+                   ("historical_composition_receipt_present", None),
+                   ("historical_intermediate_receipts_verified", True),
+                   ("historical_intermediate_receipts_verified", 0)]
+        for name in ("stored_working_set_receipt", "stored_producer_receipt"):
+            changes.extend((name, value) for value in (None, "00" * 32, "a3" * 16))
+        for name, value in changes:
+            with self.subTest(name=name, value=value):
+                invalid = {**self.proof, name: value}
+                with self.assertRaises(h.HighwayActivationError):
+                    r.validate_result(h, invalid, self.fixture.contract, self.fixture.unicode_receipt, self.inspection)
+        for name in ("stored_working_set_receipt", "stored_producer_receipt",
+                     "historical_composition_receipt_present", "historical_intermediate_receipts_verified"):
+            with self.subTest(missing=name):
+                invalid = dict(self.proof)
+                invalid.pop(name)
+                with self.assertRaisesRegex(h.HighwayActivationError, "fields differ"):
+                    r.validate_result(h, invalid, self.fixture.contract, self.fixture.unicode_receipt, self.inspection)
 
     def test_absent_opt_in_preserves_original_missing_retention_failure(self):
         with self.assertRaisesRegex(h.HighwayActivationError, "lacks retained admission"):
@@ -239,6 +295,16 @@ class CommittedRevalidationTests(unittest.TestCase):
         self.cold_proof_override = {**self.proof, "status": False}
         with self.assertRaisesRegex(h.HighwayActivationError, "cold native"):
             self.execute()
+
+    def test_cold_native_stored_references_and_coverage_must_match_exactly(self):
+        for name, value in (("stored_working_set_receipt", "d4" * 32),
+                            ("stored_producer_receipt", "d4" * 32),
+                            ("historical_composition_receipt_present", True),
+                            ("historical_intermediate_receipts_verified", True)):
+            with self.subTest(name=name):
+                self.cold_proof_override = {**self.proof, name: value}
+                with self.assertRaisesRegex(h.HighwayActivationError, "cold native"):
+                    self.execute()
 
 
 if __name__ == "__main__": unittest.main(verbosity=2)

@@ -1,7 +1,7 @@
 {
   "schema": "laplace.chess-benchmark-contract/v1",
   "authority": "contracts/benchmark-suite.json",
-  "execution": "explicit-manual-or-user-authorized-chess-change-deployment-calibration",
+  "execution": "explicit-manual-or-user-authorized-chess-change-candidate-and-deployment-calibration",
   "profiles": {
     "stockfish": "upstream built-in fixed-depth bench; bind benchmark.cpp, source revision, executable, NNUE, options and actual variable node workload",
     "cutechess": "paired-color Stockfish self-play with ponder disabled, fixed game depth and maximum moves; bind PGN and process identities"
@@ -65,6 +65,7 @@
   "candidate_calibration": {
     "authorization": "Same-repository pull requests with selected chess dependency or calibration changes may run source dependency builds and machine calibration after required source and hosted proofs.",
     "gate": "same-repository pull request with exact chess change selection, successful hosted proof, and successful source/custom-stack proof",
-    "evidence_scope": "candidate dependency measurements, separate from deployed product activation and core benchmark scheduling"
+    "evidence_scope": "candidate dependency measurements, separate from deployed product activation and core benchmark scheduling",
+    "acceptance": "selected candidate calibration must succeed before product-path and its protected check aliases can pass"
   }
 }

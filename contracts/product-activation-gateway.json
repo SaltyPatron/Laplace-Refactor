@@ -93,7 +93,7 @@
     "allow_exact_success_replay": true,
     "highway_revalidation": {
       "contract_path": "contracts/highway-committed-revalidation.json",
-      "contract_sha256": "3e3d18fe1726a2a8fcecc22a0a6ee6af033e19d33d9757952dc274b80b44bc28",
+      "contract_sha256": "f53d899c48621dfd889ae9dd59779f366002bb48144a7dfed5905713555d11fd",
       "receipt_schema": "laplace.highway-committed-revalidation-receipt/v1",
       "phase": "committed-state-revalidated"
     }

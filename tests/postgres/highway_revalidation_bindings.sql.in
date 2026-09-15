@@ -69,6 +69,20 @@ BEGIN
     IF NOT detected THEN RAISE EXCEPTION 'unowned native verifier was accepted'; END IF;
     INSERT INTO highway_revalidation_binding_checks VALUES('detached-extension-function-rejected');
     RAISE NOTICE 'LAPLACE_HIGHWAY_REVALIDATION_BINDING_REJECTED detached-extension-function';
+    detected := false;
+    BEGIN
+        ALTER INDEX laplace.composition_execution_receipt_staged_stream_idx
+            RENAME TO composition_execution_receipt_staged_stream_saved;
+        CREATE INDEX composition_execution_receipt_staged_stream_idx
+            ON laplace.composition_execution_receipt(producer_receipt);
+        EXECUTE program;
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM NOT LIKE '%composition receipt index differs%' THEN RAISE; END IF;
+        detected := true;
+    END;
+    IF NOT detected THEN RAISE EXCEPTION 'wrong receipt lookup index was accepted'; END IF;
+    INSERT INTO highway_revalidation_binding_checks VALUES('wrong-receipt-index-rejected');
+    RAISE NOTICE 'LAPLACE_HIGHWAY_REVALIDATION_BINDING_REJECTED wrong-receipt-index';
 END $reject_binding_corruption$;
 
 DO $verify_metadata_unchanged$

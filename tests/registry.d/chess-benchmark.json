@@ -39,7 +39,8 @@
         "bounded read-only retained Highway evidence",
         "absence and symlink diagnostics",
         "exact retained source bytes",
-        "chess-only deployment calibration selection and successful-main gate"
+        "chess-only deployment calibration selection and successful-main gate",
+        "selected candidate calibration participates in the protected aggregate check"
       ],
       "defect_controls": [
         "overlapping callers enter critical workload together",
@@ -50,7 +51,8 @@
         "unrelated library change triggers chess calibration",
         "changed Stockfish or NNUE misses calibration",
         "failed activation or PR admits deployment calibration",
-        "core benchmark scheduling silently broadened"
+        "core benchmark scheduling silently broadened",
+        "failed or skipped selected candidate calibration produces a passing aggregate"
       ]
     }
   ]
