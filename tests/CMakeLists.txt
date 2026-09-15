@@ -2810,6 +2810,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/highway_revalidation_bindings.sql.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/highway_revalidation_bindings.sql"
+        @ONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/persistence_concurrency_call.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/persistence_concurrency_call.sql"
         COPYONLY)

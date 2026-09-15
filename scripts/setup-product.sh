@@ -27,6 +27,18 @@ echo 'Reconciling PostgreSQL, Unicode and Highway with existing state.'
 python3 tools/delivery/product_activation_reconcile.py --product-receipt "$receipt" \
     --resource-observation "$work/resources.json" --repository-commit "$(git -c safe.directory="$PWD" rev-parse HEAD)" \
     --output "$work/activation.json"
-jq -e --arg package "$package" '.phase == "product-unicode-and-highway-activated" and .package_id == $package and .execution_owner == "laplace-runner"' "$work/activation.json" >/dev/null
+jq -e --arg package "$package" '
+    .schema == "laplace.product-activation-result/v1" and
+    ((.phase == "product-unicode-and-highway-activated" and
+      (has("highway_revalidation_receipt_sha256") | not) and
+      (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))) or
+     (.phase == "product-unicode-activated-and-highway-revalidated" and
+      .highway_activation_performed == false and
+      .highway_historical_request_present == false and
+      (has("highway_activation_receipt_sha256") | not) and
+      (.highway_revalidation_receipt_sha256 | test("^[0-9a-f]{64}$")))) and
+    .package_id == $package and .execution_owner == "laplace-runner" and
+    .root_product_executor == false
+' "$work/activation.json" >/dev/null
 python3 tools/delivery/product_cognition_live_proof.py --output "$work/cognition.json"
 echo "Product activation and installed cognition readback completed. Evidence: $work"

@@ -41,6 +41,10 @@ function(laplace_configure_postgresql_bindings
         "${contract_json}" bindings postgresql highway_registry_materialize_batch resolve_sql_name)
     string(JSON highway_registry_resolve_symbol GET
         "${contract_json}" bindings postgresql highway_registry_materialize_batch resolve_c_symbol)
+    string(JSON highway_registry_revalidate_sql GET
+        "${contract_json}" bindings postgresql highway_registry_materialize_batch revalidate_sql_name)
+    string(JSON highway_registry_revalidate_symbol GET
+        "${contract_json}" bindings postgresql highway_registry_materialize_batch revalidate_c_symbol)
     string(JSON evidence_record_sql GET
         "${contract_json}" bindings postgresql evidence_record_lineage_batch record_sql_name)
     string(JSON evidence_record_symbol GET
@@ -183,6 +187,7 @@ function(laplace_configure_postgresql_bindings
         highway_execute_sql highway_execute_symbol
         highway_registry_activate_sql highway_registry_activate_symbol
         highway_registry_resolve_sql highway_registry_resolve_symbol
+        highway_registry_revalidate_sql highway_registry_revalidate_symbol
         evidence_record_sql evidence_record_symbol
         evidence_testimony_sql evidence_testimony_symbol
         evidence_standing_sql evidence_standing_symbol
@@ -242,6 +247,10 @@ function(laplace_configure_postgresql_bindings
         "${highway_registry_resolve_sql}")
     set(LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SYMBOL
         "${highway_registry_resolve_symbol}")
+    set(LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SQL
+        "${highway_registry_revalidate_sql}")
+    set(LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL
+        "${highway_registry_revalidate_symbol}")
     set(LAPLACE_PG_EVIDENCE_RECORD_SQL "${evidence_record_sql}")
     set(LAPLACE_PG_EVIDENCE_RECORD_SYMBOL "${evidence_record_symbol}")
     set(LAPLACE_PG_EVIDENCE_TESTIMONY_SQL "${evidence_testimony_sql}")
@@ -338,6 +347,18 @@ function(laplace_configure_postgresql_bindings
     set(public_readback_sql "${extension_output_directory}/laplace-public-readback.sql")
     configure_file("${extension_source_directory}/public_readback.sql.in"
         "${public_readback_sql}" @ONLY)
+    # One generated declaration defines both new and installed extension types.
+    file(READ "${sql_output}" revalidation_install_sql)
+    string(REGEX MATCH "CREATE TYPE ${LAPLACE_PG_SCHEMA}\\.highway_registry_revalidation_result AS [(][^;]+;"
+        LAPLACE_PG_HIGHWAY_REVALIDATION_TYPE_SQL "${revalidation_install_sql}")
+    if(NOT LAPLACE_PG_HIGHWAY_REVALIDATION_TYPE_SQL)
+        message(FATAL_ERROR "Highway committed revalidation result declaration missing")
+    endif()
+    set(revalidation_sql "${extension_output_directory}/highway-committed-revalidation.sql")
+    configure_file("${extension_source_directory}/highway_committed_revalidation.sql.in"
+        "${revalidation_sql}" @ONLY)
+    file(READ "${revalidation_sql}" revalidation_bindings)
+    file(APPEND "${public_readback_sql}" "\n${revalidation_bindings}")
     file(READ "${public_readback_sql}" public_readback_bindings)
     file(APPEND "${sql_output}" "\n${public_readback_bindings}")
 endfunction()

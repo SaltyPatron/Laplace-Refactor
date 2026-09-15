@@ -9,9 +9,14 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
+
+import product_activation_runtime_adapter_tests as recovery_fixture
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -292,6 +297,52 @@ class ProductServiceStateTests(unittest.TestCase):
                 service_state.document_identity(persisted_boot, "receipt_sha256"),
             )
 
+    def test_new_revalidation_receipt_survives_enablement_and_cold_boot_without_activation_claim(self) -> None:
+        receipt = recovery_fixture.producer_revalidation(self)
+        with tempfile.TemporaryDirectory(prefix="laplace-service-revalidation-") as temporary, mock.patch(
+            __name__ + ".PACKAGE_ID", receipt["package_id"]
+        ), mock.patch(__name__ + ".SYSTEM_IDENTIFIER", receipt["system_identifier"]):
+            root = Path(temporary)
+            self.make_fixture(root)
+            product = self.gateway["product"]
+            cluster_result = service_state.load_json(self.physical(root,
+                Path(product["cluster_activation_root"]) / PACKAGE_ID / "activation-result.json"))
+            unicode_path = self.physical(root, product["unicode_result"])
+            unicode = service_state.load_json(unicode_path)
+            unicode.update(activation_epoch_id=receipt["revalidation"]["unicode_activation_epoch_id"],
+                activation_epoch_fingerprint=receipt["revalidation"]["unicode_activation_epoch_fingerprint"])
+            unicode = self.producer_receipt(unicode, "receipt_sha256")
+            unicode_path.write_text(json.dumps(unicode) + "\n")
+            links = {"cluster_plan_sha256": cluster_result["plan_sha256"],
+                     "cluster_activation_receipt_sha256": cluster_result["activation_receipt_sha256"],
+                     "unicode_activation_receipt_sha256": unicode["receipt_sha256"]}
+            receipt.update(links)
+            receipt["revalidation_request"].update(links)
+            recovery_fixture.resign_revalidation(receipt)
+            highway_path = self.physical(root, product["highway_result"])
+            highway_path.write_text(json.dumps(receipt) + "\n")
+            enabled = service_state.enable_product_service(self.gateway, self.cluster,
+                "62" * 32, root, ClusterModuleStub, self.loaded_observer, self.runner)
+            identity = enabled["product_identity"]
+            self.assertEqual(identity["highway_revalidation_receipt_sha256"], receipt["receipt_sha256"])
+            self.assertNotIn("highway_activation_receipt_sha256", identity)
+            self.assertFalse(identity["highway_activation_performed"])
+            self.assertFalse(identity["highway_historical_request_present"])
+            self.physical(root, self.gateway["service_state"]["boot_id_path"]).write_text(BOOT_B + "\n")
+            cold = service_state.cold_boot_readback(self.gateway, self.cluster,
+                "62" * 32, root, ClusterModuleStub, self.loaded_observer, self.runner)
+            self.assertTrue(cold["cold_boot_proven"])
+            self.assertEqual(cold["product_identity"], identity)
+
+            # A validly hashed but different native stored identity is not accepted.
+            receipt["revalidation"]["stored_activation_receipt"] = "f1" * 32
+            receipt["cold_revalidation"]["stored_activation_receipt"] = "f1" * 32
+            recovery_fixture.resign_revalidation(receipt)
+            highway_path.write_text(json.dumps(receipt) + "\n")
+            with self.assertRaisesRegex(service_state.ServiceStateError, "stored cold readback"):
+                service_state.inspect_product_state(self.gateway, self.cluster, root,
+                    ClusterModuleStub, self.loaded_observer)
+
     def test_receipt_or_active_pointer_drift_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory(prefix="laplace-service-drift-") as temporary:
             root = Path(temporary)
@@ -338,6 +389,22 @@ class ProductServiceStateTests(unittest.TestCase):
             source_map["controllers/product_service_state.py"],
             "tools/delivery/product_service_state.py",
         )
+        with tempfile.TemporaryDirectory(prefix="laplace-gateway-load-") as temporary:
+            bundle = Path(temporary)
+            for destination, source in source_map.items():
+                target = bundle / destination
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(REPOSITORY / source, target)
+            for controller in ("unicodectl.py", "highwayctl.py"):
+                process = subprocess.run([sys.executable, str(bundle / "controllers" / controller), "--help"],
+                    cwd=bundle, capture_output=True, text=True, timeout=10)
+                self.assertEqual(process.returncode, 0, process.stderr)
+                self.assertIn("usage:", process.stdout)
+            (bundle / "controllers/unicodectl_core.py").unlink()
+            broken = subprocess.run([sys.executable, str(bundle / "controllers/highwayctl.py"), "--help"],
+                cwd=bundle, capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(broken.returncode, 0)
+            self.assertIn("unicodectl_core.py", broken.stderr)
 
     def test_installer_owns_path_trigger_and_boot_readback_units(self) -> None:
         installer = (

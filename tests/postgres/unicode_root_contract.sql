@@ -1,6 +1,7 @@
 \timing on
 
 CREATE EXTENSION laplace;
+\ir highway_revalidation_bindings.sql
 
 CREATE FUNCTION pg_temp.unicode_root_context()
 RETURNS laplace.execution_context
@@ -623,3 +624,187 @@ WHERE source_fingerprint = (SELECT root_receipt FROM unicode_build_result)
   AND attestation_kind = 3
   AND source_ordinal IN (1, 66, 1114112)
 ORDER BY source_ordinal;
+
+-- A current verification checkpoint cannot recreate a missing historical request.
+-- Recompose under the active numeric epoch and a new current resource context;
+-- verify every existing canonical registry field without another activation.
+CREATE FUNCTION pg_temp.highway_revalidation_context()
+RETURNS laplace.execution_context
+LANGUAGE plpgsql STABLE PARALLEL UNSAFE
+AS $context$
+DECLARE result laplace.execution_context;
+BEGIN
+    result := pg_temp.highway_registry_read_context();
+    result.flags := @LAPLACE_FRAMEWORK_CONTEXT_BOOTSTRAP@;
+    result.cpu_slots := 3;
+    RETURN result;
+END
+$context$;
+
+CREATE FUNCTION pg_temp.highway_revalidation_state()
+RETURNS jsonb
+LANGUAGE SQL VOLATILE PARALLEL UNSAFE
+AS $state$
+SELECT jsonb_build_object(
+    'generation', (SELECT jsonb_agg(to_jsonb(g) ORDER BY registry_version)
+                   FROM laplace.highway_registry_generation g),
+    'events', (SELECT jsonb_agg(to_jsonb(e) ORDER BY sequence)
+              FROM laplace.highway_registry_activation_event e),
+    'control', (SELECT to_jsonb(c) FROM laplace.highway_registry_active_control c WHERE singleton),
+    'kinds', (SELECT jsonb_agg(to_jsonb(p) ORDER BY kind_id) FROM laplace.highway_registry_kind_projection p),
+    'aliases', (SELECT jsonb_agg(to_jsonb(p) ORDER BY alias_name_entity_id) FROM laplace.highway_registry_alias_projection p),
+    'dispositions', (SELECT jsonb_agg(to_jsonb(p) ORDER BY disposition_id) FROM laplace.highway_registry_disposition_projection p),
+    'entities', (SELECT count(*) FROM laplace.entity),
+    'physicalities', (SELECT count(*) FROM laplace.physicality),
+    'attestations', (SELECT count(*) FROM laplace.attestation),
+    'execution_receipts', (SELECT count(*) FROM laplace.execution_receipt),
+    'composition_receipts', (SELECT count(*) FROM laplace.composition_execution_receipt),
+    'composition_members', (SELECT count(*) FROM laplace.composition_execution_occurrence_member),
+    'deposit_receipts', (SELECT count(*) FROM laplace.canonical_deposit_receipt)
+)
+$state$;
+
+CREATE TEMP TABLE highway_revalidation_before AS
+SELECT pg_temp.highway_revalidation_state() AS state;
+
+-- The function must undo its own transient writes even when its caller commits.
+BEGIN;
+CREATE TEMP TABLE highway_revalidation_first AS
+SELECT proof.* FROM laplace.highway_registry_revalidate_committed(
+    pg_temp.highway_revalidation_context(), 1048576::numeric) proof;
+COMMIT;
+CREATE TEMP TABLE highway_revalidation_second AS
+SELECT proof.* FROM laplace.highway_registry_revalidate_committed(
+    pg_temp.highway_revalidation_context(), 1048576::numeric) proof;
+
+DO $revalidation$
+DECLARE
+    first highway_revalidation_first%ROWTYPE;
+    second highway_revalidation_second%ROWTYPE;
+    active highway_registry_active%ROWTYPE;
+BEGIN
+    SELECT * INTO STRICT first FROM highway_revalidation_first;
+    SELECT * INTO STRICT second FROM highway_revalidation_second;
+    SELECT * INTO STRICT active FROM highway_registry_active;
+    IF first IS DISTINCT FROM second OR first.status <> 0
+       OR first.activation_performed IS DISTINCT FROM false
+       OR octet_length(first.verification_receipt) <> 32
+       OR octet_length(first.event_chain_fingerprint) <> 32
+       OR octet_length(first.stored_generation_fingerprint) <> 32
+       OR first.root_entity_id <> active.root_entity_id
+       OR first.root_physicality_id <> active.root_physicality_id
+       OR first.registry_epoch_id <> active.registry_epoch_id
+       OR first.registry_epoch_fingerprint <> active.registry_epoch_fingerprint
+       OR first.activation_sequence <> active.activation_sequence
+       OR first.stored_activation_receipt <> active.activation_receipt
+       OR first.stored_admission_receipt = first.stored_activation_receipt
+       OR first.stored_activation_fingerprint <> active.activation_fingerprint
+       OR first.stored_isa_receipt <> (SELECT isa_receipt FROM highway_registry_result)
+       OR first.current_isa_receipt = first.stored_isa_receipt
+       OR first.kind_count <> 17 OR first.alias_count <> 0 OR first.disposition_count <> 8
+       OR first.canonical_entity_count <= 24 OR first.canonical_physicality_count <= 24
+       OR first.transient_occurrence_count <= 0
+       OR pg_temp.highway_revalidation_state() <> (SELECT state FROM highway_revalidation_before) THEN
+        RAISE EXCEPTION 'new native Highway proof changed historical state or lost current-context provenance: %', first;
+    END IF;
+END
+$revalidation$;
+
+BEGIN;
+SELECT verification_receipt FROM laplace.highway_registry_revalidate_committed(
+    pg_temp.highway_revalidation_context(), 1048576::numeric);
+ROLLBACK;
+
+CREATE FUNCTION pg_temp.highway_revalidation_rejects(mutation text, expected_detail text)
+RETURNS void LANGUAGE plpgsql VOLATILE PARALLEL UNSAFE AS $test$
+BEGIN
+    BEGIN
+        EXECUTE mutation;
+        PERFORM laplace.highway_registry_revalidate_committed(
+            pg_temp.highway_revalidation_context(), 1048576::numeric);
+        RAISE EXCEPTION USING ERRCODE='check_violation', MESSAGE='corrupted Highway registry was accepted';
+    EXCEPTION WHEN data_corrupted THEN
+        IF position(expected_detail IN SQLERRM) = 0 THEN
+            RAISE EXCEPTION 'wrong rejection for %: %', expected_detail, SQLERRM;
+        END IF;
+    END;
+END
+$test$;
+
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.highway_registry_kind_projection SET retired=2 WHERE kind_id=1',
+    'highway_registry_kind_projection');
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.highway_registry_disposition_projection SET name_entity_id=(SELECT entity_id FROM laplace.attestation WHERE attestation_kind=3 AND source_ordinal=66 LIMIT 1) WHERE disposition_id=1',
+    'highway_registry_disposition_projection');
+SELECT pg_temp.highway_revalidation_rejects(
+    'INSERT INTO laplace.highway_registry_alias_projection SELECT activation_epoch_id,activation_epoch_fingerprint,name_entity_id,kind_id,introduced,retired FROM laplace.highway_registry_kind_projection WHERE kind_id=1',
+    'highway_registry_alias_projection');
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.highway_registry_generation SET root_entity_id=(SELECT entity_id FROM laplace.attestation WHERE attestation_kind=3 AND source_ordinal=66 LIMIT 1)',
+    'canonical root entity');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.entity SET identity_witness=set_byte(identity_witness,31,get_byte(identity_witness,31)#1) WHERE entity_id=(SELECT root_entity_id FROM laplace.highway_registry_generation)$$,
+    'different canonical fields');
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.physicality SET radius=CASE WHEN radius=0 THEN 0.125 ELSE radius/2 END WHERE physicality_id=(SELECT root_physicality_id FROM laplace.highway_registry_generation)',
+    'different canonical fields');
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.physicality SET trajectory=set_byte(trajectory,0,get_byte(trajectory,0)#1) WHERE physicality_id=(SELECT root_physicality_id FROM laplace.highway_registry_generation)',
+    'stored trajectory bytes differ');
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.physicality SET trajectory=set_byte(trajectory,0,get_byte(trajectory,0)#1) WHERE entity_id=(SELECT name_entity_id FROM laplace.highway_registry_kind_projection WHERE kind_id=1) AND vertex_count>0',
+    'stored trajectory bytes differ');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.highway_registry_generation SET recipe_fingerprint=decode(repeat('ff',32),'hex')$$,
+    'canonical recipe');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.highway_registry_generation SET working_set_receipt=decode(repeat('ff',32),'hex')$$,
+    'original receipt links');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.highway_registry_activation_event SET activation_receipt=decode(repeat('ff',32),'hex')$$,
+    'native admission/final activation receipt identity');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.highway_registry_activation_event SET activation_receipt=admission_receipt$$,
+    'native admission/final activation receipt identity');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$WITH changed AS (UPDATE laplace.highway_registry_activation_event SET activation_receipt=decode(repeat('ff',32),'hex') RETURNING activation_receipt) UPDATE laplace.highway_registry_active_control SET activation_receipt=(SELECT activation_receipt FROM changed)$$,
+    'native admission/final activation receipt identity');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.execution_receipt SET context_fingerprint=decode(repeat('ff',32),'hex') WHERE receipt_id=(SELECT isa_receipt FROM laplace.highway_registry_generation)$$,
+    'original receipt links');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.highway_registry_activation_event SET activation_fingerprint=decode(repeat('ff',32),'hex')$$,
+    'native activation commit fingerprint');
+SELECT pg_temp.highway_revalidation_rejects(
+    'DELETE FROM laplace.highway_registry_activation_event',
+    'contiguous activation event chain');
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.highway_registry_activation_event SET sequence=2',
+    'activation event sequence gap');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.highway_registry_active_control SET admission_receipt=decode(repeat('ff',32),'hex')$$,
+    'event/control admission');
+
+DO $revalidation$
+DECLARE context laplace.execution_context;
+BEGIN
+    IF pg_temp.highway_revalidation_state() <> (SELECT state FROM highway_revalidation_before) THEN
+        RAISE EXCEPTION 'negative controls or caller rollback changed committed Highway state';
+    END IF;
+    BEGIN
+        -- Forward verification must not change the existing activation law.
+        context := pg_temp.highway_registry_read_context();
+        context.flags := @LAPLACE_FRAMEWORK_CONTEXT_BOOTSTRAP@;
+        PERFORM laplace.highway_registry_admit_and_activate(context,1048576::numeric);
+        RAISE EXCEPTION USING ERRCODE='check_violation', MESSAGE='active-to-active activation became accepted';
+    EXCEPTION WHEN data_exception THEN
+        IF position('numeric epoch activation failed' IN SQLERRM)=0 THEN RAISE; END IF;
+    END;
+    BEGIN
+        PERFORM laplace.highway_registry_revalidate_committed(pg_temp.highway_registry_read_context(),1048576::numeric);
+        RAISE EXCEPTION USING ERRCODE='check_violation', MESSAGE='read-only context authorized transient writes';
+    EXCEPTION WHEN invalid_parameter_value THEN NULL;
+    END;
+END
+$revalidation$;

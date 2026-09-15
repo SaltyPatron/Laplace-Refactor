@@ -380,7 +380,14 @@ jobs:
             --arg package_id '${{ needs.compose-product.outputs.package_id }}' \
             --arg repository_commit "$GITHUB_SHA" '
             .schema == "laplace.product-activation-result/v1" and
-            .phase == "product-unicode-and-highway-activated" and
+            ((.phase == "product-unicode-and-highway-activated" and
+              (has("highway_revalidation_receipt_sha256") | not) and
+              (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))) or
+             (.phase == "product-unicode-activated-and-highway-revalidated" and
+              .highway_activation_performed == false and
+              .highway_historical_request_present == false and
+              (has("highway_activation_receipt_sha256") | not) and
+              (.highway_revalidation_receipt_sha256 | test("^[0-9a-f]{64}$")))) and
             .execution_owner == "laplace-runner" and
             .root_product_executor == false and
             .package_id == $package_id and
@@ -388,7 +395,6 @@ jobs:
             (.package_installation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.cluster_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.unicode_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
-            (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.result_sha256 | test("^[0-9a-f]{64}$"))
           ' "$result" >/dev/null
           printf 'LAPLACE_PRODUCT_ACTIVATION_RESULT=%s\n' "$result" >> "$GITHUB_ENV"

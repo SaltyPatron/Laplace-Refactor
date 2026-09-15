@@ -12,6 +12,8 @@
 #include "funcapi.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/memutils.h"
+#include "utils/resowner.h"
 
 #include "blake3.h"
 #include "laplace/highway.h"
@@ -23,6 +25,7 @@
 
 PG_FUNCTION_INFO_V1(LAPLACE_PG_HIGHWAY_REGISTRY_ACTIVATE_SYMBOL);
 PG_FUNCTION_INFO_V1(LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SYMBOL);
+PG_FUNCTION_INFO_V1(LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL);
 
 typedef struct laplace_pg_highway_activation_state {
     const laplace_highway_registry_receipt* registry;
@@ -1297,3 +1300,5 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_RESOLVE_SYMBOL(PG_FUNCTION_ARGS) {
     }
     return HeapTupleGetDatum(result_tuple);
 }
+
+#include "highway_registry_revalidate_pg.inc"

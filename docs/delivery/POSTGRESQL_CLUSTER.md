@@ -168,6 +168,38 @@ The normal operator does not run `unicodectl.py` with sudo. The accepted-main ru
 
 Highway activation consumes the exact cluster and Unicode receipts, selected registry version/predecessor, and native/SQL implementation. It executes as `laplace-runner`. Its restart obligation is fulfilled through packaged `pg_ctl`, and the cold application role must read back the active registry before the Highway receipt is accepted.
 
+An existing active registry normally requires its exact retained admission request
+for replay. A present invalid request still fails that boundary. If the request
+retention is absent, `contracts/highway-committed-revalidation.json` selects one
+explicit database identity, registry epoch and sequence for a new current-state
+verification. Passing that contract is required; ordinary activation does not
+silently select recovery. The historical request hash is retained solely as a
+reference to the original Actions log.
+
+The native `highway_registry_revalidate_committed` operation rebuilds the registry
+through ISA materialization, active Unicode resolution, canonical AST construction
+and shared composition. It verifies the committed root, generation, projections,
+original receipt links and activation event chain. Its internal subtransaction
+rolls back transient composition effects before returning, including when its SQL
+caller commits. The activation provider is never called by this verification.
+
+The controller repeats that complete native verification after a product restart
+and requires the same proof, followed by a cold application-role readback and
+unchanged loaded package/configuration identity. Original stored ISA and activation
+receipts remain separate from current verification and read-operation receipts.
+The immutable request, native proofs and readback are retained under
+`highway-revalidation/<request-sha256>/`. Requests include the observed running
+process identity, so successive restart proofs preserve separate evidence.
+
+Successful recovery has receipt phase `committed-state-revalidated`, with
+`activation_performed=false` and `historical_request_present=false`. Its product
+result uses `product-unicode-activated-and-highway-revalidated` and
+`highway_revalidation_receipt_sha256`. These fields establish a new forward
+verification boundary while preserving the loss of original admission bytes.
+Native corruption rejection, caller-commit rollback behavior and existing-extension
+binding upgrades are exercised by the PostgreSQL acceptance suite; source inspection
+and controller fixtures alone do not prove those runtime properties.
+
 ## Resource derivation
 
 The co-resident resource policy declares bounds, not fixed host CPU IDs. Native execution authority measures topology, subtracts externally owned resources, issues a conserved grant, selects logical processors, and observes backing filesystems for data, WAL, and temporary state. The PostgreSQL plan consumes those receipts rather than reimplementing topology discovery in Python.

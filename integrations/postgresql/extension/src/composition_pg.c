@@ -13,6 +13,7 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/memutils.h"
 
 #include "blake3.h"
 #include "laplace/composition.h"
@@ -752,6 +753,108 @@ static ArrayType* result_id_array(
         }
     }
     return construct_array(values, (int)count, BYTEAOID, -1, false, TYPALIGN_INT);
+}
+
+void laplace_pg_composition_verify_stored_trajectories(
+    const laplace_pg_composition_execution* execution,
+    uint64_t maximum_batch_bytes) {
+    static const char query[] =
+        "SELECT u.ordinality,p.trajectory_fingerprint,"
+        "CASE WHEN octet_length(p.trajectory)=u.bytes THEN p.trajectory ELSE NULL END "
+        "FROM unnest($1::bytea[],$2::bigint[]) WITH ORDINALITY u(id,bytes,ordinality) "
+        "LEFT JOIN " LAPLACE_PG_SCHEMA ".physicality p ON p.physicality_id=u.id "
+        "ORDER BY u.ordinality";
+    size_t cursor = 0u;
+    if (execution == NULL || execution->results == NULL ||
+        maximum_batch_bytes == 0u || maximum_batch_bytes > (uint64_t)MaxAllocSize / 4u) {
+        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+            errmsg("Laplace stored trajectory verification requires a bounded byte grant")));
+    }
+    if (SPI_connect() != SPI_OK_CONNECT) {
+        ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+            errmsg("Laplace stored trajectory verification could not connect")));
+    }
+    while (cursor < execution->result_count) {
+        MemoryContext prior = CurrentMemoryContext;
+        MemoryContext batch_context = AllocSetContextCreate(prior,
+            "Laplace stored trajectory verification batch", ALLOCSET_SMALL_SIZES);
+        Datum identifiers[128];
+        Datum lengths[128];
+        Oid types[2] = {BYTEAARRAYOID, INT8ARRAYOID};
+        Datum parameters[2];
+        uint64_t batch_bytes = 0u;
+        size_t count = 0u;
+        size_t index;
+        int result;
+        MemoryContextSwitchTo(batch_context);
+        while (cursor < execution->result_count && count < 128u) {
+            const laplace_composition_result* item = &execution->results[cursor];
+            uint64_t bytes;
+            if (item->trajectory_vertex_count == 0u) {
+                ++cursor;
+                continue;
+            }
+            if (item->trajectory_vertex_count > maximum_batch_bytes / 32u) {
+                ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                    errmsg("Laplace stored trajectory exceeds verification byte grant")));
+            }
+            bytes = item->trajectory_vertex_count * 32u;
+            if (bytes > maximum_batch_bytes - batch_bytes) break;
+            identifiers[count] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+                item->physicality_id.bytes, sizeof(item->physicality_id.bytes)));
+            lengths[count] = Int64GetDatum((int64)bytes);
+            batch_bytes += bytes;
+            ++count;
+            ++cursor;
+        }
+        if (count != 0u) {
+            parameters[0] = PointerGetDatum(construct_array(
+                identifiers, (int)count, BYTEAOID, -1, false, TYPALIGN_INT));
+            parameters[1] = PointerGetDatum(construct_array(
+                lengths, (int)count, INT8OID, sizeof(int64), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE));
+            result = SPI_execute_with_args(query, 2, types, parameters, NULL, true, 0);
+            if (result != SPI_OK_SELECT || SPI_processed != (uint64)count || SPI_tuptable == NULL) {
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace stored trajectory verification returned a partial set")));
+            }
+            for (index = 0u; index < count; ++index) {
+                bool is_null = false;
+                HeapTuple row = SPI_tuptable->vals[index];
+                TupleDesc descriptor = SPI_tuptable->tupdesc;
+                Datum expected_value = SPI_getbinval(row, descriptor, 2, &is_null);
+                bytea* expected;
+                bytea* trajectory;
+                Datum trajectory_value;
+                laplace_digest256 actual;
+                if (is_null || tuple_uint64(row, descriptor, 1) != index + 1u) {
+                    ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                        errmsg("Laplace stored trajectory is absent or out of order")));
+                }
+                expected = DatumGetByteaPP(expected_value);
+                trajectory_value = SPI_getbinval(row, descriptor, 3, &is_null);
+                if (is_null) {
+                    ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                        errmsg("Laplace stored trajectory length differs from canonical reconstruction")));
+                }
+                trajectory = DatumGetByteaPP(trajectory_value);
+                if (laplace_persistence_trajectory_bytes_fingerprint(
+                        (const uint8_t*)VARDATA_ANY(trajectory),
+                        (size_t)VARSIZE_ANY_EXHDR(trajectory), &actual) != LAPLACE_PERSISTENCE_OK ||
+                    VARSIZE_ANY_EXHDR(expected) != sizeof(actual.bytes) ||
+                    memcmp(VARDATA_ANY(expected), actual.bytes, sizeof(actual.bytes)) != 0) {
+                    ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                        errmsg("Laplace stored trajectory bytes differ from canonical fingerprint")));
+                }
+            }
+            SPI_freetuptable(SPI_tuptable);
+        }
+        MemoryContextSwitchTo(prior);
+        MemoryContextDelete(batch_context);
+    }
+    if (SPI_finish() != SPI_OK_FINISH) {
+        ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+            errmsg("Laplace stored trajectory verification could not close")));
+    }
 }
 
 static ArrayType* result_tier_array(

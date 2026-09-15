@@ -32,6 +32,8 @@ class InstallError(RuntimeError):
 
 
 SOURCE_MAP = {
+    "contracts/highway-committed-revalidation.json": "contracts/highway-committed-revalidation.json",
+    "controllers/highway_revalidation.py": "tools/postgresql/highway_revalidation.py",
     "bin/laplace-product-activate": "tools/delivery/product_activation_gateway.py",
     "controllers/cluster_core.py": "tools/postgresql/cluster_core.py",
     "controllers/clusterctl.py": "tools/postgresql/clusterctl.py",
@@ -40,6 +42,7 @@ SOURCE_MAP = {
     "controllers/product_activation_impl.py": "tools/delivery/product_activation.py",
     "controllers/product_service_state.py": "tools/delivery/product_service_state.py",
     "controllers/unicodectl.py": "tools/postgresql/unicodectl.py",
+    "controllers/unicodectl_core.py": "tools/postgresql/unicodectl_core.py",
     "contracts/highway-product-activation.json": "contracts/highway-product-activation.json",
     "contracts/highway.json": "contracts/highway.json",
     "contracts/history/highway-v1.json": "contracts/history/highway-v1.json",

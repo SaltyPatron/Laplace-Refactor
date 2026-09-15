@@ -112,6 +112,13 @@ LAPLACE_API laplace_persistence_status laplace_persistence_trajectory_fingerprin
     size_t carrier_count,
     laplace_digest256* fingerprint);
 
+/* The same identity calculation for already-serialized canonical carrier bytes.
+ * This validates the nonempty carrier width, not the semantic carrier contents. */
+LAPLACE_API laplace_persistence_status laplace_persistence_trajectory_bytes_fingerprint(
+    const uint8_t* bytes,
+    size_t byte_count,
+    laplace_digest256* fingerprint);
+
 LAPLACE_API laplace_persistence_status laplace_persistence_plan_sequence_fingerprint(
     const uint32_t* plan_ids,
     size_t plan_count,

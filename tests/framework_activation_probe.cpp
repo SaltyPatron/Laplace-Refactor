@@ -133,5 +133,61 @@ int main() {
         std::fputs("framework-activation-cross-context\n", stderr);
         return 2;
     }
+
+    // A final committed receipt has a different identity from its admission.
+    // Validate stored evidence without another provider call or side effect.
+    if (laplace_framework_admit_staged_stream(
+            &context, &staged, &request, &provider, &receipt) != LAPLACE_FRAMEWORK_OK) {
+        return 3;
+    }
+    const auto admission = receipt.receipt_id;
+    if (laplace_framework_commit_admitted_stream(
+            &context, &request, &provider, &receipt) != LAPLACE_FRAMEWORK_OK ||
+        std::memcmp(admission.bytes, receipt.receipt_id.bytes, sizeof(admission.bytes)) == 0) {
+        std::fputs("framework-distinct-admission-final-receipts\n", stderr);
+        return 2;
+    }
+    const std::array<laplace_digest256, 6> evidence{{
+        receipt.context_fingerprint, receipt.staged_receipt_id,
+        receipt.preparation_fingerprint, receipt.activation_fingerprint,
+        admission, receipt.receipt_id}};
+    const auto verify = [](const auto& fields, const auto& input) {
+        return laplace_framework_committed_receipts_validate(
+            &fields[0], &fields[1], &input, &fields[2], &fields[3],
+            &fields[4], &fields[5]);
+    };
+    if (verify(evidence, request) != LAPLACE_FRAMEWORK_OK) {
+        std::fputs("framework-committed-receipt-revalidation\n", stderr);
+        return 2;
+    }
+    for (std::size_t index = 0; index < evidence.size(); ++index) {
+        auto corrupted = evidence;
+        corrupted[index].bytes[0] ^= UINT8_C(1);
+        if (verify(corrupted, request) != LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID) {
+            std::fputs("framework-committed-receipt-corruption\n", stderr);
+            return 2;
+        }
+    }
+    for (std::size_t index = 0; index < 5; ++index) {
+        auto corrupted = request;
+        switch (index) {
+            case 0: corrupted.expected_epoch.bytes[0] ^= UINT8_C(1); break;
+            case 1: corrupted.next_epoch.bytes[0] ^= UINT8_C(1); break;
+            case 2: corrupted.epoch_slot = LAPLACE_FRAMEWORK_EPOCH_NUMERIC; break;
+            case 3: corrupted.flags = UINT32_C(1); break;
+            default: corrupted.reserved = UINT64_C(1); break;
+        }
+        if (verify(evidence, corrupted) != LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID) {
+            std::fputs("framework-committed-request-corruption\n", stderr);
+            return 2;
+        }
+    }
+    auto false_final = evidence;
+    false_final[5] = admission;
+    if (verify(false_final, request) != LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID ||
+        state.prepare_count != 2u || state.commit_count != 1u) {
+        std::fputs("framework-committed-proof-changed-activation\n", stderr);
+        return 2;
+    }
     return 0;
 }

@@ -15,6 +15,8 @@ import json
 import os
 import pwd
 import re
+import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -450,13 +452,57 @@ def atomic_write(path: Path, content: bytes, mode: int = 0o640) -> None:
         raise
 
 
+def evidence_directory(path: Path) -> int:
+    """Open/create a physical evidence path without following parent aliases."""
+    if not path.is_absolute() or any(part in (".", "..") for part in path.parts):
+        raise UnicodeActivationError("evidence path is invalid")
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in path.parts[1:]:
+            try:
+                os.mkdir(part, mode=0o2770, dir_fd=descriptor)
+                os.fsync(descriptor)
+            except FileExistsError:
+                pass
+            following = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = following
+        return descriptor
+    except OSError as error:
+        os.close(descriptor)
+        raise UnicodeActivationError("evidence boundary is not physical") from error
+
+
 def write_immutable(path: Path, value: dict[str, Any]) -> None:
+    """Atomically publish exact new proof bytes; no replacement or symlink writes."""
     content = canonical_bytes(value)
-    if path.exists():
-        if not path.is_file() or path.is_symlink() or path.read_bytes() != content:
-            raise UnicodeActivationError(f"existing evidence differs: {path}")
-        return
-    atomic_write(path, content)
+    directory = evidence_directory(path.parent)
+    temporary = ".publish-" + secrets.token_hex(16)
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o640, dir_fd=directory)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        try:
+            os.link(temporary, path.name, src_dir_fd=directory, dst_dir_fd=directory, follow_symlinks=False)
+        except FileExistsError:
+            existing = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+            with os.fdopen(existing, "rb") as current:
+                metadata = os.fstat(current.fileno())
+                if not stat.S_ISREG(metadata.st_mode) or metadata.st_size != len(content) or current.read(len(content) + 1) != content:
+                    raise UnicodeActivationError("immutable evidence differs")
+        os.fsync(directory)
+    except OSError as error:
+        raise UnicodeActivationError("evidence publication failed") from error
+    finally:
+        try:
+            os.unlink(temporary, dir_fd=directory)
+        except FileNotFoundError:
+            pass
+        os.close(directory)
+
 
 
 def parse_single_json(text: str, label: str) -> dict[str, Any]:

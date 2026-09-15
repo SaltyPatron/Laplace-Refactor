@@ -168,6 +168,26 @@ static void carrier_load(
     }
 }
 
+static void trajectory_hash_begin(blake3_hasher* hasher) {
+    blake3_hasher_init(hasher);
+    blake3_hasher_update(hasher, TRAJECTORY_DOMAIN, sizeof(TRAJECTORY_DOMAIN) - 1u);
+}
+
+laplace_persistence_status laplace_persistence_trajectory_bytes_fingerprint(
+    const uint8_t* bytes,
+    size_t byte_count,
+    laplace_digest256* fingerprint) {
+    blake3_hasher hasher;
+    if (bytes == NULL || byte_count == 0u || byte_count % 32u != 0u ||
+        fingerprint == NULL) {
+        return LAPLACE_PERSISTENCE_INVALID_ARGUMENT;
+    }
+    trajectory_hash_begin(&hasher);
+    blake3_hasher_update(&hasher, bytes, byte_count);
+    finish_digest(&hasher, fingerprint);
+    return LAPLACE_PERSISTENCE_OK;
+}
+
 laplace_persistence_status laplace_persistence_trajectory_fingerprint(
     const laplace_trajectory_carrier* carriers,
     size_t carrier_count,
@@ -178,8 +198,7 @@ laplace_persistence_status laplace_persistence_trajectory_fingerprint(
     if (carriers == NULL || carrier_count == 0 || fingerprint == NULL) {
         return LAPLACE_PERSISTENCE_INVALID_ARGUMENT;
     }
-    blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, TRAJECTORY_DOMAIN, sizeof(TRAJECTORY_DOMAIN) - 1u);
+    trajectory_hash_begin(&hasher);
     for (index = 0; index < carrier_count; ++index) {
         carrier_store(&carriers[index], bytes);
         blake3_hasher_update(&hasher, bytes, sizeof(bytes));

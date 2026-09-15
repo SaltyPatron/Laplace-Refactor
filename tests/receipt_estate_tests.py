@@ -9,6 +9,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
+import product_activation_runtime_adapter_tests as recovery_fixture
+
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPOSITORY / "tools/delivery/receipt_estate.py"
@@ -46,6 +48,45 @@ class ReceiptEstateTests(unittest.TestCase):
             "package_id": package_id,
             "installation_receipt_sha256": "a" * 64,
         }
+
+    def test_revalidation_migrates_exact_bytes_separately_and_keeps_original_activation(self) -> None:
+        receipt = recovery_fixture.producer_revalidation(self)
+        package_root = self.instance / "cluster-activation" / receipt["package_id"]
+        original = package_root / "highway-product-activation.json"
+        self.write_json(original, {"schema": "laplace.highway-product-activation-receipt/v1", "package_id": receipt["package_id"]})
+        original_bytes = original.read_bytes()
+        source = self.instance / "highway-product-activation.json"
+        self.write_json(source, receipt)
+        exact = source.read_bytes()
+        result = ESTATE.converge(self.root, self.contract)
+        destination = package_root / "highway-committed-revalidation.json"
+        self.assertEqual(destination.read_bytes(), exact)
+        self.assertEqual(original.read_bytes(), original_bytes)
+        self.assertFalse(source.exists())
+        self.assertIn(str(destination), [item["destination"] for item in result["migrated"]])
+
+    def test_original_activation_cannot_be_relabelled_as_revalidation(self) -> None:
+        package_id = "42" * 32
+        source = self.instance / "highway-committed-revalidation.json"
+        self.write_json(source, {"schema": "laplace.highway-product-activation-receipt/v1", "package_id": package_id})
+        with self.assertRaisesRegex(ESTATE.ReceiptEstateError, "another receipt type"):
+            ESTATE.converge(self.root, self.contract)
+        self.assertTrue(source.is_file())
+        self.assertFalse((self.instance / "cluster-activation" / package_id / source.name).exists())
+
+    def test_invalid_revalidation_remains_in_place_without_publishing_activation(self) -> None:
+        receipt = recovery_fixture.producer_revalidation(self)
+        receipt["revalidation"]["verification_receipt"] = "00" * 32
+        receipt["cold_revalidation"]["verification_receipt"] = "00" * 32
+        recovery_fixture.resign_revalidation(receipt)
+        source = self.instance / "highway-committed-revalidation.json"
+        self.write_json(source, receipt)
+        with self.assertRaisesRegex(ESTATE.ReceiptEstateError, "native proof is empty"):
+            ESTATE.converge(self.root, self.contract)
+        self.assertTrue(source.is_file())
+        package_root = self.instance / "cluster-activation" / receipt["package_id"]
+        self.assertFalse((package_root / "highway-product-activation.json").exists())
+        self.assertFalse((package_root / "highway-committed-revalidation.json").exists())
 
     def test_legacy_package_plan_and_product_receipts_converge_to_one_package_tree(self) -> None:
         package_id = "1" * 64

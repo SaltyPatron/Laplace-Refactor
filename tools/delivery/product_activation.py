@@ -617,7 +617,197 @@ def validate_unicode_success(contract: dict[str, Any], result: dict[str, Any], p
         raise ActivationGatewayError("Unicode activation result is not exact and complete")
 
 
+HIGHWAY_REVALIDATION_SCHEMA = "laplace.highway-committed-revalidation-receipt/v1"
+HIGHWAY_REVALIDATION_CONTRACT_SHA256 = "3e3d18fe1726a2a8fcecc22a0a6ee6af033e19d33d9757952dc274b80b44bc28"
+HIGHWAY_REVALIDATION_PHASE = "product-unicode-activated-and-highway-revalidated"
+
+
+def delivery_contract_path(relative: str) -> Path:
+    """Resolve the same contract in a source checkout or immutable gateway bundle."""
+    here = Path(__file__).resolve()
+    root = here.parents[1] if here.name == "product_activation_impl.py" else here.parents[2]
+    return root / relative
+
+
+def producer_identity(document: Mapping[str, Any], field: str) -> str:
+    return sha256_bytes(canonical_bytes({k: v for k, v in document.items() if k != field}) + b"\n")
+
+
+def highway_revalidation_contract(gateway: dict[str, Any]) -> dict[str, Any]:
+    policy = gateway.get("operation", {}).get("highway_revalidation")
+    expected = {
+        "contract_path": "contracts/highway-committed-revalidation.json",
+        "contract_sha256": HIGHWAY_REVALIDATION_CONTRACT_SHA256,
+        "receipt_schema": HIGHWAY_REVALIDATION_SCHEMA,
+        "phase": "committed-state-revalidated",
+    }
+    if policy != expected:
+        raise ActivationGatewayError("committed Highway revalidation was not explicitly selected")
+    contract = load_json(delivery_contract_path(policy["contract_path"]))
+    if sha256_bytes(canonical_bytes(contract) + b"\n") != policy["contract_sha256"]:
+        raise ActivationGatewayError("committed Highway revalidation contract identity differs")
+    return contract
+
+
+def validate_highway_revalidation(gateway: dict[str, Any], result: dict[str, Any], package_id: str) -> None:
+    """Validate a new native proof without promoting it to a historical activation."""
+    contract = highway_revalidation_contract(gateway)
+    activation_law = load_json(delivery_contract_path("contracts/highway-product-activation.json"))
+    selected = contract["selection"]
+    if (result.get("schema") != HIGHWAY_REVALIDATION_SCHEMA
+            or result.get("phase") != contract["receipt"]["phase"]
+            or result.get("mode") != selected["mode"]
+            or result.get("activation_performed") is not False
+            or result.get("historical_request_present") is not False
+            or "activation" in result
+            or result.get("restart_proven") is not True
+            or result.get("cold_application_readback_proven") is not True
+            or result.get("package_id") != package_id
+            or result.get("system_identifier") != selected["system_identifier"]
+            or result.get("committed_revalidation_contract_sha256") != HIGHWAY_REVALIDATION_CONTRACT_SHA256
+            or result.get("historical_reference") != contract["historical_reference"]
+            or result.get("receipt_sha256") != producer_identity(result, "receipt_sha256")):
+        raise ActivationGatewayError("committed Highway revalidation receipt is incomplete or differs")
+    request = result.get("revalidation_request")
+    if not isinstance(request, dict) or sha256_bytes(canonical_bytes(request) + b"\n") != result.get("request_sha256"):
+        raise ActivationGatewayError("committed Highway revalidation request identity differs")
+    for field in ("package_id", "cluster_plan_sha256", "cluster_activation_receipt_sha256", "unicode_activation_receipt_sha256"):
+        require_hex(result.get(field), HEX_64, field)
+    for field in ("package_id", "cluster_plan_sha256", "cluster_activation_receipt_sha256", "unicode_activation_receipt_sha256", "system_identifier", "mode", "committed_revalidation_contract_sha256", "historical_reference"):
+        if request.get(field) != result[field]:
+            raise ActivationGatewayError(f"committed Highway request differs: {field}")
+    if (request.get("schema") != contract["receipt"]["request_schema"]
+            or request.get("activation_performed") is not False
+            or request.get("historical_request_present") is not False
+            or request.get("native_function") != contract["native"]["function"]
+            or request.get("native_result_type") != contract["native"]["result_type"]
+            or request.get("loaded_before_observation_sha256") != result.get("loaded_before_observation_sha256")
+            or type(request.get("observed_postmaster_pid")) is not int
+            or request["observed_postmaster_pid"] <= 0
+            or request.get("activation_contract_sha256") != sha256_bytes(canonical_bytes(activation_law) + b"\n")
+            or any(request.get(k) != activation_law[k] for k in ("operation", "execution_context", "expected_result"))):
+        raise ActivationGatewayError("committed Highway native input contract differs")
+    for field in ("orchestrator_sha256", "activation_orchestrator_sha256", "registry_contract_sha256", "predecessor_registry_contract_sha256", "unicode_request_fingerprint", "authority_fingerprint", "native_sql_sha256"):
+        require_hex(request.get(field), HEX_64, field)
+    if (request["registry_contract_sha256"] != activation_law["authority"]["highway_registry_contract_sha256"]
+            or request["predecessor_registry_contract_sha256"] != activation_law["authority"]["predecessor_contract_sha256"]):
+        raise ActivationGatewayError("committed Highway registry input contract differs")
+    epochs = request.get("context_epochs")
+    epoch_names = {"source_epoch", "identity_epoch", "geometry_epoch", "evidence_epoch", "firmware_epoch", "dependency_epoch", "database_epoch", "package_epoch", "perfcache_epoch", "numeric_epoch"}
+    require_exact_keys(epochs, epoch_names, "committed Highway context epochs")
+    for name, value in epochs.items():
+        require_hex(value, HEX_64, name)
+    inspection = request.get("inspected_state")
+    retention = request.get("retention_observation")
+    if (not isinstance(inspection, dict)
+            or inspection.get("highway_epoch_id") != selected["registry_epoch_id"]
+            or inspection.get("highway_epoch_fingerprint") != selected["registry_epoch_fingerprint"]
+            or inspection.get("highway_sequence") != selected["activation_sequence"]
+            or not isinstance(retention, dict)
+            or retention.get("historical_request_present") is not False
+            or retention.get("observed_entries") not in ([], ["failures"])):
+        raise ActivationGatewayError("committed Highway prior state or absent retention differs")
+    proof = result.get("revalidation")
+    readback = result.get("readback")
+    if not isinstance(proof, dict) or not isinstance(readback, dict):
+        raise ActivationGatewayError("committed Highway native proof or cold readback is absent")
+    if (not isinstance(result.get("cold_revalidation"), dict)
+            or canonical_bytes(result["cold_revalidation"]) != canonical_bytes(proof)):
+        raise ActivationGatewayError("committed Highway native proof changed or is absent after restart")
+    fields128 = ("root_entity_id", "registry_epoch_id", "unicode_activation_epoch_id")
+    fields256 = ("verification_receipt", "root_physicality_id", "registry_fingerprint", "registry_epoch_fingerprint", "stored_isa_receipt", "current_isa_receipt", "current_context_fingerprint", "stored_admission_receipt", "stored_activation_receipt", "stored_activation_fingerprint", "stored_generation_fingerprint", "event_chain_fingerprint", "current_working_set_receipt", "current_presence_semantic_receipt", "current_presence_execution_receipt", "current_producer_receipt", "current_staged_stream_receipt", "current_sink_artifacts_fingerprint", "unicode_root_receipt", "unicode_activation_epoch_fingerprint")
+    require_exact_keys(proof, set(fields128 + fields256) | {"registry_version", "activation_sequence", "kind_count", "alias_count", "disposition_count", "canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count", "activation_performed", "status"}, "committed Highway native result")
+    for fields, length in ((fields128, 32), (fields256, 64)):
+        for name in fields:
+            value = require_hex(proof.get(name), re.compile(r"[0-9a-f]{" + str(length) + r"}\Z"), name)
+            if set(value) == {"0"}:
+                raise ActivationGatewayError(f"committed Highway native proof is empty: {name}")
+    expected = activation_law["expected_result"]
+    for name in ("registry_version", "registry_fingerprint", "kind_count", "alias_count", "disposition_count", "status"):
+        if proof.get(name) != expected[name] or type(proof[name]) is not type(expected[name]):
+            raise ActivationGatewayError(f"committed Highway native registry differs: {name}")
+    if (proof.get("activation_performed") is not False
+            or proof["registry_epoch_id"] != selected["registry_epoch_id"]
+            or proof["registry_epoch_fingerprint"] != selected["registry_epoch_fingerprint"]
+            or type(proof.get("activation_sequence")) is not int
+            or proof["activation_sequence"] != selected["activation_sequence"]
+            or epochs["numeric_epoch"] != proof["registry_epoch_fingerprint"]
+            or epochs["perfcache_epoch"] != proof["unicode_activation_epoch_fingerprint"]):
+        raise ActivationGatewayError("committed Highway native identity differs from selected input")
+    if (inspection.get("unicode_present") is not True
+            or inspection.get("highway_present") is not True
+            or inspection.get("unicode_epoch_id") != proof["unicode_activation_epoch_id"]
+            or inspection.get("unicode_epoch_fingerprint") != proof["unicode_activation_epoch_fingerprint"]):
+        raise ActivationGatewayError("committed Highway inspected Unicode identity differs")
+    for name in ("registry_version", "registry_fingerprint", "kind_count", "alias_count", "disposition_count"):
+        if inspection.get("active_" + name) != expected[name]:
+            raise ActivationGatewayError("committed Highway inspected registry differs")
+    for prefix in ("kind", "alias", "disposition"):
+        if inspection.get("active_" + prefix + "_projection_count") != expected[prefix + "_count"]:
+            raise ActivationGatewayError("committed Highway inspected projections differ")
+    if (type(inspection.get("generation_count")) is not int or inspection["generation_count"] < 1
+            or type(inspection.get("event_count")) is not int or inspection["event_count"] != proof["activation_sequence"]):
+        raise ActivationGatewayError("committed Highway inspected event history differs")
+    for name in ("canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count"):
+        if type(proof.get(name)) is not int or proof[name] < (0 if name == "transient_occurrence_count" else 1):
+            raise ActivationGatewayError("committed Highway native reconstruction counts are invalid")
+    for name in ("registry_version", "registry_fingerprint", "registry_epoch_id", "registry_epoch_fingerprint", "root_entity_id", "root_physicality_id", "activation_sequence", "unicode_activation_epoch_id", "unicode_activation_epoch_fingerprint", "status"):
+        if readback.get(name) != proof[name] or type(readback[name]) is not type(proof[name]):
+            raise ActivationGatewayError(f"committed Highway cold readback differs: {name}")
+    for read_name, proof_name in (("activation_receipt", "stored_activation_receipt"), ("activation_fingerprint", "stored_activation_fingerprint")):
+        if readback.get(read_name) != proof[proof_name]:
+            raise ActivationGatewayError(f"committed Highway stored cold readback differs: {read_name}")
+    read_isa = require_hex(readback.get("isa_receipt"), HEX_64, "cold read ISA receipt")
+    if set(read_isa) == {"0"}:
+        raise ActivationGatewayError("committed Highway cold read ISA receipt is empty")
+    for prefix, count in (("kind", expected["kind_count"]), ("alias_kind", expected["alias_count"]), ("disposition", expected["disposition_count"])):
+        ids = readback.get(prefix + "_ids")
+        names = readback.get(("alias" if prefix == "alias_kind" else prefix) + "_name_entity_ids")
+        if (not isinstance(ids, list) or len(ids) != count or any(type(v) is not int or v < 0 for v in ids)
+                or len(set(ids)) != count or not isinstance(names, list) or len(names) != count):
+            raise ActivationGatewayError("committed Highway cold registry projection differs")
+        for value in names:
+            require_hex(value, re.compile(r"[0-9a-f]{32}\Z"), "registry name entity")
+    commands = result.get("command_receipts")
+    labels = ("revalidate-committed-highway-registry", "restart-after-highway-revalidation", "highway-revalidation-restart-readiness", "cold-application-highway-revalidation-readback", "cold-revalidate-committed-highway-registry", "inspect-highway-after-committed-revalidation")
+    if not isinstance(commands, list):
+        raise ActivationGatewayError("committed Highway execution evidence is absent")
+    for label in labels:
+        matches = [entry for entry in commands if isinstance(entry, dict) and entry.get("label") == label]
+        if len(matches) != 1 or type(matches[0].get("exit_code")) is not int or matches[0]["exit_code"] != 0:
+            raise ActivationGatewayError(f"committed Highway execution evidence differs: {label}")
+        if label in (labels[0], "cold-revalidate-committed-highway-registry") and matches[0].get("stdin_sha256") != request["native_sql_sha256"]:
+            raise ActivationGatewayError("committed Highway native SQL input identity differs")
+    for name in ("loaded_before_observation_sha256", "loaded_after_observation_sha256"):
+        require_hex(result.get(name), HEX_64, name)
+    if result["loaded_before_observation_sha256"] == result["loaded_after_observation_sha256"]:
+        raise ActivationGatewayError("committed Highway restart observation did not change")
+
+
+def highway_aggregate_fields(receipt: dict[str, Any]) -> dict[str, Any]:
+    if receipt.get("schema") == HIGHWAY_REVALIDATION_SCHEMA:
+        return {"phase": HIGHWAY_REVALIDATION_PHASE,
+                "highway_revalidation_receipt_sha256": receipt["receipt_sha256"],
+                "highway_activation_performed": False, "highway_historical_request_present": False}
+    return {"phase": "product-unicode-and-highway-activated",
+            "highway_activation_receipt_sha256": receipt["receipt_sha256"]}
+
+
+def validate_product_terminal_result(result: dict[str, Any]) -> None:
+    if result.get("phase") == HIGHWAY_REVALIDATION_PHASE:
+        if (result.get("highway_activation_performed") is not False
+                or result.get("highway_historical_request_present") is not False
+                or "highway_activation_receipt_sha256" in result):
+            raise ActivationGatewayError("product revalidation was mislabeled as activation")
+        require_hex(result.get("highway_revalidation_receipt_sha256"), HEX_64, "Highway revalidation receipt")
+    elif result.get("phase") != "product-unicode-and-highway-activated" or "highway_revalidation_receipt_sha256" in result:
+        raise ActivationGatewayError("product did not reach an exact terminal phase")
+
+
 def validate_highway_success(contract: dict[str, Any], result: dict[str, Any], package_id: str) -> None:
+    if result.get("schema") == HIGHWAY_REVALIDATION_SCHEMA:
+        validate_highway_revalidation(contract, result, package_id)
+        return
     if (
         result.get("schema") != contract["operation"]["highway_success_schema"]
         or result.get("phase") != "product-activated"
@@ -777,12 +967,15 @@ def execute_request(
         "--unicode-activation-receipt", str(unicode_result_path),
         "--output", str(highway_result_path),
     ]
+    if "highway_revalidation" in contract["operation"]:
+        highway_revalidation_contract(contract)
+        highway_command.extend(["--committed-revalidation-contract", str(contracts / "highway-committed-revalidation.json")])
     command_receipts.append(run_fixed("activate-product-highway", highway_command, 3600))
     highway_result = load_json(highway_result_path)
     validate_highway_success(contract, highway_result, package_id)
     result = {
         "schema": RESULT_SCHEMA,
-        "phase": "product-unicode-and-highway-activated",
+        **highway_aggregate_fields(highway_result),
         "request_id": request["request_id"],
         "package_id": package_id,
         "repository_commit": payload["repository"]["commit"],
@@ -791,7 +984,6 @@ def execute_request(
         ],
         "cluster_activation_receipt_sha256": cluster_result["activation_receipt_sha256"],
         "unicode_activation_receipt_sha256": unicode_result["receipt_sha256"],
-        "highway_activation_receipt_sha256": highway_result["receipt_sha256"],
         "cluster_result": str(cluster_result_path),
         "unicode_result": str(unicode_result_path),
         "highway_result": str(highway_result_path),
@@ -804,10 +996,11 @@ def execute_request(
             "schema", "phase", "request_id", "package_id", "repository_commit",
             "package_installation_receipt_sha256",
             "cluster_activation_receipt_sha256", "unicode_activation_receipt_sha256",
-            "highway_activation_receipt_sha256", "cluster_result", "unicode_result",
+            "cluster_result", "unicode_result",
             "highway_result", "command_receipts", "exact_replay",
             "result_sha256",
         }
+        required.update(highway_aggregate_fields(highway_result))
         if (
             set(existing_result) != required
             or existing_result.get("result_sha256")
@@ -822,8 +1015,7 @@ def execute_request(
             != cluster_result["activation_receipt_sha256"]
             or existing_result.get("unicode_activation_receipt_sha256")
             != unicode_result["receipt_sha256"]
-            or existing_result.get("highway_activation_receipt_sha256")
-            != highway_result["receipt_sha256"]
+            or any(existing_result.get(k) != v for k, v in highway_aggregate_fields(highway_result).items())
         ):
             raise ActivationGatewayError(
                 "existing gateway result collides with revalidated product state"

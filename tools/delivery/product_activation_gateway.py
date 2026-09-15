@@ -136,6 +136,9 @@ def validate_unicode_success(
 def validate_highway_success(
     contract: dict[str, Any], result: dict[str, Any], package_id: str
 ) -> None:
+    if result.get("schema") == activation.HIGHWAY_REVALIDATION_SCHEMA:
+        activation.validate_highway_revalidation(contract, result, package_id)
+        return
     if (
         result.get("schema") != contract["operation"]["highway_success_schema"]
         or result.get("phase") != "product-activated"

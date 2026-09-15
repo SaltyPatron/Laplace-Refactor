@@ -26,6 +26,7 @@ ARCHIVE_SCHEMA = "laplace.product-installer-archive/v1"
 HEX_256 = "0123456789abcdef"
 
 CONTROL_SOURCES = {
+    "contracts/highway-committed-revalidation.json",
     "contracts/highway-product-activation.json",
     "contracts/highway.json",
     "contracts/history/highway-v1.json",
@@ -43,6 +44,7 @@ CONTROL_SOURCES = {
     "tools/delivery/product_host.py",
     "tools/postgresql/clusterctl.py",
     "tools/postgresql/highwayctl.py",
+    "tools/postgresql/highway_revalidation.py",
     "tools/postgresql/hostctl.py",
     "tools/postgresql/unicodectl.py",
     "tools/product/build-package.py",

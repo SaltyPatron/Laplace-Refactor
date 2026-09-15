@@ -1,0 +1,79 @@
+-- Extension-owner reconciliation of the typed native verifier for existing
+-- installations. No registry history, row, or receipt is created by this binding.
+DO $laplace_committed_revalidation$
+DECLARE
+    extension_oid oid;
+    result_oid oid;
+    function_oid oid;
+    member_names text[];
+    member_types text[];
+BEGIN
+    SELECT e.oid INTO STRICT extension_oid FROM pg_catalog.pg_extension e
+    JOIN pg_catalog.pg_namespace n ON n.nspname='@LAPLACE_PG_SCHEMA@'
+    WHERE e.extname='laplace' AND pg_catalog.pg_get_userbyid(e.extowner)=current_user
+      AND n.nspname='@LAPLACE_PG_SCHEMA@' AND n.nspowner=e.extowner;
+    result_oid := pg_catalog.to_regtype('@LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result');
+    IF result_oid IS NULL THEN
+        EXECUTE $type$@LAPLACE_PG_HIGHWAY_REVALIDATION_TYPE_SQL@$type$;
+        ALTER EXTENSION laplace ADD TYPE @LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result;
+        result_oid := '@LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result'::pg_catalog.regtype;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_type t
+        JOIN pg_catalog.pg_extension e ON e.oid=extension_oid
+        JOIN pg_catalog.pg_depend d ON d.classid='pg_catalog.pg_type'::pg_catalog.regclass
+          AND d.objid=t.oid AND d.refclassid='pg_catalog.pg_extension'::pg_catalog.regclass
+          AND d.refobjid=e.oid AND d.deptype='e'
+        WHERE t.oid=result_oid AND t.typtype='c' AND t.typowner=e.extowner) THEN
+        RAISE EXCEPTION 'committed Highway result type is not owned by the extension';
+    END IF;
+    SELECT pg_catalog.array_agg(a.attname::text ORDER BY a.attnum),
+           pg_catalog.array_agg(pg_catalog.format_type(a.atttypid,a.atttypmod) ORDER BY a.attnum)
+      INTO member_names,member_types FROM pg_catalog.pg_attribute a
+      JOIN pg_catalog.pg_type t ON t.typrelid=a.attrelid
+      WHERE t.oid=result_oid AND a.attnum>0 AND NOT a.attisdropped;
+    IF EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_type t ON t.typrelid=a.attrelid
+        WHERE t.oid=result_oid AND a.attnum>0 AND a.attisdropped)
+       OR member_names IS DISTINCT FROM ARRAY[
+        'verification_receipt','root_entity_id','root_physicality_id','registry_version',
+        'registry_fingerprint','registry_epoch_id','registry_epoch_fingerprint','activation_sequence',
+        'stored_isa_receipt','current_isa_receipt','current_context_fingerprint',
+        'stored_admission_receipt','stored_activation_receipt','stored_activation_fingerprint',
+        'stored_generation_fingerprint','event_chain_fingerprint','current_working_set_receipt',
+        'current_presence_semantic_receipt','current_presence_execution_receipt','current_producer_receipt',
+        'current_staged_stream_receipt','current_sink_artifacts_fingerprint','unicode_root_receipt',
+        'unicode_activation_epoch_id','unicode_activation_epoch_fingerprint',
+        'kind_count','alias_count','disposition_count','canonical_entity_count',
+        'canonical_physicality_count','transient_occurrence_count','activation_performed','status']::text[]
+       OR member_types IS DISTINCT FROM ARRAY[
+        'bytea','bytea','bytea','bigint','bytea','bytea','bytea','bigint',
+        'bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea',
+        'bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea',
+        'bigint','bigint','bigint','numeric(20,0)','numeric(20,0)','numeric(20,0)','boolean','integer']::text[] THEN
+        RAISE EXCEPTION 'committed Highway result type members differ';
+    END IF;
+    function_oid := pg_catalog.to_regprocedure('@LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SQL@(@LAPLACE_PG_SCHEMA@.execution_context,numeric)');
+    IF function_oid IS NULL THEN
+        CREATE FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SQL@(
+            @LAPLACE_PG_SCHEMA@.execution_context,numeric)
+        RETURNS @LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result
+        AS '@LAPLACE_PG_MODULE@','@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL@'
+        LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+        ALTER EXTENSION laplace ADD FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SQL@(@LAPLACE_PG_SCHEMA@.execution_context,numeric);
+        function_oid := '@LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SQL@(@LAPLACE_PG_SCHEMA@.execution_context,numeric)'::pg_catalog.regprocedure;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+        JOIN pg_catalog.pg_extension e ON e.oid=extension_oid
+        JOIN pg_catalog.pg_language l ON l.oid=p.prolang
+        JOIN pg_catalog.pg_depend d ON d.classid='pg_catalog.pg_proc'::pg_catalog.regclass
+          AND d.objid=p.oid AND d.refclassid='pg_catalog.pg_extension'::pg_catalog.regclass
+          AND d.refobjid=e.oid AND d.deptype='e'
+        WHERE p.oid=function_oid AND p.proowner=e.extowner AND l.lanname='c'
+          AND p.probin='@LAPLACE_PG_MODULE@' AND p.prosrc='@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL@'
+          AND p.prorettype=result_oid AND p.prokind='f' AND p.provolatile='v'
+          AND p.proisstrict AND p.proparallel='u' AND NOT p.proretset
+          AND NOT p.proleakproof AND NOT p.prosecdef) THEN
+        RAISE EXCEPTION 'committed Highway verifier is not the owned native extension function';
+    END IF;
+    REVOKE ALL ON FUNCTION @LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SQL@(@LAPLACE_PG_SCHEMA@.execution_context,numeric) FROM PUBLIC;
+END
+$laplace_committed_revalidation$;

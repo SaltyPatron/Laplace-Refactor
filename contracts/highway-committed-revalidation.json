@@ -1,0 +1,35 @@
+{
+  "schema": "laplace.highway-committed-revalidation-contract/v1",
+  "version": "1.0.0",
+  "selection": {
+    "mode": "missing-retention-revalidation",
+    "require_original_request_absent": true,
+    "system_identifier": "7682119102860556519",
+    "registry_epoch_id": "3390a42a75298f6ee791229fd00c1508",
+    "registry_epoch_fingerprint": "3390a42a75298f6ee791229fd00c15085948aecff447a67249aa4008ef6f2edd",
+    "activation_sequence": 1
+  },
+  "native": {
+    "function": "laplace.highway_registry_revalidate_committed",
+    "result_type": "laplace.highway_registry_revalidation_result",
+    "input": "exact current execution context and selected batch bytes",
+    "proof": "canonical ISA, active Unicode, universal AST and composition reconstruction; exact committed generation, root, projection, stored receipt links, active control and contiguous event chain",
+    "transaction": "native internal subtransaction rolls back all verifier deposition before return; caller commits no registry activation",
+    "activation_performed": false
+  },
+  "historical_reference": {
+    "request_sha256": "0c94d6cc5da02f6978dd707696096e10c7ac710a36ed44b0d957c36d96786128",
+    "source_url": "https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/34162470162/job/101866957978",
+    "status": "external-log-reference-only"
+  },
+  "receipt": {
+    "request_schema": "laplace.highway-committed-revalidation-request/v1",
+    "schema": "laplace.highway-committed-revalidation-receipt/v1",
+    "phase": "committed-state-revalidated",
+    "directory_name": "highway-revalidation",
+    "historical_request_present": false,
+    "require_restart": true,
+    "require_cold_application_readback": true,
+    "rule": "A new current-state proof retains the loss of original request bytes. It cannot recreate historical admission, call active-to-active activation, replace a present invalid request, or relabel a current verification receipt as the original receipt."
+  }
+}

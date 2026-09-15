@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+
+import highway_committed_revalidation_tests as recovery_fixture
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -30,6 +33,19 @@ original = load(ORIGINAL_PATH, "laplace_product_activation_original_tests")
 adapter = load(ADAPTER_PATH, "laplace_product_activation_adapter_tests")
 PACKAGE_ID = "42" * 32
 MANIFEST_SHA = "43" * 32
+
+
+def producer_revalidation(test: unittest.TestCase) -> dict:
+    fixture = recovery_fixture.CommittedRevalidationTests()
+    fixture.setUp()
+    test.addCleanup(fixture.doCleanups)
+    # Consumers receive serialized evidence, which has no Python object aliases.
+    return json.loads(json.dumps(fixture.execute()))
+
+
+def resign_revalidation(receipt: dict) -> None:
+    receipt["request_sha256"] = original.sha256_bytes(original.canonical_bytes(receipt["revalidation_request"]) + b"\n")
+    receipt["receipt_sha256"] = adapter.producer_document_identity(receipt, "receipt_sha256")
 
 
 class ProductActivationRuntimeAdapterTests(unittest.TestCase):
@@ -148,6 +164,79 @@ class ProductActivationRuntimeAdapterTests(unittest.TestCase):
             adapter.validate_highway_success(contract, highway, PACKAGE_ID)
             with self.assertRaises(original.ActivationGatewayError):
                 original.validate_highway_success(contract, highway, PACKAGE_ID)
+
+    def test_current_native_revalidation_traverses_gateway_runner_and_distinct_aggregate(self) -> None:
+        receipt = producer_revalidation(self)
+        package = receipt["package_id"]
+        original.validate_highway_success(self.contract, receipt, package)
+        adapter.validate_highway_success(self.contract, receipt, package)
+        runner = load(REPOSITORY / "tools/delivery/product_activation_runner.py", "laplace_revalidation_runner_tests")
+        runner.validate_highway_result(receipt, package)
+        aggregate = original.highway_aggregate_fields(receipt)
+        original.validate_product_terminal_result(aggregate)
+        self.assertEqual(aggregate["phase"], original.HIGHWAY_REVALIDATION_PHASE)
+        self.assertNotIn("highway_activation_receipt_sha256", aggregate)
+        self.assertFalse(aggregate["highway_activation_performed"])
+        self.assertNotEqual(receipt["revalidation"]["stored_isa_receipt"], receipt["revalidation"]["current_isa_receipt"])
+        self.assertNotEqual(receipt["readback"]["isa_receipt"], receipt["revalidation"]["stored_isa_receipt"])
+
+    def test_revalidation_rejects_resigned_false_history_native_input_and_readback(self) -> None:
+        receipt = producer_revalidation(self)
+        mutations = {
+            "historical request invented": lambda r: r.update(historical_request_present=True),
+            "activation invented": lambda r: r.update(activation_performed=True),
+            "activation alias": lambda r: r.update(activation=r["revalidation"]),
+            "native proof omitted": lambda r: r.pop("revalidation"),
+            "cold native proof omitted": lambda r: r.pop("cold_revalidation"),
+            "cold native identity changed": lambda r: r["cold_revalidation"].update(stored_generation_fingerprint="f8" * 32),
+            "cold native status type changed": lambda r: r["cold_revalidation"].update(status=False),
+            "cold native SQL changed": lambda r: next(c for c in r["command_receipts"] if c["label"] == "cold-revalidate-committed-highway-registry").update(stdin_sha256="f9" * 32),
+            "zero native receipt": lambda r: r["revalidation"].update(verification_receipt="00" * 32),
+            "wrong physicality width": lambda r: r["revalidation"].update(root_physicality_id="ab" * 16),
+            "native activation": lambda r: r["revalidation"].update(activation_performed=True),
+            "empty reconstruction": lambda r: r["revalidation"].update(canonical_entity_count=0),
+            "changed current numeric epoch": lambda r: r["revalidation_request"]["context_epochs"].update(numeric_epoch="f1" * 32),
+            "changed execution context": lambda r: r["revalidation_request"]["execution_context"].update(cpu_slots=100),
+            "unbound native SQL": lambda r: r["revalidation_request"].update(native_sql_sha256="f2" * 32),
+            "wrong restart observation": lambda r: r["revalidation_request"].update(loaded_before_observation_sha256="f3" * 32),
+            "changed stored readback": lambda r: r["readback"].update(activation_receipt="f4" * 32),
+            "empty read ISA": lambda r: r["readback"].update(isa_receipt="00" * 32),
+            "missing projection": lambda r: r["readback"]["kind_ids"].pop(),
+            "restart not proven": lambda r: r.update(restart_proven=False),
+            "cold readback not proven": lambda r: r.update(cold_application_readback_proven=False),
+            "failed native execution": lambda r: next(c for c in r["command_receipts"] if c["label"] == "revalidate-committed-highway-registry").update(exit_code=1),
+            "missing restart command": lambda r: r.update(command_receipts=[c for c in r["command_receipts"] if c["label"] != "restart-after-highway-revalidation"]),
+            "wrong selected system": lambda r: r.update(system_identifier="12345"),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(defect=name):
+                invalid = copy.deepcopy(receipt)
+                mutate(invalid)
+                if ("revalidation" in invalid and invalid["revalidation"] != receipt["revalidation"]
+                        and not name.startswith("cold native")):
+                    invalid["cold_revalidation"] = copy.deepcopy(invalid["revalidation"])
+                resign_revalidation(invalid)
+                with self.assertRaises(adapter.activation.ActivationGatewayError):
+                    adapter.validate_highway_success(self.contract, invalid, invalid["package_id"])
+
+    def test_revalidation_requires_explicit_pinned_contract_and_distinct_aggregate(self) -> None:
+        receipt = producer_revalidation(self)
+        for policy in (None, {"contract_sha256": "ab" * 32}):
+            invalid = copy.deepcopy(self.contract)
+            if policy is None:
+                invalid["operation"].pop("highway_revalidation")
+            else:
+                invalid["operation"]["highway_revalidation"] = policy
+            with self.assertRaisesRegex(adapter.activation.ActivationGatewayError, "explicitly selected"):
+                adapter.validate_highway_success(invalid, receipt, receipt["package_id"])
+        aggregate = original.highway_aggregate_fields(receipt)
+        aggregate["highway_activation_receipt_sha256"] = receipt["receipt_sha256"]
+        with self.assertRaisesRegex(original.ActivationGatewayError, "mislabeled"):
+            original.validate_product_terminal_result(aggregate)
+        aggregate.pop("highway_activation_receipt_sha256")
+        aggregate["phase"] = "product-unicode-and-highway-activated"
+        with self.assertRaises(original.ActivationGatewayError):
+            original.validate_product_terminal_result(aggregate)
 
     def test_non_newline_identity_mutants_remain_rejected(self) -> None:
         unicode = {

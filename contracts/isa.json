@@ -248,7 +248,9 @@
         "activate_sql_name": "highway_registry_admit_and_activate",
         "activate_c_symbol": "laplace_pg_highway_registry_admit_and_activate",
         "resolve_sql_name": "highway_registry_resolve_active",
-        "resolve_c_symbol": "laplace_pg_highway_registry_resolve_active"
+        "resolve_c_symbol": "laplace_pg_highway_registry_resolve_active",
+        "revalidate_sql_name": "highway_registry_revalidate_committed",
+        "revalidate_c_symbol": "laplace_pg_highway_registry_revalidate_committed"
       },
       "evidence_record_lineage_batch": {
         "record_sql_name": "evidence_record_lineage_batch",
