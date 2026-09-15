@@ -144,6 +144,24 @@ class HostEvidence(unittest.TestCase):
             self.assertTrue(result['directory_index_truncated'])
             self.assertTrue(result['truncated'])
 
+    def test_related_receipts_require_exact_selected_package_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / 'receipts'
+            archive.mkdir()
+            wanted = 'a' * 64
+            for index, schema in enumerate(D.RELATED_SCHEMAS):
+                (archive / f'{index}.json').write_text(json.dumps({'schema': schema, 'package_id': wanted, 'request_fingerprint': 'original-context'}))
+            (archive / 'unrelated.json').write_text(json.dumps({'schema': 'laplace.unicode-product-activation-receipt/v1', 'package_id': 'b' * 64}))
+            (archive / 'malformed-list-schema.json').write_text(json.dumps({'schema': ['not-a-schema'], 'package_id': wanted}))
+            (archive / 'malformed-object-schema.json').write_text(json.dumps({'schema': {'not': 'a-schema'}, 'package_id': wanted}))
+            report = D.inspect(archive, root / 'diagnostic', [], package_id=wanted)
+            self.assertEqual(report['candidate_count'], 3)
+            self.assertTrue(all(item['package_id'] == wanted for item in report['candidates']))
+            self.assertTrue(all(item['capture_reason'] == 'exact related package identity' for item in report['candidates']))
+            unselected = D.inspect(archive, root / 'unselected', [])
+            self.assertEqual(unselected['candidate_count'], 0)
+
     def test_shared_host_lock_serializes_distinct_callers(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

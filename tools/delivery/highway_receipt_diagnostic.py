@@ -18,6 +18,7 @@ MAX_DEPTH = 8
 MAX_FILE_BYTES = 1024 * 1024
 MAX_CAPTURE_BYTES = 16 * 1024 * 1024
 HIGHWAY_SCHEMAS = {"laplace.highway-product-activation-request/v1", "laplace.highway-product-activation-receipt/v1"}
+RELATED_SCHEMAS = {"laplace.postgresql-cluster-plan/v1", "laplace.postgresql-activation-receipt/v1", "laplace.unicode-product-activation-receipt/v1"}
 
 
 def metadata(path: Path) -> dict:
@@ -35,12 +36,14 @@ def metadata(path: Path) -> dict:
     return result
 
 
-def inspect(receipt_root: Path, output: Path, additional_roots: list[Path], request_sha: str | None = None) -> dict:
+def inspect(receipt_root: Path, output: Path, additional_roots: list[Path], request_sha: str | None = None, package_id: str | None = None) -> dict:
     if request_sha is not None and re.fullmatch(r"[0-9a-f]{64}", request_sha) is None:
         raise ValueError("Expected request identity must be a lowercase SHA-256")
+    if package_id is not None and re.fullmatch(r"[0-9a-f]{64}", package_id) is None:
+        raise ValueError("Expected package identity must be a lowercase SHA-256")
     output.mkdir(parents=True, exist_ok=False)
     report = {"schema": "laplace.highway-receipt-diagnostic/v1", "scope": "filesystem evidence only; no database execution or reconstructed admission", "receipt_root": metadata(receipt_root), "retained_admission_directory": metadata(receipt_root / "highway"), "search_roots": [], "candidates": [], "symlinks_not_followed": [], "errors": [], "examined_entries": 0, "captured_bytes": 0, "truncated": False, "limits": {"entries": MAX_ENTRIES, "depth": MAX_DEPTH, "single_file_bytes": MAX_FILE_BYTES, "captured_bytes": MAX_CAPTURE_BYTES}}
-    report.update({"expected_request_sha256": request_sha, "directory_index": [], "directory_index_truncated": False})
+    report.update({"expected_request_sha256": request_sha, "related_package_id": package_id, "directory_index": [], "directory_index_truncated": False})
     report["limits"]["directory_index_per_root"] = MAX_DIRECTORY_INDEX
     seen = set()
 
@@ -74,7 +77,7 @@ def inspect(receipt_root: Path, output: Path, additional_roots: list[Path], requ
                                 report["directory_index_truncated"] = True
                             # Known admission identity and named receipt archives
                             # take precedence over unrelated build output trees.
-                            if entry.name == request_sha or any(word in entry.name.lower() for word in ("highway", "receipt")):
+                            if entry.name in {request_sha, package_id} or any(word in entry.name.lower() for word in ("highway", "receipt")):
                                 pending.appendleft((path, depth + 1))
                             else:
                                 pending.append((path, depth + 1))
@@ -100,10 +103,15 @@ def inspect(receipt_root: Path, output: Path, additional_roots: list[Path], requ
                 raise ValueError("candidate grew beyond the file bound")
             document = json.loads(raw)
             schema = document.get("schema", "") if isinstance(document, dict) else ""
-            if not isinstance(schema, str) or schema not in HIGHWAY_SCHEMAS:
+            if not isinstance(schema, str):
+                return
+            related = schema in RELATED_SCHEMAS and package_id is not None and document.get("package_id") == package_id
+            if schema not in HIGHWAY_SCHEMAS and not related:
                 return
             fingerprint = hashlib.sha256(raw).hexdigest()
             record = {**metadata(path), "sha256": fingerprint, "schema": schema, "package_id": document.get("package_id"), "system_identifier": document.get("system_identifier"), "request_sha256": document.get("request_sha256"), "capture": None}
+            if related:
+                record.update({"capture_reason": "exact related package identity", **{key: document.get(key) for key in ("plan_sha256", "activation_receipt_sha256", "receipt_sha256", "request_fingerprint")}})
             if report["captured_bytes"] + len(raw) <= MAX_CAPTURE_BYTES:
                 target = output / f"{fingerprint}.json"
                 if not target.exists():
@@ -139,9 +147,10 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--search-root", type=Path, action="append", default=[], help="additional explicitly selected retained receipt archive; symlinks are never traversed")
     parser.add_argument("--request-sha256", help="prioritize an independently observed admission request identity without reconstructing it")
+    parser.add_argument("--package-id", help="capture related plan, cluster and Unicode receipts only for this independently observed package")
     arguments = parser.parse_args()
     contract = json.loads(arguments.contract.read_text())
-    result = inspect(Path(contract["instance"]["receipt_directory"]), arguments.output, arguments.search_root, arguments.request_sha256)
+    result = inspect(Path(contract["instance"]["receipt_directory"]), arguments.output, arguments.search_root, arguments.request_sha256, arguments.package_id)
     print(json.dumps({key: result[key] for key in ("retained_admission_directory", "candidate_count", "recovery_status", "truncated")}))
 
 

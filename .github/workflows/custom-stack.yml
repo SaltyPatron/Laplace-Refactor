@@ -40,8 +40,10 @@ jobs:
         run: |
           python3 tools/delivery/highway_receipt_diagnostic.py \
             --search-root /opt/laplace/receipts \
+            --search-root /build/laplace/recovery/20260912-cleanup/remaining-batch/refactor-integration \
             --search-root /build/laplace/recovery \
             --request-sha256 0c94d6cc5da02f6978dd707696096e10c7ac710a36ed44b0d957c36d96786128 \
+            --package-id fc28d56d5d4417a2e6ce868f24abbc5cd157a9f56bf04edaf088f54c75e1a428 \
             --output "$RUNNER_TEMP/highway-receipt-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
       - name: Upload bounded retained Highway receipt evidence
         if: always()
