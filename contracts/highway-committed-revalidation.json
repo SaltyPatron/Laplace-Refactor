@@ -1,0 +1,60 @@
+{
+  "schema": "laplace.highway-committed-revalidation-contract/v1",
+  "version": "1.2.0",
+  "selection": {
+    "mode": "missing-retention-revalidation",
+    "require_original_request_absent": true,
+    "system_identifier": "7682119102860556519",
+    "registry_epoch_id": "3390a42a75298f6ee791229fd00c1508",
+    "registry_epoch_fingerprint": "3390a42a75298f6ee791229fd00c15085948aecff447a67249aa4008ef6f2edd",
+    "activation_sequence": 1
+  },
+  "native": {
+    "function": "laplace.highway_registry_revalidate_committed",
+    "result_type": "laplace.highway_registry_revalidation_result",
+    "input": "exact current execution context and selected batch bytes",
+    "proof": "canonical ISA, active Unicode, universal AST and current composition reconstruction; exact committed generation, root, projection, stored receipt references, active control and contiguous event chain; present historical composition summary consistency",
+    "stored_reference_fields": [
+      "stored_working_set_receipt",
+      "stored_producer_receipt"
+    ],
+    "stored_reference_rule": "Required nonzero 32-byte observed generation references are bound into the new proof, including when the historical composition row is absent. They are not reconstructed historical receipt bodies.",
+    "historical_composition_receipt_present": "A native boolean observation of related composition-row presence; any present link or count mismatch rejects the proof. Legacy absence is explicit and creates no historical rows.",
+    "historical_intermediate_receipts_verified": false,
+    "historical_coverage_rule": "A present composition summary proves consistency only. Original working-set, producer and checkpoint bodies are unavailable, so historical intermediate receipt verification remains false in every accepted result.",
+    "transaction": "native internal subtransaction rolls back all verifier deposition before return; caller commits no registry activation",
+    "activation_performed": false,
+    "expected_epoch_coverage": {
+      "result_fields": [
+        "retained_expected_epoch_count",
+        "recovered_expected_epoch_count"
+      ],
+      "field_positions": [
+        38,
+        39
+      ],
+      "type": "bigint",
+      "append_after": "status",
+      "activation_sequence_maximum": 1024,
+      "count_rule": "Each count is a nonnegative integer; their sum equals activation_sequence. The native proof hashes both counts and each verified event input with its source.",
+      "retained_rule": "New activation events retain the actual request expected epoch transactionally; present values must verify and are never replaced by a fallback.",
+      "recovered_rule": "A missing legacy first input may use zero only when both original native admission and final activation hashes authenticate it. A missing later input uses the verified preceding event epoch. A missing nonzero first input remains unavailable and rejects verification. No historical row is backfilled.",
+      "historical_scope": "Expected-epoch input verification does not verify unavailable original working-set, producer or checkpoint receipt bodies."
+    }
+  },
+  "historical_reference": {
+    "request_sha256": "0c94d6cc5da02f6978dd707696096e10c7ac710a36ed44b0d957c36d96786128",
+    "source_url": "https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/34162470162/job/101866957978",
+    "status": "external-log-reference-only"
+  },
+  "receipt": {
+    "request_schema": "laplace.highway-committed-revalidation-request/v1",
+    "schema": "laplace.highway-committed-revalidation-receipt/v1",
+    "phase": "committed-state-revalidated",
+    "directory_name": "highway-revalidation",
+    "historical_request_present": false,
+    "require_restart": true,
+    "require_cold_application_readback": true,
+    "rule": "A new current-state proof retains the loss of original request bytes. It cannot recreate historical admission, call active-to-active activation, replace a present invalid request, or relabel a current verification receipt as the original receipt."
+  }
+}

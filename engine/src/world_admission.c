@@ -167,15 +167,30 @@ static laplace_world_admission_status validate_record(
         &record->composition_presence_receipt_id,
         &record->composition_producer_receipt_id,
         &record->composition_stream_receipt_id,
-        &record->evidence_lineage_receipt_id,
-        &record->evidence_testimony_receipt_id,
         &record->readback_fingerprint};
     size_t index;
-    for (index = 0u; index < 11u; ++index) {
+    for (index = 0u; index < 9u; ++index) {
         if (bytes_zero(digests[index], sizeof(*digests[index]))) {
             *field = WORLD_ADMISSION_FIELD_COMPONENT;
             return LAPLACE_WORLD_ADMISSION_COMPONENT_MISSING;
         }
+    }
+    /* Zero-claim observations carry no invented evidence execution. Absence and
+     * every zero denominator are still bound by hash_record and the receipt. */
+    if (record->profile_claim_count == 0u) {
+        if (!bytes_zero(&record->evidence_lineage_receipt_id, 32u) ||
+            !bytes_zero(&record->evidence_testimony_receipt_id, 32u) ||
+            record->evidence_node_count != 0u || record->testimony_count != 0u ||
+            record->profile_bound_testimony_count != 0u ||
+            record->recipe_bound_testimony_count != 0u ||
+            record->lineage_bound_testimony_count != 0u) {
+            *field = WORLD_ADMISSION_FIELD_COMPONENT;
+            return LAPLACE_WORLD_ADMISSION_COMPONENT_MISSING;
+        }
+    } else if (bytes_zero(&record->evidence_lineage_receipt_id, 32u) ||
+               bytes_zero(&record->evidence_testimony_receipt_id, 32u)) {
+        *field = WORLD_ADMISSION_FIELD_COMPONENT;
+        return LAPLACE_WORLD_ADMISSION_COMPONENT_MISSING;
     }
     if (record->profile_occurrence_count == 0u ||
         record->profile_occurrence_count != record->composition_occurrence_count) {

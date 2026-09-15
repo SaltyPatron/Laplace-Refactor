@@ -82,6 +82,58 @@ TEST(WorldAdmission, ClosesCompleteReceiptBoundAdmissionsDeterministically) {
     EXPECT_EQ(first.closure_subject_count, 14u);
     EXPECT_EQ(first.version, LAPLACE_WORLD_ADMISSION_VERSION);
     EXPECT_EQ(first.status, LAPLACE_WORLD_ADMISSION_OK);
+
+    auto observation = MakeAdmission(0x10u);
+    observation.evidence_lineage_receipt_id = {};
+    observation.evidence_testimony_receipt_id = {};
+    observation.profile_claim_count = 0u;
+    observation.evidence_node_count = 0u;
+    observation.testimony_count = 0u;
+    observation.profile_bound_testimony_count = 0u;
+    observation.recipe_bound_testimony_count = 0u;
+    observation.lineage_bound_testimony_count = 0u;
+    ASSERT_EQ(laplace_world_admission_identify(
+        &observation, &observation.admission_id), LAPLACE_WORLD_ADMISSION_OK);
+    laplace_world_admission_receipt observed{};
+    laplace_world_admission_receipt observed_replay{};
+    ASSERT_EQ(Execute({observation}, &observed), LAPLACE_WORLD_ADMISSION_OK);
+    ASSERT_EQ(Execute({observation}, &observed_replay), LAPLACE_WORLD_ADMISSION_OK);
+    EXPECT_EQ(std::memcmp(&observed, &observed_replay, sizeof(observed)), 0);
+    EXPECT_EQ(observed.admission_count, 1u);
+    EXPECT_EQ(observed.claim_count, 0u);
+    EXPECT_EQ(observed.evidence_node_count, 0u);
+    EXPECT_EQ(observed.testimony_count, 0u);
+    EXPECT_EQ(observed.closure_subject_count, 7u);
+    laplace_world_admission_semantic_projection observed_semantics{};
+    ASSERT_EQ(laplace_world_admission_project_semantics(
+        &observation, &observed_semantics), LAPLACE_WORLD_ADMISSION_OK);
+    EXPECT_EQ(observed_semantics.profile_claim_count, 0u);
+    const auto asserted = MakeAdmission(0x10u);
+    EXPECT_NE(std::memcmp(observation.admission_id.bytes,
+        asserted.admission_id.bytes, 32u), 0);
+    values = {observation, asserted};
+    Sort(values);
+    ASSERT_EQ(Execute(values, &observed), LAPLACE_WORLD_ADMISSION_OK);
+    EXPECT_EQ(observed.claim_count, 3u);
+    EXPECT_EQ(observed.testimony_count, 3u);
+    EXPECT_EQ(observed.occurrence_count, 8u);
+
+    // Each inconsistent absence is rejected before it can acquire an identity.
+    std::array<laplace_world_admission_record, 8> invalid{};
+    invalid.fill(observation);
+    invalid[0].evidence_lineage_receipt_id = Digest(0x91u);
+    invalid[1].evidence_testimony_receipt_id = Digest(0x92u);
+    invalid[2].evidence_node_count = 1u;
+    invalid[3].testimony_count = 1u;
+    invalid[4].profile_bound_testimony_count = 1u;
+    invalid[5].recipe_bound_testimony_count = 1u;
+    invalid[6].lineage_bound_testimony_count = 1u;
+    invalid[7].profile_claim_count = 1u;
+    for (auto& inconsistent : invalid) {
+        EXPECT_EQ(laplace_world_admission_identify(
+            &inconsistent, &inconsistent.admission_id),
+            LAPLACE_WORLD_ADMISSION_COMPONENT_MISSING);
+    }
 }
 
 TEST(WorldAdmission, IdentityBindsEveryComponentCountAndReadback) {

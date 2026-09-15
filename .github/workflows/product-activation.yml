@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+
 concurrency:
   group: product-activation-${{ github.ref }}
   cancel-in-progress: false
@@ -32,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify runner-owned host prerequisites
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
 
@@ -242,7 +246,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify protected product-build context and accepted PostgreSQL input
         id: inputs
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -266,7 +270,7 @@ jobs:
 
       - name: Compose or verify the exact content-addressed product package
         id: compose
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           selection="$RUNNER_TEMP/laplace-product-selection.json"
@@ -325,7 +329,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify protected runner-owned deployment context
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -347,7 +351,7 @@ jobs:
           test -w /opt/laplace/pgdata/refactor
 
       - name: Reconcile empty uncommitted PostgreSQL candidate leaves
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           recovery="$RUNNER_TEMP/laplace-cluster-candidate-recovery.json"
@@ -361,7 +365,7 @@ jobs:
           ' "$recovery" >/dev/null
 
       - name: Activate PostgreSQL, Unicode, and Highway as laplace-runner
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           result="$RUNNER_TEMP/laplace-product-activation-result.json"
@@ -376,7 +380,22 @@ jobs:
             --arg package_id '${{ needs.compose-product.outputs.package_id }}' \
             --arg repository_commit "$GITHUB_SHA" '
             .schema == "laplace.product-activation-result/v1" and
-            .phase == "product-unicode-and-highway-activated" and
+            ((.phase == "product-unicode-and-highway-activated" and
+              (has("highway_revalidation_receipt_sha256") | not) and
+              (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))) or
+             (.phase == "product-unicode-activated-and-highway-revalidated" and
+              .highway_activation_performed == false and
+              .highway_historical_request_present == false and
+              (.highway_historical_composition_receipt_present | type == "boolean") and
+              .highway_historical_intermediate_receipts_verified == false and
+              (.highway_activation_sequence | type == "number" and floor == . and . >= 1 and . <= 1024) and
+              (.highway_retained_expected_epoch_count | type == "number" and floor == . and . >= 0 and . <= 1024) and
+              (.highway_recovered_expected_epoch_count | type == "number" and floor == . and . >= 0 and . <= 1024) and
+              (.highway_retained_expected_epoch_count + .highway_recovered_expected_epoch_count == .highway_activation_sequence) and
+              (.highway_stored_working_set_receipt | test("^[0-9a-f]{64}$") and test("[1-9a-f]")) and
+              (.highway_stored_producer_receipt | test("^[0-9a-f]{64}$") and test("[1-9a-f]")) and
+              (has("highway_activation_receipt_sha256") | not) and
+              (.highway_revalidation_receipt_sha256 | test("^[0-9a-f]{64}$")))) and
             .execution_owner == "laplace-runner" and
             .root_product_executor == false and
             .package_id == $package_id and
@@ -384,13 +403,27 @@ jobs:
             (.package_installation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.cluster_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.unicode_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
-            (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$")) and
             (.result_sha256 | test("^[0-9a-f]{64}$"))
           ' "$result" >/dev/null
           printf 'LAPLACE_PRODUCT_ACTIVATION_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
 
+      - name: Retain exact runner activation for deployed source acceptance
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
+          from sources.stockfish_corpus_acceptance import load, retain_activation, runner
+          runner.require_runner()
+          contract = load(Path('contracts/postgresql-cluster.json'))
+          retained = retain_activation(Path(os.environ['LAPLACE_PRODUCT_ACTIVATION_RESULT']),
+              os.environ['GITHUB_SHA'], Path(contract['instance']['receipt_directory']))
+          print(retained)
+          PY
+
       - name: Verify the persistent DEV/BAT product directly
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           result="$LAPLACE_PRODUCT_ACTIVATION_RESULT"
@@ -457,7 +490,7 @@ jobs:
           [[ "$live_extension" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 
       - name: Execute installed product cognition proof
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           package_id='${{ needs.compose-product.outputs.package_id }}'
@@ -478,7 +511,7 @@ jobs:
           ' "$proof" >/dev/null
 
       - name: Converge runner-owned package receipt estate
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tests/receipt_estate_runner_tests.py
@@ -512,7 +545,7 @@ jobs:
           test ! -e "$receipt_root/highway-product-activation.json"
 
       - name: Start and execute the installed Laplace cognition surface
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           package_id='${{ needs.compose-product.outputs.package_id }}'
@@ -579,3 +612,21 @@ jobs:
             echo '- default caller: two sequential `laplace-cognition AA` turns executed the native prompt-conversation route'
             echo '- continuation: turn 1 consumed the durably deposited discourse frame from turn 0 and emitted a distinct successor frame'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Observe retained Highway admission evidence after activation attempt
+        if: always()
+        run: |
+          python3 tools/delivery/highway_receipt_diagnostic.py \
+            --search-root /opt/laplace/receipts \
+            --search-root /build/laplace/recovery/20260912-cleanup/remaining-batch/refactor-integration \
+            --search-root /build/laplace/recovery \
+            --request-sha256 0c94d6cc5da02f6978dd707696096e10c7ac710a36ed44b0d957c36d96786128 \
+            --package-id fc28d56d5d4417a2e6ce868f24abbc5cd157a9f56bf04edaf088f54c75e1a428 \
+            --output "$RUNNER_TEMP/highway-activation-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Upload bounded Highway activation receipt evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: highway-activation-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/highway-activation-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7

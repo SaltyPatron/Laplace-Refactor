@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+
 concurrency:
   group: laplace-physical-product-proof
   queue: max
@@ -32,8 +36,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Observe retained Highway admission evidence without database mutation
+        run: |
+          python3 tools/delivery/highway_receipt_diagnostic.py \
+            --search-root /opt/laplace/receipts \
+            --search-root /build/laplace/recovery/20260912-cleanup/remaining-batch/refactor-integration \
+            --search-root /build/laplace/recovery \
+            --request-sha256 0c94d6cc5da02f6978dd707696096e10c7ac710a36ed44b0d957c36d96786128 \
+            --package-id fc28d56d5d4417a2e6ce868f24abbc5cd157a9f56bf04edaf088f54c75e1a428 \
+            --output "$RUNNER_TEMP/highway-receipt-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Upload bounded retained Highway receipt evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: highway-receipt-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/highway-receipt-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
       - name: Terminate stale database workers from interrupted jobs
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tools/delivery/runner_orphan_cleanup.py \
@@ -41,9 +62,14 @@ jobs:
             --grace-seconds 5 \
             --terminate
       - name: Sweep stale interrupted custom-stack residue
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "${TMPDIR:-/build/laplace/work}" \
+            --minimum-age-seconds 300 \
+            --discover-prefix laplace-postgres-test. \
+            --discover-prefix lp-pg.
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --minimum-age-seconds 300 \
@@ -62,7 +88,7 @@ jobs:
             --name laplace-custom-stack-changed.status \
             --name laplace-custom-stack-qa-plan.json
       - name: Select exact custom-stack QA boundaries
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -89,7 +115,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Verify execution identity and toolchain
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -114,13 +140,12 @@ jobs:
           "$LAPLACE_ICX" --version
           dotnet --version
       - name: Select exact locally verified dependencies and source estate
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tools/dependencies/verify-installed-lock.py --verify-files
-          lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
-          dependency_root="/opt/laplace/external/source-generations/$lock_sha"
-          test -d "$dependency_root"
+          dependency_root=$(python3 tools/dependencies/source_estate.py --lock dependencies/lock.json)
+          bash tools/dependencies/ensure-locked-git.sh "$dependency_root"
           ./tools/dependencies/verify-lock.sh "$dependency_root"
 
           test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
@@ -142,8 +167,21 @@ jobs:
           printf 'LAPLACE_UNICODE_SOURCE_ROOT=%s\n' "$unicode_root" >> "$GITHUB_ENV"
           printf 'LAPLACE_ISO_639_SOURCE_ROOT=%s\n' "$iso_fixture" >> "$GITHUB_ENV"
           printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_fixture" >> "$GITHUB_ENV"
+      - name: Build and verify the locked C++ syntax provider
+        run: |
+          set -euo pipefail
+          provider_root="$RUNNER_TEMP/laplace-output/cpp-grammar"
+          printf 'LAPLACE_CPP_GRAMMAR_RECEIPT=%s\n' "$provider_root/build-receipt.json" >> "$GITHUB_ENV"
+          python3 tools/sources/qualify_grammar.py --acquire \
+            --grammar-root "$RUNNER_TEMP/laplace-sources/tree-sitter-cpp" \
+            --runtime-root "$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            --grammar-lock dependencies/tree-sitter-grammars.lock.json \
+            --dependency-lock dependencies/lock.json \
+            --compiler "$LAPLACE_ICX" \
+            --grammar tree-sitter-cpp --output "$provider_root"
+          test -s "$provider_root/build-receipt.json"
       - name: Inventory and resolve physical source estate
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tests/source_estate_catalog_tests.py
@@ -182,13 +220,13 @@ jobs:
                       output.write(f"- {name}: {values}\n")
           PY
       - name: Configure outside the repository
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           bash tools/tests/configure-custom-stack.sh
       - name: Build native engine PostgreSQL extension and managed bindings
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 6
       - name: Execute selected custom-stack QA fail-fast
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -uo pipefail
           qa_directory="$RUNNER_TEMP/laplace-custom-stack-qa"
@@ -227,9 +265,30 @@ jobs:
             failure=$(jq -r '.primary_terminal_result.failure.test // .primary_terminal_result.failure.class // "unknown custom-stack failure"' "$result")
             echo "::error title=custom-stack primary terminal failure::$failure"
           fi
+      - name: Upload custom-stack QA evidence copy
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: custom-stack-qa-${{ github.sha }}
+          path: ${{ runner.temp }}/laplace-custom-stack-qa/
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 9
+      - name: Upload exact C++ provider build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cpp-provider-custom-stack-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build-receipt.json
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build.stdout.log
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build.stderr.log
+            ${{ runner.temp }}/laplace-output/cpp-grammar/provider.so
+          if-no-files-found: warn
+          retention-days: 30
       - name: Persist custom-stack terminal result by BLAKE3
         if: always()
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           result="${LAPLACE_CUSTOM_STACK_QA_RESULT:-$RUNNER_TEMP/laplace-custom-stack-qa/result.json}"
@@ -258,15 +317,6 @@ jobs:
             echo "- receipt root: \`$receipt_root\`"
             echo '- exact readback: verified'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload custom-stack QA evidence copy
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: custom-stack-qa-${{ github.sha }}
-          path: ${{ runner.temp }}/laplace-custom-stack-qa/
-          if-no-files-found: warn
-          retention-days: 30
-          compression-level: 9
       - name: Verify custom-stack registry
         if: success()
         env:
@@ -274,7 +324,7 @@ jobs:
         run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"
       - name: Publish measured perfcache receipt
         if: always()
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           receipt="${LAPLACE_CI_BUILD_DIRECTORY:-$RUNNER_TEMP/laplace-output/postgresql-native}/receipts/unicode-perfcache-hot.json"
@@ -291,20 +341,24 @@ jobs:
           fi
       - name: Print retained PostgreSQL evidence
         if: failure()
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           find "$RUNNER_TEMP" -type f -path '*/laplace-postgres-test.*/postgres.log' \
             -print -exec sed -n '1,240p' {} \;
       - name: Clean disposable custom-stack workspaces
         if: always()
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tools/delivery/runner_orphan_cleanup.py \
             --minimum-age-seconds 0 \
             --grace-seconds 5 \
             --terminate
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "${TMPDIR:-/build/laplace/work}" \
+            --discover-prefix laplace-postgres-test. \
+            --discover-prefix lp-pg.
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --discover-prefix laplace-postgres-test.

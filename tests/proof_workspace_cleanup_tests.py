@@ -6,7 +6,9 @@ from __future__ import annotations
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
 import tempfile
+import textwrap
 import time
 import unittest
 from unittest import mock
@@ -175,6 +177,53 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         package = PACKAGE_PRODUCT.read_text(encoding="utf-8")
         self.assert_stale_sweep(package, package_names)
         self.assert_cleanup_step(package, package_names)
+
+    def test_custom_stack_cleans_both_native_namespaces_in_the_selected_scratch_root(self) -> None:
+        workflow = CUSTOM_STACK.read_text(encoding="utf-8")
+        self.assert_native_scratch_cleanup(workflow)
+
+    def test_deliberate_native_scratch_root_omission_is_detected(self) -> None:
+        workflow = CUSTOM_STACK.read_text(encoding="utf-8")
+        mutant = workflow.replace('${TMPDIR:-/build/laplace/work}', '$RUNNER_TEMP')
+        with self.assertRaises(AssertionError):
+            self.assert_native_scratch_cleanup(mutant)
+
+    def assert_native_scratch_cleanup(self, workflow: str) -> None:
+        for step, stale in (("Sweep stale interrupted custom-stack residue", True),
+                            ("Clean disposable custom-stack workspaces", False)):
+            block = workflow.split(f"      - name: {step}\n", 1)[1].split("      - name:", 1)[0]
+            self.assertIn("bash tools/host/run-exclusive.sh", block)
+            if not stale:
+                self.assertIn("if: always()", block)
+            script = textwrap.dedent(block.split("        run: |\n", 1)[1])
+            for selected in (None, str(self.root / "operator scratch")):
+                calls_path = self.root / "cleanup-invocations"
+                calls_path.write_bytes(b"")
+                environment = dict(os.environ, RUNNER_TEMP=str(self.root / "runner-temp"),
+                                   CLEANUP_CALLS=str(calls_path))
+                if selected is None:
+                    environment.pop("TMPDIR", None)
+                else:
+                    environment["TMPDIR"] = selected
+                # Observe the actual shell argument expansion without deleting
+                # any host workspace or invoking the process terminator.
+                spy = 'python3() { printf "%s\\0" "$@" >> "$CLEANUP_CALLS"; printf "\\n" >> "$CLEANUP_CALLS"; }\n'
+                subprocess.run(["bash", "-c", spy + script], env=environment,
+                               check=True, capture_output=True, text=True)
+                calls = [line.rstrip(b"\0").decode().split("\0")
+                         for line in calls_path.read_bytes().splitlines()]
+                root = selected or "/build/laplace/work"
+                matching = [call for call in calls if call[0] == "tools/delivery/proof_workspace_cleanup.py"
+                            and call[call.index("--runner-temp") + 1] == root]
+                self.assertEqual(len(matching), 1)
+                call = matching[0]
+                prefixes = [call[index + 1] for index, item in enumerate(call) if item == "--discover-prefix"]
+                self.assertEqual(set(prefixes), {"laplace-postgres-test.", "lp-pg."})
+                self.assertNotIn("--name", call)
+                if stale:
+                    self.assertEqual(call[call.index("--minimum-age-seconds") + 1], "300")
+                else:
+                    self.assertNotIn("--minimum-age-seconds", call)
 
     def test_deliberate_workflow_cleanup_omission_is_detected(self) -> None:
         workflow = POSTGRESQL_PRODUCT.read_text(encoding="utf-8")

@@ -714,6 +714,12 @@ static int stream_receipt_is_valid(
     return digest_equal(&receipt->receipt_id, &expected.receipt_id);
 }
 
+laplace_framework_status laplace_framework_stream_receipt_identity_validate(
+    const laplace_framework_stream_receipt* receipt) {
+    return stream_receipt_is_valid(receipt)
+        ? LAPLACE_FRAMEWORK_OK : LAPLACE_FRAMEWORK_STREAM_INVALID;
+}
+
 laplace_framework_status laplace_framework_stream_receipt_validate(
     const laplace_framework_context* context,
     const laplace_framework_stream_receipt* receipt) {
@@ -1429,6 +1435,50 @@ laplace_framework_status laplace_framework_admitted_stream_validate(
         return LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
     }
     return LAPLACE_FRAMEWORK_OK;
+}
+
+laplace_framework_status laplace_framework_committed_receipts_validate(
+    const laplace_digest256* context_fingerprint,
+    const laplace_digest256* staged_receipt_id,
+    const laplace_framework_activation_request* request,
+    const laplace_digest256* preparation_fingerprint,
+    const laplace_digest256* activation_fingerprint,
+    const laplace_digest256* admission_receipt_id,
+    const laplace_digest256* activation_receipt_id) {
+    laplace_framework_stream_receipt staged;
+    laplace_framework_activation_receipt expected;
+    if (context_fingerprint == NULL || staged_receipt_id == NULL ||
+        request == NULL || preparation_fingerprint == NULL ||
+        activation_fingerprint == NULL || admission_receipt_id == NULL ||
+        activation_receipt_id == NULL ||
+        request->epoch_slot >= LAPLACE_FRAMEWORK_EPOCH_COUNT ||
+        request->flags != LAPLACE_FRAMEWORK_KNOWN_ACTIVATION_FLAGS ||
+        request->reserved != 0u ||
+        digest_equal(&request->expected_epoch, &request->next_epoch)) {
+        return LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+    }
+    memset(&staged, 0, sizeof(staged));
+    memset(&expected, 0, sizeof(expected));
+    staged.receipt_id = *staged_receipt_id;
+    expected.context_fingerprint = *context_fingerprint;
+    expected.staged_receipt_id = *staged_receipt_id;
+    expected.expected_epoch = request->expected_epoch;
+    expected.next_epoch = request->next_epoch;
+    expected.epoch_slot = request->epoch_slot;
+    expected.preparation_fingerprint = *preparation_fingerprint;
+    expected.status = LAPLACE_FRAMEWORK_OK;
+    expected.effect_disposition = LAPLACE_FRAMEWORK_EFFECT_ACTIVATION_ADMITTED;
+    hash_activation_request(&staged, request, &expected.request_fingerprint);
+    hash_activation_receipt(&expected);
+    if (!digest_equal(&expected.receipt_id, admission_receipt_id)) {
+        return LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
+    }
+    expected.activation_fingerprint = *activation_fingerprint;
+    expected.effect_disposition = LAPLACE_FRAMEWORK_EFFECT_ACTIVATED;
+    hash_activation_receipt(&expected);
+    return digest_equal(&expected.receipt_id, activation_receipt_id)
+        ? LAPLACE_FRAMEWORK_OK
+        : LAPLACE_FRAMEWORK_ACTIVATION_REQUEST_INVALID;
 }
 
 laplace_framework_status laplace_framework_abort_admitted_stream(

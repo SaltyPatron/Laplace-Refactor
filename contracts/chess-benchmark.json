@@ -1,0 +1,72 @@
+{
+  "schema": "laplace.chess-benchmark-contract/v1",
+  "authority": "contracts/benchmark-suite.json",
+  "execution": "explicit-manual-or-user-authorized-chess-change-candidate-and-deployment-calibration",
+  "profiles": {
+    "stockfish": "upstream built-in fixed-depth bench; bind benchmark.cpp, source revision, executable, NNUE, options and actual variable node workload",
+    "cutechess": "paired-color Stockfish self-play with ponder disabled, fixed game depth and maximum moves; bind PGN and process identities"
+  },
+  "resources": {
+    "cpu": "minimum of caller affinity and every visible ancestor CPU quota; preserve fractional CPU equivalence",
+    "memory": "minimum of MemAvailable and every visible ancestor memory.max minus memory.current",
+    "game_cpu": "concurrency times threads per active engine with ponder off",
+    "game_memory": "two resident engines per game times Hash plus explicit overhead estimate; enforce sampled RSS ceiling",
+    "hidden_ancestors": "unobservable; never claim whole physical host capacity"
+  },
+  "receipts": [
+    "raw transcripts",
+    "repeated samples",
+    "warmups excluded",
+    "process-group sampled RSS and PSS",
+    "child CPU and filesystem I/O",
+    "cgroup throttling and pressure",
+    "actual huge-page observations",
+    "completion and rejection reasons"
+  ],
+  "recommendation": "only best measured configuration for this input, execution environment and resource grant; elapsed-workload and aggregate-game throughput remain separate",
+  "forbidden_claims": [
+    "NPS is Elo",
+    "fixed-depth SMP does identical node work",
+    "short smoke games prove strength",
+    "compiled huge-page support proves actual allocation",
+    "tool availability proves Laplace chess or Lichess service capability"
+  ],
+  "deployment_calibration": {
+    "authorization": "User-requested complete chess dependency setup and measured configuration on the actual deployment host. This chess-only calibration does not change unrelated benchmark-suite scheduling.",
+    "gate": "accepted main deployment succeeded and exact change selection contains a chess dependency or calibration implementation change",
+    "direct_inputs": [
+      "dependencies/chess-release-selection.json",
+      "contracts/chess-benchmark.json",
+      "tools/dependencies/chess_tools.py",
+      "tools/dependencies/git_checkout.py",
+      "tools/dependencies/chess_benchmark.py",
+      "tools/dependencies/chess_calibration_request.py",
+      "scripts/setup-chess.sh",
+      "scripts/benchmark-chess.sh",
+      "tools/host/run-exclusive.sh",
+      ".github/workflows/chess-calibration.yml",
+      "tools/dependencies/ensure-locked-git.sh",
+      "tools/dependencies/prepare-source-parents.sh",
+      "tools/dependencies/source_estate.py"
+    ],
+    "focused_locks": {
+      "dependencies/lock.json": {
+        "collection": "dependencies",
+        "names": [
+          "stockfish",
+          "cutechess"
+        ]
+      },
+      "dependencies/artifact-lock.json": {
+        "collection": "artifacts",
+        "prefix": "stockfish-"
+      }
+    }
+  },
+  "candidate_calibration": {
+    "authorization": "Same-repository pull requests with selected chess dependency or calibration changes may run source dependency builds and machine calibration after hosted proof. Calibration verifies and builds its own official source inputs under the shared host lock.",
+    "gate": "same-repository pull request with exact chess change selection and successful hosted proof; independent of PostgreSQL custom-stack proof, which remains separately required by product-path",
+    "evidence_scope": "candidate dependency measurements, separate from deployed product activation and core benchmark scheduling",
+    "acceptance": "selected candidate calibration must succeed before product-path and its protected check aliases can pass"
+  }
+}

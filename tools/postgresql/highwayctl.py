@@ -31,6 +31,7 @@ def load_sibling(module_name: str, filename: str) -> Any:
 
 clusterctl = load_sibling("laplace_highway_clusterctl", "clusterctl.py")
 unicodectl = load_sibling("laplace_highway_unicodectl", "unicodectl.py")
+revalidation = load_sibling("laplace_highway_revalidation", "highway_revalidation.py")
 
 CONTRACT_SCHEMA = "laplace.highway-product-activation-contract/v1"
 RECEIPT_SCHEMA = "laplace.highway-product-activation-receipt/v1"
@@ -637,12 +638,15 @@ def execute_highway_activation(
     loaded_observer: Callable[..., dict[str, Any]] = clusterctl.observe_loaded_live,
     command_runner: Callable[..., dict[str, Any]] = clusterctl.execute_activation_command,
     readiness_runner: Callable[..., dict[str, Any]] = clusterctl.await_postgresql_ready,
+    committed_revalidation_contract: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     clusterctl.require_fixture_or_root(root, authorize_system_root)
     validate_contract(
         contract, cluster_contract, unicode_contract, registry_contract,
         previous_registry_contract,
     )
+    if committed_revalidation_contract is not None:
+        revalidation.validate_contract(sys.modules[__name__], committed_revalidation_contract)
     try:
         unicodectl.validate_product_boundary(
             cluster_contract, package, plan, cluster_receipt, root
@@ -686,6 +690,15 @@ def execute_highway_activation(
     }
     replay_state = state
     if state["mode"] == "replay":
+        if committed_revalidation_contract is not None:
+            retention = revalidation.missing_retention(sys.modules[__name__], root, cluster_contract)
+            if retention is not None:
+                return revalidation.execute(sys.modules[__name__], recovery_contract=committed_revalidation_contract,
+                    contract=contract, cluster_contract=cluster_contract, package=package, plan=plan,
+                    cluster_receipt=cluster_receipt, unicode_receipt=unicode_receipt, identities=identities,
+                    inspection=inspection, activation_request=request, root=root, loaded_before=loaded_before,
+                    retention=retention, command_receipts=command_receipts, sql_runner=sql_runner,
+                    loaded_observer=loaded_observer, command_runner=command_runner, readiness_runner=readiness_runner)
         replay_state, admission_request_sha = retained_activation_state(
             root, cluster_contract, inspection, request)
         request["replayed_admission_request_sha256"] = admission_request_sha
@@ -807,6 +820,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--cluster-plan", required=True)
     parser.add_argument("--cluster-activation-receipt", required=True)
     parser.add_argument("--unicode-activation-receipt", required=True)
+    parser.add_argument("--committed-revalidation-contract", help="explicit exact missing-retention recovery contract")
     parser.add_argument("--output", default="-")
     parser.add_argument("--authorize-system-root", action="store_true")
     return parser.parse_args(argv)
@@ -832,6 +846,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         load_json(Path(arguments.unicode_activation_receipt)),
         Path("/"),
         arguments.authorize_system_root,
+        committed_revalidation_contract=(load_json(resolve(arguments.committed_revalidation_contract))
+                                        if arguments.committed_revalidation_contract else None),
     )
     content = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if arguments.output == "-":

@@ -234,6 +234,12 @@ LAPLACE_API laplace_isa_status laplace_isa_execute(
     laplace_isa_receipt* receipt,
     laplace_isa_error* error);
 
+/* Validate a successful, complete FULL-detail receipt with the canonical hash law.
+ * This checks receipt integrity; it does not replay the program or authenticate
+ * the observations represented by its fingerprints. The input is not modified. */
+LAPLACE_API laplace_isa_status laplace_isa_receipt_validate(
+    const laplace_isa_receipt* receipt);
+
 #ifdef __cplusplus
 }
 #endif

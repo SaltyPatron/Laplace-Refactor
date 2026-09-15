@@ -106,6 +106,36 @@ typedef struct laplace_cognition_materialization_receipt {
     uint32_t version;
 } laplace_cognition_materialization_receipt;
 
+/* Generic canonical content readback uses actual retained source receipts.
+ * It does not require or assert a cognition realization or semantic testimony.
+ * The traversal, identity law and output serializers are shared with cognition. */
+typedef struct laplace_content_materialization_receipt {
+    laplace_digest256 materialization_id;
+    laplace_digest256 source_receipt_id;
+    laplace_digest256 source_recipe_id;
+    laplace_digest256 provider_fingerprint;
+    laplace_digest256 readset_fingerprint;
+    laplace_digest256 output_fingerprint;
+    laplace_id128 root_content_id;
+    uint64_t resolved_node_count;
+    uint64_t trajectory_carrier_count;
+    uint64_t codepoint_count;
+    uint64_t output_bytes;
+    uint32_t maximum_depth_observed;
+    uint32_t version;
+} laplace_content_materialization_receipt;
+
+LAPLACE_API laplace_cognition_materialization_status
+laplace_content_materialize_encoded(
+    const laplace_id128* root_content_id,
+    const laplace_digest256* source_receipt_id,
+    const laplace_digest256* source_recipe_id,
+    const laplace_cognition_materialization_request* request,
+    const laplace_cognition_materialization_provider_v1* provider,
+    uint32_t output_encoding,
+    uint8_t* output, size_t output_capacity, size_t* output_bytes,
+    laplace_content_materialization_receipt* receipt);
+
 /*
  * Reconstructs one completed realization to exact ordered Unicode-position UTF-8
  * bytes. Composite identities and full witnesses are recalculated from provider

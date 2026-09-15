@@ -39,6 +39,10 @@ jobs:
         run: |
           set -euo pipefail
           bash -n scripts/setup-host.sh
+          bash -n scripts/setup-chess.sh
+          python3 tests/chess_dependency_tests.py
+          python3 tests/chess_benchmark_tests.py
+          python3 tests/chess_host_evidence_tests.py
           python3 tests/receipt_estate_tests.py
           python3 tests/receipt_estate_runner_tests.py
           python3 tests/product_build_workspace_retention_tests.py
@@ -110,6 +114,19 @@ jobs:
             --profile contracts/sources/cili-pwn-mappings-20240611.json \
             --destination "$cili_root"
           printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_root" >> "$GITHUB_ENV"
+      - name: Build and verify the locked C++ syntax provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          provider_root="$RUNNER_TEMP/laplace-output/cpp-grammar"
+          printf 'LAPLACE_CPP_GRAMMAR_RECEIPT=%s\n' "$provider_root/build-receipt.json" >> "$GITHUB_ENV"
+          python3 tools/sources/qualify_grammar.py --acquire \
+            --grammar-root "$RUNNER_TEMP/laplace-sources/tree-sitter-cpp" \
+            --runtime-root "$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            --grammar-lock dependencies/tree-sitter-grammars.lock.json \
+            --dependency-lock dependencies/lock.json \
+            --grammar tree-sitter-cpp --output "$provider_root"
+          test -s "$provider_root/build-receipt.json"
       - name: Configure
         shell: bash
         run: |
@@ -123,6 +140,7 @@ jobs:
             -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
             -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
             -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            -DLAPLACE_CPP_GRAMMAR_RECEIPT="$LAPLACE_CPP_GRAMMAR_RECEIPT" \
             -DLAPLACE_ISO_639_SOURCE_ROOT="$LAPLACE_ISO_639_SOURCE_ROOT" \
             -DLAPLACE_CILI_SOURCE_ROOT="$LAPLACE_CILI_SOURCE_ROOT"
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
@@ -135,3 +153,15 @@ jobs:
         run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
       - name: Verify test registry
         run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"
+      - name: Retain exact C++ provider build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cpp-provider-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build-receipt.json
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build.stdout.log
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build.stderr.log
+            ${{ runner.temp }}/laplace-output/cpp-grammar/provider.so
+          if-no-files-found: warn
+          retention-days: 30

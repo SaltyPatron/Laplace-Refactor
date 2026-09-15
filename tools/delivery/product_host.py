@@ -332,8 +332,10 @@ def execute_product_request(executable: Path, request_path: Path) -> dict[str, A
         result = json.loads(completed.stdout)
     except json.JSONDecodeError as error:
         raise HostError("whole-product activation returned invalid JSON") from error
-    if result.get("phase") != "product-unicode-and-highway-activated":
-        raise HostError("whole-product activation did not reach its terminal phase")
+    try:
+        gateway.activation.validate_product_terminal_result(result)
+    except gateway.activation.ActivationGatewayError as error:
+        raise HostError(str(error)) from error
     return result
 
 
@@ -666,8 +668,10 @@ def execute_local_selection(
         result = json.loads(completed.stdout)
     except json.JSONDecodeError as error:
         raise HostError("local whole-product activation returned invalid JSON") from error
-    if result.get("phase") != "product-unicode-and-highway-activated":
-        raise HostError("local whole-product activation did not reach its terminal phase")
+    try:
+        gateway.activation.validate_product_terminal_result(result)
+    except gateway.activation.ActivationGatewayError as error:
+        raise HostError(str(error)) from error
     return result
 
 

@@ -12,10 +12,16 @@ function(laplace_configure_world_admission_contract contract_path output)
     string(JSON output_domain GET "${contract}" identity output_domain)
     string(JSON receipt_domain GET "${contract}" identity receipt_domain)
     string(JSON component_count LENGTH "${contract}" required_component_receipts)
+    string(JSON conditional_component_count LENGTH "${contract}" conditional_component_receipts)
+    string(JSON lineage_condition GET "${contract}" conditional_component_receipts evidence-lineage)
+    string(JSON testimony_condition GET "${contract}" conditional_component_receipts evidence-testimony)
+    string(JSON observation_closure GET "${contract}" closure observation)
     string(JSON flags_none GET "${contract}" flags none)
     if(NOT schema STREQUAL "laplace.world-admission-execution-contract/v1" OR
        NOT version EQUAL 1 OR NOT digest STREQUAL "BLAKE3-256" OR
-       NOT component_count EQUAL 8 OR NOT flags_none EQUAL 0)
+       NOT component_count EQUAL 6 OR NOT conditional_component_count EQUAL 2 OR
+       observation_closure STREQUAL "" OR lineage_condition STREQUAL "" OR
+       testimony_condition STREQUAL "" OR NOT flags_none EQUAL 0)
         message(FATAL_ERROR "World-admission execution contract changed incompatibly")
     endif()
     set(LAPLACE_WORLD_ADMISSION_VERSION "${version}")

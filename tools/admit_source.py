@@ -16,6 +16,7 @@ HEX256 = re.compile(r"^[0-9a-f]{64}$")
 HEX128 = re.compile(r"^[0-9a-f]{32}$")
 INTEGER = re.compile(r"^[0-9]+$")
 PROFILE_NAMES = {
+    "verified-git-code",
     "iso-639-3-20260415",
     "cili-pwn-mappings-20240611",
     "cili-pwn-mappings-20260903",
@@ -322,6 +323,7 @@ def render_sql(
     source_root: Path,
     perfcache_epoch: str,
     numeric_epoch: str,
+    grammar: dict[str, Any] | None = None,
 ) -> str:
     artifacts = number(values, "ARTIFACT_COUNT")
     if artifacts < 1 or artifacts > 1024:
@@ -332,10 +334,22 @@ def render_sql(
     occurrence = hex_value(values, "OCCURRENCE_CONTEXT_FINGERPRINT", 64)
     geometry_epoch = hex_value(values, "GEOMETRY_EPOCH", 64)
     batch = number(values, "PREFERRED_BATCH_BYTES")
+    function = "source_admit_tabular"
+    grammar_argument = ""
+    if grammar is not None:
+        function = "source_admit_with_grammar"
+        library = grammar["grammar_receipt"]["library"]
+        text_literal = lambda value: "pg_catalog.convert_from(" + bytea(value.encode("utf-8").hex()) + ",'UTF8')"
+        grammar_argument = ",\n    ROW(" + ",".join([
+            text_literal(library["path"]), text_literal("tree_sitter_cpp"), text_literal("text/x-c++"),
+            str(0x4350500000000000) + "::numeric",
+            bytea(require_hex(grammar["grammar_declaration_sha256"], "grammar declaration SHA-256")),
+            bytea(require_hex(library["sha256"], "grammar library SHA-256")),
+            str(library["byte_count"]) + "::bigint", str(grammar["maximum_depth"])]) + ")::laplace.source_grammar_binding"
     return f"""BEGIN;
 SET LOCAL statement_timeout = '15min';
 WITH admitted AS MATERIALIZED (
-  SELECT (laplace.source_admit_tabular(
+  SELECT a.* FROM laplace.{function}(
     {context_sql(identities, geometry_epoch, perfcache_epoch, numeric_epoch)},
     {profile_sql(values)},
     {bytea(geometry_epoch)},
@@ -343,8 +357,8 @@ WITH admitted AS MATERIALIZED (
     {artifact_array},
     {reference_rules_sql(values)},
     {mapping_rules_sql(values)},
-    {batch}::numeric
-  )).*
+    {batch}::numeric{grammar_argument}
+  ) AS a
 )
 SELECT pg_catalog.json_build_object(
   'schema','laplace.admit-source/v1',
@@ -371,7 +385,75 @@ def psql_command(tool_release: Path, args: argparse.Namespace) -> list[str]:
     ]
 
 
-def run_scalar(command: list[str], sql: str, operation: str) -> str:
+def verify_git_readback(command: list[str], result: dict[str, Any], proof: dict[str, Any],
+                        identities: dict[str, Any], geometry_epoch: str,
+                        perfcache_epoch: str, numeric_epoch: str) -> dict[str, Any]:
+    admission = result["admission"]
+    profile_id = bytea(require_hex(admission["profile_id"][2:], "native source profile id"))
+    profile = result["persisted_profile"]
+    artifacts = proof["manifest"]["artifacts"]
+    if (int(profile["claim_count"]) != 0 or int(admission["testimony_count"]) != 0 or
+            int(admission["evidence_node_count"]) != 0 or
+            int(profile["file_count"]) != len(artifacts) or
+            any(admission.get(key) is not None for key in
+                ("evidence_lineage_receipt_id", "evidence_testimony_receipt_id",
+                 "evidence_lineage_isa_receipt_id", "evidence_testimony_isa_receipt_id"))):
+        raise AdmissionError("native Git observation changed file/evidence denominators")
+    composition_id = bytea(require_hex(admission["composition_working_set_receipt_id"][2:], "native composition receipt"))
+    occurrence_id = bytea(require_hex(admission["source_fingerprint"][2:], "native source fingerprint"))
+    indexes = ",".join(str(index) for index in range(len(artifacts)))
+    maximum_file_bytes = max(item["byte_count"] for item in artifacts)
+    maximum_nodes = max(4096, maximum_file_bytes * 4)
+    maximum_carriers = max(4096, maximum_file_bytes * 16)
+    witness_bound = max(4096, int(profile["span_count"]))
+    if witness_bound > 5000000:
+        raise AdmissionError("source readback exceeds its five-million-witness boundary")
+    sql = f"""WITH selected AS MATERIALIZED (
+ SELECT receipt_id,witness_fingerprint FROM laplace.source_structural_witness_receipt
+ WHERE source_profile_id={profile_id} AND composition_working_set_receipt={composition_id} AND version=3
+), restored AS MATERIALIZED (
+ SELECT r.* FROM selected s CROSS JOIN LATERAL laplace.source_readback_utf8_batch(
+   {context_sql(identities, geometry_epoch, perfcache_epoch, numeric_epoch)},
+   {profile_id},s.receipt_id,ARRAY[{indexes}]::numeric[],
+   ROW({maximum_nodes}::numeric,{maximum_carriers}::numeric,{maximum_file_bytes}::numeric,
+       256,1)::laplace.cognition_materialization_request,
+   {witness_bound}::numeric,{proof['manifest']['byte_count']}::numeric) r
+)
+SELECT jsonb_build_object(
+ 'schema','laplace.verified-git-source-readback/v1',
+ 'structural_receipt_count',(SELECT count(*) FROM selected),
+ 'structural_witness_fingerprint',(SELECT encode(witness_fingerprint,'hex') FROM selected),
+ 'records',(SELECT jsonb_agg((to_jsonb(r)-'content') ||
+        jsonb_build_object('sha256',encode(sha256(r.content),'hex')) ORDER BY artifact_index) FROM restored r),
+ 'source_occurrence_count',(SELECT count(*) FROM laplace.attestation WHERE source_fingerprint={occurrence_id}),
+ 'structural_witness_count',(SELECT count(*) FROM laplace.source_structural_witness WHERE source_profile_id={profile_id}),
+ 'database_row_counts',json_build_object(
+   'entity',(SELECT count(*) FROM laplace.entity),
+   'physicality',(SELECT count(*) FROM laplace.physicality),
+   'attestation',(SELECT count(*) FROM laplace.attestation))
+)::text;"""
+    try:
+        readback = json.loads(run_scalar(command, sql, "exact Git source readback", timeout=1000))
+    except (ValueError, TypeError) as error:
+        raise AdmissionError("source readback returned malformed JSON") from error
+    records = readback.get("records")
+    if (readback.get("structural_receipt_count") != 1 or not isinstance(records, list) or
+            len(records) != len(artifacts)):
+        raise AdmissionError("source readback omitted or duplicated selected artifact roots")
+    require_hex(readback.get("structural_witness_fingerprint"), "verified structural witness fingerprint")
+    for index, (expected, actual) in enumerate(zip(artifacts, records)):
+        if (int(actual["artifact_index"]) != index or actual["sha256"] != expected["sha256"] or
+                int(actual["output_bytes"]) != expected["byte_count"] or
+                actual["source_profile_id"] != admission["profile_id"]):
+            raise AdmissionError("native source readback differs from exact Git bytes: " + expected["path"])
+        actual["path"] = expected["path"]
+    readback["all_artifacts_exact"] = True
+    readback["verified_file_count"] = len(records)
+    readback["verified_byte_count"] = sum(int(row["output_bytes"]) for row in records)
+    return readback
+
+
+def run_scalar(command: list[str], sql: str, operation: str, *, timeout: int = 60) -> str:
     try:
         result = subprocess.run(
             command,
@@ -380,7 +462,7 @@ def run_scalar(command: list[str], sql: str, operation: str) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
-            timeout=60,
+            timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise AdmissionError(f"{operation} could not execute: {error}") from error
@@ -419,14 +501,35 @@ def run_sql(command: list[str], sql: str) -> dict[str, Any]:
     if not isinstance(value, dict) or value.get("schema") != "laplace.admit-source/v1":
         raise AdmissionError("source admission returned the wrong result schema")
     admission = value.get("admission")
-    if not isinstance(admission, dict) or value.get("persisted_profile") is None:
-        raise AdmissionError("source admission did not persist its source profile")
+    if not isinstance(admission, dict):
+        raise AdmissionError("source admission returned no native admission result")
     profile_id = admission.get("profile_id")
     receipt_id = admission.get("source_profile_receipt_id")
     if not isinstance(profile_id, str) or not profile_id.startswith("\\x") or len(profile_id) != 66:
         raise AdmissionError("source admission returned an invalid profile id")
     if not isinstance(receipt_id, str) or not receipt_id.startswith("\\x") or len(receipt_id) != 66:
         raise AdmissionError("source admission returned an invalid source-profile receipt")
+    profile_hex = require_hex(profile_id[2:], "native source profile id")
+    receipt_hex = require_hex(receipt_id[2:], "native source-profile receipt")
+    # SPI writes performed by the native function are committed above. A fresh
+    # statement observes them regardless of the original SELECT's snapshot.
+    observed_sql = f"""SELECT json_build_object(
+ 'persisted_profile',(SELECT row_to_json(p) FROM laplace.source_profile p
+                       WHERE profile_id={bytea(profile_hex)}),
+ 'source_profile_receipt_bound',EXISTS(SELECT FROM laplace.source_profile_receipt_member
+     WHERE profile_id={bytea(profile_hex)} AND receipt_id={bytea(receipt_hex)}),
+ 'entity_count',(SELECT count(*) FROM laplace.entity),
+ 'physicality_count',(SELECT count(*) FROM laplace.physicality),
+ 'attestation_count',(SELECT count(*) FROM laplace.attestation))::text;"""
+    try:
+        committed = json.loads(run_scalar(command, observed_sql, "committed source profile"))
+    except (ValueError, TypeError) as error:
+        raise AdmissionError("committed source profile returned malformed JSON") from error
+    profile = committed.get("persisted_profile") if isinstance(committed, dict) else None
+    if (not isinstance(profile, dict) or profile.get("profile_id") != profile_id or
+            committed.get("source_profile_receipt_bound") is not True):
+        raise AdmissionError("source admission did not persist its exact native source profile")
+    value.update(committed)
     return value
 
 
@@ -444,6 +547,10 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--role", default=DEFAULT_ROLE)
     value.add_argument("--render-sql", action="store_true")
     value.add_argument("--pretty", action="store_true")
+    value.add_argument("--git-manifest", type=Path)
+    value.add_argument("--grammar-receipt", type=Path)
+    value.add_argument("--maximum-depth", type=int, default=256)
+    value.add_argument("--preferred-batch-bytes", type=int, default=1048576)
     return value
 
 
@@ -494,19 +601,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         # generations. They intentionally advance beyond the Unicode activation
         # request's original framework context after Unicode/Highway activation.
 
-        compiled = compile_profile(
-            tool_release / "bin/laplace_source_profile_compile",
-            args.profile,
-            args.source_root,
-            args.unicode_root,
-            geometry_epoch,
-        )
+        grammar = None
+        if args.profile == "verified-git-code":
+            if args.git_manifest is None or args.grammar_receipt is None:
+                raise AdmissionError("verified-git-code requires --git-manifest and --grammar-receipt")
+            from sources.git_profile import declaration
+            from sources.verified_git import GitCorpusError
+            try:
+                compiled, grammar = declaration(args.git_manifest, args.source_root,
+                    args.grammar_receipt, geometry_epoch, maximum_depth=args.maximum_depth,
+                    preferred_batch_bytes=args.preferred_batch_bytes,
+                    dependency_lock=tool_release / "share/laplace/source-contracts/native-dependency-lock.json",
+                    grammar_lock=tool_release / "share/laplace/source-contracts/grammar-lock.json")
+            except (GitCorpusError, OSError, ValueError, KeyError) as error:
+                raise AdmissionError(str(error)) from error
+        else:
+            if args.git_manifest is not None or args.grammar_receipt is not None:
+                raise AdmissionError("grammar/Git inputs require verified-git-code")
+            compiled = compile_profile(
+                tool_release / "bin/laplace_source_profile_compile",
+                args.profile, args.source_root, args.unicode_root, geometry_epoch)
         sql = render_sql(
             compiled,
             identities,
             args.source_root,
             perfcache_epoch,
             numeric_epoch,
+            grammar,
         )
         if args.render_sql:
             sys.stdout.write(sql)
@@ -518,10 +639,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         result["geometry_epoch"] = geometry_epoch
         result["perfcache_epoch"] = perfcache_epoch
         result["numeric_epoch"] = numeric_epoch
-        result["native_source_fingerprint"] = hex_value(compiled, "SOURCE_FINGERPRINT", 64)
-        result["native_reconstruction_fingerprint"] = hex_value(
-            compiled, "RECONSTRUCTION_FINGERPRINT", 64
-        )
+        if grammar is None:
+            result["native_source_fingerprint"] = hex_value(compiled, "SOURCE_FINGERPRINT", 64)
+            result["native_reconstruction_fingerprint"] = hex_value(compiled, "RECONSTRUCTION_FINGERPRINT", 64)
+        else:
+            result["verified_git_input"] = grammar
+            result["executable_semantics_verified"] = False
+            result["native_source_fingerprint"] = require_hex(result["admission"]["source_fingerprint"][2:], "native source fingerprint")
+            result["native_reconstruction_fingerprint"] = require_hex(result["admission"]["reconstruction_fingerprint"][2:], "native reconstruction fingerprint")
+            result["readback"] = verify_git_readback(command, result, grammar, identities,
+                geometry_epoch, perfcache_epoch, numeric_epoch)
+            result["phase"] = "source-admitted-and-exactly-read-back"
         if args.pretty:
             sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
         else:

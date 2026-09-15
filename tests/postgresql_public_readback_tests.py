@@ -63,6 +63,13 @@ class PublicReadbackBindings(unittest.TestCase):
             self.assertIn(condition,self.sql)
         self.assertNotIn('GRANT ',self.sql)
         self.assertNotIn('ALTER ROLE',self.sql)
+        world = (self.root/'world-admission-optional-evidence.sql').read_text()
+        self.assertIn(world,self.sql)
+        self.assertIn('world_admission_evidence_coverage',world)
+        self.assertIn('evidence_lineage_receipt_id IS NULL',world)
+        self.assertIn('evidence_testimony_receipt_id IS NULL',world)
+        self.assertIn('profile_claim_count>0',world)
+
 
     def test_existing_installation_applies_verified_program_in_one_transaction(self):
         outcome={'schema':'laplace.public-readback-bindings/v1','functions':3,'owner':'laplace_admin'}
@@ -120,6 +127,19 @@ class PublicReadbackBindings(unittest.TestCase):
         self.assertIn('laplace_pg_materialization_provider_take_error', wrapper)
         self.assertNotIn('SELECT physicality_id', wrapper)
         self.assertNotIn('laplace_pg_perfcache_pin_active', wrapper)
+
+    def test_committed_revalidation_type_and_binding_upgrade_are_exact_and_private(self):
+        declaration = 'CREATE TYPE laplace.highway_registry_revalidation_result AS ('
+        generated = (self.root/'laplace--1.0.0.sql').read_text()
+        expected = generated[generated.index(declaration):].split(';',1)[0]+';'
+        self.assertIn(expected,self.sql)
+        for guard in ('member_names IS DISTINCT FROM', 'member_types IS DISTINCT FROM',
+                      'a.attisdropped', "t.typowner=e.extowner", "p.prosrc='laplace_pg_highway_registry_revalidate_committed'",
+                      "NOT p.prosecdef", "d.deptype='e'", 'ALTER EXTENSION laplace ADD FUNCTION',
+                      'ALTER EXTENSION laplace ADD TYPE'):
+            self.assertIn(guard,self.sql)
+        self.assertIn('REVOKE ALL ON FUNCTION laplace.highway_registry_revalidate_committed',self.sql)
+        self.assertNotIn('GRANT ',self.sql)
 
     def test_migration_is_before_unicode_and_highway_activation(self):
         import inspect

@@ -49,6 +49,13 @@ void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
 void LAPLACE_PG_COMPOSITION_DESTROY_SYMBOL(
     laplace_pg_composition_execution* execution);
 
+/* Explicit administrative integrity proof after canonical metadata presence has
+ * succeeded. Reads only the selected reconstructed trajectories in bounded sets.
+ * The caller holds a stable snapshot/lock covering the physicality rows. */
+void laplace_pg_composition_verify_stored_trajectories(
+    const laplace_pg_composition_execution* execution,
+    uint64_t maximum_batch_bytes);
+
 void LAPLACE_PG_COMPOSITION_PERSIST_RECEIPT_SYMBOL(
     const laplace_pg_composition_execution* execution,
     const laplace_composition_working_set_input* input);

@@ -100,6 +100,11 @@ def guarded_arguments(argv: Sequence[str], estate_root: Path | None = None) -> l
     values[2] = str(resolve_estate_directory(root, values[2], "source_root"))
 
     unicode_index = option_index(values, "--unicode-root")
+    if values[1] == "verified-git-code" and unicode_index is None:
+        # This route uses the active persisted Unicode provider. Its raw source
+        # is not an acquisition/compiler input; the frozen corpus estate remains
+        # required above, and an explicitly supplied path remains guarded below.
+        return values
     if unicode_index is None:
         unicode_root = resolve_estate_directory(
             root, str(root / DEFAULT_UNICODE_RELATIVE), "unicode_root"

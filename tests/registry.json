@@ -546,6 +546,11 @@
       "controls": "CompositionWorkingSet.PresenceFiltersExactStateBeforePublication"
     },
     {
+      "ctest_name": "PersistenceContract.StoredTrajectoryBytesRetainCanonicalIdentity",
+      "evidence_targets": ["LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-FRAMEWORK-CANONICAL-BATCH"],
+      "covered_dimensions": ["serialized carrier identity parity", "all stored trajectory bytes affect canonical fingerprint", "partial and empty carrier buffers are rejected"]
+    },
+    {
       "ctest_name": "PersistenceContract.WholeTypedStreamValidatesAcrossBatchBoundaries",
       "evidence_targets": ["LP-TEST-FRAMEWORK-CANONICAL-BATCH", "LP-TEST-BULK-PARITY", "LP-TEST-ENTITY-PHYSICALITY-SEPARATION", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION", "LP-TEST-OCCURRENCE-PRESERVATION"],
       "covered_dimensions": ["versioned framed record stream", "batch-boundary independence", "entity physicality trajectory occurrence separation", "whole-stream closure"]
@@ -1883,7 +1888,7 @@
     {
       "ctest_name": "WorldAdmission.ClosesCompleteReceiptBoundAdmissionsDeterministically",
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-ISA-RECEIPT"],
-      "covered_dimensions": ["source-profile composition presence producer stream lineage testimony and readback receipts close one world admission", "exact occurrence claim evidence testimony and closure denominators aggregate deterministically", "replay produces the same semantic receipt"]
+      "covered_dimensions": ["zero-claim observation identity projection and receipt bind absent evidence and zero counts", "mixed observation and nonempty evidence batch retains independent denominators", "eight inconsistent absence states are rejected", "source-profile composition presence producer stream lineage testimony and readback receipts close one world admission", "exact occurrence claim evidence testimony and closure denominators aggregate deterministically", "replay produces the same semantic receipt"]
     },
     {
       "ctest_name": "WorldAdmission.IdentityBindsEveryComponentCountAndReadback",
@@ -1939,7 +1944,7 @@
       "ctest_name": "postgres.world-admission-whole-route-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-DEPENDENCE", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-ISA-RECEIPT", "LP-TEST-DERIVATION-LINEAGE-CLOSURE"],
-      "covered_dimensions": ["one public PostgreSQL route derives world records from durable source-profile composition-deposit occurrence lineage and testimony receipts", "callers supply component receipt identities rather than manufacturing semantic counts or admission identities", "exact durable receipt-member sets prove profile recipe lineage testimony and occurrence binding", "native ISA 1.8 closes the derived world record", "world admission records semantic receipt ISA receipt and exact ordered receipt membership persist transactionally", "deterministic replay preserves tuple identity", "removed lineage membership rejects admission and rolls back without published effect"],
+      "covered_dimensions": ["one public PostgreSQL route derives world records from durable source-profile composition-deposit occurrence lineage and testimony receipts", "callers supply component receipt identities rather than manufacturing semantic counts or admission identities", "exact durable receipt-member sets prove profile recipe lineage testimony and occurrence binding", "native ISA 1.8 closes the derived world record", "world admission records semantic receipt ISA receipt and exact ordered receipt membership persist transactionally", "deterministic replay preserves tuple identity", "removed lineage membership rejects admission and rolls back without published effect", "zero-claim observation closes with absent evidence references and no fabricated evidence rows", "eight dangling mixed missing and schema absence controls", "legacy NOT NULL world schema reconciles twice through one generated owner"],
       "defect_controls": ["world-admission.mutation-lineage-binding-detected", "deleted durable lineage receipt membership is rejected by the production PostgreSQL route"]
     },
     {
@@ -1969,6 +1974,12 @@
       "evidence_targets": ["LP-TEST-BULK-PARITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-BOUNDED-CROSSINGS", "LP-TEST-ADMISSION-SOURCE-TOPOLOGY"],
       "covered_dimensions": ["40000 distinct native reference occurrences persist through the public PostgreSQL route", "the declared 8 MiB authority derives a saturated record batch without a fixed record-count constant", "exact durable coordinate occurrence and receipt-membership cardinalities", "measured elapsed WAL and database-growth boundary on an isolated disposable cluster"],
       "defect_controls": ["a fixed 16384-record batch leaves at least one full encoded record unused and fails the saturation assertion", "missing coordinate occurrence or receipt-member persistence fails exact durable counts"]
+    },
+    {
+      "ctest_name": "postgres.highway-committed-revalidation-contract",
+      "profiles": ["postgres", "custom-stack"],
+      "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
+      "covered_dimensions": ["current committed-registry verification through the actual PostgreSQL extension", "caller COMMIT and ROLLBACK preserve canonical and retained state", "root and nested trajectory corruption is rejected", "original admission and final receipt identities remain distinct", "private native binding upgrade and corruption controls"]
     },
     {
       "ctest_name": "postgres.spi-isa-contract",

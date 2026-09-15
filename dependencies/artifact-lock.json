@@ -10,20 +10,31 @@
       "admission": "identity-locked-ci-execution-tool"
     },
     "stockfish-nnue-big": {
-      "version": "sf_18",
-      "filename": "nn-c288c895ea92.nnue",
-      "url": "https://github.com/official-stockfish/networks/raw/master/nn-c288c895ea92.nnue",
-      "sha256": "c288c895ea924429ea9092e3f36b2b3c1f00f2a3a4c759ff7e57e79e3b43e4a7",
-      "size": 108919594,
-      "admission": "identity-locked-license-review-required"
+      "version": "sf_19",
+      "filename": "nn-1a298aa575a0.nnue",
+      "url": "https://github.com/official-stockfish/networks/raw/master/nn-1a298aa575a0.nnue",
+      "sha256": "1a298aa575a085434d29027978dc36867fe9c5bcea9376654b7a8eba1e52dfc2",
+      "size": 98511183,
+      "admission": "identity-locked-external-chess-network",
+      "license": "GPL-3.0-or-later"
     },
-    "stockfish-nnue-small": {
-      "version": "sf_18",
-      "filename": "nn-37f18f62d772.nnue",
-      "url": "https://github.com/official-stockfish/networks/raw/master/nn-37f18f62d772.nnue",
-      "sha256": "37f18f62d772f3107e1d6aaca3898c130c3c86f2ab63e6555fbbca20635a899d",
-      "size": 3519630,
-      "admission": "identity-locked-license-review-required"
+    "pip": {
+      "version": "26.2.1",
+      "filename": "pip-26.2.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl",
+      "sha256": "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e",
+      "size": 1816632,
+      "admission": "identity-locked-qt-sdk-acquisition-prerequisite",
+      "license": "MIT"
+    },
+    "aqtinstall": {
+      "version": "3.3.0",
+      "filename": "aqtinstall-3.3.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/7f/70/849fa1005fa197fc28a744fd69598ab9da883b737a1ab9461d88721ddd0b/aqtinstall-3.3.0-py3-none-any.whl",
+      "sha256": "e88dbd87226f276fdd5d05347a44578d390d93a7f176e9476fbda0a7c9635f69",
+      "size": 71789,
+      "admission": "identity-locked-qt-sdk-acquisition-tool",
+      "license": "MIT"
     }
   }
 }

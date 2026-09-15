@@ -23,6 +23,33 @@
   },
   "isolated_tests": [
     {
+      "ctest_name": "postgres.verified-cpp-source-contract",
+      "profile": "verified-cpp-source",
+      "required_receipts": ["verified_cpp_source_admission"],
+      "required_receipt_fields": {
+        "verified_cpp_source_admission": {
+          "schema": "laplace.verified-cpp-source-acceptance/v1",
+          "negative_controls": 13,
+          "reconciliation_controls": 2,
+          "profile_schema_controls": 6,
+          "reference_rule_array_controls": 2,
+          "physicality_binding_controls": 4,
+          "same_content_physicality_selection": true
+        }
+      },
+      "order": 25,
+      "resource_class": "postgresql-verified-git-cpp-source-admission",
+      "reason": "bounded native C++ and exact-text admission, persisted readback, zero-testimony closure and replay with the actual verified grammar provider"
+    },
+    {
+      "ctest_name": "postgres.highway-committed-revalidation-contract",
+      "profile": "highway-committed-revalidation",
+      "required_receipts": ["highway_committed_revalidation"],
+      "order": 5,
+      "resource_class": "postgresql-unicode-registry-integrity",
+      "reason": "actual native committed-state revalidation and corruption/rollback proof on a disposable Unicode and Highway generation"
+    },
+    {
       "ctest_name": "postgres.composition-whole-boundary-measurement",
       "profile": "composition-boundary",
       "order": 10,
@@ -62,6 +89,80 @@
     }
   ],
   "selection_rules": [
+    {
+      "id": "verified-cpp-source",
+      "patterns": [
+        "dependencies/tree-sitter-grammars.lock.json",
+        "contracts/source-profile-execution.json",
+        "engine/include/laplace/cognition_materialization.h",
+        "engine/include/laplace/source_decomposition.h",
+        "engine/include/laplace/tree_sitter_grammar.h",
+        "engine/include/laplace/world_admission.h",
+        "engine/src/decomposition*",
+        "engine/src/source_profile.c",
+        "engine/src/tabular_source*",
+        "engine/src/tree_sitter_grammar.cpp",
+        "engine/src/world_admission.c",
+        "engine/src/cognition_materialization*",
+        "integrations/postgresql/extension/src/source_admission*",
+        "integrations/postgresql/extension/src/source_materialization*",
+        "integrations/postgresql/extension/src/source_readback*",
+        "integrations/postgresql/extension/src/materialization_pg.c",
+        "integrations/postgresql/extension/src/world_admission_pg.c",
+        "integrations/postgresql/extension/source_grammar_admission.sql.in",
+        "integrations/postgresql/extension/source_observation_profile.sql.in",
+        "integrations/postgresql/extension/source_content_readback.sql.in",
+        "integrations/postgresql/extension/source_readback.sql.in",
+        "integrations/postgresql/extension/source_structural_witness.sql.in",
+        "integrations/postgresql/extension/src/source_structural_witness*",
+        "integrations/postgresql/extension/CMakeLists.txt",
+        "integrations/postgresql/extension/world_admission_optional_evidence.sql.in",
+        "tools/sources/verified_git.py",
+        "tools/sources/git_profile.py",
+        "tools/sources/qualify_grammar.py",
+        "tools/sources/stockfish_corpus_acceptance.py",
+        "tools/dependencies/git_checkout.py",
+        "tools/contracts/generate-tabular-source-profile.py",
+        "tools/admit_source.py",
+        "tests/verified_cpp*",
+        "tests/CMakeLists.txt",
+        "tests/verified_git_source_tests.py",
+        "tests/stockfish_corpus_acceptance_tests.py",
+        "tests/registry.d/stockfish-corpus-acceptance.json",
+        "tests/registry.d/verified-cpp-source.json",
+        "tests/postgres/verified_cpp*",
+        "tests/postgres/run_spi_test.sh",
+        "tools/tests/configure-custom-stack.sh",
+        "tools/tests/custom_stack_qa.py",
+        ".github/workflows/ci.yml",
+        ".github/workflows/stockfish-corpus-acceptance.yml",
+        ".github/workflows/custom-stack.yml"
+      ],
+      "profiles": ["verified-cpp-source"]
+    },
+    {
+      "id": "highway-committed-revalidation",
+      "patterns": [
+        "contracts/highway-committed-revalidation.json",
+        "contracts/isa.json",
+        "cmake/LaplacePostgreSQLBindings.cmake",
+        "engine/src/framework.c",
+        "engine/include/laplace/framework.h",
+        "engine/src/isa.c",
+        "engine/include/laplace/isa.h",
+        "engine/src/persistence.c",
+        "engine/include/laplace/persistence.h",
+        "integrations/postgresql/extension/src/highway_registry*",
+        "integrations/postgresql/extension/src/composition_pg.*",
+        "integrations/postgresql/extension/highway_committed_revalidation.sql.in",
+        "integrations/postgresql/extension/laplace--version.sql.in",
+        "tests/postgres/highway_revalidation_bindings.sql.in",
+        "tests/postgres/unicode_root_contract.sql",
+        "tests/postgres/run_spi_test.sh",
+        "tools/postgresql/highway_revalidation.py"
+      ],
+      "profiles": ["highway-committed-revalidation"]
+    },
     {
       "id": "unicode-hot-performance",
       "patterns": [

@@ -28,7 +28,7 @@ namespace {
 constexpr std::uint32_t RecipeVersion = 1u;
 constexpr std::uint64_t NoResultIndex = std::numeric_limits<std::uint64_t>::max();
 constexpr std::uint32_t MissingSyntaxFlag =
-    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_MISSING);
+    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_MISSING | LAPLACE_DECOMPOSITION_SYNTAX_EMPTY);
 
 bool DigestZero(const laplace_digest256& value) {
     for (const std::uint8_t byte : value.bytes) {
@@ -177,6 +177,8 @@ public:
             const bool missing = (span.syntax_flags & MissingSyntaxFlag) != 0u;
             if (span.byte_start > span.byte_end ||
                 (!has_content && !missing) ||
+                ((span.syntax_flags & LAPLACE_DECOMPOSITION_SYNTAX_EMPTY) != 0u &&
+                 (has_content || (span.syntax_flags & LAPLACE_DECOMPOSITION_SYNTAX_MISSING) != 0u)) ||
                 span.byte_end > input_.content->byte_count ||
                 span.reserved != 0u ||
                 (span_index == 0u &&

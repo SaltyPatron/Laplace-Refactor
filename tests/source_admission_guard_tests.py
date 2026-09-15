@@ -82,6 +82,23 @@ class SourceAdmissionEstateBoundaryTests(unittest.TestCase):
         with self.assertRaises(self.guard.AdmissionGuardError):
             self.guard.guarded_arguments(argv, self.estate)
 
+    def test_verified_git_uses_active_unicode_without_raw_source_directory(self) -> None:
+        self.unicode.rmdir()
+        argv = ["laplace-admit-source", "verified-git-code", str(self.source)]
+        self.assertEqual(self.guard.guarded_arguments(argv, self.estate), argv)
+
+    def test_tabular_profile_still_requires_its_raw_unicode_compiler_input(self) -> None:
+        self.unicode.rmdir()
+        argv = ["laplace-admit-source", "iso-639-3-20260415", str(self.source)]
+        with self.assertRaisesRegex(self.guard.AdmissionGuardError, "unicode_root is unavailable"):
+            self.guard.guarded_arguments(argv, self.estate)
+
+    def test_verified_git_still_rejects_source_outside_the_estate(self) -> None:
+        self.unicode.rmdir()
+        argv = ["laplace-admit-source", "verified-git-code", str(self.outside)]
+        with self.assertRaisesRegex(self.guard.AdmissionGuardError, "source_root is outside"):
+            self.guard.guarded_arguments(argv, self.estate)
+
 
 class SourceAdmissionUnpublishedPackageTests(unittest.TestCase):
     @classmethod

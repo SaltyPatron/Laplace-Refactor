@@ -1,4 +1,15 @@
+\timing on
 CREATE EXTENSION laplace;
+
+-- Reconcile the actual legacy NOT NULL shape twice through the generated owner.
+ALTER TABLE laplace.world_admission
+    DROP CONSTRAINT world_admission_evidence_coverage,
+    ALTER COLUMN evidence_lineage_receipt_id SET NOT NULL,
+    ALTER COLUMN evidence_testimony_receipt_id SET NOT NULL;
+\i '@CMAKE_BINARY_DIR@/integrations/postgresql/extension/share/extension/world-admission-optional-evidence.sql'
+\i '@CMAKE_BINARY_DIR@/integrations/postgresql/extension/share/extension/world-admission-optional-evidence.sql'
+CREATE TEMP TABLE world_observation_proof(proof jsonb NOT NULL);
+
 
 CREATE FUNCTION pg_temp.world_context()
 RETURNS laplace.execution_context
@@ -27,6 +38,7 @@ CREATE TEMP TABLE world_expected (
     entity_b bytea NOT NULL,
     witness_b bytea NOT NULL,
     profile_id bytea NOT NULL,
+    observation_profile_id bytea NOT NULL,
     occurrence_id bytea NOT NULL,
     evidence_node bytea NOT NULL,
     evidence_source bytea NOT NULL,
@@ -43,6 +55,7 @@ INSERT INTO world_expected VALUES (
     decode(:'persistence_entity_b', 'hex'),
     decode(:'persistence_entity_b_witness', 'hex'),
     decode(:'world_profile_id', 'hex'),
+    decode(:'world_observation_profile_id', 'hex'),
     decode(:'world_occurrence_id', 'hex'),
     decode(:'world_evidence_node', 'hex'),
     decode(:'world_evidence_source', 'hex'),
@@ -77,6 +90,13 @@ DECLARE
     admission_result laplace.world_admission_result;
     replay_result laplace.world_admission_result;
     request laplace.world_admission_request;
+    asserted_request laplace.world_admission_request;
+    observation_request laplace.world_admission_request;
+    observation_result laplace.world_admission_result;
+    evidence_before bigint[];
+    evidence_after bigint[];
+    rejected integer := 0;
+    case_number integer;
     admission_xmin xid;
     admission_ctid tid;
     world_rows bigint;
@@ -248,6 +268,7 @@ BEGIN
         RAISE EXCEPTION 'world admission replay changed its logical result or immutable receipt';
     END IF;
 
+    asserted_request := request;
     SELECT count(*) INTO world_rows FROM laplace.world_admission;
     SELECT count(*) INTO world_receipts FROM laplace.world_admission_receipt;
     BEGIN
@@ -267,7 +288,110 @@ BEGIN
               AND node_id=evidence_node) THEN
         RAISE EXCEPTION 'rejected world admission published state or failed rollback';
     END IF;
+
+    SELECT ARRAY[(SELECT count(*) FROM laplace.evidence_node),
+                 (SELECT count(*) FROM laplace.evidence_lineage_receipt),
+                 (SELECT count(*) FROM laplace.evidence_testimony),
+                 (SELECT count(*) FROM laplace.evidence_testimony_receipt)]
+    INTO evidence_before;
+    profile.profile_id := expected.observation_profile_id;
+    profile.claim_count := 0;
+    profile.not_applicable_mask := profile.not_applicable_mask::bigint | (1::bigint << 11);
+    profile_result := laplace.source_profile_validate_batch(
+        pg_temp.world_context(), ARRAY[profile]);
+    observation_request := ROW(profile.profile_id,
+        profile_result.source_profile_receipt_id, recipe,
+        composition_result.working_set_receipt, NULL, NULL)
+        ::laplace.world_admission_request;
+    observation_result := laplace.world_admission_close_batch(
+        pg_temp.world_context(), ARRAY[observation_request]);
+    IF observation_result.admission_count <> 1
+       OR observation_result.occurrence_count <> 2
+       OR observation_result.claim_count <> 0
+       OR observation_result.evidence_node_count <> 0
+       OR observation_result.testimony_count <> 0
+       OR observation_result.closure_subject_count <> 1
+       OR NOT EXISTS (SELECT FROM laplace.world_admission a
+           WHERE a.admission_id=observation_result.admission_ids[1]
+             AND a.source_profile_id=profile.profile_id
+             AND a.composition_working_set_receipt_id=composition_result.working_set_receipt
+             AND a.evidence_lineage_receipt_id IS NULL
+             AND a.evidence_testimony_receipt_id IS NULL
+             AND a.profile_claim_count=0 AND a.evidence_node_count=0
+             AND a.testimony_count=0
+             AND a.readback_fingerprint<>decode(repeat('00',32),'hex')) THEN
+        RAISE EXCEPTION 'zero-claim observation did not close without evidence';
+    END IF;
+    SELECT xmin,ctid INTO STRICT admission_xmin,admission_ctid
+    FROM laplace.world_admission_receipt
+    WHERE receipt_id=observation_result.world_admission_receipt_id;
+    replay_result := laplace.world_admission_close_batch(
+        pg_temp.world_context(), ARRAY[observation_request]);
+    IF replay_result IS DISTINCT FROM observation_result OR NOT EXISTS (
+        SELECT FROM laplace.world_admission_receipt
+        WHERE receipt_id=observation_result.world_admission_receipt_id
+          AND xmin=admission_xmin AND ctid=admission_ctid) THEN
+        RAISE EXCEPTION 'observation replay changed its immutable world receipt';
+    END IF;
+    FOR case_number IN 1..6 LOOP
+        request := observation_request;
+        CASE case_number
+            WHEN 1 THEN request.evidence_lineage_receipt_id := decode(repeat('f1',32),'hex');
+            WHEN 2 THEN request.evidence_testimony_receipt_id := decode(repeat('f2',32),'hex');
+            WHEN 3 THEN request.evidence_lineage_receipt_id := lineage_result.lineage_receipt_id;
+            WHEN 4 THEN request.evidence_testimony_receipt_id := testimony_result.testimony_receipt_id;
+            WHEN 5 THEN
+                request := asserted_request;
+                request.evidence_lineage_receipt_id := NULL;
+            WHEN 6 THEN
+                request := asserted_request;
+                request.evidence_testimony_receipt_id := NULL;
+        END CASE;
+        BEGIN
+            PERFORM laplace.world_admission_close_batch(pg_temp.world_context(), ARRAY[request]);
+            RAISE EXCEPTION 'optional evidence accepted inconsistent request %', case_number;
+        EXCEPTION WHEN data_corrupted THEN
+            rejected := rejected + 1;
+        END;
+    END LOOP;
+    BEGIN
+        UPDATE laplace.world_admission SET
+            evidence_lineage_receipt_id=lineage_result.lineage_receipt_id,
+            evidence_testimony_receipt_id=testimony_result.testimony_receipt_id
+        WHERE admission_id=observation_result.admission_ids[1];
+        RAISE EXCEPTION 'schema accepted evidence references for zero-claim observation';
+    EXCEPTION WHEN check_violation THEN rejected := rejected+1;
+    END;
+    BEGIN
+        UPDATE laplace.world_admission SET evidence_lineage_receipt_id=NULL
+        WHERE admission_id=admission_result.admission_ids[1];
+        RAISE EXCEPTION 'schema accepted nonzero claims without lineage';
+    EXCEPTION WHEN check_violation THEN rejected := rejected+1;
+    END;
+    SELECT ARRAY[(SELECT count(*) FROM laplace.evidence_node),
+                 (SELECT count(*) FROM laplace.evidence_lineage_receipt),
+                 (SELECT count(*) FROM laplace.evidence_testimony),
+                 (SELECT count(*) FROM laplace.evidence_testimony_receipt)]
+    INTO evidence_after;
+    IF rejected<>8 OR evidence_before IS DISTINCT FROM evidence_after
+       OR (SELECT count(*) FROM laplace.world_admission)<>world_rows+1
+       OR (SELECT count(*) FROM laplace.world_admission_receipt)<>world_receipts+1 THEN
+        RAISE EXCEPTION 'observation closure fabricated evidence or rejected calls published state';
+    END IF;
+    INSERT INTO world_observation_proof VALUES(jsonb_build_object(
+        'schema','laplace.world-observation-closure-proof/v1',
+        'claim_count',observation_result.claim_count,
+        'testimony_count',observation_result.testimony_count,
+        'evidence_node_count',observation_result.evidence_node_count,
+        'world_receipt',encode(observation_result.world_admission_receipt_id,'hex'),
+        'rejection_count',rejected,'immutable_replay',true,
+        'evidence_tables_unchanged',true,'nonempty_route_preserved',true,
+        'legacy_reconciliation_repeated',true));
 END
 $world$;
 
 SELECT 'postgres.world-admission-contract passed' AS result;
+
+\pset format unaligned
+\pset tuples_only on
+SELECT 'LAPLACE_QA_RECEIPT world_observation_closure ' || proof::text FROM world_observation_proof;

@@ -15,6 +15,10 @@
 #include "laplace/contract/postgresql_bindings.h"
 #include "laplace_pg_internal.h"
 #include "source_structural_witness_pg.h"
+#include "laplace/decomposition.h"
+#include "source_profile_pg.h"
+#include "miscadmin.h"
+#include "utils/builtins.h"
 
 static void hash_u32(blake3_hasher* hasher, uint32_t value) {
     uint8_t bytes[4];
@@ -48,6 +52,35 @@ static void finish_digest(blake3_hasher* hasher, laplace_digest256* digest) {
     blake3_hasher_finalize(hasher, digest->bytes, sizeof(digest->bytes));
 }
 
+static void hash_witness_row(
+    blake3_hasher* hasher,
+    const laplace_tabular_decomposition_witness* witness,
+    const laplace_id128* selected_entity,
+    const laplace_digest256* selected_physicality, const uint8_t* media) {
+    const laplace_id128 entity_id = *selected_entity;
+    hash_bytes(
+        hasher, witness->trace_fingerprint.bytes,
+        sizeof(witness->trace_fingerprint.bytes));
+    hash_bytes(
+        hasher, witness->provider_fingerprint.bytes,
+        sizeof(witness->provider_fingerprint.bytes));
+    hash_bytes(hasher, entity_id.bytes, sizeof(entity_id.bytes));
+    hash_bytes(hasher, selected_physicality->bytes, sizeof(selected_physicality->bytes));
+    hash_u64(hasher, witness->artifact_index);
+    hash_u64(hasher, witness->span_index);
+    hash_u64(hasher, witness->parent_span_index);
+    hash_u64(hasher, witness->byte_start);
+    hash_u64(hasher, witness->byte_end);
+    hash_u64(hasher, witness->kind);
+    hash_u64(hasher, witness->grammar_kind);
+    hash_u64(hasher, witness->field_kind);
+    hash_u64(hasher, witness->sibling_ordinal);
+    hash_bytes(hasher, media, (size_t)witness->media_type_byte_count);
+    hash_u32(hasher, witness->depth);
+    hash_u32(hasher, witness->flags);
+    hash_u32(hasher, witness->syntax_flags);
+}
+
 static bool spi_boolean(void) {
     bool is_null = false;
     Datum value;
@@ -71,12 +104,28 @@ static int64 spi_int64_column(int column) {
     return is_null ? -1 : DatumGetInt64(value);
 }
 
-static laplace_id128 canonical_entity_id(
-    const laplace_composition_operand* reference,
+typedef struct structural_canonical_reference {
+    laplace_id128 entity_id;
+    laplace_digest256 physicality_id;
+} structural_canonical_reference;
+
+static structural_canonical_reference canonical_reference(
+    const laplace_tabular_decomposition_witness* witness,
     const laplace_pg_composition_execution* execution,
     const laplace_composition_working_set_input* composition_input) {
-    laplace_id128 entity_id;
-    memset(&entity_id, 0, sizeof(entity_id));
+    structural_canonical_reference selected;
+    const laplace_composition_operand* reference = &witness->canonical_content;
+    memset(&selected, 0, sizeof(selected));
+    if (witness->byte_start == witness->byte_end &&
+        (witness->syntax_flags & (LAPLACE_DECOMPOSITION_SYNTAX_MISSING | LAPLACE_DECOMPOSITION_SYNTAX_EMPTY)) != 0u) {
+        laplace_composition_operand absent;
+        memset(&absent, 0, sizeof(absent));
+        if (memcmp(reference, &absent, sizeof(absent)) != 0) {
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace missing syntax witness must have absent canonical content")));
+        }
+        return selected;
+    }
     if (reference->multiplicity != 1u ||
         reference->relationship_metadata != 0u || reference->flags != 0u) {
         ereport(ERROR,
@@ -91,9 +140,9 @@ static laplace_id128 canonical_entity_id(
                     (errcode(ERRCODE_DATA_CORRUPTED),
                      errmsg("Laplace structural witness known-entity reference is out of range")));
         }
-        return composition_input->known_entities[reference->reference_index].entity_id;
-    }
-    if (reference->reference_kind ==
+        selected.entity_id = composition_input->known_entities[reference->reference_index].entity_id;
+        selected.physicality_id = composition_input->known_entities[reference->reference_index].physicality_id;
+    } else if (reference->reference_kind ==
         LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT) {
         if (reference->reference_index >= execution->result_count ||
             execution->results == NULL) {
@@ -101,12 +150,22 @@ static laplace_id128 canonical_entity_id(
                     (errcode(ERRCODE_DATA_CORRUPTED),
                      errmsg("Laplace structural witness result reference is out of range")));
         }
-        return execution->results[reference->reference_index].entity_id;
+        selected.entity_id = execution->results[reference->reference_index].entity_id;
+        selected.physicality_id = execution->results[reference->reference_index].physicality_id;
+    } else {
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_CORRUPTED),
+                 errmsg("Laplace structural witness uses an unknown canonical reference kind")));
     }
-    ereport(ERROR,
-            (errcode(ERRCODE_DATA_CORRUPTED),
-             errmsg("Laplace structural witness uses an unknown canonical reference kind")));
-    return entity_id;
+    {
+        static const laplace_id128 zero_id = {{0}};
+        static const laplace_digest256 zero_digest = {{0}};
+        if (memcmp(selected.entity_id.bytes, zero_id.bytes, sizeof(zero_id.bytes)) == 0 ||
+            memcmp(selected.physicality_id.bytes, zero_digest.bytes, sizeof(zero_digest.bytes)) == 0)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace structural witness lacks its native selected physicality")));
+    }
+    return selected;
 }
 
 static ArrayType* bytea_array(Datum* values, size_t count) {
@@ -132,10 +191,10 @@ static ArrayType* numeric_array(Datum* values, size_t count) {
 static uint64 structural_witness_encoded_bytes(
     const laplace_tabular_decomposition_witness* witness) {
     /* Canonical batch accounting is independent of PostgreSQL Datum layout:
-     * three fixed identities, nine u64 coordinates, one length-prefixed media
+     * four fixed identities, nine u64 coordinates, one length-prefixed media
      * value, and three u32 values. */
     static const uint64 fixed_bytes =
-        UINT64_C(32) + UINT64_C(32) + UINT64_C(16) +
+        UINT64_C(32) + UINT64_C(32) + UINT64_C(16) + UINT64_C(32) +
         UINT64_C(9) * UINT64_C(8) + UINT64_C(8) +
         UINT64_C(3) * UINT64_C(4);
     if (witness->media_type_byte_count > UINT64_MAX - fixed_bytes) {
@@ -182,34 +241,45 @@ void laplace_pg_persist_source_structural_witnesses(
     const laplace_composition_working_set_input* composition_input,
     const laplace_source_profile_manifest* profile) {
     static const char witness_domain[] =
-        "laplace.source-structural-witness-set/v2";
+        "laplace.source-structural-witness-set/v3";
     static const char receipt_domain[] =
-        "laplace.source-structural-witness-receipt/v2";
+        "laplace.source-structural-witness-receipt/v3";
     static const uint8_t empty_byte = 0u;
     static const char witnesses_insert_sql[] =
         "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM unnest("
         "$2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],"
         "$7::numeric[],$8::numeric[],$9::numeric[],$10::numeric[],$11::numeric[],"
         "$12::numeric[],$13::numeric[],$14::bytea[],$15::numeric[],$16::numeric[],"
-        "$17::numeric[]) AS u(trace_fingerprint,provider_fingerprint,canonical_entity_id,"
+        "$17::numeric[],$18::bytea[]) AS u(trace_fingerprint,provider_fingerprint,canonical_entity_id,"
         "artifact_index,span_index,parent_span_index,byte_start,byte_end,kind,grammar_kind,"
-        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags)) "
+        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags,canonical_physicality_id)) "
         "INSERT INTO " LAPLACE_PG_SCHEMA ".source_structural_witness AS s("
         "source_profile_id,artifact_index,span_index,parent_span_index,trace_fingerprint,"
         "provider_fingerprint,canonical_entity_id,byte_start,byte_end,kind,grammar_kind,"
-        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags) SELECT "
+        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags,canonical_physicality_id) SELECT "
         "source_profile_id,artifact_index,span_index,parent_span_index,trace_fingerprint,"
-        "provider_fingerprint,canonical_entity_id,byte_start,byte_end,kind,grammar_kind,"
-        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags FROM input "
+        "provider_fingerprint,CASE WHEN byte_start=byte_end AND (syntax_flags::bigint & 34)<>0 "
+        "THEN NULL ELSE canonical_entity_id END,byte_start,byte_end,kind,grammar_kind,"
+        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags,"
+        "CASE WHEN byte_start=byte_end AND (syntax_flags::bigint & 34)<>0 "
+        "THEN NULL ELSE canonical_physicality_id END FROM input "
         "ON CONFLICT (source_profile_id,artifact_index,span_index) DO UPDATE SET "
         "grammar_kind=EXCLUDED.grammar_kind,field_kind=EXCLUDED.field_kind,"
-        "sibling_ordinal=EXCLUDED.sibling_ordinal,syntax_flags=EXCLUDED.syntax_flags "
-        "WHERE s.grammar_kind IS NULL AND s.field_kind IS NULL "
-        "AND s.sibling_ordinal IS NULL AND s.syntax_flags IS NULL "
+        "sibling_ordinal=EXCLUDED.sibling_ordinal,syntax_flags=EXCLUDED.syntax_flags,"
+        "canonical_physicality_id=EXCLUDED.canonical_physicality_id "
+        "WHERE ((s.grammar_kind IS NULL AND s.field_kind IS NULL "
+        "AND s.sibling_ordinal IS NULL AND s.syntax_flags IS NULL) OR "
+        "(s.canonical_physicality_id IS NULL AND EXCLUDED.canonical_physicality_id IS NOT NULL "
+        "AND s.grammar_kind IS NOT DISTINCT FROM EXCLUDED.grammar_kind "
+        "AND s.field_kind IS NOT DISTINCT FROM EXCLUDED.field_kind "
+        "AND s.sibling_ordinal IS NOT DISTINCT FROM EXCLUDED.sibling_ordinal "
+        "AND s.syntax_flags IS NOT DISTINCT FROM EXCLUDED.syntax_flags)) "
+        "AND (s.canonical_physicality_id IS NULL OR "
+        "s.canonical_physicality_id IS NOT DISTINCT FROM EXCLUDED.canonical_physicality_id) "
         "AND s.parent_span_index=EXCLUDED.parent_span_index "
         "AND s.trace_fingerprint=EXCLUDED.trace_fingerprint "
         "AND s.provider_fingerprint=EXCLUDED.provider_fingerprint "
-        "AND s.canonical_entity_id=EXCLUDED.canonical_entity_id "
+        "AND s.canonical_entity_id IS NOT DISTINCT FROM EXCLUDED.canonical_entity_id "
         "AND s.byte_start=EXCLUDED.byte_start AND s.byte_end=EXCLUDED.byte_end "
         "AND s.kind=EXCLUDED.kind AND s.media_type=EXCLUDED.media_type "
         "AND s.depth=EXCLUDED.depth AND s.flags=EXCLUDED.flags";
@@ -218,20 +288,23 @@ void laplace_pg_persist_source_structural_witnesses(
         "$2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],"
         "$7::numeric[],$8::numeric[],$9::numeric[],$10::numeric[],$11::numeric[],"
         "$12::numeric[],$13::numeric[],$14::bytea[],$15::numeric[],$16::numeric[],"
-        "$17::numeric[]) AS u(trace_fingerprint,provider_fingerprint,canonical_entity_id,"
+        "$17::numeric[],$18::bytea[]) AS u(trace_fingerprint,provider_fingerprint,canonical_entity_id,"
         "artifact_index,span_index,parent_span_index,byte_start,byte_end,kind,grammar_kind,"
-        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags)), "
+        "field_kind,sibling_ordinal,media_type,depth,flags,syntax_flags,canonical_physicality_id)), "
         "mismatched AS (SELECT 1 FROM input i "
         "LEFT JOIN " LAPLACE_PG_SCHEMA ".source_structural_witness s ON "
         "s.source_profile_id=i.source_profile_id AND s.artifact_index=i.artifact_index "
         "AND s.span_index=i.span_index WHERE s.source_profile_id IS NULL OR "
         "s.parent_span_index<>i.parent_span_index OR s.trace_fingerprint<>i.trace_fingerprint "
         "OR s.provider_fingerprint<>i.provider_fingerprint OR "
-        "s.canonical_entity_id<>i.canonical_entity_id OR s.byte_start<>i.byte_start OR "
+        "s.canonical_entity_id IS DISTINCT FROM (CASE WHEN i.byte_start=i.byte_end AND "
+        "(i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_entity_id END) OR s.byte_start<>i.byte_start OR "
         "s.byte_end<>i.byte_end OR s.kind<>i.kind OR s.grammar_kind IS DISTINCT FROM i.grammar_kind OR "
         "s.field_kind IS DISTINCT FROM i.field_kind OR s.sibling_ordinal IS DISTINCT FROM i.sibling_ordinal OR "
         "s.media_type<>i.media_type OR s.depth<>i.depth OR s.flags<>i.flags OR "
-        "s.syntax_flags IS DISTINCT FROM i.syntax_flags) "
+        "s.syntax_flags IS DISTINCT FROM i.syntax_flags OR "
+        "s.canonical_physicality_id IS DISTINCT FROM (CASE WHEN i.byte_start=i.byte_end AND "
+        "(i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_physicality_id END)) "
         "SELECT count(*) FROM mismatched";
     static const char witnesses_count_sql[] =
         "SELECT count(*) FROM " LAPLACE_PG_SCHEMA
@@ -256,13 +329,13 @@ void laplace_pg_persist_source_structural_witnesses(
     blake3_hasher hasher;
     size_t index;
     size_t batch_start;
-    Oid witness_types[17] = {
+    Oid witness_types[18] = {
         BYTEAOID, BYTEAARRAYOID, BYTEAARRAYOID, BYTEAARRAYOID,
         NUMERICARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID,
         NUMERICARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID,
         NUMERICARRAYOID, BYTEAARRAYOID, NUMERICARRAYOID, NUMERICARRAYOID,
-        NUMERICARRAYOID};
-    Datum witness_parameters[17];
+        NUMERICARRAYOID, BYTEAARRAYOID};
+    Datum witness_parameters[18];
     Oid receipt_types[6] = {
         BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, NUMERICOID, INT4OID};
     Datum receipt_parameters[6];
@@ -315,8 +388,8 @@ void laplace_pg_persist_source_structural_witnesses(
 
     for (index = 0u; index < witness_count; ++index) {
         const laplace_tabular_decomposition_witness* witness = &witnesses[index];
-        const laplace_id128 entity_id = canonical_entity_id(
-            &witness->canonical_content, execution, composition_input);
+        const structural_canonical_reference canonical = canonical_reference(
+            witness, execution, composition_input);
         const uint64_t media_end =
             witness->media_type_byte_offset + witness->media_type_byte_count;
         const uint8_t* media = &empty_byte;
@@ -330,26 +403,7 @@ void laplace_pg_persist_source_structural_witnesses(
             media = media_types + (size_t)witness->media_type_byte_offset;
         }
 
-        hash_bytes(
-            &hasher, witness->trace_fingerprint.bytes,
-            sizeof(witness->trace_fingerprint.bytes));
-        hash_bytes(
-            &hasher, witness->provider_fingerprint.bytes,
-            sizeof(witness->provider_fingerprint.bytes));
-        hash_bytes(&hasher, entity_id.bytes, sizeof(entity_id.bytes));
-        hash_u64(&hasher, witness->artifact_index);
-        hash_u64(&hasher, witness->span_index);
-        hash_u64(&hasher, witness->parent_span_index);
-        hash_u64(&hasher, witness->byte_start);
-        hash_u64(&hasher, witness->byte_end);
-        hash_u64(&hasher, witness->kind);
-        hash_u64(&hasher, witness->grammar_kind);
-        hash_u64(&hasher, witness->field_kind);
-        hash_u64(&hasher, witness->sibling_ordinal);
-        hash_bytes(&hasher, media, (size_t)witness->media_type_byte_count);
-        hash_u32(&hasher, witness->depth);
-        hash_u32(&hasher, witness->flags);
-        hash_u32(&hasher, witness->syntax_flags);
+        hash_witness_row(&hasher, witness, &canonical.entity_id, &canonical.physicality_id, media);
     }
     finish_digest(&hasher, &witness_fingerprint);
 
@@ -378,7 +432,7 @@ void laplace_pg_persist_source_structural_witnesses(
     receipt_parameters[3] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         witness_fingerprint.bytes, sizeof(witness_fingerprint.bytes)));
     receipt_parameters[4] = laplace_pg_numeric_from_uint64((uint64_t)witness_count);
-    receipt_parameters[5] = Int32GetDatum(2);
+    receipt_parameters[5] = Int32GetDatum(3);
 
     if (SPI_connect() != SPI_OK_CONNECT) {
         ereport(ERROR,
@@ -397,6 +451,7 @@ void laplace_pg_persist_source_structural_witnesses(
         Datum* trace_values = (Datum*)palloc(sizeof(*trace_values) * batch_count);
         Datum* provider_values = (Datum*)palloc(sizeof(*provider_values) * batch_count);
         Datum* entity_values = (Datum*)palloc(sizeof(*entity_values) * batch_count);
+        Datum* physicality_values = (Datum*)palloc(sizeof(*physicality_values) * batch_count);
         Datum* artifact_values = (Datum*)palloc(sizeof(*artifact_values) * batch_count);
         Datum* span_values = (Datum*)palloc(sizeof(*span_values) * batch_count);
         Datum* parent_values = (Datum*)palloc(sizeof(*parent_values) * batch_count);
@@ -415,8 +470,8 @@ void laplace_pg_persist_source_structural_witnesses(
         for (batch_index = 0u; batch_index < batch_count; ++batch_index) {
             const laplace_tabular_decomposition_witness* witness =
                 &witnesses[batch_start + batch_index];
-            const laplace_id128 entity_id = canonical_entity_id(
-                &witness->canonical_content, execution, composition_input);
+            const structural_canonical_reference canonical = canonical_reference(
+                witness, execution, composition_input);
             const uint64_t media_end =
                 witness->media_type_byte_offset + witness->media_type_byte_count;
             const uint8_t* media = &empty_byte;
@@ -436,7 +491,9 @@ void laplace_pg_persist_source_structural_witnesses(
                 witness->provider_fingerprint.bytes,
                 sizeof(witness->provider_fingerprint.bytes)));
             entity_values[batch_index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-                entity_id.bytes, sizeof(entity_id.bytes)));
+                canonical.entity_id.bytes, sizeof(canonical.entity_id.bytes)));
+            physicality_values[batch_index] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+                canonical.physicality_id.bytes, sizeof(canonical.physicality_id.bytes)));
             artifact_values[batch_index] =
                 laplace_pg_numeric_from_uint64(witness->artifact_index);
             span_values[batch_index] =
@@ -480,10 +537,11 @@ void laplace_pg_persist_source_structural_witnesses(
         witness_parameters[14] = PointerGetDatum(numeric_array(depth_values, batch_count));
         witness_parameters[15] = PointerGetDatum(numeric_array(flag_values, batch_count));
         witness_parameters[16] = PointerGetDatum(numeric_array(syntax_flag_values, batch_count));
+        witness_parameters[17] = PointerGetDatum(bytea_array(physicality_values, batch_count));
         MemoryContextSwitchTo(prior_context);
 
         result = SPI_execute_with_args(
-            witnesses_insert_sql, 17, witness_types, witness_parameters,
+            witnesses_insert_sql, 18, witness_types, witness_parameters,
             NULL, false, 0);
         if (result != SPI_OK_INSERT ||
             UINT64_MAX - inserted_count < (uint64_t)SPI_processed) {
@@ -495,7 +553,7 @@ void laplace_pg_persist_source_structural_witnesses(
         inserted_count += (uint64_t)SPI_processed;
         CommandCounterIncrement();
         result = SPI_execute_with_args(
-            witnesses_verify_sql, 17, witness_types, witness_parameters,
+            witnesses_verify_sql, 18, witness_types, witness_parameters,
             NULL, false, 1);
         if (result != SPI_OK_SELECT || spi_int64_column(1) != 0) {
             ereport(ERROR,
@@ -543,4 +601,213 @@ void laplace_pg_persist_source_structural_witnesses(
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace structural witness deposition could not close")));
     }
+}
+
+static Datum structural_column(HeapTuple tuple, TupleDesc descriptor, int column) {
+    bool is_null;
+    Datum value = SPI_getbinval(tuple, descriptor, column, &is_null);
+    if (is_null) ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+        errmsg("Laplace retained structural receipt has a null required field")));
+    return value;
+}
+
+static void structural_exact(Datum value, void* target, size_t width) {
+    bytea* bytes = DatumGetByteaPP(value);
+    if ((size_t)VARSIZE_ANY_EXHDR(bytes) != width)
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace retained structural identity has an invalid width")));
+    memcpy(target, VARDATA_ANY(bytes), width);
+}
+
+void laplace_pg_verify_source_structural_roots(
+    const laplace_digest256* profile_id, const laplace_digest256* receipt_id,
+    const uint64_t* artifact_indexes, size_t artifact_count, uint64_t maximum_witnesses,
+    laplace_pg_source_readback_binding* bindings) {
+    static const char receipt_sql[] =
+        "SELECT p,r.composition_working_set_receipt,r.witness_fingerprint,r.witness_count "
+        "FROM " LAPLACE_PG_SCHEMA ".source_structural_witness_receipt r "
+        "JOIN " LAPLACE_PG_SCHEMA ".source_profile p ON p.profile_id=r.source_profile_id "
+        "JOIN " LAPLACE_PG_SCHEMA ".composition_execution_receipt c "
+        "ON c.working_set_receipt=r.composition_working_set_receipt "
+        "WHERE r.source_profile_id=$1 AND r.receipt_id=$2 AND r.version=3";
+    static const char rows_sql[] =
+        "SELECT trace_fingerprint,provider_fingerprint,canonical_entity_id,artifact_index,"
+        "span_index,parent_span_index,byte_start,byte_end,kind,grammar_kind,field_kind,"
+        "sibling_ordinal,CASE WHEN octet_length(media_type)<=127 THEN media_type ELSE NULL END,depth,flags,syntax_flags,canonical_physicality_id FROM " LAPLACE_PG_SCHEMA
+        ".source_structural_witness WHERE source_profile_id=$1 ORDER BY artifact_index,span_index";
+    static const char witness_domain[] = "laplace.source-structural-witness-set/v3";
+    static const char receipt_domain[] = "laplace.source-structural-witness-receipt/v3";
+    Oid types[2] = {BYTEAOID, BYTEAOID};
+    Datum values[2];
+    laplace_source_profile_manifest profile;
+    laplace_source_profile_receipt profile_receipt;
+    laplace_source_profile_error profile_error;
+    laplace_digest256 expected_witness, actual_witness, actual_receipt;
+    blake3_hasher hasher;
+    SPIPlanPtr plan;
+    Portal cursor;
+    uint64_t count = 0u;
+    laplace_pg_source_readback_binding* binding = bindings;
+    bool* selected;
+    size_t selected_index;
+    size_t next_selected = 0u;
+    int result;
+    if (artifact_indexes == NULL || bindings == NULL || artifact_count == 0u || artifact_count > 4096u)
+        ereport(ERROR,(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),errmsg("Laplace source readback artifact count is outside its finite bound")));
+    for (selected_index=1u; selected_index<artifact_count; ++selected_index)
+        if (artifact_indexes[selected_index-1u]>=artifact_indexes[selected_index])
+            ereport(ERROR,(errcode(ERRCODE_INVALID_PARAMETER_VALUE),errmsg("Laplace source readback indexes must be sorted and unique")));
+    memset(bindings, 0, sizeof(*bindings)*artifact_count);
+    selected = (bool*)palloc0(sizeof(*selected)*artifact_count);
+    memset(&profile, 0, sizeof(profile));
+    if (maximum_witnesses == 0u) ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+        errmsg("Laplace source readback requires a finite nonzero witness bound")));
+    values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(profile_id->bytes, 32u));
+    values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipt_id->bytes, 32u));
+    result = SPI_execute_with_args(receipt_sql, 2, types, values, NULL, true, 2);
+    ++binding->database_operations;
+    if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL)
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace source readback requires one retained v3 structural receipt with native physicality bindings"),
+            errhint("Replay source admission to obtain exact native physicality bindings for older receipts.")));
+    {
+        HeapTuple tuple = SPI_tuptable->vals[0];
+        TupleDesc descriptor = SPI_tuptable->tupdesc;
+        laplace_pg_read_source_profile(DatumGetHeapTupleHeader(
+            structural_column(tuple, descriptor, 1)), &profile);
+        structural_exact(structural_column(tuple, descriptor, 2),
+            &binding->composition_receipt_id, 32u);
+        structural_exact(structural_column(tuple, descriptor, 3), &expected_witness, 32u);
+        binding->witness_count = laplace_pg_uint64_from_numeric(
+            structural_column(tuple, descriptor, 4), "structural witness count");
+    }
+    SPI_freetuptable(SPI_tuptable);
+    if (laplace_source_profile_validate_batch(&profile, 1u, &profile_receipt, &profile_error) !=
+            LAPLACE_SOURCE_PROFILE_OK || memcmp(profile.profile_id.bytes, profile_id->bytes,32u) != 0 ||
+        artifact_indexes[artifact_count-1u] >= profile.file_count || binding->witness_count == 0u)
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace source readback profile identity or artifact boundary is invalid")));
+    if (binding->witness_count > maximum_witnesses)
+        ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+            errmsg("Laplace source witness set exceeds the admitted readback bound")));
+    binding->recipe_id = profile.recipe_program_fingerprint;
+    blake3_hasher_init(&hasher);
+    hash_bytes(&hasher, (const uint8_t*)witness_domain, sizeof(witness_domain)-1u);
+    hash_bytes(&hasher, profile_id->bytes, 32u);
+    hash_u64(&hasher, binding->witness_count);
+    plan = SPI_prepare(rows_sql, 1, types);
+    if (plan == NULL) ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+        errmsg("Laplace structural readback could not prepare its bounded cursor")));
+    cursor = SPI_cursor_open(NULL, plan, values, NULL, true);
+    ++binding->database_operations;
+    SPI_freeplan(plan);
+    if (cursor == NULL) ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
+        errmsg("Laplace structural readback could not open its bounded cursor")));
+    for (;;) {
+        uint64 row;
+        SPI_cursor_fetch(cursor, true, 128);
+        ++binding->database_operations;
+        if (SPI_processed == 0u) { if (SPI_tuptable != NULL) SPI_freetuptable(SPI_tuptable); break; }
+        for (row = 0u; row < SPI_processed; ++row) {
+            HeapTuple tuple = SPI_tuptable->vals[row];
+            TupleDesc descriptor = SPI_tuptable->tupdesc;
+            laplace_tabular_decomposition_witness witness;
+            laplace_id128 entity;
+            laplace_digest256 physicality;
+            bytea* media;
+            bool absent;
+            bool physicality_absent;
+            Datum canonical;
+            uint64_t coordinates[12];
+            int index;
+            memset(&witness, 0, sizeof(witness));
+            memset(&entity, 0, sizeof(entity));
+            memset(&physicality, 0, sizeof(physicality));
+            CHECK_FOR_INTERRUPTS();
+            if (++count > binding->witness_count || count > maximum_witnesses)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace retained structural witness count exceeds its receipt")));
+            structural_exact(structural_column(tuple, descriptor, 1), &witness.trace_fingerprint,32u);
+            structural_exact(structural_column(tuple, descriptor, 2), &witness.provider_fingerprint,32u);
+            canonical = SPI_getbinval(tuple, descriptor, 3, &absent);
+            if (!absent) structural_exact(canonical, &entity,16u);
+            canonical = SPI_getbinval(tuple, descriptor, 17, &physicality_absent);
+            if (!physicality_absent) structural_exact(canonical, &physicality,32u);
+            if (absent != physicality_absent)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace v3 structural witness lacks its exact physicality binding")));
+            for (index=0; index<9; ++index) coordinates[index] = laplace_pg_uint64_from_numeric(
+                structural_column(tuple, descriptor, index+4), "structural witness coordinate");
+            for (index=9; index<12; ++index) coordinates[index] = laplace_pg_uint64_from_numeric(
+                structural_column(tuple, descriptor, index+5), "structural witness flags");
+            witness.artifact_index=coordinates[0]; witness.span_index=coordinates[1];
+            witness.parent_span_index=coordinates[2]; witness.byte_start=coordinates[3];
+            witness.byte_end=coordinates[4]; witness.kind=coordinates[5];
+            witness.grammar_kind=coordinates[6]; witness.field_kind=coordinates[7];
+            witness.sibling_ordinal=coordinates[8];
+            if (coordinates[9]>UINT32_MAX || coordinates[10]>UINT32_MAX || coordinates[11]>UINT32_MAX)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace structural flags overflow")));
+            witness.depth=(uint32_t)coordinates[9]; witness.flags=(uint32_t)coordinates[10];
+            witness.syntax_flags=(uint32_t)coordinates[11];
+            media=DatumGetByteaPP(structural_column(tuple, descriptor,13));
+            witness.media_type_byte_count=(uint64_t)VARSIZE_ANY_EXHDR(media);
+            if (witness.byte_start > witness.byte_end ||
+                (absent != (witness.byte_start==witness.byte_end)) ||
+                (absent && !(witness.syntax_flags &
+                    (LAPLACE_DECOMPOSITION_SYNTAX_MISSING | LAPLACE_DECOMPOSITION_SYNTAX_EMPTY))))
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace structural content absence disagrees with its syntax span")));
+            hash_witness_row(&hasher,&witness,&entity,&physicality,(const uint8_t*)VARDATA_ANY(media));
+            if (witness.span_index == 0u) {
+                while (next_selected < artifact_count &&
+                    artifact_indexes[next_selected] < witness.artifact_index) ++next_selected;
+                if (next_selected == artifact_count ||
+                    artifact_indexes[next_selected] != witness.artifact_index) continue;
+                selected_index = next_selected++;
+                if (selected[selected_index] || absent || witness.byte_start!=0u || witness.byte_end==0u ||
+                    witness.parent_span_index!=UINT64_MAX || witness.depth!=0u ||
+                    !(witness.flags & LAPLACE_DECOMPOSITION_SPAN_TEXT))
+                    ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                        errmsg("Laplace source readback root is not an exact Unicode artifact span")));
+                selected[selected_index]=true;
+                bindings[selected_index].root_content_id=entity;
+                bindings[selected_index].root_physicality_id=physicality;
+                bindings[selected_index].byte_count=witness.byte_end;
+            }
+        }
+        SPI_freetuptable(SPI_tuptable);
+    }
+    SPI_cursor_close(cursor);
+    finish_digest(&hasher,&actual_witness);
+    for (selected_index=0u; selected_index<artifact_count; ++selected_index) {
+        if (!selected[selected_index]) ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace source readback is missing a requested artifact root")));
+        if (selected_index!=0u) {
+            bindings[selected_index].recipe_id=binding->recipe_id;
+            bindings[selected_index].composition_receipt_id=binding->composition_receipt_id;
+            bindings[selected_index].witness_count=binding->witness_count;
+        }
+    }
+    pfree(selected);
+    if (count!=binding->witness_count || memcmp(actual_witness.bytes,expected_witness.bytes,32u)!=0)
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace retained structural witnesses no longer match their receipt")));
+    blake3_hasher_init(&hasher);
+    hash_bytes(&hasher,(const uint8_t*)receipt_domain,sizeof(receipt_domain)-1u);
+    hash_bytes(&hasher,profile_id->bytes,32u);
+    hash_bytes(&hasher,binding->composition_receipt_id.bytes,32u);
+    hash_bytes(&hasher,actual_witness.bytes,32u);
+    hash_u64(&hasher,count);
+    finish_digest(&hasher,&actual_receipt);
+    if (memcmp(actual_receipt.bytes,receipt_id->bytes,32u)!=0)
+        ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace structural receipt identity failed native recomputation")));
+}
+
+void laplace_pg_verify_source_structural_root(
+    const laplace_digest256* profile_id, const laplace_digest256* receipt_id,
+    uint64_t artifact_index, uint64_t maximum_witnesses,
+    laplace_pg_source_readback_binding* binding) {
+    laplace_pg_verify_source_structural_roots(profile_id, receipt_id, &artifact_index,
+        1u, maximum_witnesses, binding);
 }

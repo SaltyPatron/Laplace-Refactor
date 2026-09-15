@@ -1,0 +1,60 @@
+{
+  "schema": "laplace.chess-release-selection/v1",
+  "verified_at": "2026-09-15",
+  "policy": "Build directly from exact upstream Git releases selected in dependencies/lock.json; explicitly check upstream before a new experiment generation.",
+  "releases": {
+    "stockfish": {
+      "repository": "official-stockfish/Stockfish",
+      "tag": "sf_19",
+      "version": "19",
+      "network": "stockfish-nnue-big"
+    },
+    "cutechess": {
+      "repository": "cutechess/cutechess",
+      "tag": "v1.5.1",
+      "version": "1.5.1"
+    }
+  },
+  "service": {
+    "lichess": {
+      "base_url": "https://lichess.org",
+      "documentation": "https://lichess.org/api",
+      "token_environment": "LICHESS_TOKEN",
+      "account_readback": "/api/account",
+      "required_account_title": "BOT",
+      "required_token_scope": "bot:play",
+      "download_required": false,
+      "bridge": "A separate lichess-bot bridge is optional; no Refactor Bot API or UCI product route is implemented by this tool installer."
+    }
+  },
+  "tablebases": {
+    "syzygy": {
+      "environment": "SYZYGY_PATH",
+      "required_file_kinds": [
+        ".rtbw",
+        ".rtbz"
+      ],
+      "selection": "Explicit manifest of material coverage, file sizes and SHA-256; selected data must be acquired independently.",
+      "download_by_default": false
+    }
+  },
+  "capability_boundary": "Installed and probed external tools do not implement or activate the native Laplace chess forward pass, UCI product adapter, PGN admission or Lichess Bot API orchestration.",
+  "source_root": "LAPLACE_VERIFIED_SOURCE_ROOT or /opt/laplace/external/source-generations/<dependencies-lock-sha256>",
+  "qt": {
+    "version": "6.11.2",
+    "pip_artifact": "pip",
+    "aqt_artifact": "aqtinstall",
+    "platforms": {
+      "Linux-x86_64": {
+        "host": "linux",
+        "architecture": "linux_gcc_64",
+        "directory": "gcc_64"
+      },
+      "Windows-AMD64": {
+        "host": "windows",
+        "architecture": "win64_msvc2022_64",
+        "directory": "msvc2022_64"
+      }
+    }
+  }
+}

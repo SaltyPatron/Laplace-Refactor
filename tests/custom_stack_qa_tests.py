@@ -9,7 +9,9 @@ from pathlib import Path
 import stat
 import sys
 import tempfile
+import textwrap
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +75,23 @@ class CustomStackQaTests(unittest.TestCase):
             ],
         )
 
+    def test_highway_revalidation_runs_without_manual_source_acceptance(self) -> None:
+        name = "postgres.highway-committed-revalidation-contract"
+        for path in (
+            "integrations/postgresql/extension/src/highway_registry_revalidate_pg.inc",
+            "tests/postgres/unicode_root_contract.sql",
+            "engine/src/persistence.c",
+        ):
+            with self.subTest(path=path):
+                plan = self.plan(path)
+                self.assertEqual(plan["selected_physical_tests"], [name])
+                self.assertNotIn(name, plan["core_tests"])
+                self.assertFalse(plan["source_acceptance_authorized"])
+                self.assertNotIn(name, plan["manual_source_acceptance_tests"])
+                self.assertEqual(plan["required_physical_receipts"], ["highway_committed_revalidation"])
+                self.assertEqual(plan["required_physical_receipts_by_test"],
+                                 {name: ["highway_committed_revalidation"]})
+
     def test_perfcache_change_selects_hot_lookup_boundary_once(self) -> None:
         plan = self.plan("engine/src/perfcache.cpp")
         self.assertEqual(
@@ -99,12 +118,31 @@ class CustomStackQaTests(unittest.TestCase):
     ) -> None:
         plan = self.plan("integrations/postgresql/extension/src/source_admission_pg.c")
         self.assertEqual(
-            plan["selected_profiles"], ["source-admission-suite"],
+            plan["selected_profiles"], ["source-admission-suite", "verified-cpp-source"],
         )
         self.assertEqual(
             plan["selected_physical_tests"],
-            [],
+            ["postgres.verified-cpp-source-contract"],
         )
+
+    def test_verified_cpp_sources_require_automatic_native_receipt(self):
+        name = "postgres.verified-cpp-source-contract"
+        for path in (
+            "tools/sources/verified_git.py", "tools/sources/qualify_grammar.py",
+            "engine/src/tree_sitter_grammar.cpp", "engine/src/decomposition_composition.cpp",
+            "integrations/postgresql/extension/src/source_admission_pg.c",
+            "integrations/postgresql/extension/src/materialization_pg.c",
+            "integrations/postgresql/extension/source_observation_profile.sql.in",
+            "tests/postgres/verified_cpp_source_contract.sql",
+            ".github/workflows/ci.yml", ".github/workflows/custom-stack.yml",
+        ):
+            with self.subTest(path=path):
+                plan = self.plan(path)
+                self.assertIn(name, plan["selected_physical_tests"])
+                self.assertNotIn(name, plan["core_tests"])
+                self.assertNotIn(name, plan["manual_source_acceptance_tests"])
+                self.assertFalse(plan["source_acceptance_authorized"])
+                self.assertIn("verified_cpp_source_admission", plan["required_physical_receipts"])
 
     def test_iso_profile_change_does_not_select_cili(self) -> None:
         plan = self.plan("contracts/sources/iso-639-3-20260415.json")
@@ -121,6 +159,21 @@ class CustomStackQaTests(unittest.TestCase):
         automatic = self.plan("contracts/sources/cili-pwn-mappings-20240611.json")
         self.assertTrue(set(automatic["manual_source_acceptance_tests"]).isdisjoint(
             automatic["core_tests"] + automatic["selected_physical_tests"]))
+
+    def test_manual_workflow_requires_receipts_only_for_its_actual_selection(self):
+        workflow = (ROOT / '.github/workflows/source-corpus-acceptance.yml').read_text()
+        block = workflow.split("<<'PY'\n", 1)[1].split('\n          PY', 1)[0]
+        selection = textwrap.dedent(block).split('work = pathlib.Path(sys.argv[2])', 1)[0]
+        namespace = {}
+        with patch.object(Path, 'cwd', return_value=ROOT):
+            exec(selection, namespace)
+        plan = namespace['plan']
+        self.assertEqual(plan['selected_physical_tests'], plan['manual_source_acceptance_tests'])
+        required = sorted({name for row in self.contract['isolated_tests']
+                           if row['ctest_name'] in plan['selected_physical_tests']
+                           for name in row.get('required_receipts', [])})
+        self.assertEqual(plan['required_physical_receipts'], required)
+        self.assertNotIn('verified_cpp_source_admission', required)
 
     def test_missing_isolated_registry_test_fails_closed(self) -> None:
         broken = copy.deepcopy(self.contract)
@@ -340,8 +393,194 @@ raise SystemExit(exit_code)
             self.assertTrue(lane["evidence_receipts_verified"])
             self.assertEqual(
                 lane["embedded_receipts"],
-                [{"name": "postgres_source_resource_guard", "receipt": embedded}],
+                [{"test": None, "name": "postgres_source_resource_guard", "receipt": embedded}],
             )
+
+    def test_successful_junit_output_retains_required_physical_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt = {"schema": "laplace.physical-test/v1", "checks": 18}
+            marker = "LAPLACE_QA_RECEIPT physical_proof " + json.dumps(receipt)
+            fake = self._fake_ctest(
+                root, inventory=["selected.physical"], output="",
+                junit=("<testsuite><testcase name=\"selected.physical\" time=\"0.2\">"
+                       "<system-out><![CDATA[" + marker + "]]></system-out>"
+                       "</testcase></testsuite>"),
+            )
+            plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                    "selected_physical_tests": ["selected.physical"],
+                    "required_physical_receipts": ["physical_proof"],
+                    "required_physical_receipts_by_test": {"selected.physical": ["physical_proof"]}}
+            result = root / "result.json"
+            self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", result, str(fake)), 0)
+            lane = json.loads(result.read_text())["lanes"][0]
+            self.assertEqual(lane["embedded_receipts"], [{"test": "selected.physical", "name": "physical_proof", "receipt": receipt}])
+            self.assertTrue(lane["evidence_receipts_verified"])
+
+    def test_generated_plan_preserves_each_required_receipt_owner(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        names = ("postgres.highway-committed-revalidation-contract",
+                 "postgres.verified-cpp-source-contract")
+        for row in contract["isolated_tests"]:
+            if row["ctest_name"] in names:
+                row["required_receipts"] = ["shared_proof"]
+                row.pop("required_receipt_fields", None)
+        plan = qa.build_plan(contract, ROOT, [
+            "integrations/postgresql/extension/src/highway_registry_revalidate_pg.inc",
+            "tests/postgres/verified_cpp_source_contract.sql"], "candidate")
+        self.assertEqual(plan["required_physical_receipts"], ["shared_proof"])
+        self.assertEqual(plan["required_physical_receipts_by_test"],
+                         {name: ["shared_proof"] for name in names})
+
+    def test_cpp_gate_requires_all_current_control_counts_from_its_own_receipt(self) -> None:
+        owner = "postgres.verified-cpp-source-contract"
+        name = "verified_cpp_source_admission"
+        generated = self.plan("tests/postgres/verified_cpp_source_contract.sql")
+        expected = {"schema": "laplace.verified-cpp-source-acceptance/v1",
+                    "negative_controls": 13, "reconciliation_controls": 2,
+                    "profile_schema_controls": 6, "reference_rule_array_controls": 2,
+                    "physicality_binding_controls": 4, "same_content_physicality_selection": True}
+        self.assertEqual(generated["required_physical_receipt_fields_by_test"][owner][name], expected)
+        changes = [(None, None), ("profile_schema_controls", None),
+                   ("reference_rule_array_controls", None), ("reference_rule_array_controls", 1),
+                   ("reference_rule_array_controls", 2.0), ("reference_rule_array_controls", True),
+                   ("physicality_binding_controls", None), ("physicality_binding_controls", 3),
+                   ("physicality_binding_controls", 4.0), ("physicality_binding_controls", True),
+                   ("same_content_physicality_selection", None), ("same_content_physicality_selection", False),
+                   ("same_content_physicality_selection", 1), ("same_content_physicality_selection", "true"),
+                   ("negative_controls", 12), ("reconciliation_controls", 1),
+                   ("profile_schema_controls", 5), ("profile_schema_controls", 6.0),
+                   ("profile_schema_controls", True), ("schema", "laplace.obsolete-proof/v1")]
+        for field, value in changes:
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                receipt = dict(expected)
+                if field and value is None:
+                    receipt.pop(field)
+                elif field:
+                    receipt[field] = value
+                marker = "LAPLACE_QA_RECEIPT " + name + " " + json.dumps(receipt)
+                fake = self._fake_ctest(root, inventory=[owner], output="",
+                    junit='<testsuite><testcase name="' + owner + '"><system-out><![CDATA[' +
+                          marker + ']]></system-out></testcase></testsuite>')
+                plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                        "selected_physical_tests": [owner], "required_physical_receipts": [name],
+                        "required_physical_receipts_by_test": {owner: [name]},
+                        "required_physical_receipt_fields_by_test": {owner: {name: expected}}}
+                path = root / "result.json"
+                self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", path, str(fake)),
+                                 qa.EVIDENCE_RECEIPT_EXIT if field else 0)
+                lane = json.loads(path.read_text())["lanes"][0]
+                self.assertEqual(lane["ctest_exit_code"], 0)
+                self.assertEqual(lane["required_receipt_fields_by_test"], {owner: {name: expected}})
+                if field:
+                    self.assertIn("receipt field differs", lane["primary_failure"]["detail"])
+
+    def test_receipt_field_requirements_cannot_name_an_unrequired_marker(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        row = next(item for item in contract["isolated_tests"]
+                   if item["ctest_name"] == "postgres.verified-cpp-source-contract")
+        row["required_receipt_fields"] = {"unrequired-proof": {"count": 6}}
+        with self.assertRaisesRegex(qa.QaError, "required receipt fields"):
+            qa.validate_contract(contract, ROOT)
+
+    def test_same_named_receipts_keep_distinct_testcase_observations(self) -> None:
+        for second_count in (18, 19):
+            for log_copies in (False, True):
+                with self.subTest(second_count=second_count, log_copies=log_copies), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    owners = ("selected.highway", "selected.cpp")
+                    receipts = [{"schema": "laplace.physical-proof/v1", "count": count}
+                                for count in (18, second_count)]
+                    markers = ["LAPLACE_QA_RECEIPT shared_proof " + json.dumps(value)
+                               for value in receipts]
+                    junit = "<testsuite>" + "".join(
+                        '<testcase name="' + owner + '"><system-out><![CDATA[' + marker +
+                        ']]></system-out></testcase>' for owner, marker in zip(owners, markers)
+                    ) + "</testsuite>"
+                    fake = self._fake_ctest(root, inventory=list(owners), junit=junit,
+                                            output="\n".join(markers) if log_copies else "")
+                    plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                            "selected_physical_tests": list(owners),
+                            "required_physical_receipts": ["shared_proof"],
+                            "required_physical_receipts_by_test": {owner: ["shared_proof"] for owner in owners}}
+                    result = root / "result.json"
+                    self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", result, str(fake)), 0)
+                    lane = json.loads(result.read_text())["lanes"][0]
+                    self.assertEqual(lane["embedded_receipts"], [
+                        {"test": owner, "name": "shared_proof", "receipt": value}
+                        for owner, value in zip(owners, receipts)])
+                    self.assertEqual(lane["required_receipts_by_test"], plan["required_physical_receipts_by_test"])
+
+    def test_required_receipt_cannot_be_borrowed_from_another_test_or_lane_log(self) -> None:
+        marker = 'LAPLACE_QA_RECEIPT highway_proof {"schema":"laplace.proof/v1"}'
+        for transport in ("other-testcase", "unowned-log"):
+            with self.subTest(transport=transport), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                output = '<system-out>' + marker + '</system-out>' if transport == "other-testcase" else ""
+                fake = self._fake_ctest(root, inventory=["selected.highway", "selected.cpp"],
+                    junit='<testsuite><testcase name="selected.highway"/>' +
+                          '<testcase name="selected.cpp">' + output + '</testcase></testsuite>',
+                    output=marker if transport == "unowned-log" else "")
+                plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                        "selected_physical_tests": ["selected.highway", "selected.cpp"],
+                        "required_physical_receipts": ["highway_proof"],
+                        "required_physical_receipts_by_test": {"selected.highway": ["highway_proof"]}}
+                result = root / "result.json"
+                self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", result, str(fake)), qa.EVIDENCE_RECEIPT_EXIT)
+                lane = json.loads(result.read_text())["lanes"][0]
+                self.assertEqual(lane["ctest_exit_code"], 0)
+                self.assertIn("owning tests", lane["primary_failure"]["detail"])
+
+    def test_duplicate_or_conflicting_receipts_within_one_testcase_fail(self) -> None:
+        first = 'LAPLACE_QA_RECEIPT shared_proof {"schema":"laplace.proof/v1","count":18}'
+        for second in (first, first.replace('"count":18', '"count":19')):
+            for split_outputs in (False, True):
+                with self.subTest(second=second, split_outputs=split_outputs), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    separator = '</system-out><system-out>' if split_outputs else '\n'
+                    fake = self._fake_ctest(root, inventory=["selected.physical"], output="",
+                        junit='<testsuite><testcase name="selected.physical"><system-out>' +
+                              first + separator + second + '</system-out></testcase></testsuite>')
+                    plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                            "selected_physical_tests": ["selected.physical"]}
+                    result = root / "result.json"
+                    self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", result, str(fake)), qa.EVIDENCE_RECEIPT_EXIT)
+                    detail = json.loads(result.read_text())["lanes"][0]["primary_failure"]["detail"]
+                    self.assertIn("duplicated within testcase", detail)
+
+    def test_missing_required_receipt_turns_successful_test_red(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake = self._fake_ctest(root, inventory=["selected.physical"], output="",
+                junit='<testsuite><testcase name="selected.physical"/></testsuite>')
+            plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                    "selected_physical_tests": ["selected.physical"],
+                    "required_physical_receipts": ["physical_proof"]}
+            self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", root / "result.json", str(fake)), qa.EVIDENCE_RECEIPT_EXIT)
+
+    def test_receipt_transport_duplicates_require_exact_equal_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            log, report = root / "lane.log", root / "lane.xml"
+            marker = 'LAPLACE_QA_RECEIPT proof {"schema":"laplace.proof/v1","count":18}'
+            log.write_text(marker + "\n")
+            report.write_text('<testsuite><testcase name="physical"><system-out>' + marker + '</system-out></testcase></testsuite>')
+            self.assertEqual(len(qa.embedded_receipts(log, report)), 1)
+            report.write_text(report.read_text().replace('"count":18', '"count":17'))
+            with self.assertRaisesRegex(qa.QaError, "differs between retained outputs"):
+                qa.embedded_receipts(log, report)
+            for left, right in (("true", "1"), ("false", "0")):
+                with self.subTest(left=left, right=right):
+                    log.write_text(marker.replace('"count":18', '"count":' + left) + "\n")
+                    report.write_text('<testsuite><testcase name="physical"><system-out>' +
+                                      marker.replace('"count":18', '"count":' + right) +
+                                      '</system-out></testcase></testsuite>')
+                    with self.assertRaisesRegex(qa.QaError, "differs between retained outputs"):
+                        qa.embedded_receipts(log, report)
+            log.write_text(marker + "\n" + marker + "\n")
+            with self.assertRaisesRegex(qa.QaError, "duplicated"):
+                qa.embedded_receipts(log)
 
     def test_malformed_embedded_receipt_turns_zero_exit_red(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

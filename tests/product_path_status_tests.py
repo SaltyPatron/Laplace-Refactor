@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -28,6 +30,14 @@ SPEC.loader.exec_module(product_path)
 
 
 class ProductPathGitStatusTests(unittest.TestCase):
+    @staticmethod
+    def job_boundary(workflow: str, job: str) -> tuple[int, int]:
+        marker = f"  {job}:\n"
+        start = workflow.index(marker)
+        following = re.search(r"(?m)^  [A-Za-z0-9_-]+:\s*$", workflow[start + len(marker):])
+        end = start + len(marker) + following.start() if following else len(workflow)
+        return start, end
+
     def setUp(self) -> None:
         self.contract = product_path.load_json(REPOSITORY / "contracts/product-path.json")
 
@@ -83,8 +93,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
             blocks["package"],
             "package proof can become the third concurrent member and cancel a pending proof",
         )
-        self.assertIn("      always() &&", blocks["postgres"])
-        self.assertIn("      always() &&", blocks["package"])
+        self.assertIn("      (!cancelled()) &&", blocks["postgres"])
+        self.assertIn("      (!cancelled()) &&", blocks["package"])
 
     def assert_legacy_branch_protection_bridge(self, workflow: str) -> None:
         aliases = {
@@ -99,16 +109,14 @@ class ProductPathGitStatusTests(unittest.TestCase):
                 workflow,
                 f"legacy protected context {check_name} can bypass product-path",
             )
-            start = workflow.index(marker)
-            end = workflow.find("\n  ", start + len(marker))
-            if end < 0:
-                end = len(workflow)
+            start, end = self.job_boundary(workflow, job_id)
             block = workflow[start:end]
             self.assertIn(
-                "    if: always() && needs.product-path.result == 'success'",
+                "    if: always()\n",
                 block,
-                f"legacy protected context {check_name} can be transitively skipped",
+                f"legacy protected context {check_name} must run and fail after an unsuccessful aggregate",
             )
+            self.assertIn('      - run: test "${{ needs.product-path.result }}" = success', block)
         self.assertGreaterEqual(workflow.count("needs.product-path.result"), len(aliases))
 
     def assert_main_push_deployment_boundary(
@@ -118,10 +126,9 @@ class ProductPathGitStatusTests(unittest.TestCase):
             "  dev-bat-deployment:\n    needs: product-path\n",
             workflow,
         )
-        start = workflow.index("  dev-bat-deployment:")
-        end = workflow.index("\n  dev-bat-live-substrate:", start)
+        start, end = self.job_boundary(workflow, "dev-bat-deployment")
         deployment = workflow[start:end]
-        self.assertIn("      always() &&\n      github.event_name == 'push'", deployment)
+        self.assertIn("      (!cancelled()) &&\n      github.event_name == 'push'", deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deployment)
         self.assertIn("needs.product-path.result == 'success'", deployment)
         self.assertIn("    uses: ./.github/workflows/product-activation.yml\n", deployment)
@@ -300,8 +307,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
     def test_deliberate_parallel_physical_orchestration_defect_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         mutant = workflow.replace(
-            "      - custom-stack-proof\n    if: >-\n      always() &&\n      needs.classify.outputs.requires_postgresql_product",
-            "    if: >-\n      always() &&\n      needs.classify.outputs.requires_postgresql_product",
+            "      - custom-stack-proof\n    if: >-\n      (!cancelled()) &&\n      needs.classify.outputs.requires_postgresql_product",
+            "    if: >-\n      (!cancelled()) &&\n      needs.classify.outputs.requires_postgresql_product",
             1,
         )
         self.assertNotEqual(workflow, mutant)
@@ -331,12 +338,40 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def test_deliberate_legacy_skip_cascade_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        start, end = self.job_boundary(workflow, "legacy-requirements")
+        block = workflow[start:end]
         mutant = workflow.replace(
-            "    if: always() && needs.product-path.result == 'success'\n",
-            "",
+            block,
+            block.replace("    if: always()\n", ""),
             1,
         )
         self.assertNotEqual(workflow, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_legacy_branch_protection_bridge(mutant)
+
+    def test_legacy_alias_commands_fail_for_unsuccessful_aggregate(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        for job_id in ("legacy-requirements", "legacy-native-dev", "legacy-native-sanitize"):
+            start, end = self.job_boundary(workflow, job_id)
+            block = workflow[start:end]
+            self.assertIn("    if: always()\n", block)
+            command = block.split("      - run: ", 1)[1].strip()
+            for result in ("success", "failure", "cancelled", "skipped", ""):
+                with self.subTest(job=job_id, result=result):
+                    execution = subprocess.run(
+                        ["bash", "-c", command.replace("${{ needs.product-path.result }}", result)],
+                        capture_output=True,
+                    )
+                    self.assertEqual(execution.returncode == 0, result == "success")
+
+    def test_success_only_legacy_condition_is_rejected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        start, end = self.job_boundary(workflow, "legacy-requirements")
+        block = workflow[start:end]
+        mutant = workflow.replace(block, block.replace(
+            "    if: always()\n",
+            "    if: always() && needs.product-path.result == 'success'\n",
+        ), 1)
         with self.assertRaises(AssertionError):
             self.assert_legacy_branch_protection_bridge(mutant)
 
@@ -358,7 +393,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
         mutant = workflow.replace(
-            "      always() &&\n      github.event_name == 'push'",
+            "      (!cancelled()) &&\n      github.event_name == 'push'",
             "      github.event_name == 'push'",
             1,
         )
@@ -370,8 +405,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
-        start = workflow.index("  dev-bat-deployment:")
-        end = workflow.index("\n  dev-bat-live-substrate:", start)
+        start, end = self.job_boundary(workflow, "dev-bat-deployment")
         deployment = workflow[start:end]
         mutant_deployment = deployment.replace(
             "    uses: ./.github/workflows/product-activation.yml\n    with:\n      expected_sha: ${{ github.sha }}\n",

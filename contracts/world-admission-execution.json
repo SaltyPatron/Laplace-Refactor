@@ -15,9 +15,7 @@
     "composition-working-set",
     "composition-presence",
     "composition-producer",
-    "composition-stream",
-    "evidence-lineage",
-    "evidence-testimony"
+    "composition-stream"
   ],
   "closure": {
     "occurrences": "profile occurrence count equals the composition logical-occurrence count",
@@ -26,8 +24,15 @@
     "recipe_binding": "every testimony is bound to the admitted recipe receipt",
     "lineage_binding": "every testimony names a durably present evidence-lineage node",
     "subjects": "closed subject count equals the source-profile closure subject count",
-    "readback": "one nonzero fingerprint binds the declared reconstruction and reference-reachability readback"
+    "readback": "one nonzero fingerprint binds the declared reconstruction and reference-reachability readback",
+    "observation": "zero-claim content retains profile, composition, exact readback and closed subjects; absent evidence references and zero counts are committed by the native identity and receipt, with no fabricated testimony"
   },
   "batch_rule": "strictly increasing admission identity under one exact selected boundary",
-  "flags": {"none": 0}
+  "flags": {
+    "none": 0
+  },
+  "conditional_component_receipts": {
+    "evidence-lineage": "required for nonzero profile claims; absent only with testimony and all evidence counts zero",
+    "evidence-testimony": "required for nonzero profile claims; absent only with lineage and all evidence counts zero"
+  }
 }

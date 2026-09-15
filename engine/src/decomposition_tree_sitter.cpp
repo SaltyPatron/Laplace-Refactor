@@ -60,6 +60,9 @@ std::uint32_t SyntaxFlags(const TSNode node) {
     if (ts_node_has_error(node)) {
         flags |= static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_HAS_ERROR);
     }
+    if (!ts_node_is_missing(node) && ts_node_start_byte(node) == ts_node_end_byte(node)) {
+        flags |= static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_EMPTY);
+    }
     return flags;
 }
 
@@ -138,7 +141,7 @@ laplace_decomposition_status ApplyEvents(
             const std::uint32_t syntax_flags = SyntaxFlags(node);
             const bool missing =
                 (syntax_flags & static_cast<std::uint32_t>(
-                    LAPLACE_DECOMPOSITION_SYNTAX_MISSING)) != 0u;
+                    LAPLACE_DECOMPOSITION_SYNTAX_MISSING | LAPLACE_DECOMPOSITION_SYNTAX_EMPTY)) != 0u;
             if ((!missing && start >= end) ||
                 static_cast<std::uint64_t>(end) > span_bytes) {
                 status = LAPLACE_DECOMPOSITION_PROVIDER_FAILURE;

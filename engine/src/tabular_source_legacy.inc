@@ -363,7 +363,11 @@ laplace_tabular_source_status ArtifactGraph(
              prior_index < index; ++prior_index) {
             if (DigestEqual(
                     artifacts[prior_index].artifact_id,
-                    artifact.artifact_id)) {
+                    artifact.artifact_id) &&
+                ((artifacts[prior_index].flags | artifact.flags) &
+                    LAPLACE_TABULAR_ARTIFACT_CONTAINER) != 0u) {
+                // Named leaf occurrences may share exact content. Container
+                // references use content IDs and must remain unambiguous.
                 return LAPLACE_TABULAR_SOURCE_ARTIFACT_INVALID;
             }
         }
@@ -1788,10 +1792,27 @@ parsed_reconstruction_corrupted:
             profile.reference_count != plan_.reference_occurrences.size() ||
             profile.mapping_count != plan_.mapping_occurrences.size() ||
             profile.file_count != input_.artifact_count ||
-            profile.record_count == 0u || profile.field_count == 0u ||
             profile.output_count == 0u) {
             status_ = LAPLACE_TABULAR_SOURCE_DENOMINATOR_MISMATCH;
             return false;
+        }
+        if (profile.record_count == 0u || profile.field_count == 0u) {
+            const bool raw_observation =
+                LAPLACE_SOURCE_PROFILE_GET_EPISTEMIC_CLASS(profile.flags) ==
+                    LAPLACE_SOURCE_PROFILE_EPISTEMIC_OBSERVATION &&
+                profile.record_count == 0u && profile.field_count == 0u &&
+                profile.claim_count == 0u &&
+                std::all_of(input_.artifacts,
+                    input_.artifacts + input_.artifact_count,
+                    [](const laplace_tabular_artifact& artifact) {
+                        return artifact.mode == LAPLACE_TABULAR_ARTIFACT_RAW &&
+                            (artifact.flags & LAPLACE_TABULAR_ARTIFACT_EXACT_DISTRIBUTION) != 0u;
+                    });
+            if (!raw_observation) {
+                status_ = LAPLACE_TABULAR_SOURCE_DENOMINATOR_MISMATCH;
+                return false;
+            }
+            profile.not_applicable_mask |= (UINT64_C(1) << 4u) | (UINT64_C(1) << 5u);
         }
         return true;
     }
@@ -1957,13 +1978,14 @@ extern "C" laplace_tabular_source_status laplace_tabular_source_plan_view_get(
     laplace_tabular_source_plan_view* view) {
     if (plan == nullptr || view == nullptr || plan->view.atom_count == 0u ||
         plan->view.operand_count == 0u || plan->view.request_count == 0u ||
-        plan->view.claim_count == 0u || plan->view.artifact_count == 0u ||
+        plan->view.artifact_count == 0u ||
         plan->view.root_result_index + 1u != plan->view.request_count ||
         plan->view.atom_positions == nullptr || plan->view.operands == nullptr ||
         plan->view.requests == nullptr ||
-        plan->view.claim_result_indexes == nullptr ||
-        plan->view.claim_source_ordinals == nullptr ||
-        plan->view.claim_outcome_types == nullptr ||
+        (plan->view.claim_count != 0u &&
+         (plan->view.claim_result_indexes == nullptr ||
+          plan->view.claim_source_ordinals == nullptr ||
+          plan->view.claim_outcome_types == nullptr)) ||
         plan->view.artifact_root_result_indexes == nullptr ||
         (plan->view.reference_occurrence_count != 0u &&
          plan->view.reference_occurrences == nullptr) ||

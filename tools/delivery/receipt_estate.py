@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import grp
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -271,6 +272,19 @@ def migrate_package_directory_tree(
     remove_if_empty(source_root, removed)
 
 
+def load_product_activation() -> Any:
+    path = Path(__file__).with_name("product_activation_impl.py")
+    if not path.is_file():
+        path = Path(__file__).with_name("product_activation.py")
+    specification = importlib.util.spec_from_file_location("laplace_delivery_receipt_validator_" + __name__, path)
+    if specification is None or specification.loader is None:
+        raise RuntimeError("canonical product receipt validator is absent")
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = module
+    specification.loader.exec_module(module)
+    return module
+
+
 def migrate_singleton_product_receipt(
     source: Path,
     canonical_root: Path,
@@ -283,6 +297,18 @@ def migrate_singleton_product_receipt(
     if not source.exists() and not source.is_symlink():
         return
     package_id = package_id_from_document(source)
+    document = load_json(source)
+    if (destination_name == "highway-committed-revalidation.json"
+            and document.get("schema") != "laplace.highway-committed-revalidation-receipt/v1"):
+        raise ReceiptEstateError("revalidation evidence path contains another receipt type")
+    if document.get("schema") == "laplace.highway-committed-revalidation-receipt/v1":
+        validator = load_product_activation()
+        try:
+            gateway = validator.load_json(validator.delivery_contract_path("contracts/product-activation-gateway.json"))
+            validator.validate_highway_revalidation(gateway, document, package_id)
+        except validator.ActivationGatewayError as error:
+            raise ReceiptEstateError(str(error)) from error
+        destination_name = "highway-committed-revalidation.json"
     destination = canonical_root / package_id / destination_name
     action = publish_exact(source, destination, uid, gid, system_root)
     migrated.append(
@@ -422,6 +448,16 @@ def converge(
         instance_root / "highway-product-activation.json",
         canonical_root,
         "highway-product-activation.json",
+        uid,
+        gid,
+        root == Path("/"),
+        migrated,
+    )
+
+    migrate_singleton_product_receipt(
+        instance_root / "highway-committed-revalidation.json",
+        canonical_root,
+        "highway-committed-revalidation.json",
         uid,
         gid,
         root == Path("/"),

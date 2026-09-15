@@ -21,6 +21,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+
 concurrency:
   group: laplace-physical-product-proof
   queue: max
@@ -42,7 +46,7 @@ jobs:
           fetch-depth: 0
 
       - name: Bind exact source and measured runner
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -61,7 +65,7 @@ jobs:
           printf 'LAPLACE_BENCHMARK_ITERATIONS=%s\n' "$iterations" >> "$GITHUB_ENV"
 
       - name: Verify exact toolchain and dependency estate
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           LAPLACE_ICX=$(jq -r '.toolchain.c_compiler' contracts/postgresql-build.json)
@@ -74,9 +78,8 @@ jobs:
           test "$(sha256sum "$LAPLACE_ICPX" | awk '{print $1}')" = "$expected_icpx_sha"
 
           python3 tools/dependencies/verify-installed-lock.py --verify-files
-          lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
-          dependency_root="/opt/laplace/external/source-generations/$lock_sha"
-          test -d "$dependency_root"
+          dependency_root=$(python3 tools/dependencies/source_estate.py --lock dependencies/lock.json)
+          bash tools/dependencies/ensure-locked-git.sh "$dependency_root"
           ./tools/dependencies/verify-lock.sh "$dependency_root"
 
           test -d /vault/Data/UCD/Public/UCD/latest
@@ -87,7 +90,7 @@ jobs:
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
 
       - name: Configure and build only the benchmark target
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           build_directory="$RUNNER_TEMP/laplace-benchmark-composition-frontier/build"
@@ -120,7 +123,7 @@ jobs:
           printf 'LAPLACE_BENCHMARK_BINARY=%s\n' "$benchmark" >> "$GITHUB_ENV"
 
       - name: Capture topology and physical-core-first affinity order
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           evidence="$RUNNER_TEMP/laplace-benchmark-composition-frontier/evidence"
@@ -187,7 +190,7 @@ jobs:
           printf 'LAPLACE_BENCHMARK_EVIDENCE=%s\n' "$evidence" >> "$GITHUB_ENV"
 
       - name: Measure scalar physical-core and SMT scaling points
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           evidence="$LAPLACE_BENCHMARK_EVIDENCE"
@@ -222,7 +225,7 @@ jobs:
           ps -eo pid,ppid,psr,pcpu,pmem,comm --sort=-pcpu > "$evidence/processes-after.txt"
 
       - name: Compose immutable scaling receipt and prove semantic parity
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           evidence="$LAPLACE_BENCHMARK_EVIDENCE"

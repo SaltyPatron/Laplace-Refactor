@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      requires_chess_calibration: ${{ steps.classify.outputs.requires_chess_calibration }}
       hosted_only: ${{ steps.classify.outputs.hosted_only }}
       requires_custom_stack: ${{ steps.classify.outputs.requires_custom_stack }}
       requires_postgresql_product: ${{ steps.classify.outputs.requires_postgresql_product }}
@@ -73,6 +74,11 @@ jobs:
             --git-name-status-z "$changed" \
             --output "$result"
           cat "$result"
+          calibration="$RUNNER_TEMP/laplace-chess-calibration-request.json"
+          python3 tools/dependencies/chess_calibration_request.py \
+            --classification "$result" --base "$BASE_SHA" --head "$HEAD_SHA" > "$calibration"
+          printf 'requires_chess_calibration=%s\n' "$(jq -r '.requested' "$calibration")" >> "$GITHUB_OUTPUT"
+          cat "$calibration"
           for key in \
             hosted_only \
             requires_custom_stack \
@@ -149,12 +155,23 @@ jobs:
       - hosted-proof
       - publication-recovery
     if: >-
-      always() &&
+      (!cancelled()) &&
       needs.classify.outputs.requires_custom_stack == 'true' &&
       needs.hosted-proof.result == 'success' &&
       (needs.publication-recovery.result == 'success' ||
        needs.publication-recovery.result == 'skipped')
     uses: ./.github/workflows/custom-stack.yml
+
+  candidate-chess-calibration:
+    name: Candidate chess dependency calibration on hart-server
+    needs: [classify, hosted-proof]
+    if: >-
+      (!cancelled()) &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      needs.classify.outputs.requires_chess_calibration == 'true' &&
+      needs.hosted-proof.result == 'success'
+    uses: ./.github/workflows/chess-calibration.yml
 
   postgresql-product-proof:
     needs:
@@ -163,7 +180,7 @@ jobs:
       - publication-recovery
       - custom-stack-proof
     if: >-
-      always() &&
+      (!cancelled()) &&
       needs.classify.outputs.requires_postgresql_product == 'true' &&
       needs.hosted-proof.result == 'success' &&
       needs.publication-recovery.result == 'success' &&
@@ -179,7 +196,7 @@ jobs:
       - custom-stack-proof
       - postgresql-product-proof
     if: >-
-      always() &&
+      (!cancelled()) &&
       needs.classify.outputs.requires_package_product == 'true' &&
       needs.hosted-proof.result == 'success' &&
       needs.publication-recovery.result == 'success' &&
@@ -196,6 +213,7 @@ jobs:
       - hosted-proof
       - publication-recovery
       - custom-stack-proof
+      - candidate-chess-calibration
       - postgresql-product-proof
       - package-product-proof
     runs-on: ubuntu-24.04
@@ -208,6 +226,8 @@ jobs:
           HOSTED_RESULT: ${{ needs.hosted-proof.result }}
           PUBLICATION_RECOVERY_RESULT: ${{ needs.publication-recovery.result }}
           CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
+          CHESS_RESULT: ${{ needs.candidate-chess-calibration.result }}
+          REQUIRES_CANDIDATE_CHESS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.requires_chess_calibration == 'true' }}
           POSTGRESQL_RESULT: ${{ needs.postgresql-product-proof.result }}
           PACKAGE_RESULT: ${{ needs.package-product-proof.result }}
           REQUIRES_CUSTOM: ${{ needs.classify.outputs.requires_custom_stack }}
@@ -230,6 +250,11 @@ jobs:
           else
             test "$CUSTOM_RESULT" = skipped
           fi
+          if [[ "$REQUIRES_CANDIDATE_CHESS" == true ]]; then
+            test "$CHESS_RESULT" = success
+          else
+            test "$CHESS_RESULT" = skipped
+          fi
           if [[ "$REQUIRES_POSTGRESQL" == true ]]; then
             test "$POSTGRESQL_RESULT" = success
           else
@@ -250,6 +275,7 @@ jobs:
             echo "Hosted proof: $HOSTED_RESULT"
             echo "Publication recovery: $PUBLICATION_RECOVERY_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
+            echo "Candidate chess calibration: $CHESS_RESULT"
             echo "PostgreSQL-product proof: $POSTGRESQL_RESULT"
             echo "Package-product proof: $PACKAGE_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -257,7 +283,7 @@ jobs:
   dev-bat-deployment:
     needs: product-path
     if: >-
-      always() &&
+      (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.product-path.result == 'success'
@@ -265,9 +291,30 @@ jobs:
     with:
       expected_sha: ${{ github.sha }}
 
+  deployed-chess-calibration:
+    needs: [classify, dev-bat-deployment]
+    if: >-
+      (!cancelled()) &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.dev-bat-deployment.result == 'success' &&
+      needs.classify.outputs.requires_chess_calibration == 'true'
+    uses: ./.github/workflows/chess-calibration.yml
+
+  deployed-stockfish-corpus:
+    needs: dev-bat-deployment
+    if: >-
+      (!cancelled()) &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.dev-bat-deployment.result == 'success'
+    uses: ./.github/workflows/stockfish-corpus-acceptance.yml
+    with:
+      expected_sha: ${{ github.sha }}
+
   dev-bat-live-substrate:
     needs: dev-bat-deployment
-    if: always() && needs.dev-bat-deployment.result == 'success'
+    if: (!cancelled()) && needs.dev-bat-deployment.result == 'success'
     runs-on:
       - self-hosted
       - Linux
@@ -328,7 +375,7 @@ jobs:
   legacy-requirements:
     name: requirements
     needs: product-path
-    if: always() && needs.product-path.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -337,7 +384,7 @@ jobs:
   legacy-native-dev:
     name: native (linux-dev)
     needs: product-path
-    if: always() && needs.product-path.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -346,7 +393,7 @@ jobs:
   legacy-native-sanitize:
     name: native (linux-sanitize)
     needs: product-path
-    if: always() && needs.product-path.result == 'success'
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

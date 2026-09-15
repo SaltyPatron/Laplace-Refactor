@@ -37,7 +37,10 @@ enum {
     LAPLACE_DECOMPOSITION_SYNTAX_ERROR = 4u,
     LAPLACE_DECOMPOSITION_SYNTAX_EXTRA = 8u,
     LAPLACE_DECOMPOSITION_SYNTAX_HAS_ERROR = 16u,
-    LAPLACE_DECOMPOSITION_KNOWN_SYNTAX_FLAGS = 31u
+    /* A real zero-width provider node (for example an expression wrapper over
+     * a missing token). Distinct from the provider's MISSING classification. */
+    LAPLACE_DECOMPOSITION_SYNTAX_EMPTY = 32u,
+    LAPLACE_DECOMPOSITION_KNOWN_SYNTAX_FLAGS = 63u
 };
 
 typedef struct laplace_decomposition_content {
@@ -59,7 +62,8 @@ typedef struct laplace_decomposition_content {
  * sibling_ordinal is zero only when no enclosing provider child ordinal exists
  * (for example the provider root). Structured providers use a positive ordinal
  * for children. A MISSING syntax node may have byte_start == byte_end and has no
- * canonical content bytes; it remains an addressable syntax observation.
+ * canonical content bytes; it remains an addressable syntax observation. EMPTY
+ * marks a real zero-width node that the provider did not classify as missing.
  */
 typedef struct laplace_decomposition_span {
     uint64_t byte_start;

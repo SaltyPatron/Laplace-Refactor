@@ -300,6 +300,13 @@ LAPLACE_API laplace_framework_status laplace_framework_stream_receipt_validate(
     const laplace_framework_context* context,
     const laplace_framework_stream_receipt* receipt);
 
+/* Check the complete successful retained body against its canonical identity.
+ * No execution context is supplied or reconstructed, and this check grants no
+ * execution authority. The receipt is not modified. */
+LAPLACE_API laplace_framework_status
+laplace_framework_stream_receipt_identity_validate(
+    const laplace_framework_stream_receipt* receipt);
+
 LAPLACE_API laplace_framework_status laplace_framework_canonical_stream_fingerprint(
     const laplace_framework_canonical_batch* batches,
     size_t batch_count,
@@ -382,6 +389,18 @@ LAPLACE_API laplace_framework_status laplace_framework_admitted_stream_validate(
     const laplace_framework_activation_request* request,
     const laplace_framework_activation_provider_v1* provider,
     const laplace_framework_activation_receipt* receipt);
+
+/* Validate retained admission and final receipt identities without executing a
+ * provider or reconstructing the historical execution context. The caller owns
+ * proving the origin and linkage of the supplied stored fields. */
+LAPLACE_API laplace_framework_status laplace_framework_committed_receipts_validate(
+    const laplace_digest256* context_fingerprint,
+    const laplace_digest256* staged_receipt_id,
+    const laplace_framework_activation_request* request,
+    const laplace_digest256* preparation_fingerprint,
+    const laplace_digest256* activation_fingerprint,
+    const laplace_digest256* admission_receipt_id,
+    const laplace_digest256* activation_receipt_id);
 
 LAPLACE_API laplace_framework_status laplace_framework_abort_admitted_stream(
     const laplace_framework_context* context,

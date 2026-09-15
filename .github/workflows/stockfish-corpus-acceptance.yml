@@ -1,0 +1,80 @@
+name: Stockfish corpus acceptance
+
+on:
+  workflow_call:
+    inputs:
+      expected_sha:
+        description: Exact main commit whose product activation succeeded
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact already activated main commit to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stockfish-corpus-acceptance
+  cancel-in-progress: false
+
+jobs:
+  installed-source-acceptance:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 120
+    env:
+      TMPDIR: /build/laplace/work
+      TMP: /build/laplace/work
+      TEMP: /build/laplace/work
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
+      ACTIVATION_RUN_ID: ${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_sha }}
+      - name: Verify the installed package and admit the complete official source twice
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 tests/stockfish_corpus_acceptance_tests.py
+          python3 tools/sources/stockfish_corpus_acceptance.py \
+            --expected-sha "$EXPECTED_SHA" \
+            --output "$RUNNER_TEMP/stockfish-corpus-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --timeout 5400
+      - name: Retain exact acceptance execution context
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, platform
+          from pathlib import Path
+          output = Path(os.environ['RUNNER_TEMP']) / f"stockfish-corpus-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
+          output.mkdir(parents=True, exist_ok=True)
+          context = {
+              'schema': 'laplace.stockfish-corpus-execution-context/v1',
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'expected_sha': os.environ['EXPECTED_SHA'],
+              'activation_workflow_run_id': os.environ['ACTIVATION_RUN_ID'],
+              'workflow_run_id': os.environ['GITHUB_RUN_ID'],
+              'workflow_run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'runner': os.environ['RUNNER_NAME'], 'hostname': platform.node(),
+              'source_estate_root': os.environ.get('LAPLACE_SOURCE_ESTATE_ROOT', '/vault/Data'),
+              'acceptance_boundary': 'installed generic source admission and exact readback; executable semantics and playing strength remain separate',
+          }
+          (output / 'execution-context.json').write_text(json.dumps(context, indent=2) + '\n')
+          PY
+      - name: Retain successful or failed source acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stockfish-corpus-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/stockfish-corpus-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 30

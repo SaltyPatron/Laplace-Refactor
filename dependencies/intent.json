@@ -346,10 +346,10 @@
       "id": "stockfish-network-assets",
       "class": "versioned-model-artifact",
       "profiles": ["chess", "testing"],
-      "intent": ["exact big and small NNUE evaluation parameters selected by the Stockfish 18 source contract", "reproducible engine calculation and binary embedding inputs"],
+      "intent": ["exact single NNUE evaluation network selected by the Stockfish 19 release source contract", "reproducible engine calculation and binary embedding inputs"],
       "boundary": "Network parameters are separately identified model dependencies; their filename, bytes, engine compatibility, license disposition, and embedding receipt cannot be inferred from the Stockfish source hash.",
-      "selection": "locked-artifacts-license-review-required",
-      "lock_entries": ["artifact:stockfish-nnue-big", "artifact:stockfish-nnue-small"]
+      "selection": "locked-artifacts",
+      "lock_entries": ["artifact:stockfish-nnue-big"]
     },
     {
       "id": "cutechess",
@@ -359,6 +359,24 @@
       "boundary": "Match execution supplies observations; it does not define Laplace chess semantics.",
       "selection": "locked-git",
       "lock_entries": ["git:cutechess"]
+    },
+    {
+      "id": "qt-chess-build-sdk",
+      "class": "external-tool-runtime",
+      "profiles": [
+        "chess",
+        "testing"
+      ],
+      "intent": [
+        "Qt Core, Core5Compat, Svg, Gui, Widgets, Concurrent and PrintSupport needed to configure and execute the upstream Cute Chess CLI build",
+        "pinned pip bootstrap inside the dedicated Qt SDK virtual environment so aqt acquisition can retain installation reports"
+      ],
+      "boundary": "Qt, aqt and the dedicated SDK virtual environment's pip bootstrap supply external tool acquisition, build and runtime mechanics; they do not execute Laplace semantic operations. Acquisition and actual loaded version are recorded separately.",
+      "selection": "locked-acquisition-tool-sdk-version-selected",
+      "lock_entries": [
+        "artifact:pip",
+        "artifact:aqtinstall"
+      ]
     },
     {
       "id": "lichess",

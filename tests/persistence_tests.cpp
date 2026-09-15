@@ -149,6 +149,40 @@ laplace_framework_canonical_batch Batch(
         0u};
 }
 
+TEST(PersistenceContract, StoredTrajectoryBytesRetainCanonicalIdentity) {
+    const auto fixture = BuildFixture();
+    std::vector<std::uint8_t> bytes(fixture.carriers.size() * 32u);
+    for (std::size_t index = 0; index < fixture.carriers.size(); ++index) {
+        for (std::size_t slot = 0; slot < LAPLACE_TRAJECTORY_SLOT_COUNT; ++slot) {
+            std::uint64_t bits;
+            std::memcpy(&bits, &fixture.carriers[index].slots[slot], sizeof(bits));
+            for (std::size_t byte = 0; byte < sizeof(bits); ++byte) {
+                bytes[index * 32u + slot * 8u + byte] =
+                    static_cast<std::uint8_t>(bits >> (byte * 8u));
+            }
+        }
+    }
+    laplace_digest256 actual{};
+    ASSERT_EQ(laplace_persistence_trajectory_bytes_fingerprint(
+                  bytes.data(), bytes.size(), &actual), LAPLACE_PERSISTENCE_OK);
+    EXPECT_EQ(std::memcmp(actual.bytes, fixture.physicality.trajectory_fingerprint.bytes, 32u), 0);
+    for (std::size_t index = 0; index < bytes.size(); ++index) {
+        bytes[index] ^= UINT8_C(1);
+        ASSERT_EQ(laplace_persistence_trajectory_bytes_fingerprint(
+                      bytes.data(), bytes.size(), &actual), LAPLACE_PERSISTENCE_OK);
+        EXPECT_NE(std::memcmp(actual.bytes, fixture.physicality.trajectory_fingerprint.bytes, 32u), 0);
+        bytes[index] ^= UINT8_C(1);
+    }
+    EXPECT_EQ(laplace_persistence_trajectory_bytes_fingerprint(
+                  bytes.data(), bytes.size() - 1u, &actual), LAPLACE_PERSISTENCE_INVALID_ARGUMENT);
+    EXPECT_EQ(laplace_persistence_trajectory_bytes_fingerprint(
+                  bytes.data(), 0u, &actual), LAPLACE_PERSISTENCE_INVALID_ARGUMENT);
+    EXPECT_EQ(laplace_persistence_trajectory_bytes_fingerprint(
+                  nullptr, bytes.size(), &actual), LAPLACE_PERSISTENCE_INVALID_ARGUMENT);
+    EXPECT_EQ(laplace_persistence_trajectory_bytes_fingerprint(
+                  bytes.data(), bytes.size(), nullptr), LAPLACE_PERSISTENCE_INVALID_ARGUMENT);
+}
+
 TEST(PersistenceContract, WholeTypedStreamValidatesAcrossBatchBoundaries) {
     const auto fixture = BuildFixture();
     const auto entity_frame_bytes =

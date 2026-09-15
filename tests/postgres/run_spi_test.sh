@@ -16,15 +16,14 @@ native_probe=$6
 auxiliary_probe=$7
 sql_file=$8
 sanitizer_preload=$9
-temporary_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
-test_root=$(mktemp -d "$temporary_parent/laplace-postgres-test.XXXXXX")
-data_directory="$test_root/data"
-socket_directory=$(mktemp -d /tmp/lp-pg.XXXXXX)
-server_log="$test_root/postgres.log"
+temporary_parent=${TMPDIR:-/build/laplace/work}
+test_root=
+data_directory=
+socket_directory=
+server_log=
 port=${LAPLACE_POSTGRES_TEST_PORT:-55432}
 server_started=0
-perfcache_root="$test_root/perfcache-root"
-mkdir -p -- "$perfcache_root"
+perfcache_root=
 server_asan_options=${ASAN_OPTIONS:-}
 if [[ -n "$sanitizer_preload" ]]; then
     server_asan_options="${server_asan_options}${server_asan_options:+:}detect_leaks=0"
@@ -45,7 +44,7 @@ collect_process_tree() {
 cleanup() {
     exit_code=$?
     test_processes=()
-    if [[ -r "$data_directory/postmaster.pid" ]]; then
+    if [[ -n "$data_directory" && -r "$data_directory/postmaster.pid" ]]; then
         postmaster_pid=$(head -n 1 -- "$data_directory/postmaster.pid" || true)
         if [[ "$postmaster_pid" =~ ^[0-9]+$ ]]; then
             mapfile -t test_processes < <(collect_process_tree "$postmaster_pid" | sort -un)
@@ -63,10 +62,12 @@ cleanup() {
             kill -KILL "$pid" 2>/dev/null || true
         fi
     done
-    if [[ "$socket_directory" == /tmp/lp-pg.* ]]; then
-        rmdir -- "$socket_directory" 2>/dev/null || true
+    if [[ -n "$socket_directory" && "$socket_directory" == "$temporary_parent"/lp-pg.* ]]; then
+        rm -rf -- "$socket_directory"
     fi
-    if [[ "$test_root" != "$temporary_parent"/laplace-postgres-test.* ]]; then
+    if [[ -z "$test_root" ]]; then
+        exit "$exit_code"
+    elif [[ "$test_root" != "$temporary_parent"/laplace-postgres-test.* ]]; then
         echo "refusing to clean unexpected PostgreSQL test root: $test_root" >&2
         exit 91
     fi
@@ -81,6 +82,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [[ "$temporary_parent" != /* || ! -d "$temporary_parent" || ! -w "$temporary_parent" ]]; then
+    echo "PostgreSQL tests require an existing writable absolute TMPDIR (default /build/laplace/work)." >&2
+    exit 72
+fi
+temporary_parent=$(realpath -e -- "$temporary_parent")
+test_root=$(mktemp -d "$temporary_parent/laplace-postgres-test.XXXXXX")
+data_directory="$test_root/data"
+server_log="$test_root/postgres.log"
+perfcache_root="$test_root/perfcache-root"
+socket_directory=$(mktemp -d "$temporary_parent/lp-pg.XXXXXX")
+socket_path_bytes=$(LC_ALL=C printf '%s' "$socket_directory/.s.PGSQL.$port" | wc -c)
+if (( socket_path_bytes >= 104 )); then
+    echo "PostgreSQL socket path is too long; select a shorter dedicated TMPDIR." >&2
+    exit 64
+fi
+mkdir -p -- "$perfcache_root"
+
 "$pg_bindir/initdb" -D "$data_directory" \
     --no-locale --encoding=UTF8 --auth=trust >/dev/null
 postgres_options="-k $socket_directory -p $port -c listen_addresses= -c max_prepared_transactions=4 -c laplace.perfcache_root=$perfcache_root -c extension_control_path=$control_root -c dynamic_library_path=$module_directory:$postgres_library_directory:$engine_directory"
@@ -94,9 +112,12 @@ if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
 fi
-if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     statement_timeout_ms=${LAPLACE_POSTGRES_STATEMENT_TIMEOUT_MS:-60000}
+    if [[ "$mode" == "unicode-root" ]]; then
+        statement_timeout_ms=${LAPLACE_POSTGRES_UNICODE_BOOTSTRAP_TIMEOUT_MS:-300000}
+    fi
     temporary_file_limit_kb=${LAPLACE_POSTGRES_TEMP_FILE_LIMIT_KB:-524288}
     if [[ ! "$statement_timeout_ms" =~ ^[1-9][0-9]*$ ||
           ! "$temporary_file_limit_kb" =~ ^[1-9][0-9]*$ ]]; then
@@ -232,7 +253,8 @@ elif [[ "$mode" == "contract" || "$mode" == "persistence-mutation" ]]; then
         TESTIMONY_2_UNCERTAINTY_DENOMINATOR TESTIMONY_2_SAMPLE_COUNT \
         TESTIMONY_RECEIPT TESTIMONY_INPUT TESTIMONY_OUTPUT \
         TESTIMONY_ISA_RECEIPT \
-        WORLD_PROFILE_ID WORLD_OCCURRENCE_ID WORLD_EVIDENCE_NODE \
+        WORLD_PROFILE_ID WORLD_OBSERVATION_PROFILE_ID \
+        WORLD_OCCURRENCE_ID WORLD_EVIDENCE_NODE \
         WORLD_EVIDENCE_SOURCE WORLD_EVIDENCE_CONTEXT \
         WORLD_TESTIMONY_ID WORLD_TESTIMONY_TRUST WORLD_TESTIMONY_OUTCOME; do
         shell_name=$(tr '[:upper:]' '[:lower:]' <<<"$key")
@@ -495,7 +517,7 @@ if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
 fi
 
 psql_command=("$pg_bindir/psql" "${psql_arguments[@]}")
-if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     psql_command+=(-c "SET statement_timeout = '$statement_timeout_ms ms'")
 fi
@@ -504,12 +526,19 @@ if [[ -n "${variable_file:-}" ]]; then
 fi
 psql_command+=(-f "$sql_file")
 
-if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
+if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
     source_max_wall_seconds=${LAPLACE_POSTGRES_MAX_WALL_SECONDS:-60}
     source_max_data_bytes=${LAPLACE_POSTGRES_MAX_DATA_BYTES:-1073741824}
     source_max_wal_bytes=${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}
     source_max_workspace_bytes=${LAPLACE_POSTGRES_MAX_WORKSPACE_BYTES:-2147483648}
+    if [[ "$mode" == "unicode-root" ]]; then
+        postmaster_pid=$(head -n 1 -- "$data_directory/postmaster.pid")
+        source_max_wall_seconds=${LAPLACE_POSTGRES_UNICODE_MAX_WALL_SECONDS:-300}
+        source_max_data_bytes=${LAPLACE_POSTGRES_UNICODE_MAX_DATA_BYTES:-8589934592}
+        source_max_wal_bytes=${LAPLACE_POSTGRES_UNICODE_MAX_WAL_BYTES:-8589934592}
+        source_max_workspace_bytes=${LAPLACE_POSTGRES_UNICODE_MAX_WORKSPACE_BYTES:-12884901888}
+    fi
     if [[ "$mode" == "source-admission-suite" ]]; then
         source_max_wall_seconds=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WALL_SECONDS:-180}
         source_max_data_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_DATA_BYTES:-3221225472}

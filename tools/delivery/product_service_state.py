@@ -288,6 +288,19 @@ def validate_unit_file(
     return unit, sha256_bytes(content.encode("utf-8"))
 
 
+def load_product_activation() -> Any:
+    path = Path(__file__).with_name("product_activation_impl.py")
+    if not path.is_file():
+        path = Path(__file__).with_name("product_activation.py")
+    specification = importlib.util.spec_from_file_location("laplace_delivery_receipt_validator_" + __name__, path)
+    if specification is None or specification.loader is None:
+        raise RuntimeError("canonical product receipt validator is absent")
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = module
+    specification.loader.exec_module(module)
+    return module
+
+
 def inspect_product_state(
     gateway: dict[str, Any],
     cluster: dict[str, Any],
@@ -300,7 +313,14 @@ def inspect_product_state(
     product = gateway["product"]
     highway_path = prefixed(root, product["highway_result"])
     highway = load_json(highway_path)
-    if (
+    receipt_validator = load_product_activation()
+    revalidated = highway.get("schema") == receipt_validator.HIGHWAY_REVALIDATION_SCHEMA
+    if revalidated:
+        try:
+            receipt_validator.validate_highway_revalidation(gateway, highway, highway.get("package_id"))
+        except receipt_validator.ActivationGatewayError as error:
+            raise ServiceStateError(str(error)) from error
+    elif (
         highway.get("schema") != "laplace.highway-product-activation-receipt/v1"
         or highway.get("phase") != "product-activated"
         or highway.get("restart_proven") is not True
@@ -385,8 +405,8 @@ def inspect_product_state(
     if loaded.get("system_identifier") != system_identifier:
         raise ServiceStateError("live PostgreSQL system identity differs from activation")
 
-    activation = highway.get("activation")
-    if not isinstance(activation, dict):
+    registry_proof = highway.get("revalidation" if revalidated else "activation")
+    if not isinstance(registry_proof, dict):
         raise ServiceStateError("Highway receipt omits its activation identity")
     unicode_epoch_id = require_hex(
         unicode.get("activation_epoch_id"), HEX_128, "Unicode activation epoch"
@@ -397,13 +417,21 @@ def inspect_product_state(
         "Unicode activation epoch fingerprint",
     )
     registry_epoch_id = require_hex(
-        activation.get("registry_epoch_id"), HEX_128, "Highway registry epoch"
+        registry_proof.get("registry_epoch_id"), HEX_128, "Highway registry epoch"
     )
     registry_epoch_fingerprint = require_hex(
-        activation.get("registry_epoch_fingerprint"),
+        registry_proof.get("registry_epoch_fingerprint"),
         HEX_256,
         "Highway registry epoch fingerprint",
     )
+    if revalidated and (
+        registry_proof["unicode_activation_epoch_id"] != unicode_epoch_id
+        or registry_proof["unicode_activation_epoch_fingerprint"] != unicode_epoch_fingerprint
+        or highway["cluster_plan_sha256"] != cluster_result.get("plan_sha256")
+    ):
+        raise ServiceStateError("committed Highway proof names another Unicode or cluster context")
+    highway_identity = receipt_validator.highway_aggregate_fields(highway)
+    highway_identity.pop("phase")
     stable_identity = {
         "package_id": package_id,
         "system_identifier": system_identifier,
@@ -413,7 +441,7 @@ def inspect_product_state(
             "activation_receipt_sha256"
         ],
         "unicode_activation_receipt_sha256": unicode["receipt_sha256"],
-        "highway_activation_receipt_sha256": highway["receipt_sha256"],
+        **highway_identity,
         "unicode_activation_epoch_id": unicode_epoch_id,
         "unicode_activation_epoch_fingerprint": unicode_epoch_fingerprint,
         "highway_registry_epoch_id": registry_epoch_id,

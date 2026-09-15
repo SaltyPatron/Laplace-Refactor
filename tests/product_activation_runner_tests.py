@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import copy
 import json
+import re
+import shutil
+import subprocess
 from pathlib import Path
 import unittest
 
@@ -22,6 +26,86 @@ HIGHWAYCTL = ROOT / "tools/postgresql/highwayctl.py"
 
 
 class ProductActivationRunnerTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("jq"), "jq is required to execute delivery result predicates")
+    def test_workflow_and_setup_accept_only_distinct_complete_revalidation_variant(self) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        workflow_match = re.search(r"--arg repository_commit \"\$GITHUB_SHA\" '\n(.*?)\n          ' \"\$result\"", workflow, re.S)
+        setup = (ROOT / "scripts/setup-product.sh").read_text(encoding="utf-8")
+        setup_match = re.search(r"jq -e --arg package \"\$package\" '\n(.*?)\n' \"\$work/activation.json\"", setup, re.S)
+        self.assertIsNotNone(workflow_match)
+        self.assertIsNotNone(setup_match)
+        base = {"schema": "laplace.product-activation-result/v1",
+                "phase": "product-unicode-activated-and-highway-revalidated",
+                "execution_owner": "laplace-runner", "root_product_executor": False,
+                "package_id": "42" * 32, "repository_commit": "43" * 20,
+                "package_installation_receipt_sha256": "44" * 32,
+                "cluster_activation_receipt_sha256": "45" * 32,
+                "unicode_activation_receipt_sha256": "46" * 32,
+                "highway_revalidation_receipt_sha256": "47" * 32,
+                "highway_activation_performed": False,
+                "highway_historical_request_present": False,
+                "highway_stored_working_set_receipt": "51" * 32,
+                "highway_stored_producer_receipt": "52" * 32,
+                "highway_historical_composition_receipt_present": False,
+                "highway_historical_intermediate_receipts_verified": False,
+                "highway_activation_sequence": 1,
+                "highway_retained_expected_epoch_count": 1,
+                "highway_recovered_expected_epoch_count": 0,
+                "result_sha256": "48" * 32}
+        normal = copy.deepcopy(base)
+        normal["phase"] = "product-unicode-and-highway-activated"
+        normal["highway_activation_receipt_sha256"] = normal.pop("highway_revalidation_receipt_sha256")
+        normal.pop("highway_activation_performed")
+        normal.pop("highway_historical_request_present")
+        for field in ("highway_stored_working_set_receipt", "highway_stored_producer_receipt",
+                      "highway_historical_composition_receipt_present", "highway_historical_intermediate_receipts_verified",
+                      "highway_activation_sequence", "highway_retained_expected_epoch_count", "highway_recovered_expected_epoch_count"):
+            normal.pop(field)
+        present_composition = {**base, "highway_historical_composition_receipt_present": True}
+        mutants = []
+        for field, value in (("highway_activation_performed", True),
+                ("highway_historical_request_present", True),
+                ("highway_historical_composition_receipt_present", 0),
+                ("highway_historical_intermediate_receipts_verified", True),
+                ("highway_historical_intermediate_receipts_verified", 0),
+                ("highway_activation_sequence", True),
+                ("highway_activation_sequence", 0),
+                ("highway_activation_sequence", 1025),
+                ("highway_retained_expected_epoch_count", True),
+                ("highway_recovered_expected_epoch_count", "0"),
+                ("highway_retained_expected_epoch_count", -1),
+                ("highway_recovered_expected_epoch_count", 0.5),
+                ("highway_recovered_expected_epoch_count", 1),
+                ("highway_stored_working_set_receipt", "00" * 32),
+                ("highway_stored_producer_receipt", "00" * 32),
+                ("highway_stored_working_set_receipt", "51" * 16),
+                ("highway_stored_producer_receipt", "52" * 16),
+                ("highway_activation_receipt_sha256", "49" * 32),
+                ("highway_revalidation_receipt_sha256", ""),
+                ("phase", "product-unicode-and-highway-activated"),
+                ("root_product_executor", True), ("package_id", "50" * 32)):
+            invalid = copy.deepcopy(base)
+            invalid[field] = value
+            mutants.append(invalid)
+        for field in ("highway_activation_performed", "highway_stored_working_set_receipt",
+                      "highway_stored_producer_receipt", "highway_historical_composition_receipt_present",
+                      "highway_historical_intermediate_receipts_verified",
+                      "highway_activation_sequence", "highway_retained_expected_epoch_count", "highway_recovered_expected_epoch_count"):
+            missing = copy.deepcopy(base)
+            missing.pop(field)
+            mutants.append(missing)
+        for source, predicate in (("workflow", workflow_match[1]), ("setup", setup_match[1])):
+            mixed = {**base, "highway_activation_sequence": 5,
+                     "highway_retained_expected_epoch_count": 2, "highway_recovered_expected_epoch_count": 3}
+            recovered = {**base, "highway_retained_expected_epoch_count": 0, "highway_recovered_expected_epoch_count": 1}
+            for expected, document in [(True, base), (True, present_composition), (True, normal),
+                                       (True, recovered), (True, mixed)] + [(False, mutant) for mutant in mutants]:
+                with self.subTest(source=source, phase=document["phase"], expected=expected, document=document):
+                    completed = subprocess.run(["jq", "-e", "--arg", "package_id", base["package_id"],
+                        "--arg", "package", base["package_id"], "--arg", "repository_commit", base["repository_commit"], predicate],
+                        input=json.dumps(document), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+                    self.assertEqual(completed.returncode == 0, expected, completed.stderr)
+
     def test_workflow_selects_runner_provider_not_root_or_systemd(self) -> None:
         source = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("product_activation_reconcile.py", source)

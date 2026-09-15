@@ -30,6 +30,16 @@ class QaError(RuntimeError):
     pass
 
 
+def validate_receipt_field_requirements(required: Sequence[str], fields: Any) -> None:
+    if not isinstance(fields, dict):
+        raise QaError("required receipt fields must be an object")
+    for name, expected in fields.items():
+        if (name not in required or not isinstance(expected, dict) or not expected or
+                any(not isinstance(key, str) or not key or type(value) not in (str, int, bool)
+                    for key, value in expected.items())):
+            raise QaError("required receipt fields have an invalid owner, name or scalar expectation")
+
+
 def read_json(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -175,6 +185,12 @@ def validate_contract(contract: dict[str, Any], repo_root: Path) -> None:
             )
         if not isinstance(profile, str) or not profile:
             raise QaError(f"isolated test has invalid profile: {name}")
+        required_receipts = row.get("required_receipts", [])
+        if not isinstance(required_receipts, list) or any(
+            not isinstance(value, str) or not value for value in required_receipts
+        ) or len(set(required_receipts)) != len(required_receipts):
+            raise QaError(f"isolated test has invalid required receipts: {name}")
+        validate_receipt_field_requirements(required_receipts, row.get("required_receipt_fields", {}))
         if (
             not isinstance(order, int)
             or isinstance(order, bool)
@@ -286,6 +302,17 @@ def build_plan(
         ),
         "core_tests": core,
         "selected_physical_tests": selected,
+        "required_physical_receipts": sorted({
+            name for row in selected_rows for name in row.get("required_receipts", [])
+        }),
+        "required_physical_receipts_by_test": {
+            str(row["ctest_name"]): list(row["required_receipts"])
+            for row in selected_rows if row.get("required_receipts")
+        },
+        "required_physical_receipt_fields_by_test": {
+            str(row["ctest_name"]): row["required_receipt_fields"]
+            for row in selected_rows if row.get("required_receipt_fields")
+        },
         "isolated_test_count": len(isolated_names),
         "eligible_test_count": len(eligible),
         "core_test_count": len(core),
@@ -399,7 +426,7 @@ def verify_success_execution(
     return observed
 
 
-def embedded_receipts(log: Path) -> list[dict[str, Any]]:
+def embedded_receipts(log: Path, report: Path | None = None) -> list[dict[str, Any]]:
     """Parse machine-readable receipts deliberately emitted by physical tests.
 
     These receipts are copied into the terminal custom-stack result so the durable
@@ -407,34 +434,75 @@ def embedded_receipts(log: Path) -> list[dict[str, Any]]:
     cardinality, plan, or other explicitly emitted physical evidence.
     """
 
+    def parse(lines: Iterable[str]) -> Iterable[tuple[str, dict[str, Any], str]]:
+        for line in lines:
+            marker = line.strip()
+            if not marker.startswith(EMBEDDED_RECEIPT_PREFIX):
+                continue
+            payload = marker[len(EMBEDDED_RECEIPT_PREFIX):]
+            if " " not in payload:
+                raise QaError("embedded QA receipt omits its name or JSON payload")
+            name, encoded = payload.split(" ", 1)
+            if not name:
+                raise QaError("embedded QA receipt name is absent")
+            try:
+                receipt = json.loads(encoded)
+            except json.JSONDecodeError as error:
+                raise QaError(f"embedded QA receipt {name!r} is invalid JSON: {error}") from error
+            if not isinstance(receipt, dict):
+                raise QaError(f"embedded QA receipt {name!r} is not an object")
+            schema = receipt.get("schema")
+            if not isinstance(schema, str) or not schema.startswith("laplace."):
+                raise QaError(f"embedded QA receipt {name!r} has no Laplace schema")
+            # Preserve JSON types when comparing transport copies: true and 1
+            # are different receipt values even though Python compares them equal.
+            yield name, receipt, json.dumps(receipt, sort_keys=True)
+
     try:
-        lines = log.read_text(encoding="utf-8", errors="strict").splitlines()
+        log_lines = log.read_text(encoding="utf-8", errors="strict").splitlines()
     except (OSError, UnicodeError) as error:
         raise QaError(f"cannot read custom-stack lane log for evidence: {log}: {error}") from error
-    receipts: list[dict[str, Any]] = []
-    names: set[str] = set()
-    for line in lines:
-        marker = line.strip()
-        if not marker.startswith(EMBEDDED_RECEIPT_PREFIX):
-            continue
-        payload = marker[len(EMBEDDED_RECEIPT_PREFIX):]
-        if " " not in payload:
-            raise QaError("embedded QA receipt omits its name or JSON payload")
-        name, encoded = payload.split(" ", 1)
-        if not name or name in names:
-            raise QaError(f"embedded QA receipt name is absent or duplicated: {name!r}")
+    retained: list[dict[str, Any]] = []
+    owners: set[tuple[str, str]] = set()
+    junit_copies: Counter[tuple[str, str]] = Counter()
+    if report is not None and report.is_file():
         try:
-            receipt = json.loads(encoded)
-        except json.JSONDecodeError as error:
-            raise QaError(f"embedded QA receipt {name!r} is invalid JSON: {error}") from error
-        if not isinstance(receipt, dict):
-            raise QaError(f"embedded QA receipt {name!r} is not an object")
-        schema = receipt.get("schema")
-        if not isinstance(schema, str) or not schema.startswith("laplace."):
-            raise QaError(f"embedded QA receipt {name!r} has no Laplace schema")
-        names.add(name)
-        receipts.append({"name": name, "receipt": receipt})
-    return receipts
+            root = ET.parse(report).getroot()
+        except (OSError, ET.ParseError) as error:
+            raise QaError(f"cannot read JUnit physical evidence: {report}: {error}") from error
+        for case in root.iter("testcase"):
+            owner = case.get("name")
+            if not isinstance(owner, str) or not owner:
+                raise QaError("JUnit physical evidence has no owning testcase")
+            for output in case.findall("system-out"):
+                for name, receipt, encoded in parse((output.text or "").splitlines()):
+                    key = (owner, name)
+                    if key in owners:
+                        raise QaError(f"embedded QA receipt is duplicated within testcase {owner!r}: {name!r}")
+                    owners.add(key)
+                    retained.append({"test": owner, "name": name, "receipt": receipt})
+                    junit_copies[(name, encoded)] += 1
+
+    # A failed test's exact output can occur in both JUnit and the lane log.
+    # Reconcile transport copies by multiplicity without merging observations
+    # from different testcases or assigning an owner to log-only evidence.
+    available_copies = junit_copies.copy()
+    junit_names = {name for name, _ in junit_copies}
+    unowned_names: set[str] = set()
+    for name, receipt, encoded in parse(log_lines):
+        key = (name, encoded)
+        if available_copies[key]:
+            available_copies[key] -= 1
+        elif name in junit_names:
+            if key in junit_copies:
+                raise QaError(f"embedded QA receipt transport copy is duplicated: {name!r}")
+            raise QaError(f"embedded QA receipt differs between retained outputs: {name!r}")
+        else:
+            if name in unowned_names:
+                raise QaError(f"embedded QA receipt name is duplicated in unowned lane output: {name!r}")
+            unowned_names.add(name)
+            retained.append({"test": None, "name": name, "receipt": receipt})
+    return retained
 
 
 def first_failure(
@@ -501,6 +569,9 @@ def run_ctest_lane(
     output_directory: Path,
     ctest: str,
     parallel_jobs: int,
+    required_receipts: Sequence[str] = (),
+    required_receipts_by_test: dict[str, list[str]] | None = None,
+    required_receipt_fields_by_test: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     if not names:
         raise QaError(f"custom-stack QA lane {lane!r} has no executable tests")
@@ -511,6 +582,8 @@ def run_ctest_lane(
         "--test-dir",
         str(build_directory),
         "--output-on-failure",
+        "--test-output-size-passed",
+        "4194304",
         "--stop-on-failure",
         "--parallel",
         str(parallel_jobs),
@@ -552,7 +625,26 @@ def run_ctest_lane(
     retained_receipts: list[dict[str, Any]] = []
     evidence_verified = False
     try:
-        retained_receipts = embedded_receipts(log)
+        retained_receipts = embedded_receipts(log, report)
+        observed_pairs = {(row["test"], row["name"]) for row in retained_receipts}
+        missing_owned_receipts = sorted(
+            (owner, name)
+            for owner, required in (required_receipts_by_test or {}).items()
+            for name in required if (owner, name) not in observed_pairs
+        )
+        if missing_owned_receipts:
+            raise QaError(f"required physical QA receipts are absent from their owning tests: {missing_owned_receipts}")
+        observed_receipts = {(row["test"], row["name"]): row["receipt"] for row in retained_receipts}
+        for owner, receipts in (required_receipt_fields_by_test or {}).items():
+            for name, fields in receipts.items():
+                observed = observed_receipts.get((owner, name), {})
+                for field, expected in fields.items():
+                    actual = observed.get(field)
+                    if type(actual) is not type(expected) or actual != expected:
+                        raise QaError(f"required physical QA receipt field differs: {owner}/{name}/{field}")
+        missing_receipts = set(required_receipts) - {row["name"] for row in retained_receipts}
+        if missing_receipts:
+            raise QaError(f"required physical QA receipts are absent: {sorted(missing_receipts)}")
         evidence_verified = True
     except QaError as error:
         if ctest_status == 0:
@@ -585,6 +677,8 @@ def run_ctest_lane(
         "executed_tests": executed_names,
         "selection_verified": selection_verified,
         "evidence_receipts_verified": evidence_verified,
+        "required_receipts_by_test": required_receipts_by_test or {},
+        "required_receipt_fields_by_test": required_receipt_fields_by_test or {},
         "embedded_receipts": retained_receipts,
         "command": command,
         "started_at_utc": started,
@@ -618,6 +712,31 @@ def execute_plan(
         not isinstance(x, str) or not x for x in selected
     ):
         raise QaError("plan selected_physical_tests is invalid")
+    required_receipts = plan.get("required_physical_receipts", [])
+    if not isinstance(required_receipts, list) or any(
+        not isinstance(value, str) or not value for value in required_receipts
+    ):
+        raise QaError("plan required_physical_receipts is invalid")
+    required_by_test = plan.get("required_physical_receipts_by_test", {})
+    if not isinstance(required_by_test, dict):
+        raise QaError("plan required_physical_receipts_by_test is invalid")
+    for owner, required in required_by_test.items():
+        if (not isinstance(owner, str) or owner not in selected or
+            not isinstance(required, list) or not required or
+            any(not isinstance(name, str) or not name for name in required) or
+            len(set(required)) != len(required)):
+            raise QaError("plan required_physical_receipts_by_test has an invalid owner or receipt list")
+    if "required_physical_receipts_by_test" in plan and set(required_receipts) != {
+        name for required in required_by_test.values() for name in required
+    }:
+        raise QaError("plan required physical receipt inventory differs from owning tests")
+    required_fields_by_test = plan.get("required_physical_receipt_fields_by_test", {})
+    if not isinstance(required_fields_by_test, dict):
+        raise QaError("plan required physical receipt fields must be an object")
+    for owner, fields in required_fields_by_test.items():
+        if owner not in required_by_test:
+            raise QaError("plan required physical receipt fields have no owning test")
+        validate_receipt_field_requirements(required_by_test[owner], fields)
     available = ctest_names(build_directory, ctest)
     missing = sorted((set(core) | set(selected)) - available)
     if missing:
@@ -669,6 +788,9 @@ def execute_plan(
             output_directory=output_directory,
             ctest=ctest,
             parallel_jobs=parallel_jobs,
+            required_receipts=required_receipts if lane == "selected-physical" else (),
+            required_receipts_by_test=required_by_test if lane == "selected-physical" else {},
+            required_receipt_fields_by_test=required_fields_by_test if lane == "selected-physical" else {},
         )
         result["lanes"].append(lane_result)
         if lane_result["result"] != "passed":

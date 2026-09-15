@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+
 concurrency:
   group: laplace-physical-product-proof
   queue: max
@@ -30,7 +34,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Sweep stale interrupted package-product residue
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tools/delivery/proof_workspace_cleanup.py \
@@ -38,7 +42,7 @@ jobs:
             --minimum-age-seconds 300 \
             --name laplace-package-product-proof
       - name: Verify package-proof authority and exact PostgreSQL publication
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -57,7 +61,7 @@ jobs:
             --receipt "$publication" >/dev/null
           printf 'LAPLACE_POSTGRESQL_PUBLICATION=%s\n' "$publication" >> "$GITHUB_ENV"
       - name: Reclaim obsolete persistent product build generations
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           python3 tests/product_build_workspace_retention_tests.py
@@ -112,7 +116,7 @@ jobs:
       - name: Prove package-product verifier mutation controls
         run: python3 tests/package_product_proof_tests.py
       - name: Compose install replay and durably retain exact package receipts
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           work_root="$RUNNER_TEMP/laplace-package-product-proof"
@@ -147,7 +151,7 @@ jobs:
           printf 'LAPLACE_PRODUCT_PROOF_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
 
       - name: Query persistent Laplace substrate with branch-built command
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
@@ -265,7 +269,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compose and verify the standalone customer installer
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
@@ -327,7 +331,7 @@ jobs:
           retention-days: 30
       - name: Clean disposable package-product workspace
         if: always()
-        shell: bash
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           if [[ "${LAPLACE_PACKAGE_PRODUCT_STARTED_DATABASE:-0}" == 1 && -n "${LAPLACE_PRODUCT_PROOF_RESULT:-}" ]]; then

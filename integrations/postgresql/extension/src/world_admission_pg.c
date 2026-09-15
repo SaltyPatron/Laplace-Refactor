@@ -63,6 +63,15 @@ static void tuple_digest(
         tuple_value(tuple, descriptor, column, field), digest, field);
 }
 
+static void tuple_optional_digest(
+    HeapTuple tuple, TupleDesc descriptor, int column,
+    laplace_digest256* digest, const char* field) {
+    bool is_null = false;
+    const Datum value = SPI_getbinval(tuple, descriptor, column, &is_null);
+    memset(digest, 0, sizeof(*digest));
+    if (!is_null) laplace_pg_read_digest(value, digest, field);
+}
+
 static uint64_t tuple_u64(
     HeapTuple tuple,
     TupleDesc descriptor,
@@ -188,7 +197,7 @@ static laplace_world_admission_record* derive_durable_records(
     static const char derive_sql[] =
         "WITH input AS (SELECT r.source_profile_id,r.source_profile_receipt_id,r.recipe_receipt_id,r.composition_working_set_receipt_id,r.evidence_lineage_receipt_id,r.evidence_testimony_receipt_id,r.ordinality::numeric AS ordinality FROM unnest($1::" LAPLACE_PG_SCHEMA ".world_admission_request[]) WITH ORDINALITY r) "
         "SELECT i.ordinality,p.profile_id,p.selected_boundary_fingerprint,spr.receipt_id,i.recipe_receipt_id,ce.working_set_receipt,ce.presence_semantic_receipt,ce.producer_receipt,ce.staged_stream_receipt,lr.receipt_id,tr.receipt_id,"
-        "p.occurrence_count,ce.logical_occurrence_count,p.claim_count,lr.node_count,tr.testimony_count,"
+        "p.occurrence_count,ce.logical_occurrence_count,p.claim_count,COALESCE(lr.node_count,0),COALESCE(tr.testimony_count,0),"
         "(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member tm JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony t ON t.testimony_id=tm.testimony_id WHERE tm.receipt_id=tr.receipt_id AND t.source_profile_id=p.profile_id),"
         "(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member tm JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony t ON t.testimony_id=tm.testimony_id WHERE tm.receipt_id=tr.receipt_id AND t.recipe_receipt_id=i.recipe_receipt_id),"
         "(SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member tm JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony t ON t.testimony_id=tm.testimony_id JOIN " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member lm ON lm.receipt_id=lr.receipt_id AND lm.node_id=t.evidence_node_id JOIN " LAPLACE_PG_SCHEMA ".evidence_node n ON n.node_id=t.evidence_node_id JOIN " LAPLACE_PG_SCHEMA ".composition_execution_occurrence_member cm ON cm.working_set_receipt=ce.working_set_receipt AND cm.occurrence_id=n.occurrence_id WHERE tm.receipt_id=tr.receipt_id),"
@@ -199,12 +208,14 @@ static laplace_world_admission_record* derive_durable_records(
         "JOIN " LAPLACE_PG_SCHEMA ".source_profile_receipt_member sprm ON sprm.receipt_id=spr.receipt_id AND sprm.profile_id=p.profile_id "
         "JOIN " LAPLACE_PG_SCHEMA ".composition_execution_receipt ce ON ce.working_set_receipt=i.composition_working_set_receipt_id "
         "JOIN " LAPLACE_PG_SCHEMA ".canonical_deposit_receipt cd ON cd.receipt_id=ce.staged_stream_receipt AND cd.recipe_fingerprint=i.recipe_receipt_id "
-        "JOIN " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt lr ON lr.receipt_id=i.evidence_lineage_receipt_id "
-        "JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt tr ON tr.receipt_id=i.evidence_testimony_receipt_id AND tr.source_profile_id=p.profile_id "
+        "LEFT JOIN " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt lr ON lr.receipt_id=i.evidence_lineage_receipt_id "
+        "LEFT JOIN " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt tr ON tr.receipt_id=i.evidence_testimony_receipt_id AND tr.source_profile_id=p.profile_id "
         "WHERE p.recipe_program_fingerprint=i.recipe_receipt_id "
         "AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".source_profile_receipt_member m WHERE m.receipt_id=spr.receipt_id)=spr.profile_count "
+        "AND ((p.claim_count=0 AND i.evidence_lineage_receipt_id IS NULL AND i.evidence_testimony_receipt_id IS NULL) OR "
+        "(p.claim_count>0 AND lr.receipt_id IS NOT NULL AND tr.receipt_id IS NOT NULL "
         "AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_lineage_receipt_member m WHERE m.receipt_id=lr.receipt_id)=lr.node_count "
-        "AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member m WHERE m.receipt_id=tr.receipt_id)=tr.testimony_count "
+        "AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".evidence_testimony_receipt_member m WHERE m.receipt_id=tr.receipt_id)=tr.testimony_count)) "
         "AND (SELECT count(*) FROM " LAPLACE_PG_SCHEMA ".composition_execution_occurrence_member m WHERE m.working_set_receipt=ce.working_set_receipt)=ce.occurrence_count "
         "ORDER BY i.ordinality";
     Oid types[1] = {request_array_type};
@@ -246,8 +257,8 @@ static laplace_world_admission_record* derive_durable_records(
         tuple_digest(tuple, descriptor, 7, &records[index].composition_presence_receipt_id, "composition presence receipt");
         tuple_digest(tuple, descriptor, 8, &records[index].composition_producer_receipt_id, "composition producer receipt");
         tuple_digest(tuple, descriptor, 9, &records[index].composition_stream_receipt_id, "composition stream receipt");
-        tuple_digest(tuple, descriptor, 10, &records[index].evidence_lineage_receipt_id, "evidence lineage receipt");
-        tuple_digest(tuple, descriptor, 11, &records[index].evidence_testimony_receipt_id, "evidence testimony receipt");
+        tuple_optional_digest(tuple, descriptor, 10, &records[index].evidence_lineage_receipt_id, "evidence lineage receipt");
+        tuple_optional_digest(tuple, descriptor, 11, &records[index].evidence_testimony_receipt_id, "evidence testimony receipt");
         records[index].profile_occurrence_count = tuple_u64(tuple, descriptor, 12, "profile occurrence count");
         records[index].composition_occurrence_count = tuple_u64(tuple, descriptor, 13, "composition logical occurrence count");
         records[index].profile_claim_count = tuple_u64(tuple, descriptor, 14, "profile claim count");
@@ -329,6 +340,10 @@ static ArrayType* admission_record_array(
         for (field = 0u; field < 12u; ++field) {
             values[field] = PointerGetDatum(laplace_pg_bytes_to_bytea(
                 digests[field]->bytes, 32u));
+        }
+        if (record->profile_claim_count == 0u) {
+            nulls[9] = true;
+            nulls[10] = true;
         }
         for (field = 0u; field < 10u; ++field) {
             values[12u + field] = laplace_pg_numeric_from_uint64(counts[field]);

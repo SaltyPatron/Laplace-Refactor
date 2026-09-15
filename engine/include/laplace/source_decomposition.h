@@ -34,6 +34,16 @@ laplace_source_decomposition_plan_create(
     uint64_t provider_count,
     laplace_tabular_source_plan** plan);
 
+/* An admitted structural depth is an execution bound. Exceeding it rejects the
+ * complete plan; it never clips a grammar tree or changes content identity. */
+LAPLACE_API laplace_tabular_source_status
+laplace_source_decomposition_plan_create_bounded(
+    const laplace_tabular_source_input* input,
+    const laplace_decomposition_provider_v1* providers,
+    uint64_t provider_count,
+    uint32_t maximum_depth,
+    laplace_tabular_source_plan** plan);
+
 #ifdef __cplusplus
 }
 #endif

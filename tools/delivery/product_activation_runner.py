@@ -179,6 +179,13 @@ def validate_unicode_result(result: dict[str, Any], package_id: str) -> None:
 
 
 def validate_highway_result(result: dict[str, Any], package_id: str) -> None:
+    if result.get("schema") == activation.HIGHWAY_REVALIDATION_SCHEMA:
+        gateway = load_json(REPOSITORY / "contracts/product-activation-gateway.json")
+        try:
+            activation.validate_highway_revalidation(gateway, result, package_id)
+        except activation.ActivationGatewayError as error:
+            raise RunnerActivationError(str(error)) from error
+        return
     if (
         result.get("schema") != highwayctl.RECEIPT_SCHEMA
         or result.get("phase") != "product-activated"
@@ -581,6 +588,8 @@ def execute(
     previous_registry_contract = load_json(
         REPOSITORY / "contracts/history/highway-v1.json"
     )
+    gateway_contract = load_json(REPOSITORY / "contracts/product-activation-gateway.json")
+    revalidation_contract = activation.highway_revalidation_contract(gateway_contract)
     highway_result = highwayctl.execute_highway_activation(
         highway_contract,
         cluster_contract,
@@ -593,18 +602,20 @@ def execute(
         unicode_result,
         Path("/"),
         False,
+        committed_revalidation_contract=revalidation_contract,
         sql_runner=runner_sql,
         loaded_observer=clusterctl.observe_loaded_live,
         command_runner=command_runner,
         readiness_runner=clusterctl.await_postgresql_ready,
     )
     validate_highway_result(highway_result, package_id)
-    highway_result_path = receipt_root / "highway-product-activation.json"
+    highway_result_path = receipt_root / ("highway-committed-revalidation.json"
+        if highway_result.get("schema") == activation.HIGHWAY_REVALIDATION_SCHEMA else "highway-product-activation.json")
     write_json(highway_result_path, highway_result)
 
     result = {
         "schema": RESULT_SCHEMA,
-        "phase": "product-unicode-and-highway-activated",
+        **activation.highway_aggregate_fields(highway_result),
         "execution_owner": RUNNER_USER,
         "repository_commit": repository_commit,
         "package_id": package_id,
@@ -617,7 +628,6 @@ def execute(
         "public_readback_receipt_sha256": public_readback["receipt_sha256"],
         "indexed_cognition_receipt_sha256": indexed_cognition["receipt_sha256"],
         "unicode_activation_receipt_sha256": unicode_result["receipt_sha256"],
-        "highway_activation_receipt_sha256": highway_result["receipt_sha256"],
         "cluster_result": str(cluster_result_path),
         "unicode_result": str(unicode_result_path),
         "highway_result": str(highway_result_path),

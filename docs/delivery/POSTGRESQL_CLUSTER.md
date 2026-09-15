@@ -168,6 +168,72 @@ The normal operator does not run `unicodectl.py` with sudo. The accepted-main ru
 
 Highway activation consumes the exact cluster and Unicode receipts, selected registry version/predecessor, and native/SQL implementation. It executes as `laplace-runner`. Its restart obligation is fulfilled through packaged `pg_ctl`, and the cold application role must read back the active registry before the Highway receipt is accepted.
 
+An existing active registry normally requires its exact retained admission request
+for replay. A present invalid request still fails that boundary. If the request
+retention is absent, `contracts/highway-committed-revalidation.json` selects one
+explicit database identity, registry epoch and sequence for a new current-state
+verification. Passing that contract is required; ordinary activation does not
+silently select recovery. The historical request hash is retained solely as a
+reference to the original Actions log.
+
+The native `highway_registry_revalidate_committed` operation rebuilds the registry
+through ISA materialization, active Unicode resolution, canonical AST construction
+and shared composition. It verifies the committed root, generation, projections,
+retained ISA and staged-stream receipt bodies and activation event chain. The
+stored working-set and producer digests are observed references bound into the
+new proof; their missing historical receipt bodies remain unverified. A retained
+composition summary must match the stored generation and deposit links and
+counts. An absent summary is reported explicitly and creates no historical rows.
+Even a matching summary does not establish the missing working-set, producer or
+checkpoint receipt bodies. Future Highway admissions persist their actual
+composition receipt through the existing composition owner.
+
+New activation events also retain the request's actual expected epoch. The
+verifier authenticates that input against both original native admission and
+final activation receipt identities. A missing legacy first input may be
+recovered as zero only if both hashes match; a missing later input uses the
+independently verified predecessor epoch. Missing nonzero first inputs remain
+unavailable and fail verification. Present conflicting inputs never fall back,
+and verification never backfills historical events. Each verified input and its
+retained or recovered source are bound into the new event-chain proof.
+
+The verifier's internal subtransaction rolls back transient composition effects
+before returning, including when its SQL caller commits. The activation provider
+is never called by this verification.
+
+The controller repeats that complete native verification after a product restart
+and requires the same proof, followed by a cold application-role readback and
+unchanged loaded package/configuration identity. Original stored ISA and activation
+receipts remain separate from current verification and read-operation receipts.
+The immutable request, native proofs and readback are retained under
+`highway-revalidation/<request-sha256>/`. Requests include the observed running
+process identity, so successive restart proofs preserve separate evidence.
+
+Successful recovery has receipt phase `committed-state-revalidated`, with
+`activation_performed=false` and `historical_request_present=false`. The 39-field
+native result also exposes `stored_working_set_receipt`, `stored_producer_receipt`
+and `historical_composition_receipt_present`. Its
+`historical_intermediate_receipts_verified` field is always `false`, including
+when a composition summary is present. The product result uses
+`product-unicode-activated-and-highway-revalidated` and
+`highway_revalidation_receipt_sha256`. These fields establish a new forward
+verification boundary while preserving the loss of original admission bytes and
+the explicit limits of historical receipt coverage. The appended
+`retained_expected_epoch_count` and `recovered_expected_epoch_count` fields follow
+the existing `status` field, preserving its prior position. Both are nonnegative
+integers whose sum equals `activation_sequence`, bounded by the native 1,024-event
+proof envelope. Product aggregates and service identity retain the sequence and
+both counters with a `highway_` prefix. Verifying these specific request inputs
+does not verify unavailable historical intermediate receipt bodies.
+
+The required PostgreSQL acceptance suite declares corruption rejection,
+binding/index and legacy-coverage controls, plus caller COMMIT/ROLLBACK
+preservation. The updated 39-field cases await successful native PostgreSQL
+execution. The latest mandatory run stopped at its first positive verification
+because the verifier substituted zero for an unretained nonzero initial expected
+epoch. Source inspection, native hash probes and controller fixtures do not
+establish that the complete acceptance suite has passed.
+
 ## Resource derivation
 
 The co-resident resource policy declares bounds, not fixed host CPU IDs. Native execution authority measures topology, subtracts externally owned resources, issues a conserved grant, selects logical processors, and observes backing filesystems for data, WAL, and temporary state. The PostgreSQL plan consumes those receipts rather than reimplementing topology discovery in Python.

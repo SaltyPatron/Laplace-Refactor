@@ -131,8 +131,13 @@ for path in \
         echo "expected a physical shared parent: $path" >&2
         exit 1
     fi
-    "$INSTALL_BIN" -d -g "$RUNNER_GROUP" -m 2770 "$path"
+    existing_owner=0
+    [[ ! -e "$path" ]] || existing_owner=$(stat -c '%u' "$path")
+    "$INSTALL_BIN" -d -o "$existing_owner" -g "$RUNNER_GROUP" -m 2770 "$path"
 done
+
+# Preserve the configured source-estate alias and repair its physical parents.
+bash "$REPOSITORY/tools/dependencies/prepare-source-parents.sh"
 
 # An existing socket leaf needs operator group traversal; fresh activation owns creation.
 if [[ -d /opt/laplace/runtime/postgresql/refactor && ! -L /opt/laplace/runtime/postgresql/refactor ]]; then
@@ -330,6 +335,7 @@ if [[ "$MODE" == prerequisites ]]; then
     exit 0
 fi
 
+bash "$SCRIPT_DIR/setup-chess.sh"
 "$SUDO_BIN" -u "$RUNNER_USER" -H -- bash "$SCRIPT_DIR/setup-product.sh"
 COGNITION_SERVICE=laplace-refactor-cognition.service
 "$INSTALL_BIN" -o root -g root -m 0644 "$REPOSITORY/packaging/systemd/$COGNITION_SERVICE" "/etc/systemd/system/$COGNITION_SERVICE"

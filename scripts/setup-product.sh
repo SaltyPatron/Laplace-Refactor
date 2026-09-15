@@ -27,6 +27,26 @@ echo 'Reconciling PostgreSQL, Unicode and Highway with existing state.'
 python3 tools/delivery/product_activation_reconcile.py --product-receipt "$receipt" \
     --resource-observation "$work/resources.json" --repository-commit "$(git -c safe.directory="$PWD" rev-parse HEAD)" \
     --output "$work/activation.json"
-jq -e --arg package "$package" '.phase == "product-unicode-and-highway-activated" and .package_id == $package and .execution_owner == "laplace-runner"' "$work/activation.json" >/dev/null
+jq -e --arg package "$package" '
+    .schema == "laplace.product-activation-result/v1" and
+    ((.phase == "product-unicode-and-highway-activated" and
+      (has("highway_revalidation_receipt_sha256") | not) and
+      (.highway_activation_receipt_sha256 | test("^[0-9a-f]{64}$"))) or
+     (.phase == "product-unicode-activated-and-highway-revalidated" and
+      .highway_activation_performed == false and
+      .highway_historical_request_present == false and
+      (.highway_historical_composition_receipt_present | type == "boolean") and
+      .highway_historical_intermediate_receipts_verified == false and
+      (.highway_activation_sequence | type == "number" and floor == . and . >= 1 and . <= 1024) and
+      (.highway_retained_expected_epoch_count | type == "number" and floor == . and . >= 0 and . <= 1024) and
+      (.highway_recovered_expected_epoch_count | type == "number" and floor == . and . >= 0 and . <= 1024) and
+      (.highway_retained_expected_epoch_count + .highway_recovered_expected_epoch_count == .highway_activation_sequence) and
+      (.highway_stored_working_set_receipt | test("^[0-9a-f]{64}$") and test("[1-9a-f]")) and
+      (.highway_stored_producer_receipt | test("^[0-9a-f]{64}$") and test("[1-9a-f]")) and
+      (has("highway_activation_receipt_sha256") | not) and
+      (.highway_revalidation_receipt_sha256 | test("^[0-9a-f]{64}$")))) and
+    .package_id == $package and .execution_owner == "laplace-runner" and
+    .root_product_executor == false
+' "$work/activation.json" >/dev/null
 python3 tools/delivery/product_cognition_live_proof.py --output "$work/cognition.json"
 echo "Product activation and installed cognition readback completed. Evidence: $work"

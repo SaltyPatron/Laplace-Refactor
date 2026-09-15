@@ -109,9 +109,9 @@
     },
     "stockfish": {
       "upstream": "https://github.com/official-stockfish/Stockfish.git",
-      "revision": "cb3d4ee9b47d0c5aae855b12379378ea1439675c",
-      "git_archive_sha256": "a13ad763452f369655bc3dfc2f2bdae169b180e56ca65ef4c431468d64b7635e",
-      "version": "sf_18",
+      "revision": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+      "git_archive_sha256": "56b9d83ca09a419501cb412066ff1f80e89f71f57a55da095043d22a51bdd1a2",
+      "version": "sf_19",
       "licenses": [
         {"path": "Copying.txt", "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"}
       ]

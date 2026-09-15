@@ -1415,6 +1415,57 @@ TEST(IsaReceipt, RepeatedExecutionIsDeterministicAndInputSensitive) {
     ASSERT_EQ(laplace_isa_execute(&program_a, &receipt_a, &error_a), LAPLACE_ISA_OK);
     ASSERT_EQ(laplace_isa_execute(&program_b, &receipt_b, &error_b), LAPLACE_ISA_OK);
     EXPECT_EQ(std::memcmp(&receipt_a, &receipt_b, sizeof(receipt_a)), 0);
+    const auto retained = receipt_a;
+    EXPECT_EQ(laplace_isa_receipt_validate(&receipt_a), LAPLACE_ISA_OK);
+    EXPECT_EQ(std::memcmp(&receipt_a, &retained, sizeof(receipt_a)), 0);
+    EXPECT_EQ(laplace_isa_receipt_validate(nullptr), LAPLACE_ISA_INVALID_ARGUMENT);
+
+    const std::array<laplace_isa_digest256 laplace_isa_receipt::*, 5> digests{{
+        &laplace_isa_receipt::receipt_id,
+        &laplace_isa_receipt::context_fingerprint,
+        &laplace_isa_receipt::program_fingerprint,
+        &laplace_isa_receipt::input_fingerprint,
+        &laplace_isa_receipt::output_fingerprint}};
+    for (std::size_t field = 0u; field < digests.size(); ++field) {
+        for (std::size_t byte = 0u; byte < sizeof(receipt_a.receipt_id.bytes); ++byte) {
+            auto corrupted = receipt_a;
+            (corrupted.*digests[field]).bytes[byte] ^= 1u;
+            EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_VALUE_INVALID)
+                << "digest field " << field << " byte " << byte;
+        }
+    }
+    auto corrupted = receipt_a;
+    corrupted.major += 1u;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_UNSUPPORTED_VERSION);
+    corrupted = receipt_a;
+    corrupted.minor = static_cast<std::uint16_t>(LAPLACE_ISA_MINOR + 1u);
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_UNSUPPORTED_VERSION);
+    corrupted = receipt_a;
+    corrupted.receipt_detail += 1u;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_UNKNOWN_FLAGS);
+    corrupted = receipt_a;
+    corrupted.reserved = 1u;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_UNKNOWN_FLAGS);
+    corrupted = receipt_a;
+    corrupted.instruction_count = 0u;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_EMPTY_PROGRAM);
+    corrupted = receipt_a;
+    corrupted.instruction_count += 1u;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_VALUE_INVALID);
+    corrupted = receipt_a;
+    corrupted.executed_instruction_count = 0u;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_VALUE_INVALID);
+    corrupted = receipt_a;
+    corrupted.executed_instruction_count += 1u;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_VALUE_INVALID);
+    corrupted.instruction_count += 1u;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_VALUE_INVALID);
+    corrupted = receipt_a;
+    corrupted.minor = static_cast<std::uint16_t>(LAPLACE_ISA_MINOR - 1u);
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_VALUE_INVALID);
+    corrupted = receipt_a;
+    corrupted.status = LAPLACE_ISA_EXECUTION_FAILED;
+    EXPECT_EQ(laplace_isa_receipt_validate(&corrupted), LAPLACE_ISA_VALUE_INVALID);
 
     positions_b[1] = 0x43u;
     values_b[1].count = 0u;
@@ -1425,6 +1476,10 @@ TEST(IsaReceipt, RepeatedExecutionIsDeterministicAndInputSensitive) {
     EXPECT_NE(std::memcmp(receipt_a.receipt_id.bytes,
                           receipt_b.receipt_id.bytes,
                           sizeof(receipt_a.receipt_id.bytes)), 0);
+    EXPECT_EQ(laplace_isa_receipt_validate(&receipt_b), LAPLACE_ISA_OK);
+    program_b.minor = static_cast<std::uint16_t>(LAPLACE_ISA_MINOR - 1u);
+    ASSERT_EQ(laplace_isa_execute(&program_b, &receipt_b, &error_b), LAPLACE_ISA_OK);
+    EXPECT_EQ(laplace_isa_receipt_validate(&receipt_b), LAPLACE_ISA_OK);
 }
 
 }  // namespace

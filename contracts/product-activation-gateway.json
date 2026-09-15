@@ -35,6 +35,7 @@
   "trusted_bundle": {
     "files": [
       "bin/laplace-product-activate",
+      "contracts/highway-committed-revalidation.json",
       "contracts/highway-product-activation.json",
       "contracts/highway.json",
       "contracts/history/highway-v1.json",
@@ -47,11 +48,13 @@
       "contracts/unicode-source.json",
       "controllers/cluster_core.py",
       "controllers/clusterctl.py",
+      "controllers/highway_revalidation.py",
       "controllers/highwayctl.py",
       "controllers/hostctl.py",
       "controllers/product_activation_impl.py",
       "controllers/product_service_state.py",
-      "controllers/unicodectl.py"
+      "controllers/unicodectl.py",
+      "controllers/unicodectl_core.py"
     ]
   },
   "product": {
@@ -87,6 +90,12 @@
     "cluster_success_phase": "activated",
     "require_active_pointer_commit": true,
     "require_restart_proof": true,
-    "allow_exact_success_replay": true
+    "allow_exact_success_replay": true,
+    "highway_revalidation": {
+      "contract_path": "contracts/highway-committed-revalidation.json",
+      "contract_sha256": "566926c4945029186a04bb2c5bd5cc375520cfa5f86118893d62c9ece3b8f794",
+      "receipt_schema": "laplace.highway-committed-revalidation-receipt/v1",
+      "phase": "committed-state-revalidated"
+    }
   }
 }

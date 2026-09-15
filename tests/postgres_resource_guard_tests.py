@@ -7,7 +7,9 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -34,6 +36,52 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def run_initialization_failure(self, scratch: Path) -> subprocess.CompletedProcess[str]:
+        binaries = self.root / "fake-pg"
+        binaries.mkdir(exist_ok=True)
+        scripts = {
+            "pg_config": '#!/usr/bin/env bash\nprintf "%s\\n" /unused-postgresql-library\n',
+            "initdb": '#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$LAPLACE_TEST_INITDB_RECORD"\nexit 17\n',
+        }
+        for name, text in scripts.items():
+            program = binaries / name
+            program.write_text(text)
+            program.chmod(0o700)
+        environment = os.environ | {
+            "TMPDIR": str(scratch),
+            "RUNNER_TEMP": str(self.root / ("long-runner-temp-" * 12)),
+            "LAPLACE_TEST_INITDB_RECORD": str(self.root / "initdb-arguments"),
+            "LAPLACE_POSTGRES_TEST_RETAIN_ON_FAILURE": "0",
+        }
+        return subprocess.run([
+            "bash", str(RUN_SPI), "unicode-root", str(binaries), "control", "module",
+            "engine", "native-probe", "auxiliary-probe", "fixture.sql", "",
+        ], env=environment, capture_output=True, text=True)
+
+    def test_runner_uses_selected_scratch_and_cleans_initialization_failure(self) -> None:
+        scratch = self.root / "scratch"
+        scratch.mkdir()
+        result = self.run_initialization_failure(scratch)
+        self.assertEqual(result.returncode, 17, result.stderr)
+        arguments = (self.root / "initdb-arguments").read_text().splitlines()
+        data_directory = Path(arguments[arguments.index("-D") + 1])
+        self.assertEqual(data_directory.parent.parent, scratch)
+        self.assertTrue(data_directory.parent.name.startswith("laplace-postgres-test."))
+        self.assertEqual(list(scratch.iterdir()), [])
+
+    def test_runner_rejects_missing_or_overlong_scratch_without_fallback(self) -> None:
+        missing = self.root / "missing"
+        result = self.run_initialization_failure(missing)
+        self.assertEqual(result.returncode, 72, result.stderr)
+        self.assertFalse(missing.exists())
+        long_scratch = self.root / ("long-scratch-" * 12)
+        long_scratch.mkdir()
+        result = self.run_initialization_failure(long_scratch)
+        self.assertEqual(result.returncode, 64, result.stderr)
+        self.assertIn("socket path is too long", result.stderr)
+        self.assertEqual(list(long_scratch.iterdir()), [])
+        self.assertFalse((self.root / "initdb-arguments").exists())
 
     def arguments(self, command: list[str], **overrides: int | float) -> object:
         values: dict[str, int | float] = {

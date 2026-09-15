@@ -35,7 +35,7 @@ constexpr std::uint32_t GrammarInputFlag =
 constexpr std::uint32_t KnownSpanFlags = RedispatchFlag | TextFlag | GrammarInputFlag;
 constexpr std::uint32_t ApplicabilityFlags = TextFlag | GrammarInputFlag;
 constexpr std::uint32_t MissingSyntaxFlag =
-    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_MISSING);
+    static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_SYNTAX_MISSING | LAPLACE_DECOMPOSITION_SYNTAX_EMPTY);
 constexpr std::uint32_t KnownSyntaxFlags =
     static_cast<std::uint32_t>(LAPLACE_DECOMPOSITION_KNOWN_SYNTAX_FLAGS);
 
@@ -296,8 +296,11 @@ int EmitEvent(void* opaque, const laplace_decomposition_event* event) {
     }
 
     const bool missing = (event->syntax_flags & MissingSyntaxFlag) != 0u;
+    const bool empty = (event->syntax_flags & LAPLACE_DECOMPOSITION_SYNTAX_EMPTY) != 0u;
     if ((!missing && event->byte_start >= event->byte_end) ||
         (missing && event->byte_start > event->byte_end) ||
+        (empty && (event->byte_start != event->byte_end ||
+            (event->syntax_flags & LAPLACE_DECOMPOSITION_SYNTAX_MISSING) != 0u)) ||
         (missing && (event->flags & KnownSpanFlags) != 0u)) {
         context.status = LAPLACE_DECOMPOSITION_RANGE_INVALID;
         return 1;
