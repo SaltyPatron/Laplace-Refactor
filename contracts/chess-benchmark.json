@@ -63,8 +63,8 @@
     }
   },
   "candidate_calibration": {
-    "authorization": "Same-repository pull requests with selected chess dependency or calibration changes may run source dependency builds and machine calibration after required source and hosted proofs.",
-    "gate": "same-repository pull request with exact chess change selection, successful hosted proof, and successful source/custom-stack proof",
+    "authorization": "Same-repository pull requests with selected chess dependency or calibration changes may run source dependency builds and machine calibration after hosted proof. Calibration verifies and builds its own official source inputs under the shared host lock.",
+    "gate": "same-repository pull request with exact chess change selection and successful hosted proof; independent of PostgreSQL custom-stack proof, which remains separately required by product-path",
     "evidence_scope": "candidate dependency measurements, separate from deployed product activation and core benchmark scheduling",
     "acceptance": "selected candidate calibration must succeed before product-path and its protected check aliases can pass"
   }

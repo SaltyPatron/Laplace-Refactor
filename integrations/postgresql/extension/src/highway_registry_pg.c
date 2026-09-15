@@ -694,12 +694,12 @@ static laplace_framework_status highway_activation_commit(
         "INSERT INTO " LAPLACE_PG_SCHEMA
         ".highway_registry_activation_event(sequence,activation_epoch_id,"
         "activation_epoch_fingerprint,admission_receipt,activation_receipt,"
-        "activation_fingerprint,activation_transaction_id) "
-        "VALUES($1,$2,$3,$4,$4,$5,$6)";
+        "activation_fingerprint,activation_transaction_id,expected_epoch_fingerprint) "
+        "VALUES($1,$2,$3,$4,$4,$5,$6,$7)";
     laplace_pg_highway_activation_state* state =
         (laplace_pg_highway_activation_state*)opaque;
-    Oid types[6] = {INT8OID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, XIDOID};
-    Datum values[6];
+    Oid types[7] = {INT8OID, BYTEAOID, BYTEAOID, BYTEAOID, BYTEAOID, XIDOID, BYTEAOID};
+    Datum values[7];
     HeapTuple tuple;
     TupleDesc descriptor;
     uint64 current_sequence;
@@ -765,6 +765,8 @@ static laplace_framework_status highway_activation_commit(
     values[4] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         activation_fingerprint->bytes, 32u));
     values[5] = TransactionIdGetDatum(GetTopTransactionId());
+    values[6] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+        request->expected_epoch.bytes, 32u));
     result = SPI_execute_with_args(
         update_sql, 5, types, values, NULL, false, 0);
     if (result != SPI_OK_UPDATE || SPI_processed != 1u) {
@@ -773,7 +775,7 @@ static laplace_framework_status highway_activation_commit(
                  errmsg("Highway registry active control update failed")));
     }
     result = SPI_execute_with_args(
-        event_sql, 6, types, values, NULL, false, 0);
+        event_sql, 7, types, values, NULL, false, 0);
     if (result != SPI_OK_INSERT || SPI_processed != 1u) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),

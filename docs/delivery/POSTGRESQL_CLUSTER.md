@@ -179,9 +179,27 @@ reference to the original Actions log.
 The native `highway_registry_revalidate_committed` operation rebuilds the registry
 through ISA materialization, active Unicode resolution, canonical AST construction
 and shared composition. It verifies the committed root, generation, projections,
-original receipt links and activation event chain. Its internal subtransaction
-rolls back transient composition effects before returning, including when its SQL
-caller commits. The activation provider is never called by this verification.
+retained ISA and staged-stream receipt bodies and activation event chain. The
+stored working-set and producer digests are observed references bound into the
+new proof; their missing historical receipt bodies remain unverified. A retained
+composition summary must match the stored generation and deposit links and
+counts. An absent summary is reported explicitly and creates no historical rows.
+Even a matching summary does not establish the missing working-set, producer or
+checkpoint receipt bodies. Future Highway admissions persist their actual
+composition receipt through the existing composition owner.
+
+New activation events also retain the request's actual expected epoch. The
+verifier authenticates that input against both original native admission and
+final activation receipt identities. A missing legacy first input may be
+recovered as zero only if both hashes match; a missing later input uses the
+independently verified predecessor epoch. Missing nonzero first inputs remain
+unavailable and fail verification. Present conflicting inputs never fall back,
+and verification never backfills historical events. Each verified input and its
+retained or recovered source are bound into the new event-chain proof.
+
+The verifier's internal subtransaction rolls back transient composition effects
+before returning, including when its SQL caller commits. The activation provider
+is never called by this verification.
 
 The controller repeats that complete native verification after a product restart
 and requires the same proof, followed by a cold application-role readback and
@@ -192,13 +210,29 @@ The immutable request, native proofs and readback are retained under
 process identity, so successive restart proofs preserve separate evidence.
 
 Successful recovery has receipt phase `committed-state-revalidated`, with
-`activation_performed=false` and `historical_request_present=false`. Its product
-result uses `product-unicode-activated-and-highway-revalidated` and
+`activation_performed=false` and `historical_request_present=false`. The 39-field
+native result also exposes `stored_working_set_receipt`, `stored_producer_receipt`
+and `historical_composition_receipt_present`. Its
+`historical_intermediate_receipts_verified` field is always `false`, including
+when a composition summary is present. The product result uses
+`product-unicode-activated-and-highway-revalidated` and
 `highway_revalidation_receipt_sha256`. These fields establish a new forward
-verification boundary while preserving the loss of original admission bytes.
-Native corruption rejection, caller-commit rollback behavior and existing-extension
-binding upgrades are exercised by the PostgreSQL acceptance suite; source inspection
-and controller fixtures alone do not prove those runtime properties.
+verification boundary while preserving the loss of original admission bytes and
+the explicit limits of historical receipt coverage. The appended
+`retained_expected_epoch_count` and `recovered_expected_epoch_count` fields follow
+the existing `status` field, preserving its prior position. Both are nonnegative
+integers whose sum equals `activation_sequence`, bounded by the native 1,024-event
+proof envelope. Product aggregates and service identity retain the sequence and
+both counters with a `highway_` prefix. Verifying these specific request inputs
+does not verify unavailable historical intermediate receipt bodies.
+
+The required PostgreSQL acceptance suite declares corruption rejection,
+binding/index and legacy-coverage controls, plus caller COMMIT/ROLLBACK
+preservation. The updated 39-field cases await successful native PostgreSQL
+execution. The latest mandatory run stopped at its first positive verification
+because the verifier substituted zero for an unretained nonzero initial expected
+epoch. Source inspection, native hash probes and controller fixtures do not
+establish that the complete acceptance suite has passed.
 
 ## Resource derivation
 

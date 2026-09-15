@@ -690,6 +690,8 @@ BEGIN
     IF first IS DISTINCT FROM second OR first.status <> 0
        OR first.activation_performed IS DISTINCT FROM false
        OR first.historical_composition_receipt_present IS DISTINCT FROM true
+       OR first.retained_expected_epoch_count<>1 OR first.recovered_expected_epoch_count<>0
+       OR (SELECT expected_epoch_fingerprint FROM laplace.highway_registry_activation_event)<>decode(repeat('18',32),'hex')
        OR first.historical_intermediate_receipts_verified IS DISTINCT FROM false
        OR first.stored_working_set_receipt <> (SELECT working_set_receipt FROM laplace.highway_registry_generation)
        OR first.stored_producer_receipt <> (SELECT producer_receipt FROM laplace.highway_registry_generation)
@@ -785,6 +787,69 @@ BEGIN
 END
 $coverage$;
 
+-- Execute a separate real zero-bootstrap admission, then remove only the newly
+-- retained request input to model a legacy event. All history changes roll back.
+DO $zero_bootstrap_coverage$
+DECLARE
+    zero_context laplace.execution_context;
+    admitted laplace.highway_registry_activation_result;
+    retained laplace.highway_registry_revalidation_result;
+    recovered laplace.highway_registry_revalidation_result;
+BEGIN
+    BEGIN
+        DELETE FROM laplace.highway_registry_alias_projection;
+        DELETE FROM laplace.highway_registry_disposition_projection;
+        DELETE FROM laplace.highway_registry_kind_projection;
+        DELETE FROM laplace.highway_registry_activation_event;
+        DELETE FROM laplace.highway_registry_generation;
+        UPDATE laplace.highway_registry_active_control SET sequence=0,active_present=false,
+            activation_epoch_id=decode(repeat('00',16),'hex'),
+            activation_epoch_fingerprint=decode(repeat('00',32),'hex'),
+            admission_receipt=decode(repeat('00',32),'hex'),
+            activation_receipt=decode(repeat('00',32),'hex'),
+            activation_fingerprint=decode(repeat('00',32),'hex');
+        zero_context := pg_temp.highway_registry_context();
+        zero_context.epochs[9] := decode(repeat('00',32),'hex');
+        SELECT * INTO STRICT admitted FROM laplace.highway_registry_admit_and_activate(
+            zero_context,1048576::numeric);
+        IF admitted.staged_stream_receipt IS NULL OR admitted.producer_receipt IS NULL
+           OR NOT EXISTS (SELECT FROM laplace.canonical_deposit_receipt
+               WHERE receipt_id=admitted.staged_stream_receipt
+                 AND total_records>0 AND occurrence_count>0) THEN
+            RAISE EXCEPTION 'zero bootstrap canonical reuse did not stage its actual occurrences';
+        END IF;
+        IF (SELECT expected_epoch_fingerprint FROM laplace.highway_registry_activation_event)
+            <>decode(repeat('00',32),'hex') THEN
+            RAISE EXCEPTION 'zero bootstrap did not retain its actual expected epoch';
+        END IF;
+        SELECT * INTO STRICT retained FROM laplace.highway_registry_revalidate_committed(
+            pg_temp.highway_revalidation_context(),1048576::numeric);
+        UPDATE laplace.highway_registry_activation_event SET expected_epoch_fingerprint=NULL;
+        SELECT * INTO STRICT recovered FROM laplace.highway_registry_revalidate_committed(
+            pg_temp.highway_revalidation_context(),1048576::numeric);
+        IF retained.retained_expected_epoch_count<>1 OR retained.recovered_expected_epoch_count<>0
+           OR recovered.retained_expected_epoch_count<>0 OR recovered.recovered_expected_epoch_count<>1
+           OR retained.status<>0 OR recovered.status<>0
+           OR recovered.activation_performed IS DISTINCT FROM false
+           OR retained.root_entity_id<>recovered.root_entity_id
+           OR retained.root_physicality_id<>recovered.root_physicality_id
+           OR retained.stored_admission_receipt<>recovered.stored_admission_receipt
+           OR retained.stored_activation_receipt<>recovered.stored_activation_receipt
+           OR retained.verification_receipt=recovered.verification_receipt
+           OR retained.event_chain_fingerprint=recovered.event_chain_fingerprint
+           OR (SELECT expected_epoch_fingerprint FROM laplace.highway_registry_activation_event) IS NOT NULL THEN
+            RAISE EXCEPTION 'legacy zero recovery was unverified, hidden or rewrote history';
+        END IF;
+        RAISE EXCEPTION USING ERRCODE='no_data_found', MESSAGE='rollback zero bootstrap fixture';
+    EXCEPTION WHEN no_data_found THEN
+        IF SQLERRM<>'rollback zero bootstrap fixture' THEN RAISE; END IF;
+    END;
+    INSERT INTO highway_revalidation_coverage_controls VALUES
+        ('zero-bootstrap-retained-input',retained),
+        ('legacy-zero-bootstrap-hash-verified-recovery',recovered);
+END
+$zero_bootstrap_coverage$;
+
 CREATE TEMP TABLE highway_revalidation_rejections(mutation text PRIMARY KEY, detail text NOT NULL);
 
 CREATE FUNCTION pg_temp.highway_revalidation_rejects(mutation text, expected_detail text)
@@ -872,19 +937,26 @@ SELECT pg_temp.highway_revalidation_rejects(
     $$UPDATE laplace.composition_execution_receipt SET stream_fingerprint=decode(repeat('ff',32),'hex') WHERE working_set_receipt=(SELECT working_set_receipt FROM laplace.highway_registry_generation)$$,
     'present composition body differs');
 
+SELECT pg_temp.highway_revalidation_rejects(
+    'UPDATE laplace.highway_registry_activation_event SET expected_epoch_fingerprint=NULL',
+    'original first-event expected epoch unavailable');
+SELECT pg_temp.highway_revalidation_rejects(
+    $$UPDATE laplace.highway_registry_activation_event SET expected_epoch_fingerprint=decode(repeat('00',32),'hex')$$,
+    'native admission/final activation receipt identity');
+
 DO $revalidation$
 DECLARE context laplace.execution_context;
 BEGIN
     IF pg_temp.highway_revalidation_state() <> (SELECT state FROM highway_revalidation_before) THEN
         RAISE EXCEPTION 'negative controls or caller rollback changed committed Highway state';
     END IF;
-    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 22 THEN
+    IF (SELECT count(*) FROM highway_revalidation_rejections) <> 24 THEN
         RAISE EXCEPTION 'committed Highway corruption controls did not all execute';
     END IF;
-    IF (SELECT count(*) FROM highway_revalidation_coverage_controls) <> 3 THEN
+    IF (SELECT count(*) FROM highway_revalidation_coverage_controls) <> 5 THEN
         RAISE EXCEPTION 'historical intermediate coverage controls did not all execute';
     END IF;
-    IF (SELECT count(*) FROM highway_revalidation_binding_checks) <> 5 THEN
+    IF (SELECT count(*) FROM highway_revalidation_binding_checks) <> 7 THEN
         RAISE EXCEPTION 'native binding and receipt-index controls did not all execute';
     END IF;
     BEGIN
@@ -911,6 +983,8 @@ SELECT 'LAPLACE_QA_RECEIPT highway_committed_revalidation ' || json_build_object
     'verification_receipt',encode(verification_receipt,'hex'),
     'registry_epoch_fingerprint',encode(registry_epoch_fingerprint,'hex'),
     'activation_sequence',activation_sequence,
+    'retained_expected_epoch_count',retained_expected_epoch_count,
+    'recovered_expected_epoch_count',recovered_expected_epoch_count,
     'caller_commit_preserved_state',true,
     'caller_rollback_preserved_state',true,
     'corruption_controls',(SELECT count(*) FROM highway_revalidation_rejections),

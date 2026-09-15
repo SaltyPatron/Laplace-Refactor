@@ -44,7 +44,7 @@ def main() -> None:
     classification = json.loads(arguments.classification.read_text())
     policy = json.loads(arguments.contract.read_text())['deployment_calibration']
     reasons = select(classification['paths'], policy, lambda path: document(arguments.base, path), lambda path: document(arguments.head, path))
-    print(json.dumps({'schema': 'laplace.chess-calibration-request/v1', 'base': arguments.base, 'head': arguments.head, 'requested': bool(reasons), 'reasons': reasons, 'execution_gate': 'same-repository candidate after hosted and source proof, or accepted main after successful product activation'}))
+    print(json.dumps({'schema': 'laplace.chess-calibration-request/v1', 'base': arguments.base, 'head': arguments.head, 'requested': bool(reasons), 'reasons': reasons, 'execution_gate': 'same-repository candidate after hosted proof with calibration-owned source verification and build, or accepted main after successful product activation'}))
 
 
 if __name__ == '__main__':

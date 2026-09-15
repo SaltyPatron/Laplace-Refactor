@@ -27,6 +27,14 @@ BEGIN
           AND pg_catalog.pg_get_indexdef(c.oid,1,true)='staged_stream_receipt') THEN
         RAISE EXCEPTION 'committed Highway composition receipt index differs';
     END IF;
+    ALTER TABLE @LAPLACE_PG_SCHEMA@.highway_registry_activation_event
+        ADD COLUMN IF NOT EXISTS expected_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256;
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_attribute
+        WHERE attrelid='@LAPLACE_PG_SCHEMA@.highway_registry_activation_event'::regclass
+          AND attname='expected_epoch_fingerprint' AND NOT attisdropped AND NOT attnotnull
+          AND atttypid='@LAPLACE_PG_SCHEMA@.record_id_256'::regtype) THEN
+        RAISE EXCEPTION 'committed Highway expected-epoch storage differs';
+    END IF;
     result_oid := pg_catalog.to_regtype('@LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result');
     IF result_oid IS NULL THEN
         EXECUTE $type$@LAPLACE_PG_HIGHWAY_REVALIDATION_TYPE_SQL@$type$;
@@ -46,6 +54,34 @@ BEGIN
       INTO member_names,member_types FROM pg_catalog.pg_attribute a
       JOIN pg_catalog.pg_type t ON t.typrelid=a.attrelid
       WHERE t.oid=result_oid AND a.attnum>0 AND NOT a.attisdropped;
+    IF member_names IS NOT DISTINCT FROM ARRAY[
+        'verification_receipt','root_entity_id','root_physicality_id','registry_version',
+        'registry_fingerprint','registry_epoch_id','registry_epoch_fingerprint','activation_sequence',
+        'stored_isa_receipt','current_isa_receipt','current_context_fingerprint',
+        'stored_admission_receipt','stored_activation_receipt','stored_activation_fingerprint',
+        'stored_generation_fingerprint','event_chain_fingerprint','current_working_set_receipt',
+        'current_presence_semantic_receipt','current_presence_execution_receipt','current_producer_receipt',
+        'current_staged_stream_receipt','current_sink_artifacts_fingerprint','unicode_root_receipt',
+        'unicode_activation_epoch_id','unicode_activation_epoch_fingerprint',
+        'kind_count','alias_count','disposition_count','canonical_entity_count',
+        'canonical_physicality_count','transient_occurrence_count','stored_working_set_receipt',
+        'stored_producer_receipt','historical_composition_receipt_present',
+        'historical_intermediate_receipts_verified','activation_performed','status']::text[]
+       AND member_types IS NOT DISTINCT FROM ARRAY[
+        'bytea','bytea','bytea','bigint','bytea','bytea','bytea','bigint',
+        'bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea',
+        'bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea',
+        'bigint','bigint','bigint','numeric(20,0)','numeric(20,0)','numeric(20,0)',
+        'bytea','bytea','boolean','boolean','boolean','integer']::text[]
+       AND NOT EXISTS (SELECT FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_type t ON t.typrelid=a.attrelid
+           WHERE t.oid=result_oid AND a.attnum>0 AND a.attisdropped) THEN
+        ALTER TYPE @LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result
+            ADD ATTRIBUTE retained_expected_epoch_count bigint;
+        ALTER TYPE @LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result
+            ADD ATTRIBUTE recovered_expected_epoch_count bigint;
+        member_names := member_names || ARRAY['retained_expected_epoch_count','recovered_expected_epoch_count'];
+        member_types := member_types || ARRAY['bigint','bigint'];
+    END IF;
     IF EXISTS (SELECT 1 FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_type t ON t.typrelid=a.attrelid
         WHERE t.oid=result_oid AND a.attnum>0 AND a.attisdropped)
        OR member_names IS DISTINCT FROM ARRAY[
@@ -60,13 +96,13 @@ BEGIN
         'kind_count','alias_count','disposition_count','canonical_entity_count',
         'canonical_physicality_count','transient_occurrence_count','stored_working_set_receipt',
         'stored_producer_receipt','historical_composition_receipt_present',
-        'historical_intermediate_receipts_verified','activation_performed','status']::text[]
+        'historical_intermediate_receipts_verified','activation_performed','status','retained_expected_epoch_count','recovered_expected_epoch_count']::text[]
        OR member_types IS DISTINCT FROM ARRAY[
         'bytea','bytea','bytea','bigint','bytea','bytea','bytea','bigint',
         'bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea',
         'bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea','bytea',
         'bigint','bigint','bigint','numeric(20,0)','numeric(20,0)','numeric(20,0)',
-        'bytea','bytea','boolean','boolean','boolean','integer']::text[] THEN
+        'bytea','bytea','boolean','boolean','boolean','integer','bigint','bigint']::text[] THEN
         RAISE EXCEPTION 'committed Highway result type members differ';
     END IF;
     function_oid := pg_catalog.to_regprocedure('@LAPLACE_PG_SCHEMA@.@LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SQL@(@LAPLACE_PG_SCHEMA@.execution_context,numeric)');

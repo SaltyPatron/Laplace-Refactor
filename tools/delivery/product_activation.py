@@ -618,7 +618,7 @@ def validate_unicode_success(contract: dict[str, Any], result: dict[str, Any], p
 
 
 HIGHWAY_REVALIDATION_SCHEMA = "laplace.highway-committed-revalidation-receipt/v1"
-HIGHWAY_REVALIDATION_CONTRACT_SHA256 = "f53d899c48621dfd889ae9dd59779f366002bb48144a7dfed5905713555d11fd"
+HIGHWAY_REVALIDATION_CONTRACT_SHA256 = "566926c4945029186a04bb2c5bd5cc375520cfa5f86118893d62c9ece3b8f794"
 HIGHWAY_REVALIDATION_PHASE = "product-unicode-activated-and-highway-revalidated"
 
 
@@ -716,10 +716,11 @@ def validate_highway_revalidation(gateway: dict[str, Any], result: dict[str, Any
         raise ActivationGatewayError("committed Highway native proof changed or is absent after restart")
     fields128 = ("root_entity_id", "registry_epoch_id", "unicode_activation_epoch_id")
     fields256 = ("verification_receipt", "root_physicality_id", "registry_fingerprint", "registry_epoch_fingerprint", "stored_isa_receipt", "current_isa_receipt", "current_context_fingerprint", "stored_admission_receipt", "stored_activation_receipt", "stored_activation_fingerprint", "stored_generation_fingerprint", "event_chain_fingerprint", "current_working_set_receipt", "current_presence_semantic_receipt", "current_presence_execution_receipt", "current_producer_receipt", "current_staged_stream_receipt", "current_sink_artifacts_fingerprint", "unicode_root_receipt", "unicode_activation_epoch_fingerprint", "stored_working_set_receipt", "stored_producer_receipt")
-    require_exact_keys(proof, set(fields128 + fields256) | {"registry_version", "activation_sequence", "kind_count", "alias_count", "disposition_count", "canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count", "historical_composition_receipt_present", "historical_intermediate_receipts_verified", "activation_performed", "status"}, "committed Highway native result")
+    require_exact_keys(proof, set(fields128 + fields256) | {"registry_version", "activation_sequence", "kind_count", "alias_count", "disposition_count", "canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count", "historical_composition_receipt_present", "historical_intermediate_receipts_verified", "activation_performed", "status", "retained_expected_epoch_count", "recovered_expected_epoch_count"}, "committed Highway native result")
     if (type(proof["historical_composition_receipt_present"]) is not bool
             or proof["historical_intermediate_receipts_verified"] is not False):
         raise ActivationGatewayError("committed Highway historical coverage differs")
+    validate_highway_expected_epoch_coverage(proof)
     for fields, length in ((fields128, 32), (fields256, 64)):
         for name in fields:
             value = require_hex(proof.get(name), re.compile(r"[0-9a-f]{" + str(length) + r"}\Z"), name)
@@ -787,6 +788,16 @@ def validate_highway_revalidation(gateway: dict[str, Any], result: dict[str, Any
         raise ActivationGatewayError("committed Highway restart observation did not change")
 
 
+def validate_highway_expected_epoch_coverage(result: dict[str, Any], prefix: str = "") -> None:
+    sequence = result.get(prefix + "activation_sequence")
+    counts = [result.get(prefix + name) for name in (
+        "retained_expected_epoch_count", "recovered_expected_epoch_count")]
+    if (type(sequence) is not int or not 1 <= sequence <= 1024
+            or any(type(value) is not int or not 0 <= value <= 1024 for value in counts)
+            or sum(counts) != sequence):
+        raise ActivationGatewayError("committed Highway expected epoch coverage differs")
+
+
 def highway_aggregate_fields(receipt: dict[str, Any]) -> dict[str, Any]:
     if receipt.get("schema") == HIGHWAY_REVALIDATION_SCHEMA:
         return {"phase": HIGHWAY_REVALIDATION_PHASE,
@@ -794,7 +805,8 @@ def highway_aggregate_fields(receipt: dict[str, Any]) -> dict[str, Any]:
                 "highway_activation_performed": False, "highway_historical_request_present": False,
                 **{"highway_" + name: receipt["revalidation"][name] for name in (
                     "stored_working_set_receipt", "stored_producer_receipt",
-                    "historical_composition_receipt_present", "historical_intermediate_receipts_verified")}}
+                    "historical_composition_receipt_present", "historical_intermediate_receipts_verified",
+                    "activation_sequence", "retained_expected_epoch_count", "recovered_expected_epoch_count")}}
     return {"phase": "product-unicode-and-highway-activated",
             "highway_activation_receipt_sha256": receipt["receipt_sha256"]}
 
@@ -808,6 +820,7 @@ def validate_product_terminal_result(result: dict[str, Any]) -> None:
                 or "highway_activation_receipt_sha256" in result):
             raise ActivationGatewayError("product revalidation was mislabeled as activation")
         require_hex(result.get("highway_revalidation_receipt_sha256"), HEX_64, "Highway revalidation receipt")
+        validate_highway_expected_epoch_coverage(result, "highway_")
         for name in ("highway_stored_working_set_receipt", "highway_stored_producer_receipt"):
             if set(require_hex(result.get(name), HEX_64, name)) == {"0"}:
                 raise ActivationGatewayError(f"product revalidation stored reference is empty: {name}")

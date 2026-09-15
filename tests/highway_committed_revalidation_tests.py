@@ -39,7 +39,8 @@ class CommittedRevalidationTests(unittest.TestCase):
             unicode_activation_epoch_fingerprint=self.fixture.unicode_receipt["activation_epoch_fingerprint"],
             activation_performed=False, canonical_entity_count=25, canonical_physicality_count=25,
             transient_occurrence_count=25, historical_composition_receipt_present=False,
-            historical_intermediate_receipts_verified=False)
+            historical_intermediate_receipts_verified=False,
+            retained_expected_epoch_count=1, recovered_expected_epoch_count=0)
         self.proof["stored_working_set_receipt"] = "a3" * 32
         self.proof["stored_producer_receipt"] = "a4" * 32
         self.proof["current_isa_receipt"] = "c3" * 32
@@ -96,7 +97,9 @@ class CommittedRevalidationTests(unittest.TestCase):
         self.assertNotIn("activation", receipt)
         self.assertEqual(receipt["revalidation"]["stored_isa_receipt"], "b2" * 32)
         self.assertEqual(receipt["revalidation"]["current_isa_receipt"], "c3" * 32)
-        self.assertEqual(len(receipt["revalidation"]), 37)
+        self.assertEqual(len(receipt["revalidation"]), 39)
+        self.assertEqual(receipt["revalidation"]["retained_expected_epoch_count"], 1)
+        self.assertEqual(receipt["revalidation"]["recovered_expected_epoch_count"], 0)
         self.assertEqual(receipt["revalidation"]["stored_working_set_receipt"], "a3" * 32)
         self.assertEqual(receipt["revalidation"]["stored_producer_receipt"], "a4" * 32)
         self.assertFalse(receipt["revalidation"]["historical_composition_receipt_present"])
@@ -110,7 +113,8 @@ class CommittedRevalidationTests(unittest.TestCase):
         self.assertIn("highway_registry_revalidate_committed", native)
         for name in ("stored_working_set_receipt", "stored_producer_receipt"):
             self.assertIn(f"'{name}',encode({name},'hex')", native)
-        for name in ("historical_composition_receipt_present", "historical_intermediate_receipts_verified"):
+        for name in ("historical_composition_receipt_present", "historical_intermediate_receipts_verified",
+                     "retained_expected_epoch_count", "recovered_expected_epoch_count"):
             self.assertIn(f"'{name}',{name}", native)
         self.assertNotIn("admit_and_activate", native)
         self.assertTrue(native.endswith("COMMIT;\n"))
@@ -138,11 +142,84 @@ class CommittedRevalidationTests(unittest.TestCase):
         sql = r.render_sql(h, self.fixture.contract, self.fixture.identities,
                            self.fixture.unicode_receipt, self.inspection)
         expressions = re.findall(r"'([a-z_]+)',(encode\([a-z_]+,'hex'\)|[a-z_]+)", sql)
-        self.assertEqual(len(expressions), 37)
+        self.assertEqual(len(expressions), 39)
+        self.assertEqual(list(members), [
+            "verification_receipt", "root_entity_id", "root_physicality_id", "registry_version",
+            "registry_fingerprint", "registry_epoch_id", "registry_epoch_fingerprint", "activation_sequence",
+            "stored_isa_receipt", "current_isa_receipt", "current_context_fingerprint", "stored_admission_receipt",
+            "stored_activation_receipt", "stored_activation_fingerprint", "stored_generation_fingerprint",
+            "event_chain_fingerprint", "current_working_set_receipt", "current_presence_semantic_receipt",
+            "current_presence_execution_receipt", "current_producer_receipt", "current_staged_stream_receipt",
+            "current_sink_artifacts_fingerprint", "unicode_root_receipt", "unicode_activation_epoch_id",
+            "unicode_activation_epoch_fingerprint", "kind_count", "alias_count", "disposition_count",
+            "canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count",
+            "stored_working_set_receipt", "stored_producer_receipt", "historical_composition_receipt_present",
+            "historical_intermediate_receipts_verified", "activation_performed", "status",
+            "retained_expected_epoch_count", "recovered_expected_epoch_count"])
+        self.assertEqual(members["retained_expected_epoch_count"], "bigint")
+        self.assertEqual(members["recovered_expected_epoch_count"], "bigint")
         self.assertEqual(set(members), {name for name, _ in expressions})
         for name, expression in expressions:
             self.assertEqual(expression, f"encode({name},'hex')" if members[name] == "bytea" else name)
         self.assertEqual(set(self.proof), set(members))
+
+    def test_expected_epoch_counts_are_required_nonnegative_exact_integers(self):
+        for name in ("retained_expected_epoch_count", "recovered_expected_epoch_count"):
+            for value in (None, False, True, "1", 1.0, -1):
+                with self.subTest(name=name, value=value):
+                    invalid = {**self.proof, name: value}
+                    with self.assertRaises(h.HighwayActivationError):
+                        r.validate_result(h, invalid, self.fixture.contract, self.fixture.unicode_receipt, self.inspection)
+            invalid = dict(self.proof)
+            invalid.pop(name)
+            with self.subTest(missing=name), self.assertRaisesRegex(h.HighwayActivationError, "fields differ"):
+                r.validate_result(h, invalid, self.fixture.contract, self.fixture.unicode_receipt, self.inspection)
+
+    def test_expected_epoch_counts_cover_the_exact_activation_sequence(self):
+        for retained, recovered in ((0, 0), (1, 1), (2, 0), (0, 2)):
+            with self.subTest(retained=retained, recovered=recovered):
+                invalid = {**self.proof, "retained_expected_epoch_count": retained,
+                           "recovered_expected_epoch_count": recovered}
+                with self.assertRaises(h.HighwayActivationError):
+                    r.validate_result(h, invalid, self.fixture.contract, self.fixture.unicode_receipt, self.inspection)
+        # The native-result validator is generic; the separately pinned product
+        # recovery contract still selects sequence one for execution.
+        for retained, recovered in ((1, 0), (0, 1), (2, 3), (512, 512)):
+            with self.subTest(valid=(retained, recovered)):
+                sequence = retained + recovered
+                proof = {**self.proof, "retained_expected_epoch_count": retained,
+                         "recovered_expected_epoch_count": recovered, "activation_sequence": sequence}
+                inspection = {**self.inspection, "highway_sequence": sequence, "event_count": sequence}
+                r.validate_result(h, proof, self.fixture.contract, self.fixture.unicode_receipt, inspection)
+                self.assertIs(proof["historical_intermediate_receipts_verified"], False)
+        for retained, recovered in ((0, 0), (1025, 0), (0, 1025), (512, 513)):
+            with self.subTest(outside_native_envelope=(retained, recovered)):
+                sequence = retained + recovered
+                proof = {**self.proof, "retained_expected_epoch_count": retained,
+                         "recovered_expected_epoch_count": recovered, "activation_sequence": sequence}
+                inspection = {**self.inspection, "highway_sequence": sequence, "event_count": sequence}
+                with self.assertRaises(h.HighwayActivationError):
+                    r.validate_result(h, proof, self.fixture.contract, self.fixture.unicode_receipt, inspection)
+
+    def test_recovered_expected_epoch_does_not_promote_historical_verification(self):
+        self.proof.update(retained_expected_epoch_count=0, recovered_expected_epoch_count=1)
+        receipt = self.execute()
+        for key in ("revalidation", "cold_revalidation"):
+            self.assertEqual(receipt[key]["retained_expected_epoch_count"], 0)
+            self.assertEqual(receipt[key]["recovered_expected_epoch_count"], 1)
+            self.assertIs(receipt[key]["historical_intermediate_receipts_verified"], False)
+
+    def test_cold_expected_epoch_provenance_cannot_change_with_the_same_total(self):
+        self.cold_proof_override = {**self.proof, "retained_expected_epoch_count": 0,
+                                    "recovered_expected_epoch_count": 1}
+        with self.assertRaisesRegex(h.HighwayActivationError, "cold native"):
+            self.execute()
+        for name, value in (("retained_expected_epoch_count", True),
+                            ("recovered_expected_epoch_count", False)):
+            with self.subTest(name=name):
+                self.cold_proof_override = {**self.proof, name: value}
+                with self.assertRaisesRegex(h.HighwayActivationError, "cold native"):
+                    self.execute()
 
     def test_stored_references_and_historical_coverage_are_required_and_typed(self):
         changes = [("historical_composition_receipt_present", 0),

@@ -329,7 +329,8 @@ class ProductServiceStateTests(unittest.TestCase):
             self.assertFalse(identity["highway_activation_performed"])
             self.assertFalse(identity["highway_historical_request_present"])
             for name in ("stored_working_set_receipt", "stored_producer_receipt",
-                         "historical_composition_receipt_present", "historical_intermediate_receipts_verified"):
+                         "historical_composition_receipt_present", "historical_intermediate_receipts_verified",
+                         "activation_sequence", "retained_expected_epoch_count", "recovered_expected_epoch_count"):
                 self.assertEqual(identity["highway_" + name], receipt["revalidation"][name])
             self.physical(root, self.gateway["service_state"]["boot_id_path"]).write_text(BOOT_B + "\n")
             cold = service_state.cold_boot_readback(self.gateway, self.cluster,

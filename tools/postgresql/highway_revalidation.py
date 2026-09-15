@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 CONTRACT_SCHEMA = "laplace.highway-committed-revalidation-contract/v1"
-CONTRACT_SHA256 = "f53d899c48621dfd889ae9dd59779f366002bb48144a7dfed5905713555d11fd"
+CONTRACT_SHA256 = "566926c4945029186a04bb2c5bd5cc375520cfa5f86118893d62c9ece3b8f794"
 REQUEST_SCHEMA = "laplace.highway-committed-revalidation-request/v1"
 RECEIPT_SCHEMA = "laplace.highway-committed-revalidation-receipt/v1"
 HEX128_FIELDS = ("root_entity_id", "registry_epoch_id", "unicode_activation_epoch_id")
@@ -29,8 +29,9 @@ HEX256_FIELDS = (
 )
 COUNT_FIELDS = ("canonical_entity_count", "canonical_physicality_count", "transient_occurrence_count")
 HISTORY_FIELDS = ("historical_composition_receipt_present", "historical_intermediate_receipts_verified")
+EXPECTED_EPOCH_FIELDS = ("retained_expected_epoch_count", "recovered_expected_epoch_count")
 VALUE_FIELDS = ("registry_version", "activation_sequence", "kind_count", "alias_count", "disposition_count",
-                *COUNT_FIELDS, *HISTORY_FIELDS, "activation_performed", "status")
+                *COUNT_FIELDS, *HISTORY_FIELDS, "activation_performed", "status", *EXPECTED_EPOCH_FIELDS)
 
 
 def write_immutable(h: Any, path: Path, value: dict) -> None:
@@ -96,6 +97,12 @@ def validate_result(h: Any, result: dict, contract: dict, unicode_receipt: dict,
     if (type(result["historical_composition_receipt_present"]) is not bool
             or result["historical_intermediate_receipts_verified"] is not False):
         raise h.HighwayActivationError("native committed Highway historical coverage differs")
+    if (type(result["activation_sequence"]) is not int
+            or not 1 <= result["activation_sequence"] <= 1024
+            or any(type(result[name]) is not int or not 0 <= result[name] <= 1024
+                   for name in EXPECTED_EPOCH_FIELDS)
+            or sum(result[name] for name in EXPECTED_EPOCH_FIELDS) != result["activation_sequence"]):
+        raise h.HighwayActivationError("native committed Highway expected epoch coverage differs")
     for names, pattern in ((HEX128_FIELDS, h.unicodectl.HEX_128), (HEX256_FIELDS, h.unicodectl.HEX_256)):
         for name in names:
             if not isinstance(result.get(name), str) or pattern.fullmatch(result[name]) is None or set(result[name]) == {"0"}:

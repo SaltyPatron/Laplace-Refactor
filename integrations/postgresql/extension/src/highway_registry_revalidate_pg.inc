@@ -4,6 +4,8 @@
 
 typedef struct highway_committed_snapshot {
     uint64 sequence;
+    uint64 retained_expected_epoch_count;
+    uint64 recovered_expected_epoch_count;
     laplace_id128 epoch_id;
     laplace_digest256 epoch;
     laplace_digest256 admission;
@@ -154,7 +156,7 @@ static highway_committed_snapshot highway_verify_committed_generation(
         "e.admission_receipt,e.activation_receipt,e.activation_fingerprint,"
         "g.root_entity_id,g.root_physicality_id,g.registry_fingerprint,"
         "g.staged_stream_receipt,g.kind_count,g.alias_count,g.disposition_count,"
-        "g.registry_version,e.activation_transaction_id,i.context_fingerprint FROM " LAPLACE_PG_SCHEMA ".highway_registry_activation_event e "
+        "g.registry_version,e.activation_transaction_id,i.context_fingerprint,e.expected_epoch_fingerprint FROM " LAPLACE_PG_SCHEMA ".highway_registry_activation_event e "
         "JOIN " LAPLACE_PG_SCHEMA ".highway_registry_generation g ON "
         "g.activation_epoch_id=e.activation_epoch_id AND "
         "g.activation_epoch_fingerprint=e.activation_epoch_fingerprint "
@@ -243,8 +245,8 @@ static highway_committed_snapshot highway_verify_committed_generation(
     event_count = SPI_processed;
     event_table = SPI_tuptable;
     blake3_hasher_init(&hasher);
-    blake3_hasher_update(&hasher, "laplace-highway-committed-event-chain-v1",
-                        sizeof("laplace-highway-committed-event-chain-v1") - 1u);
+    blake3_hasher_update(&hasher, "laplace-highway-committed-event-chain-v2",
+                        sizeof("laplace-highway-committed-event-chain-v2") - 1u);
     for (index = 0u; index < event_count; ++index) {
         blake3_hasher preparation;
         blake3_hasher commit;
@@ -256,6 +258,9 @@ static highway_committed_snapshot highway_verify_committed_generation(
         laplace_digest256 staged_receipt;
         laplace_framework_activation_request activation_request;
         uint64 version;
+        bool expected_epoch_missing = false;
+        Datum expected_epoch_value;
+        uint64 expected_epoch_source;
         row = event_table->vals[index];
         descriptor = event_table->tupdesc;
         if ((uint64)DatumGetInt64(required_tuple_value(row, descriptor, 1, "event sequence")) != index + 1u) {
@@ -299,14 +304,34 @@ static highway_committed_snapshot highway_verify_committed_generation(
         HIGHWAY_MATCH(6, committed.bytes, 32u, "native activation commit fingerprint");
         memset(&activation_request, 0, sizeof(activation_request));
         activation_request.epoch_slot = LAPLACE_FRAMEWORK_EPOCH_NUMERIC;
-        activation_request.expected_epoch = previous_epoch;
+        expected_epoch_value = SPI_getbinval(row, descriptor, 17, &expected_epoch_missing);
+        if (!expected_epoch_missing) {
+            read_exact_bytes(expected_epoch_value, activation_request.expected_epoch.bytes,
+                             32u, "retained expected epoch");
+            if (index != 0u && !digest_equal(&activation_request.expected_epoch, &previous_epoch))
+                highway_revalidation_error("retained expected epoch differs from predecessor");
+            ++snapshot.retained_expected_epoch_count;
+            expected_epoch_source = 1u;
+        } else {
+            /* This is a candidate until BOTH original native hashes verify.
+             * Later events have the independently verified chain predecessor.
+             * An absent initial input can recover only the canonical zero
+             * bootstrap preimage; a missing nonzero input remains unavailable. */
+            activation_request.expected_epoch = previous_epoch;
+            ++snapshot.recovered_expected_epoch_count;
+            expected_epoch_source = index == 0u ? 2u : 3u;
+        }
         read_exact_bytes(required_tuple_value(row, descriptor, 3,
             "event next epoch"), activation_request.next_epoch.bytes, 32u, "event next epoch");
         if (laplace_framework_committed_receipts_validate(&original_context,
                 &staged_receipt, &activation_request, &prepared, &committed,
                 &admission, &activation) != LAPLACE_FRAMEWORK_OK) {
-            highway_revalidation_error("native admission/final activation receipt identity");
+            highway_revalidation_error(expected_epoch_missing && index == 0u
+                ? "original first-event expected epoch unavailable; zero candidate failed native receipt verification"
+                : "native admission/final activation receipt identity");
         }
+        hash_u64(&hasher, expected_epoch_source);
+        blake3_hasher_update(&hasher, activation_request.expected_epoch.bytes, 32u);
         previous_epoch = activation_request.next_epoch;
         if (index + 1u == event_count) {
             HIGHWAY_MATCH(2, snapshot.epoch_id.bytes, 16u, "event/control epoch id");
@@ -400,8 +425,8 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
         highway_committed_snapshot snapshot;
         blake3_hasher proof;
         laplace_digest256 proof_id;
-        Datum values[37];
-        bool nulls[37] = {false};
+        Datum values[39];
+        bool nulls[39] = {false};
         const laplace_highway_kind_contract_row* kinds;
         const laplace_highway_alias_contract_row* aliases;
         const laplace_highway_disposition_contract_row* dispositions;
@@ -507,12 +532,14 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
             PointerGetDatum(uint64_array(introduced, count)),
             PointerGetDatum(uint64_array(retired, count)), count);
         blake3_hasher_init(&proof);
-        blake3_hasher_update(&proof, "laplace-highway-committed-revalidation-v1",
-            sizeof("laplace-highway-committed-revalidation-v1") - 1u);
+        blake3_hasher_update(&proof, "laplace-highway-committed-revalidation-v2",
+            sizeof("laplace-highway-committed-revalidation-v2") - 1u);
         blake3_hasher_update(&proof, snapshot.generation_fingerprint.bytes, 32u);
         blake3_hasher_update(&proof, snapshot.event_chain_fingerprint.bytes, 32u);
         hash_u64(&proof, snapshot.composition_receipt_present ? 1u : 0u);
         hash_u64(&proof, 0u); /* Original intermediate receipt bodies are unavailable. */
+        hash_u64(&proof, snapshot.retained_expected_epoch_count);
+        hash_u64(&proof, snapshot.recovered_expected_epoch_count);
         blake3_hasher_update(&proof, isa.receipt_id.bytes, 32u);
         blake3_hasher_update(&proof, execution->summary.receipt_id.bytes, 32u);
         blake3_hasher_update(&proof, execution->presence.semantic_receipt_id.bytes, 32u);
@@ -568,12 +595,14 @@ Datum LAPLACE_PG_HIGHWAY_REGISTRY_REVALIDATE_SYMBOL(PG_FUNCTION_ARGS) {
         values[column++] = BoolGetDatum(false);
         values[column++] = BoolGetDatum(false);
         values[column++] = Int32GetDatum(0);
+        values[column++] = Int64GetDatum((int64)snapshot.retained_expected_epoch_count);
+        values[column++] = Int64GetDatum((int64)snapshot.recovered_expected_epoch_count);
 #undef HIGHWAY_BYTES
-        if (column != 37) {
+        if (column != 39) {
             highway_revalidation_error("typed result width");
         }
         {
-            HeapTuple transient = laplace_pg_form_result_tuple(fcinfo, values, nulls, 37);
+            HeapTuple transient = laplace_pg_form_result_tuple(fcinfo, values, nulls, 39);
             MemoryContextSwitchTo(outer_context);
             result_tuple = heap_copytuple(transient);
         }

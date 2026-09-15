@@ -228,9 +228,11 @@ or a missing file as proof that historical admission never occurred.
 
 A same-repository pull request that changes the selected chess sources, network,
 installer, or calibration configuration also runs **Candidate chess dependency
-calibration on hart-server** after hosted checks and the source/custom-stack proof
-succeed. This reuses the bounded calibration workflow and shared machine lock.
-The product-path gate requires that selected candidate calibration to succeed;
+calibration on hart-server** after hosted checks succeed. Calibration verifies and
+builds its own official source inputs under the shared machine lock. It can run
+while the independent PostgreSQL custom-stack proof is incomplete or failing.
+The product-path gate still requires both the selected custom-stack proof and
+selected candidate calibration to succeed;
 a failed or missing calibration cannot produce passing protected check aliases.
 Its `candidate-chess-dependencies-<run>-<attempt>` artifact retains the exact
 checkout and input hashes in `execution-context.json`, alongside measured compiler,

@@ -388,6 +388,10 @@ jobs:
               .highway_historical_request_present == false and
               (.highway_historical_composition_receipt_present | type == "boolean") and
               .highway_historical_intermediate_receipts_verified == false and
+              (.highway_activation_sequence | type == "number" and floor == . and . >= 1 and . <= 1024) and
+              (.highway_retained_expected_epoch_count | type == "number" and floor == . and . >= 0 and . <= 1024) and
+              (.highway_recovered_expected_epoch_count | type == "number" and floor == . and . >= 0 and . <= 1024) and
+              (.highway_retained_expected_epoch_count + .highway_recovered_expected_epoch_count == .highway_activation_sequence) and
               (.highway_stored_working_set_receipt | test("^[0-9a-f]{64}$") and test("[1-9a-f]")) and
               (.highway_stored_producer_receipt | test("^[0-9a-f]{64}$") and test("[1-9a-f]")) and
               (has("highway_activation_receipt_sha256") | not) and

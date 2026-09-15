@@ -48,6 +48,9 @@ class ProductActivationRunnerTests(unittest.TestCase):
                 "highway_stored_producer_receipt": "52" * 32,
                 "highway_historical_composition_receipt_present": False,
                 "highway_historical_intermediate_receipts_verified": False,
+                "highway_activation_sequence": 1,
+                "highway_retained_expected_epoch_count": 1,
+                "highway_recovered_expected_epoch_count": 0,
                 "result_sha256": "48" * 32}
         normal = copy.deepcopy(base)
         normal["phase"] = "product-unicode-and-highway-activated"
@@ -55,7 +58,8 @@ class ProductActivationRunnerTests(unittest.TestCase):
         normal.pop("highway_activation_performed")
         normal.pop("highway_historical_request_present")
         for field in ("highway_stored_working_set_receipt", "highway_stored_producer_receipt",
-                      "highway_historical_composition_receipt_present", "highway_historical_intermediate_receipts_verified"):
+                      "highway_historical_composition_receipt_present", "highway_historical_intermediate_receipts_verified",
+                      "highway_activation_sequence", "highway_retained_expected_epoch_count", "highway_recovered_expected_epoch_count"):
             normal.pop(field)
         present_composition = {**base, "highway_historical_composition_receipt_present": True}
         mutants = []
@@ -64,6 +68,14 @@ class ProductActivationRunnerTests(unittest.TestCase):
                 ("highway_historical_composition_receipt_present", 0),
                 ("highway_historical_intermediate_receipts_verified", True),
                 ("highway_historical_intermediate_receipts_verified", 0),
+                ("highway_activation_sequence", True),
+                ("highway_activation_sequence", 0),
+                ("highway_activation_sequence", 1025),
+                ("highway_retained_expected_epoch_count", True),
+                ("highway_recovered_expected_epoch_count", "0"),
+                ("highway_retained_expected_epoch_count", -1),
+                ("highway_recovered_expected_epoch_count", 0.5),
+                ("highway_recovered_expected_epoch_count", 1),
                 ("highway_stored_working_set_receipt", "00" * 32),
                 ("highway_stored_producer_receipt", "00" * 32),
                 ("highway_stored_working_set_receipt", "51" * 16),
@@ -77,12 +89,17 @@ class ProductActivationRunnerTests(unittest.TestCase):
             mutants.append(invalid)
         for field in ("highway_activation_performed", "highway_stored_working_set_receipt",
                       "highway_stored_producer_receipt", "highway_historical_composition_receipt_present",
-                      "highway_historical_intermediate_receipts_verified"):
+                      "highway_historical_intermediate_receipts_verified",
+                      "highway_activation_sequence", "highway_retained_expected_epoch_count", "highway_recovered_expected_epoch_count"):
             missing = copy.deepcopy(base)
             missing.pop(field)
             mutants.append(missing)
         for source, predicate in (("workflow", workflow_match[1]), ("setup", setup_match[1])):
-            for expected, document in [(True, base), (True, present_composition), (True, normal)] + [(False, mutant) for mutant in mutants]:
+            mixed = {**base, "highway_activation_sequence": 5,
+                     "highway_retained_expected_epoch_count": 2, "highway_recovered_expected_epoch_count": 3}
+            recovered = {**base, "highway_retained_expected_epoch_count": 0, "highway_recovered_expected_epoch_count": 1}
+            for expected, document in [(True, base), (True, present_composition), (True, normal),
+                                       (True, recovered), (True, mixed)] + [(False, mutant) for mutant in mutants]:
                 with self.subTest(source=source, phase=document["phase"], expected=expected, document=document):
                     completed = subprocess.run(["jq", "-e", "--arg", "package_id", base["package_id"],
                         "--arg", "package", base["package_id"], "--arg", "repository_commit", base["repository_commit"], predicate],

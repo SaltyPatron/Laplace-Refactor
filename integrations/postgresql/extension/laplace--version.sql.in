@@ -1751,6 +1751,7 @@ CREATE TABLE @LAPLACE_PG_SCHEMA@.highway_registry_activation_event (
     activation_receipt @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     activation_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256 NOT NULL,
     activation_transaction_id xid NOT NULL,
+    expected_epoch_fingerprint @LAPLACE_PG_SCHEMA@.record_id_256,
     recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     recorded_by name NOT NULL DEFAULT current_user,
     FOREIGN KEY (activation_epoch_id, activation_epoch_fingerprint)
@@ -2039,7 +2040,9 @@ CREATE TYPE @LAPLACE_PG_SCHEMA@.highway_registry_revalidation_result AS (
     historical_composition_receipt_present boolean,
     historical_intermediate_receipts_verified boolean,
     activation_performed boolean,
-    status integer
+    status integer,
+    retained_expected_epoch_count bigint,
+    recovered_expected_epoch_count bigint
 );
 
 CREATE TYPE @LAPLACE_PG_SCHEMA@.highway_registry_active_result AS (

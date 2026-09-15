@@ -35,10 +35,11 @@ PACKAGE_ID = "42" * 32
 MANIFEST_SHA = "43" * 32
 
 
-def producer_revalidation(test: unittest.TestCase) -> dict:
+def producer_revalidation(test: unittest.TestCase, *, retained: int = 1, recovered: int = 0) -> dict:
     fixture = recovery_fixture.CommittedRevalidationTests()
     fixture.setUp()
     test.addCleanup(fixture.doCleanups)
+    fixture.proof.update(retained_expected_epoch_count=retained, recovered_expected_epoch_count=recovered)
     # Consumers receive serialized evidence, which has no Python object aliases.
     return json.loads(json.dumps(fixture.execute()))
 
@@ -178,10 +179,99 @@ class ProductActivationRuntimeAdapterTests(unittest.TestCase):
         self.assertNotIn("highway_activation_receipt_sha256", aggregate)
         self.assertFalse(aggregate["highway_activation_performed"])
         for name in ("stored_working_set_receipt", "stored_producer_receipt",
-                     "historical_composition_receipt_present", "historical_intermediate_receipts_verified"):
+                     "historical_composition_receipt_present", "historical_intermediate_receipts_verified",
+                     "activation_sequence", "retained_expected_epoch_count", "recovered_expected_epoch_count"):
             self.assertEqual(aggregate["highway_" + name], receipt["revalidation"][name])
         self.assertNotEqual(receipt["revalidation"]["stored_isa_receipt"], receipt["revalidation"]["current_isa_receipt"])
         self.assertNotEqual(receipt["readback"]["isa_receipt"], receipt["revalidation"]["stored_isa_receipt"])
+
+    def test_expected_epoch_provenance_survives_controller_gateway_runner_and_aggregate(self) -> None:
+        runner = load(REPOSITORY / "tools/delivery/product_activation_runner.py", "laplace_epoch_count_runner_tests")
+        for retained, recovered in ((1, 0), (0, 1)):
+            with self.subTest(retained=retained, recovered=recovered):
+                receipt = producer_revalidation(self, retained=retained, recovered=recovered)
+                package = receipt["package_id"]
+                original.validate_highway_success(self.contract, receipt, package)
+                adapter.validate_highway_success(self.contract, receipt, package)
+                runner.validate_highway_result(receipt, package)
+                aggregate = original.highway_aggregate_fields(receipt)
+                original.validate_product_terminal_result(aggregate)
+                self.assertEqual(aggregate["highway_activation_sequence"], 1)
+                self.assertEqual(aggregate["highway_retained_expected_epoch_count"], retained)
+                self.assertEqual(aggregate["highway_recovered_expected_epoch_count"], recovered)
+                self.assertIs(aggregate["highway_historical_intermediate_receipts_verified"], False)
+                self.assertEqual(receipt["revalidation"], receipt["cold_revalidation"])
+
+    def test_resigned_native_epoch_counts_must_be_complete_exact_and_balanced(self) -> None:
+        receipt = producer_revalidation(self)
+        runner = load(REPOSITORY / "tools/delivery/product_activation_runner.py", "laplace_invalid_epoch_count_runner_tests")
+        mutants = []
+        for name in ("retained_expected_epoch_count", "recovered_expected_epoch_count"):
+            missing = copy.deepcopy(receipt)
+            for key in ("revalidation", "cold_revalidation"):
+                missing[key].pop(name)
+            mutants.append((name + " omitted", missing))
+            for value in (None, False, True, "1", 1.0, -1):
+                invalid = copy.deepcopy(receipt)
+                for key in ("revalidation", "cold_revalidation"):
+                    invalid[key][name] = value
+                mutants.append((f"{name}={value!r}", invalid))
+        for retained, recovered in ((0, 0), (1, 1), (2, 0), (0, 2)):
+            invalid = copy.deepcopy(receipt)
+            for key in ("revalidation", "cold_revalidation"):
+                invalid[key].update(retained_expected_epoch_count=retained, recovered_expected_epoch_count=recovered)
+            mutants.append((f"unbalanced {retained}/{recovered}", invalid))
+        changed = copy.deepcopy(receipt)
+        changed["cold_revalidation"].update(retained_expected_epoch_count=0, recovered_expected_epoch_count=1)
+        mutants.append(("cold provenance changed with equal total", changed))
+        for name, value in (("retained_expected_epoch_count", True), ("recovered_expected_epoch_count", False)):
+            changed = copy.deepcopy(receipt)
+            changed["cold_revalidation"][name] = value
+            mutants.append(("cold " + name + " changed to bool", changed))
+        for label, invalid in mutants:
+            with self.subTest(defect=label):
+                resign_revalidation(invalid)
+                with self.assertRaises(original.ActivationGatewayError):
+                    original.validate_highway_success(self.contract, invalid, invalid["package_id"])
+                with self.assertRaises(adapter.activation.ActivationGatewayError):
+                    adapter.validate_highway_success(self.contract, invalid, invalid["package_id"])
+                with self.assertRaises(runner.RunnerActivationError):
+                    runner.validate_highway_result(invalid, invalid["package_id"])
+
+    def test_terminal_epoch_counts_require_exact_types_complete_fields_and_sequence_sum(self) -> None:
+        aggregate = original.highway_aggregate_fields(producer_revalidation(self))
+        for retained, recovered in ((1, 0), (0, 1), (2, 3), (512, 512)):
+            with self.subTest(valid=(retained, recovered)):
+                valid = {**aggregate, "highway_activation_sequence": retained + recovered,
+                         "highway_retained_expected_epoch_count": retained,
+                         "highway_recovered_expected_epoch_count": recovered}
+                original.validate_product_terminal_result(valid)
+                self.assertIs(valid["highway_historical_intermediate_receipts_verified"], False)
+        for retained, recovered in ((0, 0), (1025, 0), (0, 1025), (512, 513)):
+            with self.subTest(outside_native_envelope=(retained, recovered)), self.assertRaises(original.ActivationGatewayError):
+                original.validate_product_terminal_result({**aggregate,
+                    "highway_activation_sequence": retained + recovered,
+                    "highway_retained_expected_epoch_count": retained,
+                    "highway_recovered_expected_epoch_count": recovered})
+        for name in ("highway_activation_sequence", "highway_retained_expected_epoch_count",
+                     "highway_recovered_expected_epoch_count"):
+            invalid = dict(aggregate)
+            invalid.pop(name)
+            with self.subTest(missing=name), self.assertRaises(original.ActivationGatewayError):
+                original.validate_product_terminal_result(invalid)
+            for value in (None, False, True, "1", 1.0, -1):
+                with self.subTest(name=name, value=value), self.assertRaises(original.ActivationGatewayError):
+                    original.validate_product_terminal_result({**aggregate, name: value})
+        for retained, recovered in ((0, 0), (1, 1), (2, 0), (0, 2)):
+            with self.subTest(unbalanced=(retained, recovered)), self.assertRaises(original.ActivationGatewayError):
+                original.validate_product_terminal_result({**aggregate,
+                    "highway_retained_expected_epoch_count": retained,
+                    "highway_recovered_expected_epoch_count": recovered})
+        recovered = {**aggregate, "highway_retained_expected_epoch_count": 0,
+                     "highway_recovered_expected_epoch_count": 1,
+                     "highway_historical_intermediate_receipts_verified": True}
+        with self.assertRaises(original.ActivationGatewayError):
+            original.validate_product_terminal_result(recovered)
 
     def test_revalidation_rejects_resigned_false_history_native_input_and_readback(self) -> None:
         receipt = producer_revalidation(self)

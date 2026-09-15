@@ -48,11 +48,13 @@ class HostEvidence(unittest.TestCase):
         self.assertEqual(core['dispatch']['source_triggers_forbidden'], ['push', 'pull_request', 'merge'])
         self.assertEqual(core['dispatch']['long_running_default'], 'explicit-only')
 
-    def test_candidate_calibration_requires_same_repository_chess_and_source_proof(self):
+    def test_candidate_calibration_requires_same_repository_chess_and_hosted_proof(self):
         workflow = (ROOT / '.github/workflows/product-path.yml').read_text()
         block = workflow.split('  candidate-chess-calibration:\n', 1)[1].split('\n  postgresql-product-proof:', 1)[0]
-        for gate in ("github.event_name == 'pull_request'", "github.event.pull_request.head.repo.full_name == github.repository", "needs.classify.outputs.requires_chess_calibration == 'true'", "needs.hosted-proof.result == 'success'", "needs.custom-stack-proof.result == 'success'"):
+        for gate in ("github.event_name == 'pull_request'", "github.event.pull_request.head.repo.full_name == github.repository", "needs.classify.outputs.requires_chess_calibration == 'true'", "needs.hosted-proof.result == 'success'"):
             self.assertIn(gate, block)
+        self.assertIn('needs: [classify, hosted-proof]', block)
+        self.assertNotIn('custom-stack-proof', block)
         self.assertIn('uses: ./.github/workflows/chess-calibration.yml', block)
         self.assertNotIn('product_activation', block)
         calibration = (ROOT / '.github/workflows/chess-calibration.yml').read_text()
@@ -60,6 +62,38 @@ class HostEvidence(unittest.TestCase):
         self.assertIn('execution-context.json', calibration)
         self.assertIn('checked_out_sha', calibration)
         self.assertIn('tools/host/run-exclusive.sh', calibration)
+
+    def test_actual_candidate_condition_admits_measurement_despite_custom_proof_failure(self):
+        workflow = (ROOT / '.github/workflows/product-path.yml').read_text()
+        block = workflow.split('  candidate-chess-calibration:\n', 1)[1].split('\n  postgresql-product-proof:', 1)[0]
+        expression = ' '.join(block.split('    if: >-\n', 1)[1].split('    uses:', 1)[0].split())
+        baseline = {
+            'github.event_name': 'pull_request',
+            'github.event.pull_request.head.repo.full_name': 'owner/repo',
+            'github.repository': 'owner/repo',
+            'needs.classify.outputs.requires_chess_calibration': 'true',
+            'needs.hosted-proof.result': 'success',
+            'needs.custom-stack-proof.result': 'failure',
+        }
+
+        def admitted(overrides):
+            actual = expression.replace('always()', 'True').replace('&&', 'and')
+            for key, value in (baseline | overrides).items():
+                actual = actual.replace(key, repr(value))
+            # Execute the actual checked-in condition with no available builtins.
+            return eval(actual, {'__builtins__': {}}, {})
+
+        for result in ('success', 'failure', 'cancelled', 'skipped', ''):
+            with self.subTest(custom=result):
+                self.assertTrue(admitted({'needs.custom-stack-proof.result': result}))
+        for overrides in (
+            {'github.event_name': 'push'},
+            {'github.event.pull_request.head.repo.full_name': 'fork/repo'},
+            {'needs.classify.outputs.requires_chess_calibration': 'false'},
+            *({'needs.hosted-proof.result': result} for result in ('failure', 'cancelled', 'skipped', '')),
+        ):
+            with self.subTest(overrides=overrides):
+                self.assertFalse(admitted(overrides))
 
     def candidate_gate(self):
         workflow = (ROOT / '.github/workflows/product-path.yml').read_text()
@@ -69,11 +103,11 @@ class HostEvidence(unittest.TestCase):
         self.assertIn("REQUIRES_CANDIDATE_CHESS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.requires_chess_calibration == 'true' }}", block)
         return textwrap.dedent(block.split('        run: |\n', 1)[1])
 
-    def run_candidate_gate(self, script, required, result):
+    def run_candidate_gate(self, script, required, result, custom_result='success'):
         with tempfile.TemporaryDirectory() as temporary:
             environment = os.environ | {
                 'CLASSIFY_RESULT': 'success', 'HOSTED_RESULT': 'success',
-                'PUBLICATION_RECOVERY_RESULT': 'success', 'CUSTOM_RESULT': 'success',
+                'PUBLICATION_RECOVERY_RESULT': 'success', 'CUSTOM_RESULT': custom_result,
                 'POSTGRESQL_RESULT': 'success', 'PACKAGE_RESULT': 'success',
                 'REQUIRES_CUSTOM': 'true', 'REQUIRES_POSTGRESQL': 'true',
                 'REQUIRES_PACKAGE': 'true', 'REQUIRES_CANDIDATE_CHESS': required,
@@ -98,6 +132,12 @@ class HostEvidence(unittest.TestCase):
         self.assertIn(conditional, script)
         self.assertNotEqual(self.run_candidate_gate(script, 'true', 'failure'), 0)
         self.assertEqual(self.run_candidate_gate(script.replace(conditional, ''), 'true', 'failure'), 0)
+
+    def test_passing_calibration_cannot_mask_failed_or_missing_custom_proof(self):
+        script = self.candidate_gate()
+        for result in ('success', 'failure', 'cancelled', 'skipped', ''):
+            with self.subTest(custom=result):
+                self.assertEqual(self.run_candidate_gate(script, 'true', 'success', result) == 0, result == 'success')
 
     def test_missing_admission_is_reported_without_creating_it(self):
         with tempfile.TemporaryDirectory() as temporary:
