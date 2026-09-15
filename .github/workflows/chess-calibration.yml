@@ -1,6 +1,16 @@
-name: Explicit chess machine calibration
+name: Chess machine calibration
 
 on:
+  workflow_call:
+    inputs:
+      cpu_budget:
+        required: false
+        type: string
+        default: ""
+      memory_mib:
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       cpu_budget:

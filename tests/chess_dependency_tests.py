@@ -114,12 +114,50 @@ class ChessDependencies(unittest.TestCase):
         destination = self.directory / "generation"
         command = ["bash", str(helpers / "ensure-locked-git.sh"), str(destination)]
         subprocess.run(command, check=True, capture_output=True, text=True)
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        commands = self.directory / "commands"
+        commands.mkdir()
+        (commands / "flock").write_text("#!/bin/sh\nexit 99\n")
+        (commands / "flock").chmod(0o755)
+        subprocess.run(command, check=True, capture_output=True, text=True,
+                       env={**os.environ, "PATH": f"{commands}:{os.environ['PATH']}"})
         (destination / "fixture/source.cpp").write_text("preserve operator changes\n")
         failure = subprocess.run(command, check=False, capture_output=True, text=True)
         self.assertNotEqual(failure.returncode, 0)
         self.assertIn("source contains changes", failure.stderr)
         self.assertEqual((destination / "fixture/source.cpp").read_text(), "preserve operator changes\n")
+
+    @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "requires POSIX source-parent permissions")
+    def test_source_parent_and_lock_repair_preserve_uid_inode_and_bytes(self) -> None:
+        parent = self.directory / "source-generations"
+        parent.mkdir(mode=0o700)
+        lock = parent / ".source-acquisition.lock"
+        lock.write_text("preserved lock bytes\n")
+        lock.chmod(0o600)
+        previous_parent = parent.stat()
+        previous_lock = lock.stat()
+        group = subprocess.check_output(["id", "-gn"], text=True).strip()
+        script = ROOT / "tools/dependencies/prepare-source-parents.sh"
+        command = ['bash', '-c', 'source "$1"; repair_source_parent "$2" "$3"; repair_source_lock "$2/.source-acquisition.lock" "$3"', 'test', str(script), str(parent), group]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertEqual(parent.stat().st_uid, previous_parent.st_uid)
+        self.assertEqual((lock.stat().st_ino, lock.stat().st_uid), (previous_lock.st_ino, previous_lock.st_uid))
+        self.assertEqual(parent.stat().st_mode & 0o2070, 0o2070)
+        self.assertEqual(lock.stat().st_mode & 0o060, 0o060)
+        self.assertEqual(lock.read_text(), "preserved lock bytes\n")
+        # A compliant shared parent must not need another privileged mutation.
+        subprocess.run(['bash', '-c', 'source "$1"; chmod() { return 99; }; chgrp() { return 99; }; sudo() { return 99; }; repair_source_parent "$2" "$3"; repair_source_lock "$2/.source-acquisition.lock" "$3"', 'test', str(script), str(parent), group], check=True, capture_output=True, text=True)
+
+    @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "requires POSIX source-parent permissions")
+    def test_source_parent_repair_refuses_symlink(self) -> None:
+        target = self.directory / "operator"
+        target.mkdir(mode=0o700)
+        link = self.directory / "alias"
+        link.symlink_to(target, target_is_directory=True)
+        script = ROOT / "tools/dependencies/prepare-source-parents.sh"
+        result = subprocess.run(['bash', '-c', 'source "$1"; repair_source_parent "$2" "$3"', 'test', str(script), str(link), subprocess.check_output(["id", "-gn"], text=True).strip()], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("physical source-cache", result.stderr)
+        self.assertEqual(target.stat().st_mode & 0o777, 0o700)
 
     def test_cached_artifact_corruption_is_rejected(self) -> None:
         artifact = {"filename": "network", "size": 4, "sha256": hashlib.sha256(b"good").hexdigest()}

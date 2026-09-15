@@ -114,6 +114,8 @@ for path in \
     /build/laplace/worktrees \
     /build/laplace/recovery \
     /opt/laplace \
+    /opt/laplace/external \
+    /opt/laplace/external/source-generations \
     /opt/laplace/releases \
     /opt/laplace/runtime \
     /opt/laplace/runtime/postgresql \
@@ -131,7 +133,9 @@ for path in \
         echo "expected a physical shared parent: $path" >&2
         exit 1
     fi
-    "$INSTALL_BIN" -d -g "$RUNNER_GROUP" -m 2770 "$path"
+    existing_owner=0
+    [[ ! -e "$path" ]] || existing_owner=$(stat -c '%u' "$path")
+    "$INSTALL_BIN" -d -o "$existing_owner" -g "$RUNNER_GROUP" -m 2770 "$path"
 done
 
 # An existing socket leaf needs operator group traversal; fresh activation owns creation.

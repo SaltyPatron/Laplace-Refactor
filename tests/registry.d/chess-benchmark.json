@@ -38,14 +38,19 @@
         "physical host exclusion shared across repository runners",
         "bounded read-only retained Highway evidence",
         "absence and symlink diagnostics",
-        "exact retained source bytes"
+        "exact retained source bytes",
+        "chess-only deployment calibration selection and successful-main gate"
       ],
       "defect_controls": [
         "overlapping callers enter critical workload together",
         "service child retains host lock descriptor",
         "missing admission silently created",
         "symlink exports unrelated evidence",
-        "unbounded recursive receipt scan"
+        "unbounded recursive receipt scan",
+        "unrelated library change triggers chess calibration",
+        "changed Stockfish or NNUE misses calibration",
+        "failed activation or PR admits deployment calibration",
+        "core benchmark scheduling silently broadened"
       ]
     }
   ]

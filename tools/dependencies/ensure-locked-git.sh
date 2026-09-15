@@ -7,9 +7,29 @@ destination=$1
 repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 lock="$repository/dependencies/lock.json"
 parent=$(dirname -- "$destination")
+[[ ! -L "$destination" ]] || { echo "Source generation must be a physical directory: $destination" >&2; exit 65; }
+[[ ! -L "$parent" ]] || { echo "Source generation parent must be a physical directory: $parent" >&2; exit 65; }
+# An already-complete immutable generation needs no publication lock or writes.
+complete=true
+while IFS= read -r dependency; do
+    [[ -e "$destination/$dependency" ]] || complete=false
+done < <(jq -r '.dependencies | keys[]' "$lock")
+if [[ "$complete" == true ]]; then
+    "$repository/tools/dependencies/verify-lock.sh" "$destination"
+    exit 0
+fi
+if [[ "$parent" == /opt/laplace/external/source-generations ]]; then
+    bash "$repository/tools/dependencies/prepare-source-parents.sh"
+fi
 mkdir -p "$parent"
+if [[ ! -w "$parent" ]]; then
+    stat -c 'Source generation parent: %n owner=%U group=%G mode=%a' "$parent" >&2
+    echo 'The configured source-generation parent needs group write/setgid repair through scripts/setup-host.sh storage before acquiring a new generation.' >&2
+    exit 73
+fi
 # Serialize publication; existing source content and ownership remain untouched.
-exec 9>"$parent/.source-acquisition.lock"
+[[ ! -L "$parent/.source-acquisition.lock" ]] || { echo "Source publication lock must not be a symlink: $parent/.source-acquisition.lock" >&2; exit 65; }
+exec 9>>"$parent/.source-acquisition.lock"
 flock 9
 [[ ! -L "$destination" ]] || { echo "Source generation must be a physical directory: $destination" >&2; exit 65; }
 mkdir -p "$destination"

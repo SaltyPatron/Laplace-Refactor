@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      requires_chess_calibration: ${{ steps.classify.outputs.requires_chess_calibration }}
       hosted_only: ${{ steps.classify.outputs.hosted_only }}
       requires_custom_stack: ${{ steps.classify.outputs.requires_custom_stack }}
       requires_postgresql_product: ${{ steps.classify.outputs.requires_postgresql_product }}
@@ -73,6 +74,11 @@ jobs:
             --git-name-status-z "$changed" \
             --output "$result"
           cat "$result"
+          calibration="$RUNNER_TEMP/laplace-chess-calibration-request.json"
+          python3 tools/dependencies/chess_calibration_request.py \
+            --classification "$result" --base "$BASE_SHA" --head "$HEAD_SHA" > "$calibration"
+          printf 'requires_chess_calibration=%s\n' "$(jq -r '.requested' "$calibration")" >> "$GITHUB_OUTPUT"
+          cat "$calibration"
           for key in \
             hosted_only \
             requires_custom_stack \
@@ -264,6 +270,16 @@ jobs:
     uses: ./.github/workflows/product-activation.yml
     with:
       expected_sha: ${{ github.sha }}
+
+  deployed-chess-calibration:
+    needs: [classify, dev-bat-deployment]
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.dev-bat-deployment.result == 'success' &&
+      needs.classify.outputs.requires_chess_calibration == 'true'
+    uses: ./.github/workflows/chess-calibration.yml
 
   dev-bat-live-substrate:
     needs: dev-bat-deployment

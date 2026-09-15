@@ -14,9 +14,11 @@ if [[ $EUID == 0 ]]; then
         libgl-dev libegl-dev libopengl-dev libxkbcommon-dev libxcb-cursor0 \
         libfontconfig1 libdbus-1-3
     if id laplace-runner >/dev/null 2>&1; then
-        for path in /opt/laplace/external /opt/laplace/tools /opt/laplace/tools/chess /build/laplace/build/chess; do
+        for path in /opt/laplace/external /opt/laplace/external/source-generations /opt/laplace/tools /opt/laplace/tools/chess /build/laplace/build/chess; do
             [[ ! -L "$path" ]] || { echo "Expected physical dependency parent: $path" >&2; exit 1; }
-            install -d -g laplace-runner -m 2775 "$path"
+            existing_owner=0
+            [[ ! -e "$path" ]] || existing_owner=$(stat -c '%u' "$path")
+            install -d -o "$existing_owner" -g laplace-runner -m 2775 "$path"
         done
         environment=("TMPDIR=$TMPDIR" "TMP=$TMP" "TEMP=$TEMP")
         for name in LAPLACE_VERIFIED_SOURCE_ROOT LAPLACE_BUILD_JOBS CMAKE_BUILD_PARALLEL_LEVEL LAPLACE_QT_PREFIX QT_ROOT_DIR CMAKE_PREFIX_PATH; do
@@ -29,4 +31,7 @@ if [[ $EUID == 0 ]]; then
     fi
 fi
 
+if [[ -z ${LAPLACE_VERIFIED_SOURCE_ROOT:-} ]]; then
+    bash "$repository/tools/dependencies/prepare-source-parents.sh"
+fi
 exec python3 "$repository/tools/dependencies/chess_tools.py" install --profile "$@"

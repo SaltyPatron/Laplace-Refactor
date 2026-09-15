@@ -13,6 +13,7 @@ MAX_ENTRIES = 4096
 MAX_DEPTH = 8
 MAX_FILE_BYTES = 1024 * 1024
 MAX_CAPTURE_BYTES = 16 * 1024 * 1024
+HIGHWAY_SCHEMAS = {"laplace.highway-product-activation-request/v1", "laplace.highway-product-activation-receipt/v1"}
 
 
 def metadata(path: Path) -> dict:
@@ -71,7 +72,7 @@ def inspect(receipt_root: Path, output: Path, additional_roots: list[Path]) -> d
                 raise ValueError("candidate grew beyond the file bound")
             document = json.loads(raw)
             schema = document.get("schema", "") if isinstance(document, dict) else ""
-            if not isinstance(schema, str) or not schema.startswith("laplace.highway-"):
+            if not isinstance(schema, str) or schema not in HIGHWAY_SCHEMAS:
                 return
             fingerprint = hashlib.sha256(raw).hexdigest()
             record = {**metadata(path), "sha256": fingerprint, "schema": schema, "package_id": document.get("package_id"), "system_identifier": document.get("system_identifier"), "request_sha256": document.get("request_sha256"), "capture": None}

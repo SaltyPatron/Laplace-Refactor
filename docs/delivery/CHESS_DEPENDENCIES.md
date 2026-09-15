@@ -77,7 +77,8 @@ product programs are functional. The readback includes this boundary explicitly.
 `tools/dependencies/chess_benchmark.py` observes the actual Linux execution
 environment and measures the recorded executable paths. Its governing contract is
 `contracts/chess-benchmark.json`, under the common `contracts/benchmark-suite.json`
-law. The full benchmark runs only when explicitly requested; CI runs the small
+law. Chess calibration is explicitly requested manually or by its user-authorized
+chess-change deployment policy; ordinary PR CI runs only the small
 resource/receipt failure controls.
 
 ```bash
@@ -161,11 +162,15 @@ and no recommendation. Lichess credentials and Syzygy byte/probe status remain
 separate capability fields. These external benchmarks do not claim that the
 missing Refactor UCI/chess program can already play against Stockfish.
 
-The manual `chess-calibration.yml` workflow builds from the configured source
-estate and repeats this measurement on the actual self-hosted runner. It keeps
-all raw evidence in the `chess-calibration-<run>-<attempt>` artifact. It is never
-triggered by pushes, PRs or merges. Blank resource inputs use the observed bounds;
-explicit inputs must fit them.
+The reusable `chess-calibration.yml` workflow builds from the configured source
+estate and repeats this measurement on the actual self-hosted runner. It supports
+manual dispatch and the user-authorized chess-specific deployment calibration. It keeps
+all raw evidence in the `chess-calibration-<run>-<attempt>` artifact. The deployment call requires a successful accepted-main activation and
+a change to chess source/network selections, tooling, or calibration configuration.
+Unrelated dependency-lock changes, documentation changes, and PR checks do not
+launch it. The common benchmark suite retains its existing explicit-only scheduling
+policy; this bounded chess calibration has its own declared deployment policy.
+Blank resource inputs use the observed bounds; explicit inputs must fit them.
 
 `scripts/benchmark-chess.sh` holds `/build/laplace/work/host-resource.lock` for the
 whole experiment. Refactor custom-stack, PostgreSQL and package proof, composition benchmarking,
@@ -182,10 +187,20 @@ The custom-stack proof and product activation workflows also retain a bounded
 `highway-*-diagnostic-<run>-<attempt>` artifact. Its diagnostic records whether the
 configured Highway admission directory is absent, unreadable or a symlink and
 captures exact existing Highway request/receipt bytes from the configured receipt
-estate. It neither queries nor mutates the database, follows symlinks, reconstructs
+estate and the known `/opt/laplace/receipts` and `/build/laplace/recovery` archives. It neither queries nor mutates the database, follows symlinks, reconstructs
 an admission, or promotes an available file into valid replay authority. Additional
 retained archives can be selected explicitly with `--search-root` on
 `tools/delivery/highway_receipt_diagnostic.py`. Recovery still requires the native
 controller's exact system, epoch, sequence and canonical request checks; the
 existing `tests/highway_retained_context_live.py` proves two rollback replays and
 the deliberate active-to-active rejection after genuine retained evidence is restored.
+
+Source acquisition prepares only `/opt/laplace/external` and its
+`source-generations` parent when a generation must be created. The bounded
+`prepare-source-parents.sh` helper preserves existing owner UIDs, adds the shared
+runner group access and setgid directory inheritance, and repairs an existing
+publication lock without replacing its inode or contents. If the current runner
+cannot perform a needed `sudo -n` group/mode repair, it prints the exact command
+and observed ownership/mode and stops. It does not alter sudo policy, recurse
+through source contents, or redirect the configured dependency root. A complete
+verified source generation remains usable without acquiring a publication lock.
