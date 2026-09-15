@@ -78,8 +78,7 @@ jobs:
           test "$(sha256sum "$LAPLACE_ICPX" | awk '{print $1}')" = "$expected_icpx_sha"
 
           python3 tools/dependencies/verify-installed-lock.py --verify-files
-          lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
-          dependency_root="/opt/laplace/external/source-generations/$lock_sha"
+          dependency_root=$(python3 tools/dependencies/source_estate.py --lock dependencies/lock.json)
           bash tools/dependencies/ensure-locked-git.sh "$dependency_root"
           ./tools/dependencies/verify-lock.sh "$dependency_root"
 

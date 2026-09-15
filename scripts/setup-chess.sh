@@ -32,7 +32,4 @@ if [[ $EUID == 0 ]]; then
     fi
 fi
 
-if [[ -z ${LAPLACE_VERIFIED_SOURCE_ROOT:-} ]]; then
-    bash "$repository/tools/dependencies/prepare-source-parents.sh"
-fi
 exec python3 "$repository/tools/dependencies/chess_tools.py" install --profile "$@"

@@ -40,8 +40,8 @@ jobs:
         run: |
           python3 tools/delivery/highway_receipt_diagnostic.py \
             --search-root /opt/laplace/receipts \
-            --search-root /build/laplace/recovery/highway-admission-20260915 \
             --search-root /build/laplace/recovery \
+            --request-sha256 0c94d6cc5da02f6978dd707696096e10c7ac710a36ed44b0d957c36d96786128 \
             --output "$RUNNER_TEMP/highway-receipt-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
       - name: Upload bounded retained Highway receipt evidence
         if: always()
@@ -137,8 +137,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/dependencies/verify-installed-lock.py --verify-files
-          lock_sha=$(sha256sum dependencies/lock.json | awk '{print $1}')
-          dependency_root="/opt/laplace/external/source-generations/$lock_sha"
+          dependency_root=$(python3 tools/dependencies/source_estate.py --lock dependencies/lock.json)
           bash tools/dependencies/ensure-locked-git.sh "$dependency_root"
           ./tools/dependencies/verify-lock.sh "$dependency_root"
 

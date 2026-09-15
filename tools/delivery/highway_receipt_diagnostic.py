@@ -7,11 +7,13 @@ from collections import deque
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import stat
 
 MAX_ENTRIES = 4096
 MAX_ROOTS = 8
+MAX_DIRECTORY_INDEX = 256
 MAX_DEPTH = 8
 MAX_FILE_BYTES = 1024 * 1024
 MAX_CAPTURE_BYTES = 16 * 1024 * 1024
@@ -33,9 +35,13 @@ def metadata(path: Path) -> dict:
     return result
 
 
-def inspect(receipt_root: Path, output: Path, additional_roots: list[Path]) -> dict:
+def inspect(receipt_root: Path, output: Path, additional_roots: list[Path], request_sha: str | None = None) -> dict:
+    if request_sha is not None and re.fullmatch(r"[0-9a-f]{64}", request_sha) is None:
+        raise ValueError("Expected request identity must be a lowercase SHA-256")
     output.mkdir(parents=True, exist_ok=False)
     report = {"schema": "laplace.highway-receipt-diagnostic/v1", "scope": "filesystem evidence only; no database execution or reconstructed admission", "receipt_root": metadata(receipt_root), "retained_admission_directory": metadata(receipt_root / "highway"), "search_roots": [], "candidates": [], "symlinks_not_followed": [], "errors": [], "examined_entries": 0, "captured_bytes": 0, "truncated": False, "limits": {"entries": MAX_ENTRIES, "depth": MAX_DEPTH, "single_file_bytes": MAX_FILE_BYTES, "captured_bytes": MAX_CAPTURE_BYTES}}
+    report.update({"expected_request_sha256": request_sha, "directory_index": [], "directory_index_truncated": False})
+    report["limits"]["directory_index_per_root"] = MAX_DIRECTORY_INDEX
     seen = set()
 
     def walk(root: Path) -> None:
@@ -43,6 +49,7 @@ def inspect(receipt_root: Path, output: Path, additional_roots: list[Path]) -> d
         # first traversal reaches sibling receipt trees before large build leaves.
         pending = deque([(root, 0)])
         examined = 0
+        indexed = 0
         while pending and examined < MAX_ENTRIES:
             directory, depth = pending.popleft()
             if depth > MAX_DEPTH:
@@ -60,7 +67,17 @@ def inspect(receipt_root: Path, output: Path, additional_roots: list[Path]) -> d
                         if entry.is_symlink():
                             report["symlinks_not_followed"].append(metadata(path))
                         elif entry.is_dir(follow_symlinks=False):
-                            pending.append((path, depth + 1))
+                            if indexed < MAX_DIRECTORY_INDEX:
+                                report["directory_index"].append({**metadata(path), "search_root": str(root), "depth": depth + 1})
+                                indexed += 1
+                            else:
+                                report["directory_index_truncated"] = True
+                            # Known admission identity and named receipt archives
+                            # take precedence over unrelated build output trees.
+                            if entry.name == request_sha or any(word in entry.name.lower() for word in ("highway", "receipt")):
+                                pending.appendleft((path, depth + 1))
+                            else:
+                                pending.append((path, depth + 1))
                         elif entry.is_file(follow_symlinks=False) and entry.name.endswith(".json"):
                             capture(path)
             except OSError as error:
@@ -121,9 +138,10 @@ def main() -> None:
     parser.add_argument("--contract", type=Path, default=Path("contracts/postgresql-cluster.json"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--search-root", type=Path, action="append", default=[], help="additional explicitly selected retained receipt archive; symlinks are never traversed")
+    parser.add_argument("--request-sha256", help="prioritize an independently observed admission request identity without reconstructing it")
     arguments = parser.parse_args()
     contract = json.loads(arguments.contract.read_text())
-    result = inspect(Path(contract["instance"]["receipt_directory"]), arguments.output, arguments.search_root)
+    result = inspect(Path(contract["instance"]["receipt_directory"]), arguments.output, arguments.search_root, arguments.request_sha256)
     print(json.dumps({key: result[key] for key in ("retained_admission_directory", "candidate_count", "recovery_status", "truncated")}))
 
 

@@ -393,8 +393,7 @@ def main() -> int:
     parser.add_argument("action", choices=["install", "check", "latest", "run"])
     parser.add_argument("--prefix", type=Path, default=Path("/opt/laplace/tools/chess"))
     parser.add_argument("--cache", type=Path, default=Path("/opt/laplace/external/chess-downloads"))
-    lock_digest = digest(ROOT / "dependencies/lock.json")
-    parser.add_argument("--source-root", type=Path, default=Path(os.environ.get("LAPLACE_VERIFIED_SOURCE_ROOT", f"/opt/laplace/external/source-generations/{lock_digest}")))
+    parser.add_argument("--source-root", type=Path, default=Path(os.environ["LAPLACE_VERIFIED_SOURCE_ROOT"]) if os.environ.get("LAPLACE_VERIFIED_SOURCE_ROOT") else None)
     parser.add_argument("--build-root", type=Path, default=Path("/build/laplace/build/chess"))
     parser.add_argument("--qt-prefix", type=Path, help="use this compatible Qt SDK instead of acquiring the selected SDK")
     available_cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
@@ -426,6 +425,8 @@ def main() -> int:
             require(all(item["current"] for item in report["upstream"].values()), "newer upstream stable release exists; update exact release and artifact locks before creating a new experiment generation: " + json.dumps(report["upstream"]))
         if arguments.action == "install":
             require(arguments.jobs > 0, "--jobs must be positive")
+            if arguments.source_root is None:
+                arguments.source_root = Path(subprocess.check_output([sys.executable, str(ROOT / "tools/dependencies/source_estate.py")], text=True).strip())
             arguments.source_root = arguments.source_root.resolve()
             arguments.build_root = arguments.build_root.resolve()
             report["installation"] = build_tools(arguments, selected, artifacts)

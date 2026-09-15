@@ -8,9 +8,10 @@ prerequisites. Missing Qt is acquired as an SDK; both chess programs are built
 from source.
 
 Source ownership follows `dependencies/roots.json`: `LAPLACE_VERIFIED_SOURCE_ROOT`
-selects an existing verified source estate. Without that variable the source root is
-`/opt/laplace/external/source-generations/<SHA-256 of dependencies/lock.json>`, the
-same convention used by the native build. An unrelated or modified checkout is
+selects an existing verified source estate. Without that variable, the native build
+and chess installer share the persisted source-parent selection inside the resolved
+`/opt/laplace/external` estate. Each generation is named by the SHA-256 of
+`dependencies/lock.json`. An unrelated or modified checkout is
 preserved and reported. Clean checkouts fetch and select their exact locked upstream
 revision, with archive and license hashes checked before and after compilation.
 The source consumers in custom-stack CI and the composition benchmark now fill
@@ -195,15 +196,19 @@ controller's exact system, epoch, sequence and canonical request checks; the
 existing `tests/highway_retained_context_live.py` proves two rollback replays and
 the deliberate active-to-active rejection after genuine retained evidence is restored.
 
-Source acquisition prepares only `/opt/laplace/external` and its
-`source-generations` parent when a generation must be created. The bounded
-`prepare-source-parents.sh` helper preserves existing owner UIDs, adds the shared
-runner group access and setgid directory inheritance, and repairs an existing
-publication lock without replacing its inode or contents. If the current runner
-cannot perform a needed `sudo -n` group/mode repair, it prints the exact command
-and observed ownership/mode and stops. It does not alter sudo policy, recurse
-through source contents, or redirect the configured dependency root. A complete
-verified source generation remains usable without acquiring a publication lock.
+The source selector (`tools/dependencies/source_estate.py`) resolves the configured
+external estate and persists its selected parent in `refactor-source-selection.json`
+inside that estate. A writable shared `source-generations` parent stays selected.
+When operator-owned parent or lock permissions prevent publication, the selector
+creates `refactor-source-generations` inside the same physical external estate and
+records that reason. Existing operator generations, locks, owners, and aliases are
+preserved. Later source acquisition and chess builds use the persisted selection;
+`LAPLACE_VERIFIED_SOURCE_ROOT` and `--source-root` remain explicit source overrides.
+The usual exact commit, archive, and license verification still applies to every
+generation. Root host setup can repair shared parent access through the common
+`prepare-source-parents.sh` helper, while recurring runner acquisition requires no
+new privilege. A completed existing generation is verified without a publication
+lock or source mutation.
 
 The configured `/opt/laplace/external` estate may be an existing directory alias
 onto another volume. Source setup resolves that alias, reports its physical target,
@@ -211,3 +216,9 @@ and preserves the alias and every existing owner. It repairs group access only o
 the physical estate and `source-generations` parents and the acquisition lock;
 generation leaves and lock files cannot redirect elsewhere. Host setup and recurring
 source acquisition use the same preparation helper.
+
+The Highway diagnostic also retains a bounded directory index of actual host
+archives. Each explicit root gets its own entry budget; named receipt/Highway
+subtrees and an independently supplied request identity are visited first. This
+supports narrowing subsequent recovery searches without treating a truncated scan
+or a missing file as proof that historical admission never occurred.

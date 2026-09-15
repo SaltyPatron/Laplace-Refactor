@@ -111,6 +111,26 @@ class HostEvidence(unittest.TestCase):
             self.assertEqual(result['candidate_count'], 1)
             self.assertEqual((root / 'diagnostic' / result['candidates'][0]['capture']).read_bytes(), raw)
 
+    def test_diagnostic_directory_index_is_bounded_and_receipts_are_prioritized(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / 'archive'
+            archive.mkdir()
+            noise = archive / 'build'
+            noise.mkdir()
+            for number in range(20):
+                (noise / f'output-{number}.json').write_text('{}')
+            highway = archive / 'highway-receipts'
+            highway.mkdir()
+            raw = b'{"schema":"laplace.highway-product-activation-request/v1"}\n'
+            (highway / 'request.json').write_bytes(raw)
+            with patch.object(D, 'MAX_ENTRIES', 5), patch.object(D, 'MAX_DIRECTORY_INDEX', 1):
+                result = D.inspect(archive, root / 'diagnostic', [])
+            self.assertEqual(result['candidate_count'], 1)
+            self.assertEqual(len(result['directory_index']), 1)
+            self.assertTrue(result['directory_index_truncated'])
+            self.assertTrue(result['truncated'])
+
     def test_shared_host_lock_serializes_distinct_callers(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

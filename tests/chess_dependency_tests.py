@@ -24,6 +24,11 @@ TOOLS = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(TOOLS)
 
 
+source_spec = importlib.util.spec_from_file_location("source_estate", ROOT / "tools/dependencies/source_estate.py")
+ESTATE = importlib.util.module_from_spec(source_spec)
+source_spec.loader.exec_module(ESTATE)
+
+
 class ChessDependencies(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -188,6 +193,42 @@ class ChessDependencies(unittest.TestCase):
         rejected = subprocess.run(command, capture_output=True, text=True)
         self.assertNotEqual(rejected.returncode, 0)
         self.assertEqual((target / "operator-file").read_text(), "untouched")
+
+    def test_runner_source_parent_is_persisted_inside_the_configured_estate(self) -> None:
+        external = self.directory / "physical-external"
+        external.mkdir()
+        alias = self.directory / "configured-external"
+        alias.symlink_to(external, target_is_directory=True)
+        legacy = external / "source-generations"
+        legacy.mkdir(mode=0o755)
+        lock = legacy / ".source-acquisition.lock"
+        lock.write_text("operator lock")
+        original = {p: p.lstat() for p in (alias, legacy, lock)}
+        selection = ESTATE.select_generation(ROOT / "dependencies/lock.json", alias)
+        self.assertEqual(selection.parent, external / "refactor-source-generations")
+        self.assertEqual(selection.name, TOOLS.digest(ROOT / "dependencies/lock.json"))
+        receipt = external / "refactor-source-selection.json"
+        raw = receipt.read_bytes()
+        for p, metadata in original.items():
+            self.assertEqual((p.lstat().st_ino, p.lstat().st_mode, p.lstat().st_uid), (metadata.st_ino, metadata.st_mode, metadata.st_uid))
+        self.assertEqual(lock.read_text(), "operator lock")
+        legacy.chmod(0o2775)
+        self.assertEqual(ESTATE.select_generation(ROOT / "dependencies/lock.json", alias), selection)
+        self.assertEqual(receipt.read_bytes(), raw)
+        document = json.loads(raw)
+        document["generation_parent"] = str(self.directory / "unrelated")
+        receipt.write_text(json.dumps(document))
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            ESTATE.select_generation(ROOT / "dependencies/lock.json", alias)
+
+    def test_writable_shared_source_parent_remains_selected(self) -> None:
+        external = self.directory / "external"
+        external.mkdir()
+        parent = external / "source-generations"
+        parent.mkdir(mode=0o2775)
+        parent.chmod(0o2775)
+        self.assertEqual(ESTATE.select_generation(ROOT / "dependencies/lock.json", external).parent, parent)
+        self.assertFalse((external / "refactor-source-generations").exists())
 
     def test_cached_artifact_corruption_is_rejected(self) -> None:
         artifact = {"filename": "network", "size": 4, "sha256": hashlib.sha256(b"good").hexdigest()}

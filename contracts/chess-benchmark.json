@@ -45,7 +45,8 @@
       "tools/host/run-exclusive.sh",
       ".github/workflows/chess-calibration.yml",
       "tools/dependencies/ensure-locked-git.sh",
-      "tools/dependencies/prepare-source-parents.sh"
+      "tools/dependencies/prepare-source-parents.sh",
+      "tools/dependencies/source_estate.py"
     ],
     "focused_locks": {
       "dependencies/lock.json": {
