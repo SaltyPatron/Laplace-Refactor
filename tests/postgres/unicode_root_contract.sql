@@ -989,7 +989,8 @@ $revalidation$;
 
 \pset format unaligned
 \pset tuples_only on
-SELECT 'LAPLACE_QA_RECEIPT highway_committed_revalidation ' || json_build_object(
+-- jsonb renders nested aggregates on one line for the strict QA marker protocol.
+SELECT 'LAPLACE_QA_RECEIPT highway_committed_revalidation ' || jsonb_build_object(
     'schema','laplace.highway-committed-revalidation-test/v1',
     'verification_receipt',encode(verification_receipt,'hex'),
     'registry_epoch_fingerprint',encode(registry_epoch_fingerprint,'hex'),

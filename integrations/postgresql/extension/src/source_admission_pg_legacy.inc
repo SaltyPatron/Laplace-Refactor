@@ -364,7 +364,11 @@ static laplace_tabular_reference_rule* read_reference_rules(
     char type_alignment;
     laplace_tabular_reference_rule* rules;
     int index;
-    if (ARR_NDIM(array) != 1 || ARR_ELEMTYPE(array) != type_oid) {
+    /* PostgreSQL represents a canonical empty typed array with zero dimensions.
+     * Zero reference rules are an ordinary source input; keep the exact type
+     * and nonempty one-dimensional/null-element laws below. */
+    if ((ARR_NDIM(array) != 1 && ARR_NDIM(array) != 0) ||
+        ARR_ELEMTYPE(array) != type_oid) {
         ereport(ERROR,
                 (errcode(ERRCODE_DATATYPE_MISMATCH),
                  errmsg("Laplace tabular reference rules must be an exact one-dimensional rule array")));

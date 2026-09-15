@@ -31,7 +31,8 @@
           "schema": "laplace.verified-cpp-source-acceptance/v1",
           "negative_controls": 13,
           "reconciliation_controls": 2,
-          "profile_schema_controls": 6
+          "profile_schema_controls": 6,
+          "reference_rule_array_controls": 2
         }
       },
       "order": 25,

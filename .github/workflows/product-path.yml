@@ -155,7 +155,7 @@ jobs:
       - hosted-proof
       - publication-recovery
     if: >-
-      always() &&
+      (!cancelled()) &&
       needs.classify.outputs.requires_custom_stack == 'true' &&
       needs.hosted-proof.result == 'success' &&
       (needs.publication-recovery.result == 'success' ||
@@ -166,7 +166,7 @@ jobs:
     name: Candidate chess dependency calibration on hart-server
     needs: [classify, hosted-proof]
     if: >-
-      always() &&
+      (!cancelled()) &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       needs.classify.outputs.requires_chess_calibration == 'true' &&
@@ -180,7 +180,7 @@ jobs:
       - publication-recovery
       - custom-stack-proof
     if: >-
-      always() &&
+      (!cancelled()) &&
       needs.classify.outputs.requires_postgresql_product == 'true' &&
       needs.hosted-proof.result == 'success' &&
       needs.publication-recovery.result == 'success' &&
@@ -196,7 +196,7 @@ jobs:
       - custom-stack-proof
       - postgresql-product-proof
     if: >-
-      always() &&
+      (!cancelled()) &&
       needs.classify.outputs.requires_package_product == 'true' &&
       needs.hosted-proof.result == 'success' &&
       needs.publication-recovery.result == 'success' &&
@@ -283,7 +283,7 @@ jobs:
   dev-bat-deployment:
     needs: product-path
     if: >-
-      always() &&
+      (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.product-path.result == 'success'
@@ -294,7 +294,7 @@ jobs:
   deployed-chess-calibration:
     needs: [classify, dev-bat-deployment]
     if: >-
-      always() &&
+      (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.dev-bat-deployment.result == 'success' &&
@@ -304,7 +304,7 @@ jobs:
   deployed-stockfish-corpus:
     needs: dev-bat-deployment
     if: >-
-      always() &&
+      (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.dev-bat-deployment.result == 'success'
@@ -314,7 +314,7 @@ jobs:
 
   dev-bat-live-substrate:
     needs: dev-bat-deployment
-    if: always() && needs.dev-bat-deployment.result == 'success'
+    if: (!cancelled()) && needs.dev-bat-deployment.result == 'success'
     runs-on:
       - self-hosted
       - Linux

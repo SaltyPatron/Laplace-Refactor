@@ -55,14 +55,15 @@ $artifacts$;
 CREATE TEMP TABLE cpp_invocation_count(value integer NOT NULL);
 INSERT INTO cpp_invocation_count VALUES (0);
 CREATE FUNCTION pg_temp.cpp_admit(binding laplace.source_grammar_binding DEFAULT pg_temp.cpp_binding(),
-                                 batch numeric DEFAULT 65536)
+                                 batch numeric DEFAULT 65536,
+                                 reference_rules laplace.tabular_reference_rule[] DEFAULT ARRAY[]::laplace.tabular_reference_rule[])
 RETURNS laplace.tabular_source_admission_result LANGUAGE plpgsql VOLATILE AS $admit$
 DECLARE context laplace.execution_context:=pg_temp.source_admission_context();
 BEGIN
  UPDATE cpp_invocation_count SET value=value+1;
  RETURN laplace.source_admit_with_grammar(context,pg_temp.cpp_profile(),
    context.epochs[3],sha256(convert_to('verified C++ observation','UTF8')),
-   pg_temp.cpp_artifacts(),ARRAY[]::laplace.tabular_reference_rule[],
+   pg_temp.cpp_artifacts(),reference_rules,
    ARRAY[]::laplace.tabular_mapping_rule[],batch,binding);
 END
 $admit$;
@@ -194,6 +195,36 @@ BEGIN
 END
 $replay$;
 
+DO $reference_rule_arrays$
+DECLARE rule laplace.tabular_reference_rule:=ROW(0::numeric,0::numeric,
+  decode(repeat('11',16),'hex'),1,0)::laplace.tabular_reference_rule;
+ rejected integer:=0;
+BEGIN
+ -- First admission and replay above exercise PostgreSQL's canonical empty
+ -- typed array. Preserve exact nonempty shape and NULL-element rejection.
+ BEGIN
+   PERFORM pg_temp.cpp_admit(pg_temp.cpp_binding(),65536,ARRAY[[rule]]);
+   RAISE EXCEPTION USING ERRCODE='LP001',MESSAGE='multidimensional reference rule array was accepted';
+ EXCEPTION WHEN datatype_mismatch THEN
+   IF SQLERRM<>'Laplace tabular reference rules must be an exact one-dimensional rule array' THEN RAISE; END IF;
+   rejected:=rejected+1;
+ END;
+ BEGIN
+   PERFORM pg_temp.cpp_admit(pg_temp.cpp_binding(),65536,ARRAY[NULL]::laplace.tabular_reference_rule[]);
+   RAISE EXCEPTION USING ERRCODE='LP001',MESSAGE='NULL reference rule element was accepted';
+ EXCEPTION WHEN null_value_not_allowed THEN
+   IF SQLERRM<>'Laplace tabular reference rule array cannot contain nulls' THEN RAISE; END IF;
+   rejected:=rejected+1;
+ END;
+ IF rejected<>2 OR (SELECT value FROM cpp_invocation_count)<>2 OR
+    (SELECT count(*) FROM laplace.entity)<>(SELECT entities FROM cpp_after) OR
+    (SELECT count(*) FROM laplace.physicality)<>(SELECT physicalities FROM cpp_after) OR
+    (SELECT count(*) FROM laplace.attestation)<>(SELECT occurrences FROM cpp_after) THEN
+   RAISE EXCEPTION 'reference rule array controls changed admitted state';
+ END IF;
+END
+$reference_rule_arrays$;
+
 DO $negative$
 DECLARE binding laplace.source_grammar_binding; rejected integer:=0; context laplace.execution_context;
 BEGIN
@@ -293,5 +324,6 @@ SELECT 'LAPLACE_QA_RECEIPT verified_cpp_source_admission ' || json_build_object(
  'profile_id',encode(f.profile_id,'hex'),'structural_receipt_id',encode(s.receipt_id,'hex'),
  'world_receipt_id',encode(f.world_admission_receipt_id,'hex'),'witnesses',s.witness_count,
  'semantic_testimony',0,'negative_controls',13,'reconciliation_controls',2,'profile_schema_controls',6,
+ 'reference_rule_array_controls',2,
  'repeat_no_amplification',true,
  'executable_semantics_verified',false)::text FROM cpp_first f CROSS JOIN cpp_structural s;

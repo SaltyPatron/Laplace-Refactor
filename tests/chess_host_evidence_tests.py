@@ -78,7 +78,7 @@ class HostEvidence(unittest.TestCase):
         }
 
         def admitted(overrides):
-            actual = expression.replace('always()', 'True').replace('&&', 'and')
+            actual = expression.replace('!cancelled()', 'True').replace('always()', 'True').replace('&&', 'and')
             for key, value in (baseline | overrides).items():
                 actual = actual.replace(key, repr(value))
             # Execute the actual checked-in condition with no available builtins.

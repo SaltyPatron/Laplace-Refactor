@@ -93,8 +93,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
             blocks["package"],
             "package proof can become the third concurrent member and cancel a pending proof",
         )
-        self.assertIn("      always() &&", blocks["postgres"])
-        self.assertIn("      always() &&", blocks["package"])
+        self.assertIn("      (!cancelled()) &&", blocks["postgres"])
+        self.assertIn("      (!cancelled()) &&", blocks["package"])
 
     def assert_legacy_branch_protection_bridge(self, workflow: str) -> None:
         aliases = {
@@ -128,7 +128,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         )
         start, end = self.job_boundary(workflow, "dev-bat-deployment")
         deployment = workflow[start:end]
-        self.assertIn("      always() &&\n      github.event_name == 'push'", deployment)
+        self.assertIn("      (!cancelled()) &&\n      github.event_name == 'push'", deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deployment)
         self.assertIn("needs.product-path.result == 'success'", deployment)
         self.assertIn("    uses: ./.github/workflows/product-activation.yml\n", deployment)
@@ -307,8 +307,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
     def test_deliberate_parallel_physical_orchestration_defect_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         mutant = workflow.replace(
-            "      - custom-stack-proof\n    if: >-\n      always() &&\n      needs.classify.outputs.requires_postgresql_product",
-            "    if: >-\n      always() &&\n      needs.classify.outputs.requires_postgresql_product",
+            "      - custom-stack-proof\n    if: >-\n      (!cancelled()) &&\n      needs.classify.outputs.requires_postgresql_product",
+            "    if: >-\n      (!cancelled()) &&\n      needs.classify.outputs.requires_postgresql_product",
             1,
         )
         self.assertNotEqual(workflow, mutant)
@@ -393,7 +393,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         activation = PRODUCT_ACTIVATION_PATH.read_text(encoding="utf-8")
         contract = ACTIVATION_CONTRACT_PATH.read_text(encoding="utf-8")
         mutant = workflow.replace(
-            "      always() &&\n      github.event_name == 'push'",
+            "      (!cancelled()) &&\n      github.event_name == 'push'",
             "      github.event_name == 'push'",
             1,
         )

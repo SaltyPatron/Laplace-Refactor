@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -11,9 +12,117 @@ PHYSICAL_WORKFLOWS = (
     REPOSITORY / ".github/workflows/postgresql-product.yml",
     REPOSITORY / ".github/workflows/package-product.yml",
 )
+HEAVY_JOBS = (
+    "custom-stack-proof",
+    "candidate-chess-calibration",
+    "postgresql-product-proof",
+    "package-product-proof",
+    "dev-bat-deployment",
+    "deployed-chess-calibration",
+    "deployed-stockfish-corpus",
+    "dev-bat-live-substrate",
+)
+
+
+def job_condition(workflow: str, name: str) -> str:
+    block = workflow.split(f"  {name}:\n", 1)[1]
+    block = re.split(r"(?m)^  [A-Za-z0-9_-]+:\s*$", block, maxsplit=1)[0]
+    match = re.search(r"(?m)^    if: (.+)(?:\n|$)", block)
+    if match is None:
+        raise AssertionError(f"{name} is missing its job condition")
+    if match.group(1) == ">-":
+        lines = []
+        for line in block[match.end():].splitlines():
+            if not line.startswith("      "):
+                break
+            lines.append(line.strip())
+        return " ".join(lines)
+    return match.group(1)
+
+
+def condition_allows(expression: str, context: dict[str, str], cancelled: bool) -> bool:
+    # Evaluate the actual checked-in job predicate for both scheduling and GitHub's
+    # cancellation re-evaluation, with no builtins or ambient workflow state.
+    actual = expression.replace("!cancelled()", repr(not cancelled))
+    actual = actual.replace("always()", "True").replace("&&", "and").replace("||", "or")
+    actual = re.sub(r"\b(?:needs|github)\.[A-Za-z0-9_.-]+", lambda m: repr(context[m.group()]), actual)
+    return bool(eval(actual, {"__builtins__": {}}, {}))
 
 
 class ProductPathConcurrencyTests(unittest.TestCase):
+    @staticmethod
+    def admitted_context(job: str) -> dict[str, str]:
+        return {
+            "github.event_name": "pull_request" if job == "candidate-chess-calibration" else "push",
+            "github.ref": "refs/heads/main",
+            "github.event.pull_request.head.repo.full_name": "owner/repo",
+            "github.repository": "owner/repo",
+            **{f"needs.{name}.result": "success" for name in (
+                "hosted-proof", "publication-recovery", "custom-stack-proof",
+                "postgresql-product-proof", "product-path", "dev-bat-deployment",
+            )},
+            **{f"needs.classify.outputs.requires_{name}": "true" for name in (
+                "custom_stack", "postgresql_product", "package_product", "chess_calibration",
+            )},
+        }
+
+    def assert_heavy_jobs_cancel(self, workflow: str) -> None:
+        for job in HEAVY_JOBS:
+            condition = job_condition(workflow, job)
+            context = self.admitted_context(job)
+            self.assertTrue(condition_allows(condition, context, False), job)
+            self.assertFalse(
+                condition_allows(condition, context, True),
+                f"{job} would start or continue after the run is cancelled",
+            )
+
+    def test_heavy_jobs_stop_when_the_run_is_cancelled(self) -> None:
+        self.assert_heavy_jobs_cancel(WORKFLOW_PATH.read_text(encoding="utf-8"))
+
+    def test_each_old_always_guard_defeats_cancellation_and_is_detected(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        for job in HEAVY_JOBS:
+            with self.subTest(job=job):
+                condition = job_condition(workflow, job)
+                mutant = condition.replace("(!cancelled())", "always()", 1)
+                self.assertNotEqual(condition, mutant)
+                self.assertTrue(condition_allows(mutant, self.admitted_context(job), True))
+                prefix, suffix = workflow.split(f"  {job}:\n", 1)
+                mutant_workflow = prefix + f"  {job}:\n" + suffix.replace("(!cancelled())", "always()", 1)
+                with self.assertRaises(AssertionError):
+                    self.assert_heavy_jobs_cancel(mutant_workflow)
+
+    def test_cancellable_jobs_preserve_prerequisite_failures_and_optional_skips(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        for job in HEAVY_JOBS:
+            condition = job_condition(workflow, job)
+            context = self.admitted_context(job)
+            for dependency in set(re.findall(r"needs\.[A-Za-z0-9_-]+\.result", condition)):
+                for result in ("failure", "cancelled", "skipped", ""):
+                    with self.subTest(job=job, dependency=dependency, result=result):
+                        expected = job == "custom-stack-proof" and dependency == "needs.publication-recovery.result" and result == "skipped"
+                        self.assertEqual(condition_allows(condition, context | {dependency: result}, False), expected)
+        for job in ("postgresql-product-proof", "package-product-proof"):
+            context = self.admitted_context(job) | {
+                "needs.classify.outputs.requires_custom_stack": "false",
+                "needs.custom-stack-proof.result": "skipped",
+            }
+            if job == "package-product-proof":
+                context |= {
+                    "needs.classify.outputs.requires_postgresql_product": "false",
+                    "needs.postgresql-product-proof.result": "skipped",
+                }
+            self.assertTrue(condition_allows(job_condition(workflow, job), context, False))
+            self.assertFalse(condition_allows(job_condition(workflow, job), context, True))
+
+    def test_short_aggregate_and_protected_status_jobs_still_evaluate_after_cancellation(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        for job in ("product-path", "legacy-requirements", "legacy-native-dev", "legacy-native-sanitize"):
+            with self.subTest(job=job):
+                condition = job_condition(workflow, job)
+                self.assertEqual(condition, "always()")
+                self.assertTrue(condition_allows(condition, {}, True))
+
     def test_pull_request_runs_cancel_obsolete_active_head_without_cancelling_main(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         marker = (
