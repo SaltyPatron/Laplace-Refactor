@@ -733,9 +733,9 @@ BEGIN
                     set_byte(decode(repeat('dd',32),'hex'),0,variant),
                     context.epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@],decode(repeat('00',32),'hex'))
                     ::laplace.composition_request_record],65536::numeric);
-            SELECT ROW(p.entity_id::bytea,e.identity_witness::bytea,p.physicality_id::bytea,
+            SELECT p.entity_id::bytea,e.identity_witness::bytea,p.physicality_id::bytea,
                 p.centroid_x,p.centroid_y,p.centroid_z,p.centroid_m,0::bigint,
-                deposited.result_tier_floors[1],false)::laplace.composition_known_entity_record
+                deposited.result_tier_floors[1],false
             INTO STRICT neighbor FROM laplace.physicality p JOIN laplace.entity e USING(entity_id)
             WHERE p.physicality_id=deposited.result_physicality_ids[1];
             SELECT count(*) INTO prior_parent_count FROM laplace.physicality_occurrence_binding binding
@@ -802,16 +802,20 @@ ALTER TABLE physicality_entity_contract.forms ADD PRIMARY KEY(ordinal);
 DO $singleton_constructor_refusals$
 DECLARE original laplace.physicality_record; supplied laplace.physicality_record;
     trajectory bytea; witness bytea; supplied_witness bytea; variant integer; rejected boolean;
+    selected_input record;
     before jsonb:=physicality_entity_contract.counts();
 BEGIN
     SELECT ROW(p.physicality_id,p.entity_id,p.physicality_type,p.vertex_class,p.recipe_version,
         p.structural_form,p.dimension_count,p.flags,p.recipe_fingerprint,p.geometry_epoch,
         p.trajectory_fingerprint,p.centroid_x,p.centroid_y,p.centroid_z,p.centroid_m,
-        p.radius,p.logical_count,p.vertex_count)::laplace.physicality_record,
-        p.trajectory,e.identity_witness INTO STRICT original,trajectory,witness
+        p.radius,p.logical_count,p.vertex_count)::laplace.physicality_record AS original,
+        p.trajectory,e.identity_witness AS witness INTO STRICT selected_input
     FROM physicality_entity_contract.forms child
     JOIN laplace.physicality p ON p.physicality_id=child.record_id
     JOIN laplace.entity e ON e.entity_id=child.entity_id WHERE child.ordinal=1;
+    original:=selected_input.original;
+    trajectory:=selected_input.trajectory;
+    witness:=selected_input.witness;
     FOR variant IN 1..3 LOOP
         supplied:=original; supplied_witness:=witness; rejected:=false;
         IF variant=1 THEN supplied.radius:=CASE WHEN original.radius=0 THEN 0.125 ELSE 0 END; END IF;
@@ -821,9 +825,9 @@ BEGIN
                 CASE WHEN variant=3 THEN decode(repeat('00',4097),'hex') ELSE trajectory END,
                 supplied_witness,decode(repeat('e5',32),'hex'));
         EXCEPTION WHEN data_corrupted THEN
-            IF variant=3 OR SQLERRM<>CASE WHEN variant=1
+            IF variant=3 OR SQLERRM<>(CASE WHEN variant=1
                 THEN 'Laplace physicality fields differ from their native immutable identity'
-                ELSE 'singleton fixture lacks an independently validated child body and witness' END THEN RAISE; END IF;
+                ELSE 'singleton fixture lacks an independently validated child body and witness' END) THEN RAISE; END IF;
             rejected:=true;
         WHEN program_limit_exceeded THEN
             IF variant<>3 OR SQLERRM<>'singleton fixture child trajectory exceeds its finite envelope before detoast' THEN RAISE; END IF;
