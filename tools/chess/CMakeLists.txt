@@ -73,7 +73,9 @@ target_link_libraries(laplace_cutechess_trace_adapter_tests PRIVATE laplace_cute
 target_compile_options(laplace_cutechess_trace_adapter_tests PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
 add_test(NAME chess.native-trace-adapter-contract
-    COMMAND laplace_cutechess_trace_adapter_tests
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "LD_LIBRARY_PATH=${LAPLACE_QT_PREFIX}/lib:$<TARGET_FILE_DIR:laplace_native_engine>:$ENV{LD_LIBRARY_PATH}"
+        "$<TARGET_FILE:laplace_cutechess_trace_adapter_tests>"
         "${LAPLACE_RULES_OUTPUT_ROOT}/native-adapter-qualification.json"
         "${LAPLACE_NATIVE_ENGINE}" "${LAPLACE_QT_PREFIX}" "${LAPLACE_QT_VERSION}")
 set_tests_properties(chess.native-trace-adapter-contract PROPERTIES
