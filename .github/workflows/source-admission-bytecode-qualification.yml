@@ -1,203 +1,119 @@
-name: Installed complete Stockfish source acceptance
+name: Read retained installed candidate failure
 on:
   push:
     branches: [verify/source-admission-bytecode-20260916]
 permissions:
   contents: read
-concurrency:
-  group: installed-full-stockfish-source
-  cancel-in-progress: false
-env:
-  PYTHONDONTWRITEBYTECODE: "1"
-  GIT_OPTIONAL_LOCKS: "0"
-  LAPLACE_SOURCE_ESTATE_ROOT: /opt/laplace/sources
-  TMPDIR: /build/laplace/work
-  TMP: /build/laplace/work
-  TEMP: /build/laplace/work
-  STOCKFISH_SOURCE_OVERRIDE: ${{ vars.LAPLACE_STOCKFISH_SOURCE }}
-  CORPUS_EVIDENCE: /build/laplace/work/installed-full-stockfish-source/${{ github.run_id }}-${{ github.run_attempt }}
+  actions: read
 jobs:
-  qualify:
+  inspect:
     if: github.repository == 'SaltyPatron/Laplace-Refactor'
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 120
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: cf9b80e6b9f4457a9b8167623ea1fb10e6d870c0
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Retain exact candidate driver and prepare the thin caller
+      - name: Authenticate the exact retained failure and print bounded diagnostic fields
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          set -euo pipefail
-          umask 077
-          test "$(id -un)" = laplace-runner
-          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
-          test "$GITHUB_REF" = refs/heads/verify/source-admission-bytecode-20260916
-          test "$(git rev-parse HEAD)" = cf9b80e6b9f4457a9b8167623ea1fb10e6d870c0
-          test "$(git rev-parse HEAD^{tree})" = 61ba9e5ae9f320446b9cfb9308ab223c71035fac
-          test "$(git diff --name-only --no-renames cf9b80e6b9f4457a9b8167623ea1fb10e6d870c0 "$GITHUB_SHA")" = .github/workflows/source-admission-bytecode-qualification.yml
-          test -z "$(git status --porcelain --untracked-files=all)"
-          python3 -B - <<'PY'
-          import os,stat
-          from pathlib import Path
-          target=Path(os.environ["CORPUS_EVIDENCE"])
-          target.parent.mkdir(mode=0o700,exist_ok=True)
-          info=target.parent.lstat()
-          if not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.geteuid() or stat.S_IMODE(info.st_mode) not in (0o700,0o2700):
-              raise SystemExit("evidence parent is not a private owned directory")
-          target.mkdir(mode=0o700)
-          PY
-          git show "$GITHUB_SHA:.github/workflows/source-admission-bytecode-qualification.yml" > "$CORPUS_EVIDENCE/executed-workflow.yml"
-          git archive --format=tar HEAD tools/sources tools/product/build_workspace_retention.py tools/product/repository_inputs.py tools/admit_source_guard.py tools/dependencies/chess_tools.py tools/dependencies/git_checkout.py tools/host/run-exclusive.sh dependencies/lock.json dependencies/tree-sitter-grammars.lock.json .github/workflows/product-path.yml .github/workflows/stockfish-corpus-acceptance.yml > "$CORPUS_EVIDENCE/candidate-source.tar"
-          cat > "$CORPUS_EVIDENCE/qualify.py" <<'PY'
-          import hashlib, json, os, subprocess, sys, time
-          from pathlib import Path
-          sys.path.insert(0,str(Path.cwd()/"tools"))
-          from sources import stockfish_corpus_acceptance as owner
-          
-          out=Path(os.environ["CORPUS_EVIDENCE"])
-          base="6347401133605adada0b3ebad06ef0051082e76a"
-          package="1117fa6aca97a6f1a0f49341cc95fca4281ad3dbaecc31aec2b0f4abf81a2d55"
-          aggregate="da9e8e07115f770cf0d17f24b31b0fd475a2df1d36e87b3c57f7eec496e2c11b"
-          candidate="cf9b80e6b9f4457a9b8167623ea1fb10e6d870c0"
-          began=time.monotonic()
-          report={"schema":"laplace.installed-full-source-operation/v1","status":"running",
-                  "candidate_commit":candidate,"installed_repository_commit":base,
-                  "installed_package_id":package,"expected_activation_aggregate_sha256":aggregate,
-                  "driver_scope":"candidate observer and orchestration; unchanged installed admission engine",
-                  "source_estate":os.environ["LAPLACE_SOURCE_ESTATE_ROOT"],
-                  "source_scope":"complete locked Stockfish Git tree, all 119 tracked files; no subset",
-                  "owner_timeout_seconds":5400,"native_engine_rebuilt":False,
-                  "service_restarted":False,"completed_phases":[]}
-          before=None
-          def save():
-              report["elapsed_seconds"]=time.monotonic()-began
-              owner.save(out/"operation-result.json",report)
-          def checked_activation(name):
-              value=owner.observe_activation(base,out/(name+".json"))
-              owner.require(value["package_id"]==package,"installed package differs from selected1117")
-              owner.require(any(item["document"].get("result_sha256")==aggregate
-                                for item in value["runner_receipts"]),"installed activation aggregate differs")
+          python3 - <<'PY'
+          import hashlib, io, json, os, pathlib, urllib.error, urllib.parse, urllib.request, zipfile
+          API = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
+          EXPECTED_HEAD = "36964101d350cf05d58fbfe4c770fee9d5c41607"
+          EXPECTED_ZIP = "af96d0ded656252c97c189c92cfeb4665dcd955151fe2adb983e23a2eb5bde2f"
+          EXPECTED_RESULT = "d76789e3fb4714dcecfebdbfa6a6e7bf4d14ef3eb841fe477ba81d68f1551aca"
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, fp, code, msg, headers, newurl):
+                  return None
+          opener = urllib.request.build_opener(NoRedirect)
+          def bounded(response, maximum):
+              value = response.read(maximum + 1)
+              if len(value) > maximum:
+                  raise RuntimeError("response exceeds diagnostic bound")
               return value
-          def command(name,args,seconds):
-              report["active_phase"]=name
-              save()
-              with (out/(name+".stdout")).open("xb") as stdout,(out/(name+".stderr")).open("xb") as stderr:
-                  result=subprocess.run(args,stdout=stdout,stderr=stderr,timeout=seconds,check=False)
-                  stdout.flush();stderr.flush();os.fsync(stdout.fileno());os.fsync(stderr.fileno())
-              report[name+"_exit_code"]=result.returncode
-              owner.require(result.returncode==0,name+" failed; exact stdout/stderr and owner receipt are retained")
-              report["completed_phases"].append(name)
-              save()
-          save()
+          def api(path):
+              return urllib.request.Request(API + path, headers={
+                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28"})
+          with opener.open(api("/actions/runs/35141112986"), timeout=30) as response:
+              run = json.loads(bounded(response, 1048576))
+          if (run["id"] != 35141112986 or run["head_sha"] != EXPECTED_HEAD
+                  or run["head_branch"] != "verify/source-admission-bytecode-20260916"
+                  or run["status"] != "completed" or run["conclusion"] != "failure"):
+              raise RuntimeError("retained run identity or terminal result differs")
+          with opener.open(api("/actions/artifacts/10465506726"), timeout=30) as response:
+              artifact = json.loads(bounded(response, 1048576))
+          if (artifact["id"] != 10465506726 or artifact["expired"]
+                  or artifact["name"] != "installed-full-stockfish-source-35141112986-1"
+                  or artifact["size_in_bytes"] != 997023
+                  or artifact["workflow_run"]["id"] != 35141112986
+                  or artifact["workflow_run"]["head_sha"] != EXPECTED_HEAD
+                  or artifact.get("digest") != "sha256:" + EXPECTED_ZIP):
+              raise RuntimeError("retained artifact identity differs")
           try:
-              before=checked_activation("activation-before")
-              report["completed_phases"].append("activation-before")
-              # Extract and run the exact already-qualified four-row predicate.
-              workflow=Path(".github/workflows/product-path.yml").read_text()
-              block=workflow.split("\n  dev-bat-live-substrate:",1)[1]
-              opening='--arg package_id "$package_id" \''
-              predicate=block.split(opening,1)[1].split('\' "$result" >/dev/null',1)[0]
-              (out/"live-substrate-predicate.jq").write_text(predicate)
-              command("live-substrate",[str(Path(before["release"])/"bin/laplace-live-substrate"),"Aé中Ω"],30)
-              command("live-substrate-predicate",["jq","-e","--arg","package_id",package,predicate,
-                                               str(out/"live-substrate.stdout")],10)
-              report["live_substrate_result_sha256"]=owner.sha(out/"live-substrate.stdout")
-              raw=os.environ.get("STOCKFISH_SOURCE_OVERRIDE","").strip()
-              if raw:
-                  os.environ["LAPLACE_STOCKFISH_SOURCE"]=raw
-              selection=out/"stockfish-source-selection.json"
-              command("source-selection",[sys.executable,"-B","tools/dependencies/chess_tools.py",
-                                         "select-source","--selection-output",str(selection)],180)
-              command("complete-source-admission-and-repeat",
-                      [sys.executable,"-B","tools/sources/stockfish_corpus_acceptance.py",
-                       "--source-selection",str(selection),"--expected-sha",base,
-                       "--output",str(out/"corpus"),"--timeout","5400"],5700)
-              report["status"]="passed"
-          except Exception as error:
-              report.update(status="failed",error={"type":type(error).__module__+"."+type(error).__name__,
-                                                  "message":str(error)[:1600]})
-          finally:
-              if before is not None:
-                  try:
-                      after=checked_activation("activation-after")
-                      owner.require(owner.stable_activation(before)==owner.stable_activation(after),
-                                    "activated product changed during source acceptance")
-                      report["activation_unchanged"]=True
-                      report["completed_phases"].append("activation-after")
-                  except Exception as error:
-                      report.update(status="failed",activation_after_error={
-                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:1600]})
-              partial=out/"corpus/result.json"
-              if partial.is_file() and not partial.is_symlink():
-                  try:
-                      value=owner.load(partial)
-                      report["corpus"]={key:value.get(key) for key in
-                          ("status","canonical_corpus_admission_completed","zero_amplification_repeat_proven",
-                           "database_mutation_outcome")}
-                      report["corpus"]["error"]=str(value.get("error",""))[:1600]
-                      report["corpus"]["receipt_sha256"]=owner.sha(partial)
-                  except Exception as error:
-                      report.update(status="failed",retained_receipt_error={
-                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:1600]})
-              if not report.get("activation_unchanged"):
-                  report["status"]="failed"
-              save()
-          raise SystemExit(0 if report["status"]=="passed" else 1)
-          
+              opener.open(api("/actions/artifacts/10465506726/zip"), timeout=30)
+              raise RuntimeError("archive endpoint did not return its expected redirect")
+          except urllib.error.HTTPError as error:
+              if error.code != 302:
+                  raise
+              target = error.headers["Location"]
+              error.close()
+          parsed = urllib.parse.urlparse(target)
+          if (parsed.scheme != "https" or parsed.username or parsed.password
+                  or not parsed.hostname
+                  or not (parsed.hostname.endswith(".blob.core.windows.net")
+                          or parsed.hostname.endswith(".actions.githubusercontent.com"))):
+              raise RuntimeError("artifact redirect host is not the supported storage owner")
+          with opener.open(urllib.request.Request(target), timeout=30) as response:
+              raw = bounded(response, 2097152)
+          if len(raw) != 997023 or hashlib.sha256(raw).hexdigest() != EXPECTED_ZIP:
+              raise RuntimeError("archive digest or length differs")
+          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+              entries = archive.infolist()
+              names = [entry.filename for entry in entries]
+              if len(entries) != 122 or len(set(names)) != len(names):
+                  raise RuntimeError("archive member count or uniqueness differs")
+              if sum(entry.file_size for entry in entries) > 67108864:
+                  raise RuntimeError("archive expansion exceeds diagnostic bound")
+              for entry in entries:
+                  path = pathlib.PurePosixPath(entry.filename)
+                  if (path.is_absolute() or ".." in path.parts or entry.flag_bits & 1
+                          or entry.file_size > 2097152):
+                      raise RuntimeError("invalid archive member")
+              result_raw = archive.read("corpus/result.json")
+              if hashlib.sha256(result_raw).hexdigest() != EXPECTED_RESULT:
+                  raise RuntimeError("retained corpus result digest differs")
+              result = json.loads(result_raw)
+              if (result["status"] != "failed"
+                      or result["expected_repository_commit"] != "6347401133605adada0b3ebad06ef0051082e76a"
+                      or result["database_mutation_outcome"] != "admission-not-submitted"
+                      or result["canonical_corpus_admission_completed"] is not False):
+                  raise RuntimeError("retained failure scope differs")
+              selected = [entry for entry in result["commands"] if entry["name"] == "grammar-qualification"]
+              if len(selected) != 1 or selected[0]["status"] != "failed" or selected[0]["exit_code"] == 0:
+                  raise RuntimeError("grammar failure receipt differs")
+              projection = {"name": selected[0]["name"], "status": selected[0]["status"],
+                            "exit_code": selected[0]["exit_code"]}
+              for stream in ("stdout","stderr"):
+                  name = "corpus/grammar-qualification." + stream + ".log"
+                  entry = archive.getinfo(name)
+                  if entry.file_size > 131072:
+                      raise RuntimeError("grammar diagnostic exceeds declared bound")
+                  raw = archive.read(name)
+                  digest = hashlib.sha256(raw).hexdigest()
+                  if digest != selected[0][stream+"_sha256"]:
+                      raise RuntimeError("grammar stream digest differs")
+                  projection[stream+"_sha256"] = digest
+                  projection[stream+"_bytes"] = len(raw)
+                  projection[stream+"_tail"] = raw.decode("utf-8", errors="replace")[-12000:]
+              print(json.dumps({
+                  "schema": "laplace.retained-grammar-failure-readback/v1",
+                  "run_id": 35141112986, "head_sha": EXPECTED_HEAD,
+                  "artifact_id": 10465506726, "archive_sha256": EXPECTED_ZIP,
+                  "result_sha256": EXPECTED_RESULT, "grammar_failure": projection,
+                  "members": [{"name": x.filename, "bytes": x.file_size} for x in entries
+                              if x.filename.startswith("corpus/") and
+                              ("qualification" in x.filename or x.filename.endswith("result.json"))],
+                  "host_actions": False}, sort_keys=True))
           PY
-          python3 -B - "$CORPUS_EVIDENCE/qualify.py" <<'PY'
-          import ast,sys
-          from pathlib import Path
-          ast.parse(Path(sys.argv[1]).read_text())
-          PY
-      - name: Execute the existing complete source owner under the shared host lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          set +e
-          timeout --signal=TERM --kill-after=20s 6600s \
-            bash tools/host/run-exclusive.sh \
-            python3 -B "$CORPUS_EVIDENCE/qualify.py" \
-            > "$CORPUS_EVIDENCE/operation.stdout" \
-            2> "$CORPUS_EVIDENCE/operation.stderr"
-          status=$?
-          set -e
-          printf '%s\n' "CORPUS_OPERATION_EXIT=$status" >> "$GITHUB_ENV"
-          exit "$status"
-      - name: Print bounded phase and exception evidence
-        if: always()
-        shell: bash
-        run: |
-          python3 -B - <<'PY'
-          import json,os
-          from pathlib import Path
-          path=Path(os.environ["CORPUS_EVIDENCE"])/"operation-result.json"
-          result={"operation_exit":os.environ.get("CORPUS_OPERATION_EXIT"),
-                  "operation_result_present":path.is_file()}
-          if path.is_file():
-              if path.is_symlink() or path.stat().st_size>131072:
-                  raise SystemExit("operation result is linked or oversized")
-              value=json.loads(path.read_text())
-              for key in ("schema","status","candidate_commit","installed_repository_commit",
-                          "installed_package_id","expected_activation_aggregate_sha256","driver_scope",
-                          "source_estate","source_scope","owner_timeout_seconds","native_engine_rebuilt",
-                          "service_restarted","completed_phases","active_phase","activation_unchanged",
-                          "live_substrate_result_sha256","elapsed_seconds","error","activation_after_error",
-                          "retained_receipt_error","corpus"):
-                  if key in value:
-                      result[key]=value[key]
-          print(json.dumps(result,sort_keys=True))
-          PY
-      - name: Retain successful or partial exact owner evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: installed-full-stockfish-source-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.CORPUS_EVIDENCE }}/
-          if-no-files-found: warn
-          retention-days: 30
-          compression-level: 6
