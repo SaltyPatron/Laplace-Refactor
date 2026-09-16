@@ -1,0 +1,51 @@
+name: Verify converged activation receipt observation
+
+on:
+  push:
+    branches:
+      - verify/converged-activation-receipts-20260916
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Verify exact reviewed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess
+          expected = {
+              "tools/sources/stockfish_corpus_acceptance.py": "ff0c3264a4d9f615d54e827a19e6e0b1066e4b32",
+              "tests/stockfish_corpus_acceptance_tests.py": "b83e48c918da95df6dfb77bb1512dcd2ff6d2776",
+          }
+          base = "419cbcb4fd4c569706ee3c253ab4775f5fcaebad"
+          changed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", base, "HEAD"], text=True).splitlines())
+          if changed != set(expected) | {".github/workflows/verify-converged-activation-receipts.yml"}:
+              raise RuntimeError("qualifier includes unreviewed leaves")
+          for path, digest in expected.items():
+              actual = subprocess.check_output(["git", "hash-object", path], text=True).strip()
+              if actual != digest:
+                  raise RuntimeError("reviewed receipt candidate differs: " + path)
+          PY
+      - name: Execute all 52 source acceptance controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/stockfish_corpus_acceptance_tests.py -v 2>&1 | tee "$RUNNER_TEMP/converged-activation-receipt-controls.log"
+      - name: Retain actual hosted control output
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: converged-activation-receipt-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/converged-activation-receipt-controls.log
+          if-no-files-found: error
+          retention-days: 7
