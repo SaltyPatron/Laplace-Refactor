@@ -11,7 +11,6 @@ jobs:
     timeout-minutes: 5
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      OBSERVATION: ${{ runner.temp }}/postgresql-service-capability-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -20,6 +19,8 @@ jobs:
           persist-credentials: false
       - name: Read only the exact PostgreSQL unit and declared lifecycle authority
         shell: bash
+        env:
+          OBSERVATION: ${{ runner.temp }}/postgresql-service-capability-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = 9dfd692e6a848e015de212b79898fc759a890d1e
@@ -152,6 +153,6 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: postgresql-service-capability-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.OBSERVATION }}/
+          path: ${{ runner.temp }}/postgresql-service-capability-${{ github.run_id }}-${{ github.run_attempt }}/
           if-no-files-found: error
           retention-days: 30
