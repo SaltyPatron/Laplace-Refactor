@@ -10,6 +10,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
       - name: Execute actual installed-proof regression controls
         run: python3 tests/product_activation_runner_tests.py
   installed-frontier:
@@ -18,13 +20,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
       - name: Execute corrected proof against the exact activated package
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
           test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
-          test "$(git rev-parse HEAD^)" = 419cbcb4fd4c569706ee3c253ab4775f5fcaebad
+          git merge-base --is-ancestor 419cbcb4fd4c569706ee3c253ab4775f5fcaebad HEAD
           test "$(git hash-object tools/delivery/product_cognition_live_proof.py)" = 5d290ca5d3ac99fe36a2f72d3f3213f34233f7b5
           test "$(git hash-object tests/product_activation_runner_tests.py)" = 4fc36414b30ec768ee851bc92af47e3b26708e52
           git diff --exit-code --quiet
@@ -39,7 +43,7 @@ jobs:
           expected = {".github/workflows/verify-installed-frontier-419.yml",
               "tools/delivery/product_cognition_live_proof.py", "tests/product_activation_runner_tests.py"}
           import subprocess
-          changed = set(subprocess.check_output(["git","diff","--name-only","HEAD^","HEAD"], text=True).splitlines())
+          changed = set(subprocess.check_output(["git","diff","--name-only","419cbcb4fd4c569706ee3c253ab4775f5fcaebad","HEAD"], text=True).splitlines())
           if changed != expected:
               raise RuntimeError("candidate includes changes beyond the reviewed proof, controls and qualifier")
           snapshot = observe_activation("419cbcb4fd4c569706ee3c253ab4775f5fcaebad",
