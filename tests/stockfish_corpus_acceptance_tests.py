@@ -474,15 +474,18 @@ class NativeReceiptEstateTests(unittest.TestCase):
         self.highway=highway;self.write_generation()
         original=self.aggregate_path.read_bytes()
         before=self.observe()
-        self.assertEqual(self.converge()['migration_count'],1)
+        # Construct an actual partial migration explicitly. The ordinary runner
+        # now converges both Unicode and committed revalidation in one call.
+        moved=[]
+        subject.receipt_estate.migrate_singleton_product_receipt(
+            self.root/'unicode-product-activation.json', self.root/'cluster-activation',
+            'unicode-product-activation.json',os.geteuid(),os.getegid(),False,moved)
+        self.assertEqual(len(moved),1)
         mixed=self.observe()
         self.assertEqual(mixed[:2],before[:2])
         self.assertEqual(mixed[3]['highway'],str(self.root/self.highway_name))
-        moved=[]
-        subject.receipt_estate.migrate_singleton_product_receipt(self.root/self.highway_name,
-            self.root/'cluster-activation',self.highway_name,os.geteuid(),os.getegid(),False,moved)
+        self.assertEqual(self.converge()['migration_count'],1)
         after=self.observe()
-        self.assertEqual(len(moved),1)
         self.assertEqual(after[:2],before[:2])
         self.assertEqual(after[3]['highway'],str(self.root/'cluster-activation'/self.package/self.highway_name))
         self.assertEqual(after[2][0][1],self.aggregate)

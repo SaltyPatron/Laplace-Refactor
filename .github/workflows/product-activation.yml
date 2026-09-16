@@ -608,7 +608,7 @@ jobs:
           jq -e '
             .status == 0 and
             .mode == "auto" and
-            .execution_route == "native-conversation" and
+            .execution_route == "automatic-firmware" and
             .turn_ordinal == 0 and
             .continued == false and
             (.checkpoint_hex | type == "string" and length > 0) and
@@ -621,7 +621,7 @@ jobs:
           jq -e '
             .status == 0 and
             .mode == "auto" and
-            .execution_route == "native-conversation" and
+            .execution_route == "automatic-firmware" and
             .turn_ordinal == 1 and
             .continued == true and
             (.checkpoint_hex | type == "string" and length > 0) and

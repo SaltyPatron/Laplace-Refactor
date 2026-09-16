@@ -473,6 +473,73 @@ class ProductActivationRunnerTests(unittest.TestCase):
                     self.assertEqual(result["execution"]["native_status"], 2)
                     self.assertEqual(result["checkpoint_hex"], "")
 
+
+    @unittest.skipUnless(shutil.which("jq"), "jq is required to execute delivery result predicates")
+    def test_installed_continuation_predicates_accept_actual_service_route(self) -> None:
+        service = load_module("tools/cognition_service.py")
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        package = "45" * 32
+        program = "46" * 32
+        identities = {key: "47" * 32 for key in (
+            "source_epoch", "identity_epoch", "geometry_epoch", "evidence_epoch",
+            "dependency_epoch", "database_epoch", "request_fingerprint", "package_epoch",
+            "numeric_epoch", "authority_fingerprint",
+        )}
+        runtime = {"unicode_present": True, "highway_present": True,
+                   "perfcache_epoch": "48" * 32, "numeric_epoch": "49" * 32}
+        firmware = {"program_id": program, "image_hex": "abcd", "mode": "auto"}
+        initial = {"session_fingerprint": "50" * 32, "discourse_id": "51" * 32,
+                   "turn_ordinal": 0}
+        continued = {**initial, "turn_ordinal": 1, "previous_package_id": package,
+                     "previous_program_id": program, "previous_checkpoint_hex": "abcd",
+                     "previous_checkpoint_fingerprint": "52" * 32}
+        for name, session in (("first", initial), ("second", continued)):
+            match = re.search(
+                r"jq -e '\n([^']*)\n          ' <<<\"\$" + name + r"\"", workflow)
+            self.assertIsNotNone(match, name)
+            assert match is not None
+            predicate = match.group(1)
+            native = {"status": 0, "native_status": 0, "output": "\\x41",
+                      "checkpoint": "\\xabcd",
+                      "next_checkpoint_fingerprint": "\\x" + ("52" if name == "first" else "53") * 32,
+                      "execution_receipt_id": "\\x" + "54" * 32}
+            # Exercise the actual service SQL/response builders; only the package,
+            # active database state, compiler and SQL transport are controlled.
+            with mock.patch.object(service, "selected_product", return_value=(package, Path("/selected"))), \
+                 mock.patch.object(service, "compile_firmware", return_value=firmware), \
+                 mock.patch.object(service, "load_identities", return_value=identities), \
+                 mock.patch.object(service, "active_runtime_state", return_value=runtime), \
+                 mock.patch.object(service, "run_psql", return_value=native) as execute:
+                response = service.execute_cognition("AA", None, session)
+            sql = execute.call_args.args[1]
+            self.assertIn("FROM laplace.cognition_firmware_execute_product(", sql)
+            self.assertIn("decode('abcd','hex')", sql)
+            self.assertEqual(response["execution_route"], "automatic-firmware")
+            self.assertEqual(response["output_utf8"], "A")
+
+            def accepted(document):
+                result = subprocess.run(["jq", "-e", predicate], input=json.dumps(document),
+                                        text=True, capture_output=True, check=False)
+                return result.returncode == 0
+
+            self.assertTrue(accepted(response), name)
+            for field, value in (
+                ("status", 9), ("mode", "explicit"),
+                ("execution_route", "native-conversation"),
+                ("execution_route", "explicit-firmware"),
+                ("turn_ordinal", 1 - session["turn_ordinal"]),
+                ("continued", name == "first"),
+                ("checkpoint_hex", ""), ("next_checkpoint_fingerprint", "malformed"),
+            ):
+                with self.subTest(turn=name, field=field, invalid=value):
+                    self.assertFalse(accepted({**response, field: value}))
+            missing_receipt = copy.deepcopy(response)
+            missing_receipt["execution"].pop("execution_receipt_id")
+            self.assertFalse(accepted(missing_receipt))
+            malformed_receipt = copy.deepcopy(response)
+            malformed_receipt["execution"]["execution_receipt_id"] = "malformed"
+            self.assertFalse(accepted(malformed_receipt))
+
     @unittest.skipUnless(shutil.which("jq"), "jq is required to execute delivery result predicates")
     def test_workflow_and_setup_accept_only_distinct_complete_revalidation_variant(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
