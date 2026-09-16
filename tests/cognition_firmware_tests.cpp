@@ -237,6 +237,18 @@ protected:
     }
 };
 TEST_F(CognitionFirmware, WholeObservationBindsNativeGoalEmitsAndFeedsBack) {
+    // A found path is only an upper bound when the selected candidate boundary
+    // has not been declared complete. This is the installed request's failure
+    // mode: no realization or checkpoint may escape that incomplete execution.
+    request.boundary_flags=0U;
+    Result incomplete;
+    ASSERT_EQ(Run(incomplete),LAPLACE_COGNITION_FIRMWARE_INCOMPLETE);
+    EXPECT_EQ(error.step_index,0U);
+    EXPECT_EQ(error.native_status,static_cast<std::uint32_t>(LAPLACE_COGNITION_SEMANTIC_ACT_INCOMPLETE));
+    EXPECT_EQ(incomplete.value,nullptr);
+    EXPECT_GT(world.calls,0U);
+    EXPECT_EQ(world.realization_calls,0U);
+    request.boundary_flags=LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE;
     Result result;
     ASSERT_EQ(Run(result),LAPLACE_COGNITION_FIRMWARE_OK) << error.step_index << ":" << error.native_status;
     EXPECT_EQ(result.output(),"AB");
@@ -354,6 +366,15 @@ TEST_F(CognitionFirmware, OutputAndMemoryBoundsRejectWithoutPublishedPrefix) {
     EXPECT_EQ(Run(result),LAPLACE_COGNITION_FIRMWARE_LIMIT);EXPECT_EQ(result.value,nullptr);
 }
 TEST_F(CognitionFirmware, ExternalProviderWorkspaceIsReservedBeforeExecution) {
+    // Actual service request limits must leave room for both provider and native
+    // state. Its former provider grant consumed the entire 1 GiB context grant.
+    context.resource_grant.memory_bytes=UINT64_C(1073741824);
+    request.search_budget={4096,16384,4096,2048,268435456,4096,4096,4096,16,1,128,1024};
+    request.forward_limits={32,4096,4096,4096,4096,268435456,4096,4096,256,256};
+    request.materialization={4096,65536,1048576,64,LAPLACE_COGNITION_MATERIALIZATION_VERSION};
+    request.maximum_output_bytes=1048576;
+    request.maximum_checkpoint_bytes=8388608;
+    Admit();
     Result exhausted, accepted;
     EXPECT_EQ(laplace_cognition_firmware_execute_with_provider_workspace(
         &program,&request,&context,admission,nullptr,0,&provider,1,&realizer,&materializer,
@@ -362,7 +383,7 @@ TEST_F(CognitionFirmware, ExternalProviderWorkspaceIsReservedBeforeExecution) {
     EXPECT_EQ(world.calls,0U); EXPECT_EQ(exhausted.value,nullptr);
     ASSERT_EQ(laplace_cognition_firmware_execute_with_provider_workspace(
         &program,&request,&context,admission,nullptr,0,&provider,1,&realizer,&materializer,
-        nullptr,nullptr,4096U,&accepted.value,&error), LAPLACE_COGNITION_FIRMWARE_OK);
+        nullptr,nullptr,UINT64_C(268435456),&accepted.value,&error), LAPLACE_COGNITION_FIRMWARE_OK);
     EXPECT_EQ(accepted.output(),"AB");
 }
 TEST_F(CognitionFirmware, ProviderWorkspaceOverflowCannotWrapIntoAvailableMemory) {

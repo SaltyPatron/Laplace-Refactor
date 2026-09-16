@@ -689,6 +689,20 @@ TEST(CognitionPromptStructuralProvider, CapacityFailurePublishesNoPrefixOrFalseA
     EXPECT_EQ(empty.status, 0);
     EXPECT_TRUE(empty.values.empty());
     EXPECT_EQ(empty.usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED);
+
+    // This prompt has a separately witnessed structural span in addition to its
+    // canonical child frontier. Refuse either frontier's truncated contribution.
+    PromptIndexFixture structured("abc");
+    const auto structured_binding = Binding(structured.view.trunk_entity_id,
+        LAPLACE_OBSERVATION_QUERY_CONSTITUENT);
+    for (const std::size_t capacity : {1U, 3U}) {
+        const auto limited = Query(structured.provider, structured_binding,
+            {structured.view.trunk_entity_id}, 0U, capacity);
+        EXPECT_EQ(limited.status, 0);
+        EXPECT_TRUE(limited.values.empty());
+        EXPECT_EQ(limited.usage.limiting_disposition,
+            LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED);
+    }
 }
 
 TEST(CognitionPromptStructuralProvider, BindingIdentityAndEmptyBatchesAreValidated) {

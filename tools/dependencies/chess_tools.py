@@ -278,13 +278,26 @@ def update_source(source: Path, entry: dict, offline: bool) -> None:
     verify_source(source, entry)
 
 
+def tool_source(arguments: argparse.Namespace, name: str) -> Path:
+    explicit = getattr(arguments, "stockfish_source", None) if name == "stockfish" else None
+    if explicit is not None:
+        # An operator-selected checkout is already their source. Do not silently
+        # initialize another repository after a typo or reshape its directory.
+        source = explicit.resolve(strict=True)
+        require(source.is_dir() and (source / ".git").exists(),
+                f"selected Stockfish source is not an existing Git checkout: {explicit}")
+        return source
+    require(arguments.source_root is not None, "default source estate is not selected")
+    return arguments.source_root / name
+
+
 def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) -> dict:
     locked = json_read(ROOT / "dependencies/lock.json")["dependencies"]
     names = [arguments.tool] if arguments.tool else ["stockfish", "cutechess"]
     result = {"schema": "laplace.chess-source-build/v1", "product_chess_activated": False, "tools": {}}
     for name in names:
         entry = locked[name]
-        source = arguments.source_root / name
+        source = tool_source(arguments, name)
         update_source(source, entry, arguments.offline)
         work = arguments.build_root / name / entry["revision"]
         work.mkdir(parents=True, exist_ok=True)
@@ -479,6 +492,9 @@ def main() -> int:
     parser.add_argument("--prefix", type=Path, default=Path("/opt/laplace/tools/chess"))
     parser.add_argument("--cache", type=Path, default=Path("/opt/laplace/external/chess-downloads"))
     parser.add_argument("--source-root", type=Path, default=Path(os.environ["LAPLACE_VERIFIED_SOURCE_ROOT"]) if os.environ.get("LAPLACE_VERIFIED_SOURCE_ROOT") else None)
+    parser.add_argument("--stockfish-source", type=Path,
+                        default=Path(os.environ["LAPLACE_STOCKFISH_SOURCE"].strip()) if os.environ.get("LAPLACE_STOCKFISH_SOURCE", "").strip() else None,
+                        help="build this existing official Stockfish Git checkout directly (or LAPLACE_STOCKFISH_SOURCE); overrides source-root/stockfish")
     parser.add_argument("--build-root", type=Path, default=Path("/build/laplace/build/chess"))
     parser.add_argument("--qt-prefix", type=Path, help="use this compatible Qt SDK instead of acquiring the selected SDK")
     available_cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
@@ -510,9 +526,10 @@ def main() -> int:
             require(all(item["current"] for item in report["upstream"].values()), "newer upstream stable release exists; update exact release and artifact locks before creating a new experiment generation: " + json.dumps(report["upstream"]))
         if arguments.action == "install":
             require(arguments.jobs > 0, "--jobs must be positive")
-            if arguments.source_root is None:
+            if arguments.source_root is None and not (arguments.tool == "stockfish" and arguments.stockfish_source is not None):
                 arguments.source_root = Path(subprocess.check_output([sys.executable, str(ROOT / "tools/dependencies/source_estate.py")], text=True).strip())
-            arguments.source_root = arguments.source_root.resolve()
+            if arguments.source_root is not None:
+                arguments.source_root = arguments.source_root.resolve()
             arguments.build_root = arguments.build_root.resolve()
             report["installation"] = build_tools(arguments, selected, artifacts)
         elif arguments.action == "check":

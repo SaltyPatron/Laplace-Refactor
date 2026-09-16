@@ -195,11 +195,11 @@ int EnumerateCompositeCandidates(
      * More typed candidates existed than the declared transition batch can hold.
      * Never publish the prefix as though it were a complete cross-plane set: the
      * omitted provider could change path ordering, completion, or the selected
-     * act. UNKNOWN is the existing typed bounded-search disposition for this case.
+     * act. Preserve this resource exhaustion through any enclosing provider set.
      */
     if (aggregate_capacity_exceeded) {
         *candidate_count = 0U;
-        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
         return 0;
     }
 
