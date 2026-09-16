@@ -660,7 +660,11 @@ class WorkflowTests(unittest.TestCase):
                             and 'if' not in s
                             for s in hosted['jobs']['requirements']['steps']))
         acceptance=yaml.safe_load((ROOT/'.github/workflows/stockfish-corpus-acceptance.yml').read_text())
-        steps=acceptance['jobs']['installed-source-acceptance']['steps']
+        job=acceptance['jobs']['installed-source-acceptance']
+        self.assertEqual(job['env']['LAPLACE_SOURCE_ESTATE_ROOT'],'/opt/laplace/sources')
+        setup=(ROOT/'scripts/setup-host.sh').read_text()
+        self.assertIn('    /opt/laplace/sources \\\n',setup)
+        steps=job['steps']
         executing=next(s for s in steps if 'stockfish_corpus_acceptance.py' in s.get('run',''))
         self.assertIn('tools/host/run-exclusive.sh',executing['shell'])
         self.assertIn('--expected-sha "$EXPECTED_SHA"',executing['run'])
@@ -694,6 +698,95 @@ class WorkflowTests(unittest.TestCase):
                 self.assertIn('--source-selection "$selection"',commands)
                 self.assertIn("shutil.copyfile(selection, output / 'stockfish-source-selection.json')",commands)
 
+
+
+
+class ConfiguredSourceEstateTests(unittest.TestCase):
+    def test_real_frozen_git_bytes_and_child_guard_use_the_explicit_estate(self):
+        # Filesystem and child-process coverage only; no database admission is claimed.
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            root=Path(directory).resolve()
+            old=root/'operator-data';old.mkdir();old.chmod(0o555)
+            estate=root/'runner-owned-sources';estate.mkdir(mode=0o750)
+            checkout=root/'upstream';checkout.mkdir()
+            (checkout/'src').mkdir()
+            content={'src/main.cpp':b'int main() { return 0; }\n',
+                     'README.md':'Full tracked source: \u03b1\n'.encode('utf-8'),
+                     'COPYING':b'Fixture license observation\n'}
+            for relative,data in content.items():
+                (checkout/relative).write_bytes(data)
+            def git(*arguments):
+                return subprocess.check_output(['git','-C',str(checkout),*arguments],
+                                               stderr=subprocess.PIPE).decode().strip()
+            git('init','--quiet')
+            git('add','.')
+            git('-c','user.name=Estate Fixture','-c','user.email=estate@example.invalid',
+                'commit','--quiet','-m','actual tracked fixture')
+            upstream='https://example.invalid/estate-fixture'
+            git('remote','add','origin',upstream)
+            manifest,files=subject.verified_git.observe(checkout,upstream,git('rev-parse','HEAD'))
+            child_script = (
+                "import hashlib,importlib.util,json,sys\n"
+                "from pathlib import Path\n"
+                "spec=importlib.util.spec_from_file_location('actual_guard',sys.argv[1])\n"
+                "guard=importlib.util.module_from_spec(spec);spec.loader.exec_module(guard)\n"
+                "args=guard.guarded_arguments(['laplace-admit-source','verified-git-code',sys.argv[2]])\n"
+                "manifest=Path(sys.argv[3]);document=json.loads(manifest.read_text())\n"
+                "source=Path(args[2])\n"
+                "print(json.dumps({'scope':'actual frozen files and child guard; no SQL',"
+                "'estate':str(guard.configured_estate_root()),'source':str(source),"
+                "'unicode_argument':'--unicode-root' in args,"
+                "'manifest_sha256':hashlib.sha256(manifest.read_bytes()).hexdigest(),"
+                "'files':{item['path']:hashlib.sha256((source/item['path']).read_bytes()).hexdigest()"
+                " for item in document['artifacts']}}))\n")
+            with mock.patch.dict(os.environ,{'LAPLACE_SOURCE_ESTATE_ROOT':str(estate)}):
+                selected=subject.admit_source_guard.configured_estate_root()
+                self.assertEqual(selected,estate)
+                frozen=selected/'acceptance'/'stockfish'/'fixture'
+                manifest_path=subject.verified_git.freeze(manifest,files,frozen)
+                self.assertEqual(subject.load(manifest_path),manifest)
+                self.assertFalse(manifest['canonical_admission_completed'])
+                self.assertEqual(set(files),set(content))
+                for relative,data in content.items():
+                    self.assertEqual((frozen/'files'/relative).read_bytes(),data)
+                    self.assertEqual((frozen/'files'/relative).stat().st_mode & 0o777,0o440)
+                output=root/'child-evidence';output.mkdir()
+                command=[sys.executable,'-B','-c',child_script,
+                         str(ROOT/'tools/admit_source_guard.py'),
+                         str(frozen/'files'),str(manifest_path)]
+                report={'commands':[]}
+                result=subject.run_command(command,'estate-read',output,time.monotonic()+15,report)
+                self.assertEqual(result['estate'],str(estate))
+                self.assertEqual(result['source'],str(frozen/'files'))
+                self.assertFalse(result['unicode_argument'])
+                self.assertEqual(result['manifest_sha256'],subject.sha(manifest_path))
+                self.assertEqual(result['files'],
+                                 {name:hashlib.sha256(data).hexdigest() for name,data in content.items()})
+                self.assertEqual(report['commands'][0]['exit_code'],0)
+                escape=estate/'outside-checkout';escape.symlink_to(checkout,target_is_directory=True)
+                escaped=list(command);escaped[-2]=str(escape)
+                with self.assertRaisesRegex(ValueError,'failed; exact command'):
+                    subject.run_command(escaped,'estate-escape',output,time.monotonic()+15,report)
+                self.assertIn('outside the configured source estate',
+                              (output/'estate-escape.stderr.log').read_text())
+            self.assertEqual(list(old.iterdir()),[])
+            self.assertEqual(old.stat().st_mode & 0o777,0o555)
+            self.assertEqual(git('status','--porcelain'),'')
+            old.chmod(0o755)
+
+    def test_invalid_explicit_estate_refuses_without_default_fallback(self):
+        guard=subject.admit_source_guard
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            root=Path(directory).resolve()
+            fallback=root/'available-default';fallback.mkdir()
+            ordinary_file=root/'ordinary-file';ordinary_file.write_bytes(b'not a source directory')
+            with mock.patch.object(guard,'DEFAULT_SOURCE_ESTATE_ROOT',fallback):
+                for selected in ('relative-estate',str(root/'missing'),str(ordinary_file)):
+                    with self.subTest(selected=selected), \
+                            mock.patch.dict(os.environ,{'LAPLACE_SOURCE_ESTATE_ROOT':selected}), \
+                            self.assertRaises(guard.AdmissionGuardError):
+                        guard.configured_estate_root()
+            self.assertEqual(list(fallback.iterdir()),[])
 
 
 class ChildCommandTests(unittest.TestCase):
