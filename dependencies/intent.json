@@ -361,6 +361,15 @@
       "lock_entries": ["git:cutechess"]
     },
     {
+      "id": "chess-pgn-validator",
+      "class": "external-validation-provider",
+      "profiles": ["chess", "testing"],
+      "intent": ["independent legal replay and terminal-result verification of externally generated standard chess PGNs", "exclude capped or invalid episodes from complete-game calibration recommendations"],
+      "boundary": "The exact locked upstream rules implementation validates benchmark artifacts; it does not execute Laplace semantic operations, record games in the substrate, or establish installed product capacity.",
+      "selection": "locked-artifacts",
+      "lock_entries": ["artifact:chess-pgn-validator"]
+    },
+    {
       "id": "qt-chess-build-sdk",
       "class": "external-tool-runtime",
       "profiles": [

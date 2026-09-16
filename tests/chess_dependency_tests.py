@@ -652,7 +652,8 @@ class ChessPgnProvider(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.artifact = PGN.tools.json_read(ROOT / "dependencies/artifact-lock.json")["artifacts"]["chess-pgn-validator"]
-        cache = Path(os.environ.get("LAPLACE_CHESS_PGN_TEST_CACHE", "/build/laplace/work/chess-pgn-provider-test-cache"))
+        scratch = Path(os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP") or "/build/laplace/work")
+        cache = Path(os.environ.get("LAPLACE_CHESS_PGN_TEST_CACHE") or scratch / "chess-pgn-provider-test-cache")
         cls.archive = PGN.tools.acquire(cls.artifact, cache, os.environ.get("LAPLACE_CHESS_PGN_OFFLINE") == "1")
 
     def setUp(self) -> None:

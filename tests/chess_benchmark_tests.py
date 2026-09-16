@@ -25,7 +25,8 @@ spec.loader.exec_module(BENCH)
 class ChessBenchmarks(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cache = Path(os.environ.get("LAPLACE_CHESS_VALIDATION_CACHE", "/build/laplace/work/chess-pgn-provider-test-cache"))
+        scratch = Path(os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP") or "/build/laplace/work")
+        cache = Path(os.environ.get("LAPLACE_CHESS_VALIDATION_CACHE") or scratch / "chess-pgn-provider-test-cache")
         cls.provider = BENCH.chess_pgn.load_provider(cache)
         # Real checkmate corpus from the same verified upstream archive. Only
         # player labels are changed to match the benchmark's two engine slots.
