@@ -8,7 +8,8 @@ production materialization.
 
 Two independent physical obligations are proven. The repeated-CONSTITUENT program
 uses ``AA`` to converge on canonical ``A`` without an expected-answer field. The
-CONSTITUENT->CONTAINER program returns the exact ``AA`` composition and proves that
+CONSTITUENT->CONTAINER program binds its later goal to the admitted observation,
+returns that exact ``AA`` composition despite other containers of ``A``, and proves that
 materialization resolves one provider node for the root and validates the embedded
 Unicode atom run directly. Its ordinary stored-root path uses four metered database
 operations, one cached 32-byte trajectory read, and no per-child provider resolution.
@@ -39,10 +40,11 @@ HEX256 = re.compile(r"^[0-9a-f]{64}$")
 HEXBYTES = re.compile(r"^[0-9a-f]*$")
 
 # LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE. These explicit
-# terminal-relation programs range over the admitted prompt and every matching
+# relation programs range over the admitted prompt and every matching
 # persisted composition in the statement snapshot. The indexed provider reads
 # one overflow sentinel and rejects incomplete metadata/payload/candidate sets;
-# native resource exhaustion and distinct-target ambiguity still refuse output.
+# native resource exhaustion and goalless distinct-target ambiguity still refuse output.
+# The root goal is a typed program binding, not a restriction of the provider boundary.
 # This declares that finite structural boundary, not complete world knowledge.
 OBSERVATION_BOUNDARY_COMPLETE = 8
 
@@ -62,20 +64,54 @@ def bytea_hex(value: Any, field: str) -> str:
     return encoded
 
 
+def compiler_identity(executable: Path) -> dict[str, Any]:
+    if not executable.is_absolute() or executable.is_symlink() or not executable.is_file():
+        raise RuntimeError("firmware compiler must be an absolute regular file")
+    before = executable.stat()
+    digest = u.sha256_file(executable)
+    after = executable.stat()
+    identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns)
+    if identity(before) != identity(after):
+        raise RuntimeError("firmware compiler changed while hashing")
+    return {"path": str(executable.resolve(strict=True)), "sha256": digest,
+            "bytes": after.st_size, "device": after.st_dev, "inode": after.st_ino}
+
+
 def compile_firmware(
     executable: Path,
     relations: tuple[str, ...] = ("constituent",),
+    goal_bindings: tuple[tuple[int, str, int], ...] = (),
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     if not executable.is_file() or executable.is_symlink():
         raise RuntimeError("installed cognition firmware compiler is absent")
     if not relations:
         raise RuntimeError("installed cognition proof requires at least one relation")
+    compiler_before = compiler_identity(executable)
+    goals = []
+    selected_steps: set[int] = set()
+    for step, source, source_step in goal_bindings:
+        if (type(step) is not int or not 0 < step < len(relations)
+                or step in selected_steps or type(source_step) is not int
+                or source not in ("observation", "answer")
+                or (source == "observation" and source_step != 0)
+                or (source == "answer" and not 0 <= source_step < step)):
+            raise RuntimeError("invalid explicit firmware goal binding")
+        selected_steps.add(step)
+        goals.append({"step": step, "source": source, "source_step": source_step})
+    goals.sort(key=lambda item: item["step"])
     command = [str(executable)]
     if len(relations) == 1:
         command.extend(("--relation", relations[0]))
     else:
         command.extend(("--relations", ",".join(relations)))
+    for goal in goals:
+        operand = f'{goal["step"]}:{goal["source"]}'
+        if goal["source"] == "answer":
+            operand += f':{goal["source_step"]}'
+        command.extend(("--goal", operand))
     completed = subprocess.run(command, text=True, capture_output=True, check=False, timeout=30)
+    if compiler_identity(executable) != compiler_before:
+        raise RuntimeError("firmware compiler changed during execution")
     if completed.returncode != 0:
         raise RuntimeError(
             f"installed firmware compiler failed: exit={completed.returncode} stderr={completed.stderr.strip()}"
@@ -92,6 +128,8 @@ def compile_firmware(
         or document.get("program") != "relation-chain-exact-witnessed-output"
         or document.get("mode") != "explicit"
         or document.get("relations") != list(relations)
+        or u.canonical_bytes(document.get("goal_bindings", [])) != u.canonical_bytes(goals)
+        or document.get("step_count") != len(relations) + 1
         or (len(relations) == 1 and document.get("relation") != relations[0])
         or not isinstance(program_id, str)
         or HEX256.fullmatch(program_id) is None
@@ -104,6 +142,7 @@ def compile_firmware(
         raise RuntimeError("installed firmware compiler result is invalid")
     return document, {
         "argv": command,
+        "compiler": compiler_before,
         "exit_code": completed.returncode,
         "stdout": completed.stdout.strip(),
         "stderr": completed.stderr.strip(),
@@ -559,7 +598,8 @@ def require_frontier_result(
             f"database_operations={database_operations}, expected 4"
         )
 
-def prove(output: Path, failure_artifact: Path | None = None) -> None:
+def prove(output: Path, failure_artifact: Path | None = None,
+          compiler_override: Path | None = None) -> None:
     r.require_runner()
     cluster = u.load_json(ROOT / "contracts/postgresql-cluster.json")
     unicode_contract = u.load_json(ROOT / "contracts/unicode-product-activation.json")
@@ -585,9 +625,16 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
     runtime_epochs, epoch_command_receipt = active_epoch_state(
         plan, cluster, unicode_receipt
     )
-    compiler = active / "bin/laplace_cognition_firmware_compile"
+    compiler = (active / "bin/laplace_cognition_firmware_compile"
+                if compiler_override is None else compiler_override)
+    compiler_selection = {
+        "scope": "active-package" if compiler_override is None else "explicit-candidate",
+        "identity": compiler_identity(compiler),
+        "installed_package_id": package_id,
+    }
     failure_provenance = {
         "package_id": package_id,
+        "compiler_selection": compiler_selection,
         "system_identifier": loaded["system_identifier"],
         "postmaster_pid": loaded["postmaster_pid"],
         "runtime_epochs": runtime_epochs,
@@ -615,10 +662,12 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
     constituent_identities = require_identity_widths(constituent_result)
 
     # AA -> A -> AA proves the stored root and its embedded, identity-checked
-    # atom run through the production materialization route. Validation executes
+    # atom run through the production materialization route. A is shared by other
+    # compositions; the program explicitly asks to return to this admitted root.
+    # Validation executes
     # inside execute_product so every failed obligation retains actual evidence.
     batch_firmware, batch_compiler_receipt = compile_firmware(
-        compiler, ("constituent", "container")
+        compiler, ("constituent", "container"), ((1, "observation", 0),)
     )
     batch_result, batch_command_receipt = execute_product(
         plan,
@@ -638,6 +687,7 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
 
     proof = {
         "schema": "laplace.installed-product-cognition-proof/v1",
+        "compiler_selection": compiler_selection,
         "package_id": package_id,
         "system_identifier": loaded["system_identifier"],
         "postmaster_pid": loaded["postmaster_pid"],
@@ -668,6 +718,8 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
             "expected_database_operations": 4,
         },
     }
+    if compiler_identity(compiler) != compiler_selection["identity"]:
+        raise RuntimeError("selected firmware compiler changed during proof")
     proof["proof_sha256"] = u.sha256_bytes(u.canonical_bytes(proof))
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(proof, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -678,5 +730,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--failure-artifact", type=Path)
+    parser.add_argument("--compiler", type=Path,
+                        help="explicit candidate compiler; receipt distinguishes it from the active package")
     arguments = parser.parse_args()
-    prove(arguments.output, arguments.failure_artifact)
+    prove(arguments.output, arguments.failure_artifact, arguments.compiler)
