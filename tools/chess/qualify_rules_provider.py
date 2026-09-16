@@ -115,6 +115,7 @@ def main():
                 "sql": Path(native_targets["sql"]),
                 "source_sql": Path(native_targets["sql"]).parent / "source_admission_contract.sql",
                 "unicode_sql": Path(native_targets["sql"]).parent / "unicode_root_contract.sql",
+                "highway_sql": Path(native_targets["sql"]).parent / "highway_revalidation_bindings.sql",
                 "extension_control": Path(native_targets["control_root"]) / "extension/laplace.control",
             }
             for path in sorted((Path(native_targets["control_root"]) / "extension").glob("*.sql")):

@@ -356,10 +356,58 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
 
     def test_deliberate_guard_omission_is_detected(self) -> None:
         harness = RUN_SPI.read_text(encoding="utf-8")
-        mutant = harness.replace(
-            "LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912", "unbounded", 1
-        )
-        self.assertNotIn("LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912", mutant)
+        phase_boundaries = {
+            "unicode-bootstrap": (
+                "    unicode_bootstrap_command=(",
+                "    psql_arguments+=(-v source_skip_unicode=1)",
+            ),
+            "source-setup": (
+                "    source_max_wall_seconds=${LAPLACE_POSTGRES_MAX_WALL_SECONDS:-60}",
+                '        -- "${psql_command[@]}"',
+            ),
+            "native-line-replay": (
+                "    chess_phase=native-line-replay",
+                "    chess_phase=evidence-validation",
+            ),
+        }
+        wal_bindings = {
+            "unicode-bootstrap": (
+                '--max-wal-bytes "${LAPLACE_POSTGRES_UNICODE_MAX_WAL_BYTES:-8589934592}"',
+            ),
+            "source-setup": (
+                "source_max_wal_bytes=${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}",
+                "source_max_wal_bytes=${LAPLACE_POSTGRES_UNICODE_MAX_WAL_BYTES:-8589934592}",
+                "source_max_wal_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WAL_BYTES:-1610612736}",
+                '--max-wal-bytes "$source_max_wal_bytes"',
+            ),
+            "native-line-replay": (
+                '--max-wal-bytes "${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}"',
+            ),
+        }
+        phases = {}
+        for phase, (start, end) in phase_boundaries.items():
+            offset = harness.index(start)
+            phases[phase] = harness[offset:harness.index(end, offset)]
+
+        def assert_wal_bindings(candidate: dict[str, str]) -> None:
+            for phase, bindings in wal_bindings.items():
+                for binding in bindings:
+                    self.assertEqual(
+                        candidate[phase].count(binding), 1,
+                        f"{phase}: missing or repeated WAL binding {binding}",
+                    )
+
+        assert_wal_bindings(phases)
+        # Defaults shared by independent phases must not mask an omission.
+        for phase, bindings in wal_bindings.items():
+            for binding in bindings:
+                with self.subTest(phase=phase, omitted=binding):
+                    mutant = phases.copy()
+                    mutant[phase] = mutant[phase].replace(binding, "", 1)
+                    with self.assertRaisesRegex(AssertionError, phase):
+                        assert_wal_bindings(mutant)
+                    for other_phase in phases.keys() - {phase}:
+                        self.assertEqual(mutant[other_phase], phases[other_phase])
 
 
 if __name__ == "__main__":
