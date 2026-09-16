@@ -249,6 +249,115 @@ def request_sql(identities: dict[str, Any], program_id: str) -> str:
     )
 
 
+
+FAILURE_SCHEMA = "laplace.installed-product-cognition-failure/v1"
+MAX_FAILURE_OUTPUT_BYTES = 65536
+NATIVE_FAILURE_MARKER = "LAPLACE_COGNITION_FAILURE "
+
+
+def bounded_output(content: str) -> dict[str, Any]:
+    raw = content.encode("utf-8")
+    retained = raw[:MAX_FAILURE_OUTPUT_BYTES]
+    return {
+        "observed_bytes": len(raw),
+        "observed_sha256": u.sha256_bytes(raw),
+        "retained_bytes": len(retained),
+        "retained_hex": retained.hex(),
+        "truncated": len(raw) != len(retained),
+    }
+
+
+def native_failure_diagnostic(stderr: str, result: Any) -> dict[str, Any]:
+    lines = [line.split(NATIVE_FAILURE_MARKER, 1)[1] for line in stderr.splitlines()
+             if NATIVE_FAILURE_MARKER in line]
+    if not lines:
+        return {"state": "unavailable", "reason": "native marker absent"}
+    if len(lines) != 1:
+        return {"state": "invalid", "reason": "multiple native failure markers"}
+    if len(lines[0].encode("utf-8")) > MAX_FAILURE_OUTPUT_BYTES:
+        return {"state": "invalid", "reason": "native marker exceeds retention bound"}
+    try:
+        diagnostic = json.loads(lines[0])
+    except json.JSONDecodeError:
+        return {"state": "invalid", "reason": "native marker is not JSON"}
+    fields = (
+        "status", "failed_step", "native_status", "native_disposition",
+        "physical_provider_rows", "physical_provider_batches", "semantic_provider_rows",
+        "semantic_database_operations", "materialization_nodes",
+        "materialization_trajectory_reads", "materialization_trajectory_bytes",
+        "materialization_database_operations",
+    )
+    if (
+        not isinstance(diagnostic, dict)
+        or diagnostic.get("schema") != "laplace.cognition-failure-diagnostic/v1"
+        or any(
+            type(diagnostic.get(field)) is not int
+            or not 0 <= diagnostic[field] <= ((1 << (32 if field in fields[:4] else 64)) - 1)
+            for field in fields
+        )
+    ):
+        return {"state": "invalid", "reason": "native marker schema or counters invalid"}
+    if not isinstance(result, dict):
+        return {"state": "mismatched", "diagnostic": diagnostic}
+    reported = {field: result.get(field) for field in ("status", "failed_step", "native_status")}
+    # The existing SQL integer ABI renders native UINT32_MAX (no step) as -1.
+    # Preserve the native diagnostic and normalize only that exact comparison.
+    if reported["failed_step"] == -1:
+        reported["failed_step"] = (1 << 32) - 1
+    if any(diagnostic[field] != reported[field] for field in reported):
+        return {"state": "mismatched", "diagnostic": diagnostic}
+    return {"state": "observed", "diagnostic": diagnostic}
+
+
+def retain_execution_failure(
+    output: Path | None,
+    *,
+    failure_artifact: Path | None,
+    label: str,
+    result: Any,
+    command_receipt: dict[str, Any] | None,
+    captured: dict[str, Any],
+    sql: str,
+    firmware: dict[str, Any],
+    prompt: str,
+    provenance: dict[str, Any] | None,
+    error: str,
+) -> None:
+    if output is None and failure_artifact is None:
+        return
+    result_json = json.dumps(result, sort_keys=True, ensure_ascii=True)
+    execution_capture = bounded_output(result_json)
+    document = {
+        "schema": FAILURE_SCHEMA,
+        "success_receipt_issued": False,
+        "label": label,
+        "error": bounded_output(error),
+        "provenance": provenance or {},
+        "program": firmware,
+        "prompt_utf8": prompt,
+        "request_sql_utf8": sql,
+        "request_sql_sha256": u.sha256_bytes(sql.encode("utf-8")),
+        "execution": None if execution_capture["truncated"] else result,
+        "execution_capture": execution_capture,
+        "command_receipt": command_receipt,
+        "outputs": captured.get("outputs", {}),
+        "native_failure": native_failure_diagnostic(captured.get("stderr", ""), result),
+        "retained_bytes_per_output": MAX_FAILURE_OUTPUT_BYTES,
+        "output_encoding": "UTF-8 encoding of subprocess decoded text",
+    }
+    document["failure_sha256"] = u.sha256_bytes(u.canonical_bytes(document))
+    encoded = json.dumps(document, indent=2, sort_keys=True) + "\n"
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        # Keep each failed attempt addressable even if a later retry succeeds.
+        u.write_immutable(output.parent / f"installed-cognition-failure-{document['failure_sha256']}.json",
+                          document)
+        output.write_text(encoded, encoding="utf-8")
+    if failure_artifact is not None:
+        failure_artifact.parent.mkdir(parents=True, exist_ok=True)
+        failure_artifact.write_text(encoded, encoding="utf-8")
+
+
 def execute_product(
     plan: dict[str, Any],
     cluster: dict[str, Any],
@@ -257,10 +366,15 @@ def execute_product(
     firmware: dict[str, Any],
     prompt: str,
     label: str,
+    *,
+    failure_output: Path | None = None,
+    failure_artifact: Path | None = None,
+    failure_provenance: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     program_id = firmware["program_id"]
     prompt_hex = prompt.encode("utf-8").hex()
     sql = f"""
+SET client_min_messages = notice;
 SELECT pg_catalog.row_to_json(result)::text
 FROM laplace.cognition_firmware_execute_product(
     {context_sql(identities, program_id, runtime_epochs['perfcache_epoch'], runtime_epochs['numeric_epoch'])},
@@ -272,23 +386,52 @@ FROM laplace.cognition_firmware_execute_product(
     8388608::bigint
 ) AS result;
 """
-    result, command_receipt = r.runner_sql(
-        plan,
-        cluster,
-        sql,
-        label,
-        "laplace-runner",
-        cluster["instance"]["admin_role"],
-        300,
-    )
-    if not isinstance(result, dict):
-        raise RuntimeError(f"{label} did not return one JSON result")
-    print(json.dumps({label: result}, sort_keys=True), flush=True)
-    if result.get("status") != 0:
-        raise RuntimeError(f"{label} returned status {result.get('status')}: {result}")
-    returned_program = bytea_hex(result.get("program_id"), "program_id")
-    if returned_program != program_id:
-        raise RuntimeError(f"{label} executed a different firmware program")
+    captured: dict[str, Any] = {}
+    result: Any = None
+    command_receipt: dict[str, Any] | None = None
+
+    def observe(completed: subprocess.CompletedProcess[str], receipt: dict[str, Any]) -> None:
+        captured["command_receipt"] = receipt
+        captured["stderr"] = completed.stderr
+        captured["outputs"] = {
+            name: bounded_output(content)
+            for name, content in (("stdout", completed.stdout), ("stderr", completed.stderr))
+        }
+
+    try:
+        result, command_receipt = r.runner_sql(
+            plan,
+            cluster,
+            sql,
+            label,
+            "laplace-runner",
+            cluster["instance"]["admin_role"],
+            300,
+            completed_observer=observe,
+        )
+        if not isinstance(result, dict):
+            raise RuntimeError(f"{label} did not return one JSON result")
+        print(json.dumps({label: result}, sort_keys=True), flush=True)
+        if result.get("status") != 0:
+            raise RuntimeError(f"{label} returned status {result.get('status')}: {result}")
+        returned_program = bytea_hex(result.get("program_id"), "program_id")
+        if returned_program != program_id:
+            raise RuntimeError(f"{label} executed a different firmware program")
+    except (RuntimeError, ValueError) as error:
+        retain_execution_failure(
+            failure_output,
+            failure_artifact=failure_artifact,
+            label=label,
+            result=result,
+            command_receipt=command_receipt or captured.get("command_receipt"),
+            captured=captured,
+            sql=sql,
+            firmware=firmware,
+            prompt=prompt,
+            provenance=failure_provenance,
+            error=str(error),
+        )
+        raise
     return result, command_receipt
 
 
@@ -316,7 +459,7 @@ def require_identity_widths(result: dict[str, Any]) -> dict[str, str]:
     return values
 
 
-def prove(output: Path) -> None:
+def prove(output: Path, failure_artifact: Path | None = None) -> None:
     r.require_runner()
     cluster = u.load_json(ROOT / "contracts/postgresql-cluster.json")
     unicode_contract = u.load_json(ROOT / "contracts/unicode-product-activation.json")
@@ -343,6 +486,13 @@ def prove(output: Path) -> None:
         plan, cluster, unicode_receipt
     )
     compiler = active / "bin/laplace_cognition_firmware_compile"
+    failure_provenance = {
+        "package_id": package_id,
+        "system_identifier": loaded["system_identifier"],
+        "postmaster_pid": loaded["postmaster_pid"],
+        "runtime_epochs": runtime_epochs,
+        "runtime_epoch_command_receipt": epoch_command_receipt,
+    }
 
     constituent_firmware, constituent_compiler_receipt = compile_firmware(
         compiler, ("constituent",)
@@ -356,6 +506,9 @@ def prove(output: Path) -> None:
         constituent_firmware,
         prompt,
         "installed-product-cognition-falsification",
+        failure_output=output,
+        failure_artifact=failure_artifact,
+        failure_provenance=failure_provenance,
     )
     constituent_output = bytes.fromhex(
         bytea_hex(constituent_result.get("output"), "output")
@@ -393,6 +546,9 @@ def prove(output: Path) -> None:
         batch_firmware,
         prompt,
         "installed-product-materialization-frontier-falsification",
+        failure_output=output,
+        failure_artifact=failure_artifact,
+        failure_provenance=failure_provenance,
     )
     batch_output = bytes.fromhex(bytea_hex(batch_result.get("output"), "output"))
     batch_identities = require_identity_widths(batch_result)
@@ -457,4 +613,6 @@ def prove(output: Path) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    prove(parser.parse_args().output)
+    parser.add_argument("--failure-artifact", type=Path)
+    arguments = parser.parse_args()
+    prove(arguments.output, arguments.failure_artifact)

@@ -83,7 +83,9 @@ class ProductBuildWorkspaceRetentionTests(unittest.TestCase):
         )
         self.assertFalse(build.exists())
         self.assertFalse(stage.exists())
-        retained = self.receipt_root / plan_id
+        retained = Path(receipt["removed"][0]["retained_metadata"])
+        self.assertEqual(retained.parent, self.receipt_root / plan_id)
+        self.assertEqual(retained.name, RETENTION.sha256_file(retained / "package-receipt.json"))
         self.assertTrue((retained / "package-receipt.json").is_file())
         self.assertTrue((retained / "package-manifest.json").is_file())
         metadata = json.loads((retained / "retention.json").read_text(encoding="utf-8"))
@@ -185,6 +187,123 @@ class ProductBuildWorkspaceRetentionTests(unittest.TestCase):
                 minimum_age_seconds=0,
                 now=1000,
             )
+
+
+    def reclaim(self) -> dict:
+        return RETENTION.reconcile(
+            self.contract, receipt_root=self.receipt_root, preserve=set(),
+            minimum_age_seconds=10, now=1000,
+        )
+
+    @staticmethod
+    def metadata_bytes(directory: Path) -> dict[str, bytes]:
+        return {name: (directory / name).read_bytes() for name in (
+            "package-receipt.json", "package-manifest.json", "retention.json"
+        )}
+
+    def legacy_metadata(self, plan_id: str, build: Path, stage: Path) -> Path:
+        metadata = RETENTION._completed_metadata(plan_id, build, stage)
+        assert metadata is not None
+        receipt_bytes, manifest_bytes, summary = metadata
+        destination = self.receipt_root / plan_id
+        destination.mkdir()
+        for name, payload in {
+            "package-receipt.json": receipt_bytes,
+            "package-manifest.json": manifest_bytes,
+            "retention.json": RETENTION.canonical_bytes({"schema": RETENTION.SCHEMA, **summary}),
+        }.items():
+            (destination / name).write_bytes(payload)
+        return destination
+
+    def change_execution_log(self, build: Path) -> bytes:
+        path = build / "package-receipt.json"
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt["build_log_sha256"] = "9" * 64
+        payload = RETENTION.canonical_bytes(receipt)
+        path.write_bytes(payload)
+        return payload
+
+    def test_identical_rebuild_reuses_exact_receipt_metadata(self) -> None:
+        plan_id, _build, _stage = self.make_complete("7", "a")
+        first = self.reclaim()
+        retained = Path(first["removed"][0]["retained_metadata"])
+        original = self.metadata_bytes(retained)
+        self.make_complete("7", "a")
+        second = self.reclaim()
+        self.assertEqual(second["removed"][0]["retained_metadata"], str(retained))
+        self.assertEqual(self.metadata_bytes(retained), original)
+        self.assertEqual(list((self.receipt_root / plan_id).iterdir()), [retained])
+
+    def test_same_plan_and_package_retain_distinct_execution_receipts(self) -> None:
+        plan_id, _build, _stage = self.make_complete("8", "b")
+        first = self.reclaim()
+        earlier = Path(first["removed"][0]["retained_metadata"])
+        original = self.metadata_bytes(earlier)
+        _same_plan, build, stage = self.make_complete("8", "b")
+        rebuilt = self.change_execution_log(build)
+        second = self.reclaim()
+        later = Path(second["removed"][0]["retained_metadata"])
+        self.assertNotEqual(earlier, later)
+        self.assertEqual(later, self.receipt_root / plan_id / RETENTION.sha256_bytes(rebuilt))
+        self.assertEqual(self.metadata_bytes(earlier), original)
+        self.assertEqual((later / "package-receipt.json").read_bytes(), rebuilt)
+        self.assertEqual((later / "package-manifest.json").read_bytes(),
+                         original["package-manifest.json"])
+        self.assertFalse(build.exists())
+        self.assertFalse(stage.exists())
+
+    def test_identical_legacy_metadata_is_reused_without_a_second_copy(self) -> None:
+        plan_id, build, stage = self.make_complete("9", "c")
+        legacy = self.legacy_metadata(plan_id, build, stage)
+        original = self.metadata_bytes(legacy)
+        result = self.reclaim()
+        self.assertEqual(result["removed"][0]["retained_metadata"], str(legacy))
+        self.assertEqual(self.metadata_bytes(legacy), original)
+        self.assertEqual({path.name for path in legacy.iterdir()}, set(original))
+
+    def test_different_execution_preserves_flat_legacy_metadata(self) -> None:
+        plan_id, build, stage = self.make_complete("a", "d")
+        legacy = self.legacy_metadata(plan_id, build, stage)
+        original = self.metadata_bytes(legacy)
+        rebuilt = self.change_execution_log(build)
+        result = self.reclaim()
+        retained = Path(result["removed"][0]["retained_metadata"])
+        self.assertEqual(retained.parent, legacy)
+        self.assertEqual(retained.name, RETENTION.sha256_bytes(rebuilt))
+        self.assertEqual(self.metadata_bytes(legacy), original)
+        self.assertEqual((retained / "package-receipt.json").read_bytes(), rebuilt)
+        self.assertFalse(build.exists())
+        self.assertFalse(stage.exists())
+
+    def test_changed_bytes_at_same_receipt_identity_still_block_deletion(self) -> None:
+        _plan_id, _build, _stage = self.make_complete("b", "e")
+        result = self.reclaim()
+        retained = Path(result["removed"][0]["retained_metadata"])
+        (retained / "package-manifest.json").write_bytes(b"corrupt retained manifest\n")
+        _same_plan, build, stage = self.make_complete("b", "e")
+        with self.assertRaisesRegex(RETENTION.RetentionError, "metadata collision"):
+            self.reclaim()
+        self.assertTrue(build.is_dir())
+        self.assertTrue(stage.is_dir())
+        self.assertEqual((retained / "package-manifest.json").read_bytes(),
+                         b"corrupt retained manifest\n")
+
+    def test_symlinked_receipt_destination_blocks_deletion(self) -> None:
+        plan_id, build, stage = self.make_complete("c", "f")
+        receipt_id = RETENTION.sha256_file(build / "package-receipt.json")
+        plan_destination = self.receipt_root / plan_id
+        plan_destination.mkdir()
+        outside = self.root / "outside-receipt"
+        outside.mkdir()
+        marker = outside / "untouched"
+        marker.write_bytes(b"preserve\n")
+        (plan_destination / receipt_id).symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(RETENTION.RetentionError, "destination is unsafe"):
+            self.reclaim()
+        self.assertTrue(build.is_dir())
+        self.assertTrue(stage.is_dir())
+        self.assertEqual(marker.read_bytes(), b"preserve\n")
+        self.assertEqual(list(outside.iterdir()), [marker])
 
 
 if __name__ == "__main__":
