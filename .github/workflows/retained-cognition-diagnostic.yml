@@ -1,0 +1,258 @@
+name: Retained cognition diagnostic
+
+on:
+  push:
+    branches:
+      - diag/refactor-installed-cognition-20260916
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  retained-evidence:
+    if: github.repository == 'SaltyPatron/Laplace-Refactor' && github.ref == 'refs/heads/diag/refactor-installed-cognition-20260916'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 04a0cb78d45a42306d1a03d50b59c1dd87f0e8d0
+          persist-credentials: false
+      - name: Authenticate retained native failure and print bounded counters
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_HOST: github.com
+          GH_PROMPT_DISABLED: "1"
+          GH_NO_UPDATE_NOTIFIER: "1"
+          GH_DEBUG: ""
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import importlib.util
+          import io
+          import json
+          import os
+          from pathlib import Path
+          import selectors
+          import stat
+          import subprocess
+          import sys
+          import time
+          import zipfile
+          
+          REPOSITORY = "SaltyPatron/Laplace-Refactor"
+          REPOSITORY_ID = 1345590348
+          RUN_ID = 35055689111
+          HEAD_SHA = "3c198bc3afa9303cf6a52dcd3c83f7aaffb228d9"
+          ARTIFACT_ID = 10432770054
+          ARTIFACT_NAME = "installed-cognition-failure-35055689111-1"
+          ZIP_BYTES = 4283
+          ZIP_SHA256 = "ec6ad1e777d4c1b64d69ad7eb14243b95bb382e82af68d0290119d11cf1eed96"
+          MEMBER = ARTIFACT_NAME + ".json"
+          MAX_BYTES = 1024 * 1024
+          LABEL = "installed-product-cognition-falsification"
+          
+          
+          class DiagnosticRefusal(RuntimeError):
+              pass
+          
+          
+          def require(condition, message):
+              if not condition:
+                  raise DiagnosticRefusal(message)
+          
+          
+          def gh_bytes(endpoint, maximum):
+              # gh owns authentication and GitHub's archive redirect. Never copy a token
+              # into an archive URL or print subprocess output/errors.
+              process = subprocess.Popen(
+                  ["gh", "api", "--hostname", "github.com", "--method", "GET", endpoint],
+                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+              )
+              deadline = time.monotonic() + 45
+              chunks = []
+              size = 0
+              try:
+                  assert process.stdout is not None
+                  with selectors.DefaultSelector() as selector:
+                      selector.register(process.stdout, selectors.EVENT_READ)
+                      while True:
+                          remaining = deadline - time.monotonic()
+                          require(remaining > 0, "GitHub read deadline expired")
+                          require(bool(selector.select(remaining)), "GitHub read deadline expired")
+                          chunk = os.read(process.stdout.fileno(), min(65536, maximum + 1 - size))
+                          if not chunk:
+                              break
+                          chunks.append(chunk)
+                          size += len(chunk)
+                          require(size <= maximum, "GitHub response exceeds the diagnostic bound")
+                  remaining = deadline - time.monotonic()
+                  require(remaining > 0, "GitHub read deadline expired")
+                  require(process.wait(timeout=remaining) == 0, "GitHub read failed")
+                  return b"".join(chunks)
+              finally:
+                  if process.poll() is None:
+                      process.kill()
+                  process.wait()
+                  if process.stdout is not None:
+                      process.stdout.close()
+          
+          
+          def object_pairs(pairs):
+              value = {}
+              for key, item in pairs:
+                  require(key not in value, "JSON contains a duplicate key")
+                  value[key] = item
+              return value
+          
+          
+          def invalid_constant(_value):
+              raise RuntimeError("JSON contains a non-finite value")
+          
+          
+          def document(raw):
+              result = json.loads(raw, object_pairs_hook=object_pairs, parse_constant=invalid_constant)
+              require(isinstance(result, dict), "Expected one JSON object")
+              return result
+          
+          
+          def exact_integer(value, expected):
+              return type(value) is int and value == expected
+          
+          
+          def main():
+              run = document(gh_bytes(f"repos/{REPOSITORY}/actions/runs/{RUN_ID}", 256 * 1024))
+              require(
+                  exact_integer(run.get("id"), RUN_ID)
+                  and run.get("head_sha") == HEAD_SHA
+                  and run.get("head_branch") == "main"
+                  and exact_integer(run.get("run_attempt"), 1)
+                  and run.get("status") == "completed"
+                  and run.get("conclusion") == "failure",
+                  "Retained workflow run identity or terminal result differs",
+              )
+              for key in ("repository", "head_repository"):
+                  repository = run.get(key)
+                  require(isinstance(repository, dict)
+                          and repository.get("full_name") == REPOSITORY
+                          and exact_integer(repository.get("id"), REPOSITORY_ID),
+                          "Retained workflow repository identity differs")
+              artifact = document(gh_bytes(
+                  f"repos/{REPOSITORY}/actions/artifacts/{ARTIFACT_ID}", 64 * 1024))
+              source = artifact.get("workflow_run")
+              require(
+                  exact_integer(artifact.get("id"), ARTIFACT_ID)
+                  and artifact.get("name") == ARTIFACT_NAME
+                  and exact_integer(artifact.get("size_in_bytes"), ZIP_BYTES)
+                  and artifact.get("digest") == "sha256:" + ZIP_SHA256
+                  and artifact.get("expired") is False
+                  and isinstance(source, dict)
+                  and exact_integer(source.get("id"), RUN_ID)
+                  and source.get("head_sha") == HEAD_SHA
+                  and source.get("head_branch") == "main"
+                  and exact_integer(source.get("repository_id"), REPOSITORY_ID)
+                  and exact_integer(source.get("head_repository_id"), REPOSITORY_ID),
+                  "Retained artifact metadata differs from the selected evidence",
+              )
+              archive_bytes = gh_bytes(
+                  f"repos/{REPOSITORY}/actions/artifacts/{ARTIFACT_ID}/zip", MAX_BYTES)
+              require(len(archive_bytes) == ZIP_BYTES
+                      and hashlib.sha256(archive_bytes).hexdigest() == ZIP_SHA256,
+                      "Retained ZIP bytes differ from the selected artifact")
+              # Inspect in memory only. No ZIP filename is joined to a filesystem path.
+              with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+                  members = archive.infolist()
+                  require(len(members) == 1, "Retained ZIP does not contain exactly one member")
+                  member = members[0]
+                  require(member.filename == MEMBER and not member.is_dir()
+                          and not member.flag_bits & 1
+                          and stat.S_IFMT(member.external_attr >> 16) in (0, stat.S_IFREG)
+                          and member.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+                          and 0 < member.file_size <= MAX_BYTES
+                          and 0 < member.compress_size <= MAX_BYTES,
+                          "Retained JSON member identity, kind, or bounds differ")
+                  with archive.open(member) as stream:
+                      raw = stream.read(MAX_BYTES + 1)
+                  require(len(raw) == member.file_size and len(raw) <= MAX_BYTES,
+                          "Retained JSON member exceeds or differs from its declared size")
+              failure = document(raw)
+              spec = importlib.util.spec_from_file_location(
+                  "retained_cognition_owner", Path("tools/delivery/product_cognition_live_proof.py"))
+              require(spec is not None and spec.loader is not None, "Cognition evidence owner is absent")
+              owner = importlib.util.module_from_spec(spec)
+              sys.modules[spec.name] = owner
+              spec.loader.exec_module(owner)
+              failure_id = failure.get("failure_sha256")
+              require(isinstance(failure_id, str) and owner.HEX256.fullmatch(failure_id) is not None,
+                      "Retained failure identity is malformed")
+              unsigned = dict(failure)
+              del unsigned["failure_sha256"]
+              require(owner.u.sha256_bytes(owner.u.canonical_bytes(unsigned)) == failure_id,
+                      "Retained failure canonical identity differs")
+              execution = failure.get("execution")
+              require(failure.get("schema") == owner.FAILURE_SCHEMA
+                      and failure.get("success_receipt_issued") is False
+                      and failure.get("label") == LABEL
+                      and isinstance(execution, dict)
+                      and exact_integer(execution.get("status"), 9)
+                      and exact_integer(execution.get("native_status"), 2)
+                      and exact_integer(execution.get("failed_step"), 0)
+                      and exact_integer(execution.get("completed_steps"), 0),
+                      "Retained failure schema, label, or observed execution result differs")
+              outputs = failure.get("outputs")
+              capture = outputs.get("stderr") if isinstance(outputs, dict) else None
+              require(isinstance(capture, dict)
+                      and capture.get("truncated") is False
+                      and type(capture.get("retained_bytes")) is int
+                      and 0 <= capture["retained_bytes"] <= owner.MAX_FAILURE_OUTPUT_BYTES
+                      and exact_integer(capture.get("observed_bytes"), capture["retained_bytes"])
+                      and isinstance(capture.get("retained_hex"), str)
+                      and owner.HEXBYTES.fullmatch(capture["retained_hex"]) is not None
+                      and len(capture["retained_hex"]) == 2 * capture["retained_bytes"],
+                      "Retained native stderr is incomplete or malformed")
+              stderr = bytes.fromhex(capture["retained_hex"])
+              require(owner.u.sha256_bytes(stderr) == capture.get("observed_sha256"),
+                      "Retained native stderr bytes differ")
+              native = owner.native_failure_diagnostic(stderr.decode("utf-8"), execution)
+              require(native == failure.get("native_failure"),
+                      "Retained native diagnostic differs from canonical reparse")
+              require(native.get("state") in ("observed", "unavailable"),
+                      "Retained native diagnostic is malformed or mismatched")
+              visible = {key: native[key] for key in ("state", "reason") if key in native}
+              if native["state"] == "observed":
+                  diagnostic = native["diagnostic"]
+                  visible["diagnostic"] = {
+                      key: diagnostic[key] for key in ("schema", *owner.NATIVE_FAILURE_COUNTER_FIELDS)
+                  }
+              # Fixed allowlist only: no prompt, SQL, stderr, command or provenance bytes.
+              print(json.dumps({
+                  "schema": "laplace.retained-cognition-diagnostic/v1",
+                  "artifact": {"repository": REPOSITORY, "repository_id": REPOSITORY_ID,
+                               "run_id": RUN_ID, "run_attempt": 1, "head_sha": HEAD_SHA,
+                               "id": ARTIFACT_ID, "name": ARTIFACT_NAME,
+                               "zip_bytes": len(archive_bytes), "zip_sha256": ZIP_SHA256,
+                               "member": MEMBER, "member_bytes": len(raw)},
+                  "failure": {"schema": owner.FAILURE_SCHEMA, "label": LABEL,
+                              "failure_sha256": failure_id, "success_receipt_issued": False},
+                  "native_failure": visible,
+              }, sort_keys=True), flush=True)
+              require(native["state"] == "observed", "Retained native marker is unavailable")
+          
+          
+          try:
+              main()
+          except DiagnosticRefusal as error:
+              print("Retained cognition diagnostic refused the selected evidence: "
+                    + str(error), file=sys.stderr)
+              raise SystemExit(1)
+          except (RuntimeError, ValueError, KeyError, TypeError, OSError,
+                  subprocess.SubprocessError, zipfile.BadZipFile) as error:
+              # Every detailed payload remains unprinted, including parser exception text.
+              print("Retained cognition diagnostic refused the selected evidence: "
+                    + type(error).__name__, file=sys.stderr)
+              raise SystemExit(1)
+          
+          PY
