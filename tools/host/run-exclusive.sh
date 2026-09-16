@@ -8,5 +8,7 @@ lock=${LAPLACE_HOST_RESOURCE_LOCK:-/build/laplace/work/host-resource.lock}
 [[ ! -L "$lock" ]] || { echo "Host resource lock must not be a symlink: $lock" >&2; exit 65; }
 exec 9>>"$lock"
 flock --exclusive 9
-# Keep the lock in this waiting wrapper, not in long-lived service descendants.
-"$@" 9>&-
+# The foreground command owns the lock through its cancellation cleanup.
+# Python lifecycle owners close inherited descriptors at subprocess boundaries,
+# so their detached PostgreSQL/service children do not retain this lock.
+exec "$@"

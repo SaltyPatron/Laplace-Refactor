@@ -2901,6 +2901,15 @@ if(UNIX)
 endif()
 
 if(LAPLACE_POSTGRES_ENABLED)
+    add_test(
+        NAME postgres.source-runtime-state-schema
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/source_runtime_state_postgres_tests.py"
+            --pg-bindir "${LAPLACE_POSTGRES_BINDIR}")
+    set_tests_properties(postgres.source-runtime-state-schema PROPERTIES
+        LABELS "implementation;postgresql;source-admission;schema;mutation"
+        TIMEOUT 180)
+
     find_program(LAPLACE_BASH_EXECUTABLE bash REQUIRED)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/postgres/verified_cpp_source_contract.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/verified_cpp_source_contract.sql" @ONLY)

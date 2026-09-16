@@ -96,7 +96,7 @@ def _load_completed_activation(
         or receipt.get("phase") != "activated"
         or receipt.get("package_id") != package_id
         or receipt.get("restart_proven") is not True
-        or receipt.get("lifecycle_provider") != clusterctl.LIFECYCLE_PROVIDER
+        or not clusterctl.valid_lifecycle_receipt(receipt)
         or receipt.get("activation_receipt_sha256") != _activation_identity(receipt)
     ):
         raise UpgradeError("active predecessor cluster receipt is incomplete")
@@ -259,8 +259,8 @@ def _restore_generated_files(backups: dict[str, dict[str, Any]]) -> None:
             )
 
 
-def _command(label: str, command: list[str], timeout: int) -> dict[str, Any]:
-    return clusterctl.execute_activation_command(label, command, timeout)
+def _command(plan: dict[str, Any], label: str, command: list[str], timeout: int) -> dict[str, Any]:
+    return clusterctl.execute_plan_command(plan, label, command, timeout)
 
 
 def _ready(
@@ -415,7 +415,7 @@ def upgrade_product(
     try:
         command_receipts.append(
             _command(
-                "stop-predecessor-for-generation-upgrade",
+                predecessor_plan, "stop-predecessor-for-generation-upgrade",
                 predecessor_plan["commands"]["stop_candidate"],
                 300,
             )
@@ -431,7 +431,7 @@ def upgrade_product(
 
         command_receipts.append(
             _command(
-                "start-successor-generation",
+                successor_plan, "start-successor-generation",
                 successor_plan["commands"]["start_candidate"],
                 300,
             )
@@ -460,7 +460,7 @@ def upgrade_product(
 
         command_receipts.append(
             _command(
-                "stop-successor-for-restart-proof",
+                successor_plan, "stop-successor-for-restart-proof",
                 successor_plan["commands"]["stop_candidate"],
                 300,
             )
@@ -468,7 +468,7 @@ def upgrade_product(
         successor_started = False
         command_receipts.append(
             _command(
-                "start-successor-after-restart",
+                successor_plan, "start-successor-after-restart",
                 successor_plan["commands"]["start_candidate"],
                 300,
             )
@@ -518,9 +518,7 @@ def upgrade_product(
             {
                 "phase": "activated",
                 "restart_proven": True,
-                "boot_enabled": False,
-                "service_integration_required": False,
-                "lifecycle_provider": clusterctl.LIFECYCLE_PROVIDER,
+                **clusterctl.lifecycle_result_fields(successor_plan, successor_loaded_restart),
                 "runtime_target": f"../releases/{successor_package_id}",
                 "cluster_plan_path": str(successor_plan_path),
                 "system_identifier": successor_loaded_restart[
@@ -554,7 +552,7 @@ def upgrade_product(
                 if successor_started:
                     try:
                         _command(
-                            "stop-successor-after-upgrade-failure",
+                            successor_plan, "stop-successor-after-upgrade-failure",
                             successor_plan["commands"]["stop_candidate"],
                             300,
                         )
@@ -565,7 +563,7 @@ def upgrade_product(
                 _verify_state_identities(state_identities)
                 if predecessor_stopped:
                     _command(
-                        "restart-predecessor-after-upgrade-failure",
+                        predecessor_plan, "restart-predecessor-after-upgrade-failure",
                         predecessor_plan["commands"]["start_candidate"],
                         300,
                     )

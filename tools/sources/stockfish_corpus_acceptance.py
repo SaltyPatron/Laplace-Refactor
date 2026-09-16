@@ -106,7 +106,7 @@ def validate_package_binding(expected_sha: str, package_id: str, manifest: dict,
             'runner terminal receipt identity differs')
     require(aggregate.get('execution_owner') == runner.RUNNER_USER and
             aggregate.get('root_product_executor') is False and
-            aggregate.get('postgresql_lifecycle_provider') == runner.clusterctl.LIFECYCLE_PROVIDER,
+            aggregate.get('postgresql_lifecycle_provider') in runner.clusterctl.LIFECYCLE_PROVIDERS,
             'activation did not use the current runner-owned lifecycle')
     activation.validate_product_terminal_result(aggregate)
     runner.validate_package_installation(installation, manifest, Path(installation['source_physical_root']))
@@ -125,7 +125,7 @@ def retain_activation(source: Path, expected_sha: str, receipt_root: Path) -> Pa
             aggregate.get('result_sha256') == runner.document_identity(aggregate, 'result_sha256') and
             aggregate.get('execution_owner') == runner.RUNNER_USER and
             aggregate.get('root_product_executor') is False and
-            aggregate.get('postgresql_lifecycle_provider') == runner.clusterctl.LIFECYCLE_PROVIDER,
+            aggregate.get('postgresql_lifecycle_provider') in runner.clusterctl.LIFECYCLE_PROVIDERS,
             'retained activation is not an authenticated runner result')
     activation.validate_product_terminal_result(aggregate)
     # The result digest distinguishes repeat activations without overwriting any
@@ -277,6 +277,9 @@ def observe_activation(expected_sha: str, output: Path) -> dict:
     require(sha(manifest_path) == metadata['manifest_sha256'] and
             sha(Path(metadata['receipt_path'])) == metadata['receipt_sha256'],
             'selected package metadata changed during activation observation')
+    service_owner = cluster.service_lifecycle().observe_selected(cluster, plan, loaded)
+    if cluster_result.get('lifecycle_provider') == 'systemd-system':
+        cluster.lifecycle_result_fields(plan, loaded)
     snapshot = {'package_id': package_id, 'repository_commit': expected_sha,
         'repository_build_fingerprint': expected_build_fingerprint,
         'release': str(release), 'cli': str(cli), 'cli_sha256': sha(cli),
@@ -288,7 +291,8 @@ def observe_activation(expected_sha: str, output: Path) -> dict:
         'runner_receipts': [{'path': str(p), 'document': d} for p,d,_,_ in matches],
         'native_receipt_paths': native_receipt_paths,
         'cluster_activation': cluster_result, 'unicode_activation': unicode,
-        'highway_activation': highway, 'cluster_plan': plan, 'loaded': loaded}
+        'highway_activation': highway, 'cluster_plan': plan, 'loaded': loaded,
+        'postgresql_service_owner': service_owner}
     save(output, snapshot)
     return snapshot
 
