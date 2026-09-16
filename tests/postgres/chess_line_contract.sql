@@ -237,27 +237,28 @@ END $body$;
 
 CREATE FUNCTION chess_line_contract.corruption_controls(expected jsonb,root bytea)
 RETURNS integer LANGUAGE plpgsql VOLATILE AS $body$
-DECLARE variant integer; rejected boolean; entity bytea;
+DECLARE control_variant integer; control_rejected boolean; control_entity_id bytea;
 BEGIN
-    SELECT entity_id INTO STRICT entity FROM laplace.physicality WHERE physicality_id=root;
-    FOR variant IN 1..3 LOOP
-        rejected:=false;
+    SELECT p.entity_id INTO STRICT control_entity_id
+    FROM laplace.physicality p WHERE p.physicality_id=corruption_controls.root;
+    FOR control_variant IN 1..3 LOOP
+        control_rejected:=false;
         BEGIN
-            IF variant=1 THEN
-                UPDATE laplace.entity SET identity_witness=set_byte(identity_witness,31,
-                    get_byte(identity_witness,31)#1) WHERE entity_id=entity;
-            ELSIF variant=2 THEN
-                UPDATE laplace.physicality SET radius=CASE WHEN radius=0 THEN 0.125 ELSE 0 END
-                    WHERE physicality_id=root;
+            IF control_variant=1 THEN
+                UPDATE laplace.entity AS e SET identity_witness=set_byte(e.identity_witness,31,
+                    get_byte(e.identity_witness,31)#1) WHERE e.entity_id=control_entity_id;
+            ELSIF control_variant=2 THEN
+                UPDATE laplace.physicality AS p SET radius=CASE WHEN p.radius=0 THEN 0.125 ELSE 0 END
+                    WHERE p.physicality_id=corruption_controls.root;
             ELSE
-                UPDATE laplace.physicality SET trajectory=set_byte(trajectory,0,get_byte(trajectory,0)#1)
-                    WHERE physicality_id=root;
+                UPDATE laplace.physicality AS p SET trajectory=set_byte(p.trajectory,0,get_byte(p.trajectory,0)#1)
+                    WHERE p.physicality_id=corruption_controls.root;
             END IF;
-            PERFORM chess_line_contract.verify(expected);
-        EXCEPTION WHEN data_corrupted THEN rejected:=true;
+            PERFORM chess_line_contract.verify(corruption_controls.expected);
+        EXCEPTION WHEN data_corrupted THEN control_rejected:=true;
         END;
-        IF NOT rejected THEN RAISE EXCEPTION 'chess corruption control % was accepted',variant; END IF;
-        PERFORM chess_line_contract.verify(expected);
+        IF NOT control_rejected THEN RAISE EXCEPTION 'chess corruption control % was accepted',control_variant; END IF;
+        PERFORM chess_line_contract.verify(corruption_controls.expected);
     END LOOP;
     RETURN 3;
 END $body$;
