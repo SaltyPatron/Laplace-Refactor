@@ -252,6 +252,9 @@ class NativeCalls:
             require(isinstance(response, dict), f"{label}: response is not an object")
             response_envelope(response, completed.returncode, request["notation_policy"], self.qt)
             record["status"] = response["status"]
+            if response["status"] == "refused":
+                record["refusal"] = response.get("refusal")
+                record["detail"] = response.get("detail")
             if response["status"] == "completed":
                 record["runtime_qt_libraries"] = [
                     file_record(Path(path)) for path in response["runtime_qt_libraries"]]
@@ -370,6 +373,13 @@ def execute(arguments: argparse.Namespace, summary: dict) -> None:
             "source_attribution": case["source_attribution"],
             "trace_count": len(case["request"]["traces"]),
             "supplied_plies": sum(len(trace["san"]) for trace in case["request"]["traces"]),
+            "provider_disposition": response["status"],
+            "noncanonical_spellings": [
+                {"trace": trace_index, "ply": ply_index,
+                 "supplied": ply["supplied_spelling"], "rendered": ply["canonical_san"]}
+                for trace_index, trace in enumerate(response.get("traces", []))
+                for ply_index, ply in enumerate(trace["plies"])
+                if not ply["lexically_canonical_san"]],
         })
 
     # Compare each trace's standalone response with its response in a real batch.

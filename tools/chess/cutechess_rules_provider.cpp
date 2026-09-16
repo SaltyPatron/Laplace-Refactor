@@ -24,7 +24,7 @@ constexpr std::uint64_t MaximumPerftVisits = 5000000;
 
 struct Refusal : std::runtime_error {
     std::string code;
-    Refusal(const char* classification, const char* detail)
+    Refusal(const char* classification, const std::string& detail)
         : std::runtime_error(detail), code(classification) {}
 };
 void Require(bool valid, const char* code, const char* detail) {
@@ -140,8 +140,9 @@ Chess::Move Parse(StandardPosition& board, const QString& supplied, bool strict,
             "illegal_move", "upstream provider found no legal move for the supplied spelling");
     rendered = board.moveString(move, Chess::Board::StandardAlgebraic);
 #if !defined(LAPLACE_TEST_ACCEPT_NONCANONICAL_SAN)
-    Require(!strict || rendered == supplied,
-            "noncanonical_san", "upstream-legal move differs from exact standard SAN rendering");
+    if (strict && rendered != supplied)
+        throw Refusal("noncanonical_san", (QStringLiteral("supplied=") + supplied +
+            QStringLiteral("; upstream_standard_san=") + rendered).toStdString());
 #else
     (void)strict;
 #endif
