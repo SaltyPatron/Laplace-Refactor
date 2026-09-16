@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import os
+import shutil
+import subprocess
 import json
 from pathlib import Path
 import tempfile
@@ -251,6 +255,79 @@ class SourceAdmissionUnpublishedPackageTests(unittest.TestCase):
             ),
             values,
         )
+
+
+class SourceAdmissionInstalledImportTests(unittest.TestCase):
+    def test_writable_installed_import_preserves_exact_package_and_missing_policy_creates_caches(self):
+        # Execute real packaged modules without main(), credentials, native stubs
+        # or any database operation. The filesystem remains writable so removing
+        # the entry-point policy demonstrates the original bytecode defect.
+        with tempfile.TemporaryDirectory(prefix="source-import-package-") as temporary:
+            workspace = Path(temporary)
+            tools = Path(__file__).resolve().parents[1] / "tools"
+            core_source = (tools / "admit_source.py").read_text(encoding="utf-8")
+            policy = "sys.dont_write_bytecode = True"
+            self.assertEqual(core_source.count(policy), 1)
+            script = r"""
+import json, runpy, sys
+from pathlib import Path
+directory = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(directory))
+# The packaged grammar tool also imports from its own executable directory.
+sys.path.insert(0, str(directory / "sources"))
+runpy.run_path(str(directory / "laplace-admit-source-core"), run_name="installed_import_contract")
+from sources import git_profile, verified_git, qualify_grammar
+from dependencies import git_checkout
+modules = [git_profile, verified_git, qualify_grammar, git_checkout]
+paths = [str(Path(item.__file__).resolve().relative_to(directory)) for item in modules]
+print(json.dumps({"modules": paths, "dont_write_bytecode": sys.dont_write_bytecode}))
+"""
+            expected_modules = ["sources/git_profile.py", "sources/verified_git.py",
+                                "sources/qualify_grammar.py", "dependencies/git_checkout.py"]
+            environment = dict(os.environ)
+            for key in ("PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX", "PYTHONPATH"):
+                environment.pop(key, None)
+
+            def inventory(root):
+                return {str(item.relative_to(root)):
+                        ("directory" if item.is_dir() else hashlib.sha256(item.read_bytes()).hexdigest())
+                        for item in root.rglob("*")}
+
+            for has_policy in (True, False):
+                with self.subTest(entry_point_policy=has_policy):
+                    package = workspace / ("guarded" if has_policy else "deliberately-broken") / "bin"
+                    package.mkdir(parents=True, mode=0o700)
+                    core = package / "laplace-admit-source-core"
+                    core.write_text(core_source if has_policy else
+                                    core_source.replace(policy, "sys.dont_write_bytecode = False", 1),
+                                    encoding="utf-8")
+                    for relative in expected_modules:
+                        target = package / relative
+                        target.parent.mkdir(mode=0o700, exist_ok=True)
+                        shutil.copyfile(tools / relative, target)
+                        target.chmod(0o600)
+                    before = inventory(package)
+                    for repeat in range(2):
+                        result = subprocess.run([sys.executable, "-I", "-c", script, str(package)],
+                                                env=environment, capture_output=True, text=True,
+                                                check=False, timeout=15)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        observed = json.loads(result.stdout)
+                        self.assertEqual(observed["modules"], expected_modules)
+                        self.assertEqual(observed["dont_write_bytecode"], has_policy)
+                    after = inventory(package)
+                    caches = list(package.rglob("*.pyc"))
+                    if has_policy:
+                        self.assertEqual(before, after)
+                        self.assertEqual(caches, [])
+                    else:
+                        self.assertNotEqual(before, after)
+                        self.assertTrue(any(item.parent.name == "__pycache__" for item in caches))
+                        self.assertTrue(any(item.name.startswith("git_checkout.") for item in caches))
+                        self.assertTrue(any(item.name.startswith("git_profile.") for item in caches))
+                        # The counterexample adds bytecode; it does not corrupt
+                        # the original package modules or stand in for admission.
+                        self.assertEqual(before, {name: after[name] for name in before})
 
 
 if __name__ == "__main__":
