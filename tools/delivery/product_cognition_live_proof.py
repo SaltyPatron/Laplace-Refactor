@@ -38,6 +38,14 @@ h = r.highwayctl
 HEX256 = re.compile(r"^[0-9a-f]{64}$")
 HEXBYTES = re.compile(r"^[0-9a-f]*$")
 
+# LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE. These explicit
+# terminal-relation programs range over the admitted prompt and every matching
+# persisted composition in the statement snapshot. The indexed provider reads
+# one overflow sentinel and rejects incomplete metadata/payload/candidate sets;
+# native resource exhaustion and distinct-target ambiguity still refuse output.
+# This declares that finite structural boundary, not complete world knowledge.
+OBSERVATION_BOUNDARY_COMPLETE = 8
+
 
 def bytea_literal(hex_value: str) -> str:
     if not HEXBYTES.fullmatch(hex_value) or len(hex_value) % 2:
@@ -236,7 +244,8 @@ def request_sql(identities: dict[str, Any], program_id: str) -> str:
         + forward
         + ","
         + materialization
-        + ",4096::numeric,8192::numeric,0,1)::laplace.cognition_firmware_product_request"
+        + f",4096::numeric,8192::numeric,{OBSERVATION_BOUNDARY_COMPLETE},1)"
+        "::laplace.cognition_firmware_product_request"
     )
 
 

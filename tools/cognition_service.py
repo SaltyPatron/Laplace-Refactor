@@ -33,6 +33,14 @@ MAXIMUM_PROMPT_BYTES = 1024 * 1024
 MAXIMUM_CHECKPOINT_BYTES = 8 * 1024 * 1024
 MAXIMUM_REQUEST_BYTES = 20 * 1024 * 1024
 MAXIMUM_CONCURRENT_REQUESTS = 4
+# Part of the 1 GiB execution grant, reserved alongside the native 256 MiB
+# search budget, prompt state, retained output/checkpoint, and materialization.
+PROVIDER_WORKSPACE_BYTES = 256 * 1024 * 1024
+# LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE describes the
+# selected prompt and indexed current-snapshot provider boundary. It does not
+# assert complete world knowledge. Providers must refuse capacity truncation;
+# native exhaustion, ambiguity and missing evidence still withhold completion.
+OBSERVATION_BOUNDARY_COMPLETE = 8
 
 
 class CognitionError(RuntimeError):
@@ -353,7 +361,8 @@ def product_request_sql(
         + bytea_literal(identities["request_fingerprint"]) + ","
         + bytea_literal(previous_fingerprint) + "," + previous_present + ","
         + search + "," + forward + "," + materialization
-        + ",1048576::numeric,8388608::numeric,0,1)::laplace.cognition_firmware_product_request"
+        + f",1048576::numeric,8388608::numeric,{OBSERVATION_BOUNDARY_COMPLETE},1)"
+        "::laplace.cognition_firmware_product_request"
     )
 
 
@@ -408,7 +417,7 @@ FROM laplace.cognition_firmware_execute_product(
   {prompt_scope_sql(identities, session)},
   {product_request_sql(identities, program_id, relation_count, session)},
   {bytea_literal(previous_checkpoint)},
-  1073741824::bigint
+  {PROVIDER_WORKSPACE_BYTES}::bigint
 ) AS result;
 """
     result = run_psql(release, sql)
