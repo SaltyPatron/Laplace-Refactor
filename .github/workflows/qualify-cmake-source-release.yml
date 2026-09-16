@@ -1,4 +1,4 @@
-name: Source runtime state QA registration controls
+name: Persistent PostgreSQL system owner controls
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -10,12 +10,12 @@ jobs:
     timeout-minutes: 15
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      SOURCE_SHA: ed0cb03ec0a50d78e45bc20b7bbba23d1dcb8540
-      SOURCE_TREE: a6460aeb36bce941b032483ab99c5f8e46a35b51
-      TMPDIR: /build/laplace/work/sql
-      TMP: /build/laplace/work/sql
-      TEMP: /build/laplace/work/sql
-      EVIDENCE: /build/laplace/recovery/source-runtime-state
+      SOURCE_SHA: b0a44c79fa012e3123d28f8e3e0194ace4bfde1d
+      SOURCE_TREE: ffd6ba74305edcd26862b5f9d27282586b8086bc
+      TMPDIR: /build/laplace/work/pg-service
+      TMP: /build/laplace/work/pg-service
+      TEMP: /build/laplace/work/pg-service
+      EVIDENCE: /build/laplace/recovery/pg-service-owner
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -27,12 +27,13 @@ jobs:
           sudo chown "$(id -u):$(id -g)" /build/laplace
           mkdir -p "$TMPDIR" "$EVIDENCE" /build/laplace/worktrees
           test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
-          git worktree add --detach /build/laplace/worktrees/source-runtime-state "$SOURCE_SHA"
+          git worktree add --detach /build/laplace/worktrees/pg-service-owner "$SOURCE_SHA"
+          python3 -c 'import yaml; print("PyYAML " + yaml.__version__)'
           printf '%s\n' "$SOURCE_SHA $SOURCE_TREE" > "$EVIDENCE/source.txt"
-      - name: Execute QA registration controls
+      - name: Execute existing lifecycle and caller controls
         run: |
           set -euo pipefail
-          cd /build/laplace/worktrees/source-runtime-state
+          cd /build/laplace/worktrees/pg-service-owner
           status=0
           qualify() {
             local label="$1"
@@ -44,22 +45,40 @@ jobs:
             printf '%s\t%s\n' "$label" "$result" >> "$EVIDENCE/exit-codes.tsv"
             if [ "$result" -ne 0 ]; then status=1; fi
           }
-          qualify qa-registration python3 tests/custom_stack_qa_tests.py -v
+          qualify cluster python3 tests/postgresql_cluster_tests.py
+          qualify runner python3 tests/product_activation_runner_tests.py
+          qualify upgrade python3 tests/product_cluster_upgrade_tests.py
+          qualify corpus python3 tests/stockfish_corpus_acceptance_tests.py
+          qualify gateway python3 tests/product_activation_gateway_tests.py
+          qualify runtime-adapter python3 tests/product_activation_runtime_adapter_tests.py
+          qualify gateway-upgrade python3 tests/gateway_self_upgrade_tests.py
+          qualify gateway-contract python3 tests/product_gateway_contract_tests.py
+          qualify distribution python3 tests/product_distribution_tests.py
+          qualify recovery python3 tests/cluster_candidate_recovery_tests.py
           python3 - <<'PY' 2>&1 | tee "$EVIDENCE/python-ast.log"
           import ast, json
           from pathlib import Path
-          ast.parse(Path("tests/custom_stack_qa_tests.py").read_text())
-          json.loads(Path("tests/registry.d/verified-cpp-source.json").read_text())
-          print("PASS QA Python AST and registry JSON")
+          paths = [
+              "tools/postgresql/service_lifecycle.py", "tools/postgresql/clusterctl.py",
+              "tools/delivery/product_activation_runner.py", "tools/delivery/product_cluster_upgrade.py",
+              "tools/delivery/product_predecessor_adoption.py", "tools/delivery/product_activation_reconcile.py",
+              "tools/delivery/install_product_activation_gateway.py", "tools/delivery/product_distribution_core.py",
+              "tools/sources/stockfish_corpus_acceptance.py", "tests/postgresql_cluster_tests.py",
+              "tests/product_activation_runner_tests.py",
+          ]
+          for path in paths:
+              ast.parse(Path(path).read_text())
+          json.loads(Path("contracts/product-activation-gateway.json").read_text())
+          print("PASS 11 Python ASTs and gateway JSON; no service/native execution claimed")
           PY
           test -z "$(git status --porcelain --untracked-files=all)"
           printf '%s\n' "PASS clean source worktree" | tee "$EVIDENCE/source-clean.txt"
           exit "$status"
-      - name: Retain QA registration evidence
+      - name: Retain lifecycle control evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: source-runtime-state-qa-controls
-          path: /build/laplace/recovery/source-runtime-state/
+          name: pg-service-owner-controls
+          path: /build/laplace/recovery/pg-service-owner/
           if-no-files-found: error
           retention-days: 30

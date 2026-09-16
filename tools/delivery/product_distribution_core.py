@@ -46,6 +46,7 @@ CONTROL_SOURCES = {
     "tools/postgresql/highwayctl.py",
     "tools/postgresql/highway_revalidation.py",
     "tools/postgresql/hostctl.py",
+    "tools/postgresql/service_lifecycle.py",
     "tools/postgresql/unicodectl.py",
     "tools/product/build-package.py",
 }

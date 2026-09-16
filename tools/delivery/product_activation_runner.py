@@ -4,11 +4,12 @@
 This is the recurring product provider selected after one-time ``setup-host.sh``.
 It owns package installation, PostgreSQL candidate/commit, Unicode, Highway, and
 product receipts. Root is never the product executor and recurring delivery does not
-require sudo or systemd. PostgreSQL lifecycle is controlled by the package's ``pg_ctl``.
+execute database or product code as root. The canonical PostgreSQL instance uses
+the existing fixed system service authority; isolated proofs retain ``pg_ctl``.
 
 Unicode and Highway remain semantic/product controllers. Where their historical
 orchestration requests a service restart, this provider maps that request to exact
-runner-owned pg_ctl stop/start operations and rejects every other systemd command.
+selected-owner stop/start operations and rejects every other systemd command.
 """
 
 from __future__ import annotations
@@ -153,8 +154,9 @@ def validate_cluster_result(result: dict[str, Any], package_id: str) -> Path:
         or result.get("phase") != "activated"
         or result.get("package_id") != package_id
         or result.get("restart_proven") is not True
-        or result.get("lifecycle_provider") != clusterctl.LIFECYCLE_PROVIDER
-        or result.get("service_integration_required") is not False
+        or not clusterctl.valid_lifecycle_receipt(result)
+        or (result.get("lifecycle_provider") == clusterctl.LIFECYCLE_PROVIDER and
+            result.get("service_integration_required") is not False)
         or result.get("active_target") != f"releases/{package_id}"
         or result.get("runtime_target") != f"../releases/{package_id}"
         or result.get("activation_receipt_sha256")
@@ -402,11 +404,11 @@ def runner_work_directories(
 def runner_command(
     plan: dict[str, Any], label: str, command: Sequence[str], timeout: int
 ) -> dict[str, Any]:
-    """Execute product commands and map the historical service restart to pg_ctl.
+    """Execute product commands through the selected PostgreSQL lifecycle.
 
     Unicode/Highway still express a restart as a systemd-shaped request.  The physical
     provider is authoritative here: only that exact restart request is accepted and it
-    becomes a runner-owned pg_ctl stop/start pair.  No systemctl process is executed.
+    becomes a selected-owner stop/start pair with actual command receipts.
     """
     require_runner()
     values = list(command)
@@ -416,28 +418,28 @@ def runner_command(
             raise RunnerActivationError(
                 f"{label} requested unsupported systemd operation: {' '.join(values)}"
             )
-        stop_receipt = clusterctl.execute_activation_command(
-            f"{label}-stop", plan["commands"]["stop_candidate"], timeout
+        stop_receipt = clusterctl.execute_plan_command(
+            plan, f"{label}-stop", plan["commands"]["stop_candidate"], timeout
         )
-        start_receipt = clusterctl.execute_activation_command(
-            f"{label}-start", plan["commands"]["start_candidate"], timeout
+        start_receipt = clusterctl.execute_plan_command(
+            plan, f"{label}-start", plan["commands"]["start_candidate"], timeout
         )
         payload = {
-            "provider": clusterctl.LIFECYCLE_PROVIDER,
+            "provider": clusterctl.selected_lifecycle_provider(plan),
             "stop": stop_receipt,
             "start": start_receipt,
         }
         digest = clusterctl.sha256_bytes(canonical_bytes(payload))
         return {
             "label": label,
-            "argv": [clusterctl.LIFECYCLE_PROVIDER, "restart"],
+            "argv": [clusterctl.selected_lifecycle_provider(plan), "restart"],
             "exit_code": 0,
             "stdout_sha256": digest,
             "stderr_sha256": clusterctl.sha256_bytes(b""),
-            "provider": clusterctl.LIFECYCLE_PROVIDER,
+            "provider": clusterctl.selected_lifecycle_provider(plan),
             "steps": [stop_receipt, start_receipt],
         }
-    return clusterctl.execute_activation_command(label, values, timeout)
+    return clusterctl.execute_plan_command(plan, label, values, timeout)
 
 
 def ensure_cluster_running(
@@ -455,14 +457,15 @@ def ensure_cluster_running(
         timeout=30,
     )
     if status.returncode != 0:
-        clusterctl.execute_activation_command(
-            "restart-existing-product", plan["commands"]["start_candidate"], 300
+        clusterctl.execute_plan_command(
+            plan, "restart-existing-product", plan["commands"]["start_candidate"], 300
         )
         clusterctl.await_postgresql_ready(
             "existing-product-readiness", plan["commands"]["probe_readiness"], 300
         )
     observed = clusterctl.observe_loaded_live(plan, cluster_contract, Path("/"))
     clusterctl.verify_loaded(plan, cluster_contract, observed)
+    clusterctl.lifecycle_result_fields(plan, observed)
     if observed.get("system_identifier") != cluster_result.get("system_identifier"):
         raise RunnerActivationError("existing PostgreSQL system identity changed")
     return observed
@@ -658,7 +661,7 @@ def execute(
         "cluster_result": str(cluster_result_path),
         "unicode_result": str(unicode_result_path),
         "highway_result": str(highway_result_path),
-        "postgresql_lifecycle_provider": clusterctl.LIFECYCLE_PROVIDER,
+        "postgresql_lifecycle_provider": clusterctl.selected_lifecycle_provider(plan),
         "root_product_executor": False,
     }
     result["result_sha256"] = document_identity(result, "result_sha256")
