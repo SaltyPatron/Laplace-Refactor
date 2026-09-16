@@ -1,0 +1,139 @@
+name: Observe active Original corpus progress without shared-host work
+on:
+  push:
+    branches: ['diag/observe-original-livepilot-*']
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
+    steps:
+      - name: Read two bounded diagnostic snapshots from the exact active pilot
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 40s python3 - <<'PY'
+          import datetime, hashlib, json, math, os, signal, stat, time
+          from pathlib import Path
+          
+          RUN, ATTEMPT = int("__PILOT_RUN_ID__"), int("__PILOT_ATTEMPT__")
+          SHA = "__EXPECTED_SOURCE_SHA__"
+          assert RUN > 0 and ATTEMPT > 0 and len(SHA) == 40 and all(c in "0123456789abcdef" for c in SHA)
+          ROOT = Path(f"/build/laplace/work/chess-corpus-evidence/{RUN}-{ATTEMPT}/corpus")
+          STARTED = time.monotonic()
+          
+          def deadline(signum, frame):
+              raise TimeoutError("bounded read-only pilot observation deadline")
+          signal.signal(signal.SIGALRM, deadline)
+          signal.alarm(30)
+          
+          def text(value):
+              return value[:160] if isinstance(value, str) else None
+          
+          def scalar(value):
+              return value if type(value) is int or type(value) is bool or value is None or (
+                  type(value) is float and math.isfinite(value)) else None
+          
+          def projection(data, names):
+              if not isinstance(data, dict):
+                  raise ValueError("expected an object")
+              return {key: text(data[key]) if isinstance(data[key], str) else scalar(data[key])
+                      for key in names if key in data}
+          
+          def metadata(relative):
+              try:
+                  path = ROOT / relative
+                  item = path.lstat()
+                  return {"present": True, "regular": stat.S_ISREG(item.st_mode), "bytes": item.st_size,
+                          "modifiedUtc": datetime.datetime.fromtimestamp(item.st_mtime, datetime.timezone.utc).isoformat()}
+              except OSError as error:
+                  return {"present": False, "errorType": type(error).__name__, "errno": error.errno}
+          
+          def read_json(relative, schema):
+              path = ROOT / relative
+              if path.parent.resolve(strict=True) != path.parent:
+                  raise ValueError("fixed evidence parent resolves through a symlink")
+              fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(fd, "rb") as stream:
+                  before = os.fstat(stream.fileno())
+                  if not stat.S_ISREG(before.st_mode) or before.st_size > 262144:
+                      raise ValueError("evidence is not a bounded regular file")
+                  raw = stream.read(262145)
+                  after = os.fstat(stream.fileno())
+              if len(raw) > 262144 or (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                  raise ValueError("evidence changed or exceeded the observation budget")
+              data = json.loads(raw)
+              if not isinstance(data, dict) or data.get("schema") != schema:
+                  raise ValueError("unexpected evidence schema")
+              return data, {"path": str(path), "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
+          
+          def observe():
+              result = {"schema": "laplace.chess-pilot-live-observation/v2", "runId": RUN, "attempt": ATTEMPT,
+                        "expectedSourceSha": SHA, "observedUtc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "scope": "Read-only fixed evidence paths; no checkout, host lock, database or process mutation. Diagnostic samples are not a throughput or completed-recording result. Heartbeats do not establish forward admission progress."}
+              bound = False
+              try:
+                  data, identity = read_json("receipt.json", "laplace.installed-native-corpus-measurement/v1")
+                  if data.get("sourceSha") != SHA:
+                      raise ValueError("wrapper source identity is absent or differs from the selected pilot")
+                  bound = True
+                  phases = data.get("phases")
+                  if not isinstance(phases, list) or len(phases) > 64:
+                      raise ValueError("unexpected phase list")
+                  result["wrapper"] = projection(data, ("schema", "status", "mode", "sourceSha", "observedUtc", "finishedUtc",
+                                                        "errorType", "postflightErrorType", "sourcePostflightErrorType",
+                                                        "nativePostflightErrorType"))
+                  result["wrapper"]["errorPresent"] = bool(data.get("error"))
+                  result["wrapper"]["phases"] = [projection(row, ("name", "status", "wallSeconds", "errorType")) for row in phases]
+                  result["wrapperIdentity"] = identity
+              except (OSError, ValueError, TypeError, KeyError) as error:
+                  result["wrapperReadErrorType"] = type(error).__name__
+                  if isinstance(error, OSError):
+                      result["wrapperReadErrno"] = error.errno
+              result["sourceBoundByWrapper"] = bound
+              result["progress"] = {}
+              for phase in ("fresh", "replay-01"):
+                  relative = f"measurement/{phase}/progress.json"
+                  item = {"file": metadata(relative), "sourceBoundByWrapper": bound}
+                  try:
+                      data, identity = read_json(relative, "laplace.chess-recording-progress/v1")
+                      item["identity"] = identity
+                      item["sample"] = projection(data, ("schema", "processId", "processStartedAt", "heartbeatAt",
+                                                          "heartbeatElapsedSeconds"))
+                      checkpoint = data.get("checkpoint")
+                      item["sample"]["checkpoint"] = projection(checkpoint, (
+                          "sequence", "observedElapsedSeconds", "phaseEnteredElapsedSeconds", "phase", "boundary", "admissionStatus"))
+                      counters = checkpoint.get("counters")
+                      item["sample"]["checkpoint"]["counters"] = projection(counters, (
+                          "requestedGames", "parsedGames", "parseAttempts", "parseRejected", "parsedPlies",
+                          "chunksStarted", "chunksSealed", "currentChunkGames", "novelGamesComposed", "novelPliesComposed",
+                          "positionOccurrencesComposed", "repairGamesComposed", "builtChanges", "builtManagedEntityRows",
+                          "builtManagedPhysicalityRows", "builtManagedPhysicalityObservationRows", "builtManagedAttestationRows",
+                          "builtNativeStages", "writerApplyAttempts", "writerCallsAcknowledged", "copyTransactionsAcknowledged",
+                          "gamesEnteredReadback", "exactReadbackGames", "gamesWithSealedChunkEvidence",
+                          "newlyRecordedGamesWithSealedChunkEvidence"))
+                      writer = checkpoint.get("lastWriterBoundary")
+                      if writer is not None:
+                          item["sample"]["checkpoint"]["lastWriterBoundary"] = projection(writer, (
+                              "ownerPhase", "phase", "boundary", "observedElapsedSeconds", "elapsedMilliseconds", "returned"))
+                      item["sample"]["diagnostics"] = projection(data.get("diagnostics"), (
+                          "successfulWrites", "writeFailures", "logFailures", "observationFailures", "heartbeatIntervalSeconds",
+                          "loopCheckpointIntervalSeconds", "lastDiagnosticErrorType"))
+                  except (OSError, ValueError, TypeError, KeyError) as error:
+                      item["readErrorType"] = type(error).__name__
+                      if isinstance(error, OSError):
+                          item["readErrno"] = error.errno
+                  result["progress"][phase] = item
+              result["fileMetadata"] = {relative: metadata(relative) for relative in (
+                  "native-before.log", "cli-build.log", "cli-native-sync.log", "measurement.log", "native-after.log",
+                  "measurement/selection.jsonl", "measurement/preparation.json", "measurement/corpus-recording.json",
+                  "measurement/fresh/chunks.jsonl", "measurement/replay-01/chunks.jsonl")}
+              result["observerElapsedSeconds"] = time.monotonic() - STARTED
+              print("PILOT_LIVE_CHECKPOINT " + json.dumps(result, sort_keys=True, allow_nan=False), flush=True)
+          
+          observe()
+          time.sleep(10)
+          observe()
+          signal.alarm(0)
+          PY

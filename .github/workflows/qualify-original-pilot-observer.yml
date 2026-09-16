@@ -1,0 +1,91 @@
+name: Qualify bounded Original pilot observer
+on:
+  push:
+    branches: ['qualify/original-pilot-observer-*']
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Qualify actual observer syntax and bounded projections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/observer-qualification-venv"
+          "$RUNNER_TEMP/observer-qualification-venv/bin/pip" install --disable-pip-version-check PyYAML==6.0.2
+          "$RUNNER_TEMP/observer-qualification-venv/bin/python" - <<'PY'
+          import ast, contextlib, hashlib, io, json, signal, subprocess, tempfile
+          from pathlib import Path
+          import yaml
+          template = Path("tools/diagnostics/original-pilot-observer-template.yml").read_text()
+          assert hashlib.sha256(template.encode()).hexdigest()
+          document = yaml.safe_load(template)
+          job = document["jobs"]["observe"]
+          assert job["runs-on"] == ["self-hosted", "Linux", "X64", "laplace-refactor"]
+          assert len(job["steps"]) == 1
+          script = job["steps"][0]["run"]
+          subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+          assert script.endswith("\nPY\n"), repr(script[-80:])
+          program = script.split("<<'PY'\n", 1)[1].rsplit("\nPY\n", 1)[0]
+          program = program.replace("__PILOT_RUN_ID__", "123456").replace("__PILOT_ATTEMPT__", "1").replace("__EXPECTED_SOURCE_SHA__", "a" * 40)
+          tree = ast.parse(program)
+          compile(tree, "<actual-observer>", "exec")
+          assert isinstance(tree.body[-4], ast.Expr) and isinstance(tree.body[-4].value, ast.Call) and isinstance(tree.body[-4].value.func, ast.Name) and tree.body[-4].value.func.id == "observe"
+          assert isinstance(tree.body[-3], ast.Expr) and isinstance(tree.body[-3].value, ast.Call) and isinstance(tree.body[-3].value.func, ast.Attribute) and tree.body[-3].value.func.attr == "sleep"
+          assert isinstance(tree.body[-2], ast.Expr) and isinstance(tree.body[-2].value, ast.Call) and isinstance(tree.body[-2].value.func, ast.Name) and tree.body[-2].value.func.id == "observe"
+          assert isinstance(tree.body[-1], ast.Expr) and isinstance(tree.body[-1].value, ast.Call) and isinstance(tree.body[-1].value.func, ast.Attribute) and tree.body[-1].value.func.attr == "alarm"
+          ns = {"__name__": "observer_qualification"}
+          exec(compile(ast.Module(body=tree.body[:-4], type_ignores=[]), "<actual-observer-definitions>", "exec"), ns)
+          with tempfile.TemporaryDirectory() as directory:
+              root = Path(directory)
+              ns["ROOT"] = root
+              (root / "measurement/fresh").mkdir(parents=True)
+              receipt = {"schema": "laplace.installed-native-corpus-measurement/v1", "sourceSha": "a" * 40,
+                         "status": "failed", "mode": "measure", "phases": [{"name": "measurement", "status": "running"}],
+                         "extraSecret": "must-not-appear"}
+              (root / "receipt.json").write_text(json.dumps(receipt))
+              progress = {"schema": "laplace.chess-recording-progress/v1", "processId": 123, "processStartedAt": "fixture",
+                          "heartbeatAt": "fixture", "heartbeatElapsedSeconds": 20.5, "extraSecret": "must-not-appear",
+                          "checkpoint": {"sequence": 7, "observedElapsedSeconds": 19.0, "phaseEnteredElapsedSeconds": 18.0,
+                              "phase": "writer", "boundary": "entered", "admissionStatus": "running",
+                              "counters": {"requestedGames": 2000, "parsedGames": 8, "exactReadbackGames": 0,
+                                  "newlyRecordedGamesWithSealedChunkEvidence": 0, "extraSecret": "must-not-appear"},
+                              "lastWriterBoundary": {"ownerPhase": "writer", "phase": "copy", "boundary": "entered",
+                                  "observedElapsedSeconds": 19.5, "elapsedMilliseconds": None, "returned": None}},
+                          "diagnostics": {"successfulWrites": 19, "writeFailures": 0, "extraSecret": "must-not-appear"}}
+              (root / "measurement/fresh/progress.json").write_text(json.dumps(progress))
+              def identities():
+                  return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*") if p.is_file()}
+              before = identities()
+              captured = io.StringIO()
+              with contextlib.redirect_stdout(captured):
+                  ns["observe"]()
+              output = captured.getvalue()
+              assert "must-not-appear" not in output
+              result = json.loads(output.removeprefix("PILOT_LIVE_CHECKPOINT "))
+              assert result["sourceBoundByWrapper"] is True
+              assert result["wrapper"]["phases"] == [{"name": "measurement", "status": "running"}]
+              sample = result["progress"]["fresh"]["sample"]
+              assert sample["checkpoint"]["sequence"] == 7
+              assert sample["checkpoint"]["counters"]["parsedGames"] == 8
+              assert sample["checkpoint"]["counters"]["newlyRecordedGamesWithSealedChunkEvidence"] == 0
+              assert sample["checkpoint"]["lastWriterBoundary"]["returned"] is None
+              assert result["progress"]["replay-01"]["readErrorType"] == "FileNotFoundError"
+              assert identities() == before
+              receipt["sourceSha"] = "b" * 40
+              (root / "receipt.json").write_text(json.dumps(receipt))
+              captured = io.StringIO()
+              with contextlib.redirect_stdout(captured):
+                  ns["observe"]()
+              mismatch = json.loads(captured.getvalue().removeprefix("PILOT_LIVE_CHECKPOINT "))
+              assert mismatch["sourceBoundByWrapper"] is False
+              assert mismatch["progress"]["fresh"]["sourceBoundByWrapper"] is False
+              assert mismatch["wrapperReadErrorType"] == "ValueError"
+          signal.alarm(0)
+          print("OBSERVER_QUALIFICATION passed: YAML/Bash/Python syntax; actual observer fixture projection; source mismatch remains unbound; no fixture mutation.")
+          PY
