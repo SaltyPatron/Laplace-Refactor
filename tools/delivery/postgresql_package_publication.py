@@ -11,9 +11,14 @@ import os
 import re
 import shutil
 import stat
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dependencies"))
+import package_receipts as toolchain_receipts
 
 
 CONTRACT_SCHEMA = "laplace.postgresql-package-publication-contract/v1"
@@ -206,6 +211,15 @@ def tree_receipt(root: Path) -> dict[str, Any]:
     }
 
 
+def verify_retained_provider_roots(
+    record: Mapping[str, Any], selected: Mapping[str, Any]
+) -> dict[str, Any]:
+    try:
+        return toolchain_receipts.verify_retained_toolchain(record, selected)
+    except toolchain_receipts.ReceiptError as error:
+        raise PublicationError(str(error)) from error
+
+
 def accepted_source(
     contract: Mapping[str, Any], source_receipt_path: Path
 ) -> dict[str, Any]:
@@ -248,14 +262,28 @@ def accepted_source(
     )
     toolchain_receipt = load_json(toolchain_receipt_path)
     if (
-        toolchain_receipt.get("schema") != "laplace.toolchain-package-receipt/v1"
+        toolchain_receipt.get("schema") not in (
+            "laplace.toolchain-package-receipt/v1", toolchain_receipts.COMPOSED_TOOLCHAIN_SCHEMA
+        )
         or toolchain_receipt.get("build_input_id") != toolchain.get("build_input_id")
     ):
         raise PublicationError("toolchain receipt identity differs")
-    package = toolchain_receipt.get("package")
-    if not isinstance(package, dict) or Path(str(package.get("prefix", ""))) != toolchain_prefix:
-        raise PublicationError("toolchain receipt prefix differs")
-    toolchain_tree = tree_receipt(toolchain_prefix)
+    provider_roots = None
+    if toolchain_receipt["schema"] == toolchain_receipts.COMPOSED_TOOLCHAIN_SCHEMA:
+        retained = {
+            "schema": toolchain_receipts.RETAINED_TOOLCHAIN_SCHEMA,
+            "source_receipt": str(toolchain_receipt_path),
+            "source_receipt_sha256": toolchain_receipt_sha256,
+            "provider_roots": toolchain.get("provider_roots"),
+        }
+        manifest = verify_retained_provider_roots(retained, toolchain)
+        provider_roots = manifest["provider_roots"]
+        toolchain_tree = None
+    else:
+        package = toolchain_receipt.get("package")
+        if not isinstance(package, dict) or Path(str(package.get("prefix", ""))) != toolchain_prefix:
+            raise PublicationError("toolchain receipt prefix differs")
+        toolchain_tree = tree_receipt(toolchain_prefix)
 
     host_receipt_path = require_absolute(
         host_provider.get("receipt_path"), "host_provider.receipt_path"
@@ -277,6 +305,7 @@ def accepted_source(
         "toolchain_prefix": toolchain_prefix,
         "toolchain_physical_prefix": toolchain_prefix.resolve(),
         "toolchain_tree": toolchain_tree,
+        **({"toolchain_provider_roots": provider_roots} if provider_roots is not None else {}),
         "toolchain_receipt": toolchain_receipt_path.resolve(),
         "toolchain_receipt_sha256": toolchain_receipt_sha256,
         "host_receipt": host_receipt_path.resolve(),
@@ -297,7 +326,9 @@ def publication_plan(
         "build_input_id": source["build_input_id"],
         "postgresql_tree_sha256": source["postgresql_tree"]["tree_sha256"],
         "toolchain_receipt_sha256": source["toolchain_receipt_sha256"],
-        "toolchain_tree_sha256": source["toolchain_tree"]["tree_sha256"],
+        **({"toolchain_provider_roots_sha256": canonical_sha256(source["toolchain_provider_roots"])}
+           if "toolchain_provider_roots" in source else
+           {"toolchain_tree_sha256": source["toolchain_tree"]["tree_sha256"]}),
         "host_provider_receipt_sha256": source["host_receipt_sha256"],
     }
     publication_id = canonical_sha256(identity)
@@ -305,6 +336,21 @@ def publication_plan(
     receipt_path = Path(contract["receipt_root"]) / f"{publication_id}.json"
     postgresql_prefix = publication_root / "postgresql"
     toolchain_prefix = publication_root / "toolchain"
+    toolchain_record = {
+        "source_receipt": str(publication_root / "evidence/toolchain-package-receipt.json"),
+        "source_receipt_sha256": source["toolchain_receipt_sha256"],
+    }
+    if "toolchain_provider_roots" in source:
+        toolchain_record.update({
+            "schema": toolchain_receipts.RETAINED_TOOLCHAIN_SCHEMA,
+            "provider_roots": source["toolchain_provider_roots"],
+        })
+    else:
+        toolchain_record.update({
+            "prefix": str(toolchain_prefix),
+            **source["toolchain_tree"],
+            "source_prefix": str(source["toolchain_prefix"]),
+        })
     receipt = {
         **identity,
         "publication_id": publication_id,
@@ -317,13 +363,7 @@ def publication_plan(
             "prefix": str(postgresql_prefix),
             **source["postgresql_tree"],
         },
-        "toolchain": {
-            "prefix": str(toolchain_prefix),
-            **source["toolchain_tree"],
-            "source_receipt": str(publication_root / "evidence/toolchain-package-receipt.json"),
-            "source_receipt_sha256": source["toolchain_receipt_sha256"],
-            "source_prefix": str(source["toolchain_prefix"]),
-        },
+        "toolchain": toolchain_record,
         "host_provider": {
             "source_receipt": str(publication_root / "evidence/host-provider-receipt.json"),
             "source_receipt_sha256": source["host_receipt_sha256"],
@@ -378,7 +418,15 @@ def verify_publication(receipt_path: Path) -> dict[str, Any]:
         or source.get("activation_eligible") is not True
     ):
         raise PublicationError("published PostgreSQL source receipt identity differs")
-    for name, record in (("postgresql", postgresql), ("toolchain", toolchain)):
+    retained = toolchain.get("schema") == toolchain_receipts.RETAINED_TOOLCHAIN_SCHEMA
+    if retained:
+        verify_retained_provider_roots(toolchain, source.get("build_toolchain", {}))
+        if receipt.get("toolchain_provider_roots_sha256") != canonical_sha256(toolchain["provider_roots"]):
+            raise PublicationError("retained toolchain provider roots identity differs")
+    records = [("postgresql", postgresql)]
+    if not retained:
+        records.append(("toolchain", toolchain))
+    for name, record in records:
         prefix = require_absolute(record.get("prefix"), f"{name}.prefix")
         if not prefix.is_relative_to(publication_root):
             raise PublicationError(f"published {name} prefix escaped publication root")
@@ -468,14 +516,22 @@ def publish(contract: Mapping[str, Any], source_receipt_path: Path) -> dict[str,
         for path in evidence.iterdir():
             os.chmod(path, receipt_mode)
         shutil.copytree(source["postgresql_prefix"], temporary / "postgresql", symlinks=True)
-        shutil.copytree(
-            source["toolchain_physical_prefix"], temporary / "toolchain", symlinks=True
-        )
+        if "toolchain_provider_roots" not in source:
+            shutil.copytree(
+                source["toolchain_physical_prefix"], temporary / "toolchain", symlinks=True
+            )
+            os.chmod(temporary / "toolchain", 0o750)
+        else:
+            verify_retained_provider_roots(
+                {**receipt["toolchain"],
+                 "source_receipt": str(evidence / "toolchain-package-receipt.json")},
+                source["source"]["build_toolchain"],
+            )
         os.chmod(temporary / "postgresql", 0o750)
-        os.chmod(temporary / "toolchain", 0o750)
         if tree_receipt(temporary / "postgresql") != source["postgresql_tree"]:
             raise PublicationError("copied PostgreSQL package tree differs")
-        if tree_receipt(temporary / "toolchain") != source["toolchain_tree"]:
+        if ("toolchain_provider_roots" not in source
+                and tree_receipt(temporary / "toolchain") != source["toolchain_tree"]):
             raise PublicationError("copied toolchain package tree differs")
         fsync_tree(temporary)
         os.replace(temporary, publication_root)

@@ -765,7 +765,8 @@ def load_release_module(repository: Path) -> Any:
 
 
 def verify_sources(
-    contract: dict[str, Any], repository: Path
+    contract: dict[str, Any], repository: Path,
+    component_ids: Sequence[str] | None = None,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
     release_lock_path = repository / contract["release_lock"]
     release_lock = read_json(release_lock_path)
@@ -775,7 +776,9 @@ def verify_sources(
     release = load_release_module(repository)
     selected: dict[str, dict[str, Any]] = {}
     receipt: dict[str, dict[str, Any]] = {}
-    for component_id in EXPECTED_ORDER:
+    for component_id in (EXPECTED_ORDER if component_ids is None else component_ids):
+        if component_id not in EXPECTED_ORDER:
+            raise ToolchainError(f"unknown source component: {component_id}")
         entry = entries.get(component_id)
         if not isinstance(entry, dict):
             raise ToolchainError(f"release lock does not contain selected source: {component_id}")
@@ -946,10 +949,11 @@ def prepare_plan(plan: dict[str, Any], resume: bool) -> tuple[Path, Path, Path]:
 
 
 def build_environment(
-    contract: dict[str, Any], plan: dict[str, Any], component_id: str
+    contract: dict[str, Any], plan: dict[str, Any], component_id: str,
+    *, provider_prefix: Path | None = None,
 ) -> dict[str, str]:
     bootstrap = plan["bootstrap_inputs"]
-    prefix = Path(plan["prefix"])
+    prefix = Path(plan["prefix"]) if provider_prefix is None else provider_prefix
     home = Path(plan["build_directory"]) / ".home"
     temporary = Path(plan["work_directory"]) / "tmp"
     home.mkdir(exist_ok=True)
@@ -1182,22 +1186,27 @@ def format_command(
     prefix: Path,
     jobs: int,
     bootstrap: dict[str, dict[str, str]],
+    *, provider_prefix: Path | None = None,
 ) -> list[str]:
+    tools_prefix = prefix if provider_prefix is None else provider_prefix
+    selected_make = tools_prefix / "bin/make"
+    if provider_prefix is not None and not selected_make.is_file():
+        raise ToolchainError("authenticated provider omits selected Make")
     replacements = {
         "source": str(source),
         "build": str(build),
         "prefix": str(prefix),
         "jobs": str(jobs),
-        "make": str(prefix / "bin/make") if (prefix / "bin/make").is_file() else "/usr/bin/make",
-        "cmake": str(prefix / "bin/cmake"),
-        "ctest": str(prefix / "bin/ctest"),
+        "make": str(selected_make) if selected_make.is_file() else "/usr/bin/make",
+        "cmake": str(tools_prefix / "bin/cmake"),
+        "ctest": str(tools_prefix / "bin/ctest"),
         "cc": bootstrap["cc"]["path"],
         "cxx": bootstrap["cxx"]["path"],
         "ld": bootstrap["ld"]["path"],
         "ar": bootstrap["ar"]["path"],
         "ranlib": bootstrap["ranlib"]["path"],
         "nm": bootstrap["nm"]["path"],
-        "perl": str(prefix / "bin/perl"),
+        "perl": str(tools_prefix / "bin/perl"),
     }
     return [argument.format(**replacements) for argument in template]
 
@@ -2051,120 +2060,224 @@ def write_consumer_manifest(
     return path, manifest
 
 
+CHECKPOINT_SCHEMA = "laplace.toolchain-component-checkpoint/v2"
+CMAKE_QUALIFICATION_SCHEMA = "laplace.toolchain-component-qualification/v1"
+COMPOSED_PACKAGE_SCHEMA = "laplace.toolchain-package-receipt/v2"
+COMPOSED_CONSUMER_SCHEMA = "laplace.toolchain-consumer-manifest/v2"
+
+
+def atomic_json(path: Path, document: dict[str, Any]) -> None:
+    temporary = path.with_name(path.name + ".partial")
+    with temporary.open("x", encoding="utf-8") as output:
+        json.dump(document, output, indent=2, sort_keys=True)
+        output.write("\n")
+        output.flush()
+        os.fsync(output.fileno())
+    os.replace(temporary, path)
+    descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def verify_retained_steps(
+    plan: dict[str, Any], completed: list[str],
+    component_steps: dict[str, Any], normalization: dict[str, Any],
+) -> None:
+    if completed != plan["component_order"][:len(completed)]:
+        raise ToolchainError("retained components are not the exact dependency prefix")
+    if set(component_steps) != set(completed) or set(normalization) != set(completed):
+        raise ToolchainError("retained component evidence is incomplete")
+    for component_id in completed:
+        steps = component_steps[component_id]
+        if not isinstance(steps, list) or len(steps) != 4:
+            raise ToolchainError("retained component omits configure/build/test/install evidence")
+        normalized = normalization[component_id]
+        if (not isinstance(normalized, dict)
+                or normalized.get("source_date_epoch") != plan["source_normalization"]["source_date_epoch"]
+                or type(normalized.get("normalized_object_count")) is not int
+                or normalized["normalized_object_count"] < 1):
+            raise ToolchainError("retained component source normalization differs")
+        directory = Path(plan["build_directory"]) / "components" / component_id
+        for step_name, step in zip(("configure", "build", "test", "install"), steps):
+            path = directory / (step_name + ".log")
+            if (not isinstance(step, dict) or step.get("exit_code") != 0
+                    or not isinstance(step.get("command"), list) or not step["command"]
+                    or step.get("log_path") != str(path)
+                    or path.is_symlink() or not path.is_file()
+                    or sha256_file(path) != step.get("log_sha256")
+                    or step.get("processor_affinity") != sorted(plan["processor_affinity"]["selected_processor_ids"])):
+                raise ToolchainError(f"retained {component_id}/{step_name} execution evidence differs")
+
+
+def write_checkpoint(
+    plan: dict[str, Any], prefix: Path, path: Path, completed: list[str],
+    steps: dict[str, Any], normalization: dict[str, Any],
+) -> None:
+    verify_retained_steps(plan, completed, steps, normalization)
+    checkpoint = {
+        "schema": CHECKPOINT_SCHEMA, "build_input_id": plan["build_input_id"],
+        "build_plan_sha256": canonical_sha256(plan), "completed": completed,
+        "component_steps": steps, "source_normalization": normalization,
+        "package_tree": package_tree(prefix),
+    }
+    checkpoint["checkpoint_sha256"] = canonical_sha256(checkpoint)
+    atomic_json(path, checkpoint)
+
+
+def read_checkpoint(
+    plan: dict[str, Any], prefix: Path, path: Path,
+) -> tuple[list[str], dict[str, Any], dict[str, Any]]:
+    if not path.is_file():
+        if any(prefix.iterdir()):
+            raise ToolchainError("resume has staged output without an authenticated checkpoint")
+        return [], {}, {}
+    if path.is_symlink():
+        raise ToolchainError("resume checkpoint must be a physical file")
+    checkpoint = read_json(path)
+    digest = checkpoint.pop("checkpoint_sha256", None)
+    if (checkpoint.get("schema") != CHECKPOINT_SCHEMA
+            or digest != canonical_sha256(checkpoint)
+            or checkpoint.get("build_input_id") != plan["build_input_id"]
+            or checkpoint.get("build_plan_sha256") != canonical_sha256(plan)):
+        raise ToolchainError("resume requires complete exact-plan checkpoint evidence; names-only checkpoints cannot prove prior execution")
+    completed = checkpoint.get("completed")
+    if not isinstance(completed, list) or not all(isinstance(item, str) for item in completed):
+        raise ToolchainError("resume completed components are invalid")
+    steps = require_object(checkpoint.get("component_steps"), "checkpoint.component_steps")
+    normalization = require_object(checkpoint.get("source_normalization"), "checkpoint.source_normalization")
+    verify_retained_steps(plan, completed, steps, normalization)
+    if checkpoint.get("package_tree") != package_tree(prefix):
+        raise ToolchainError("staged tree changed after its completed-component checkpoint")
+    return completed, steps, normalization
+
+
+def execute_component(
+    contract: dict[str, Any], plan: dict[str, Any], component_id: str,
+    build_root: Path, work_root: Path, prefix: Path,
+    *, provider_prefix: Path | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """One configure/build/test/install owner for full and incremental builds."""
+    component = contract["build"]["components"][component_id]
+    component_build = build_root / "components" / component_id
+    private_directory(component_build)
+    prerequisite_receipt = verify_component_prerequisites(component_id, prefix if provider_prefix is None else provider_prefix)
+    source = component_source(
+        contract, Path(plan["repository"]), component_id, work_root
+    )
+    verify_private_source_copy(contract, Path(plan["repository"]), component_id, source.parent)
+    normalization = {
+        "source_date_epoch": plan["source_normalization"]["source_date_epoch"],
+        "normalized_object_count": verify_normalized_source_timestamps(
+            source, int(plan["source_normalization"]["source_date_epoch"])
+        ),
+    }
+    selected_prefix = prefix if provider_prefix is None else provider_prefix
+    environment = build_environment(contract, plan, component_id, provider_prefix=provider_prefix)
+    working_directory = component_working_directory(
+        component_id,
+        component["source_mode"],
+        source,
+        component_build,
+        Path(plan["repository"]),
+    )
+    steps: list[dict[str, Any]] = []
+    for step_name in ("configure", "build", "test", "install"):
+        command = format_command(
+            component[step_name],
+            source,
+            component_build,
+            prefix,
+            plan["parallel_jobs"],
+            plan["bootstrap_inputs"],
+            provider_prefix=provider_prefix,
+        )
+        step_environment_value, environment_contract = step_environment(
+            component,
+            component_id,
+            step_name,
+            component_build,
+            environment,
+        )
+        step_receipt = run_logged(
+            command,
+            working_directory,
+            step_environment_value,
+            component_build / f"{step_name}.log",
+            plan["processor_affinity"]["selected_processor_ids"],
+        )
+        if step_name == "configure":
+            step_receipt["configuration_contract"] = verify_component_configuration(
+                component_id, source
+            )
+            step_receipt["test_capability_contract"] = verify_cmake_test_configuration(
+                component_id, component_build, selected_prefix / "bin/make"
+            )
+            step_receipt["prerequisite_contract"] = prerequisite_receipt
+            step_receipt["configure_log_contract"] = verify_component_configure_log(
+                component_id, Path(step_receipt["log_path"])
+            )
+        if step_name == "test":
+            step_receipt["environment_contract"] = environment_contract
+            if "test_policy" in component:
+                step_receipt["test_result_contract"] = verify_dejagnu_results(
+                    component_id,
+                    component_build,
+                    require_object(component["test_policy"], "test_policy"),
+                )
+            if component_id == "cmake":
+                step_receipt["test_result_contract"] = verify_cmake_test_results(
+                    component_id,
+                    component_build,
+                    Path(step_receipt["log_path"]),
+                    selected_prefix / "bin/make",
+                    plan["parallel_jobs"],
+                    require_object(
+                        component["test_capability_selection"]["result_policy"],
+                        "cmake.test_capability_selection.result_policy",
+                    ),
+                )
+        if step_name == "install":
+            step_receipt["installation_contract"] = verify_component_installation(
+                component_id,
+                prefix,
+                plan["bootstrap_inputs"],
+                Path(plan["build_directory"]) / ".home",
+            )
+        steps.append(step_receipt)
+    return steps, normalization
+
+
 def execute_plan(
     contract: dict[str, Any], plan: dict[str, Any], resume: bool = False
 ) -> dict[str, Any]:
     build_root, work_root, prefix = prepare_plan(plan, resume)
     checkpoint_path = build_root / "completed-components.json"
-    completed: list[str] = []
-    if resume and checkpoint_path.is_file():
-        checkpoint = read_json(checkpoint_path)
-        if checkpoint.get("build_input_id") != plan["build_input_id"]:
-            raise ToolchainError("resume checkpoint has a different build input identity")
-        completed = checkpoint.get("completed", [])
-        if not isinstance(completed, list) or completed != EXPECTED_ORDER[: len(completed)]:
-            raise ToolchainError("resume checkpoint is not a valid dependency prefix")
-    component_steps: dict[str, list[dict[str, Any]]] = {}
-    source_normalization: dict[str, dict[str, Any]] = {}
+    receipt_path = build_root / "toolchain-package-receipt.json"
+    if resume and receipt_path.is_file():
+        receipt = read_json(receipt_path)
+        if (receipt.get("build_plan_sha256") != canonical_sha256(plan)
+                or receipt.get("source_inputs") != plan["source_inputs"]):
+            raise ToolchainError("completed package belongs to another exact plan")
+        verify_retained_steps(plan, list(EXPECTED_ORDER),
+                              require_object(receipt.get("component_steps"), "component_steps"),
+                              require_object(receipt.get("source_normalization", {}).get("components"),
+                                             "source_normalization.components"))
+        verify_package(contract, prefix, receipt)
+        return receipt
+    completed, component_steps, source_normalization = (
+        read_checkpoint(plan, prefix, checkpoint_path) if resume else ([], {}, {}))
     for component_id in EXPECTED_ORDER:
         if component_id in completed:
             continue
-        component = contract["build"]["components"][component_id]
-        component_build = build_root / "components" / component_id
-        private_directory(component_build)
-        prerequisite_receipt = verify_component_prerequisites(component_id, prefix)
-        source = component_source(
-            contract, Path(plan["repository"]), component_id, work_root
-        )
-        verify_private_source_copy(contract, Path(plan["repository"]), component_id, source.parent)
-        source_normalization[component_id] = {
-            "source_date_epoch": plan["source_normalization"]["source_date_epoch"],
-            "normalized_object_count": verify_normalized_source_timestamps(
-                source, int(plan["source_normalization"]["source_date_epoch"])
-            ),
-        }
-        environment = build_environment(contract, plan, component_id)
-        working_directory = component_working_directory(
-            component_id,
-            component["source_mode"],
-            source,
-            component_build,
-            Path(plan["repository"]),
-        )
-        steps: list[dict[str, Any]] = []
-        for step_name in ("configure", "build", "test", "install"):
-            command = format_command(
-                component[step_name],
-                source,
-                component_build,
-                prefix,
-                plan["parallel_jobs"],
-                plan["bootstrap_inputs"],
-            )
-            step_environment_value, environment_contract = step_environment(
-                component,
-                component_id,
-                step_name,
-                component_build,
-                environment,
-            )
-            step_receipt = run_logged(
-                command,
-                working_directory,
-                step_environment_value,
-                component_build / f"{step_name}.log",
-                plan["processor_affinity"]["selected_processor_ids"],
-            )
-            if step_name == "configure":
-                step_receipt["configuration_contract"] = verify_component_configuration(
-                    component_id, source
-                )
-                step_receipt["test_capability_contract"] = verify_cmake_test_configuration(
-                    component_id, component_build, prefix / "bin/make"
-                )
-                step_receipt["prerequisite_contract"] = prerequisite_receipt
-                step_receipt["configure_log_contract"] = verify_component_configure_log(
-                    component_id, Path(step_receipt["log_path"])
-                )
-            if step_name == "test":
-                step_receipt["environment_contract"] = environment_contract
-                if "test_policy" in component:
-                    step_receipt["test_result_contract"] = verify_dejagnu_results(
-                        component_id,
-                        component_build,
-                        require_object(component["test_policy"], "test_policy"),
-                    )
-                if component_id == "cmake":
-                    step_receipt["test_result_contract"] = verify_cmake_test_results(
-                        component_id,
-                        component_build,
-                        Path(step_receipt["log_path"]),
-                        prefix / "bin/make",
-                        plan["parallel_jobs"],
-                        require_object(
-                            component["test_capability_selection"]["result_policy"],
-                            "cmake.test_capability_selection.result_policy",
-                        ),
-                    )
-            if step_name == "install":
-                step_receipt["installation_contract"] = verify_component_installation(
-                    component_id,
-                    prefix,
-                    plan["bootstrap_inputs"],
-                    Path(plan["build_directory"]) / ".home",
-                )
-            steps.append(step_receipt)
+        steps, normalization = execute_component(
+            contract, plan, component_id, build_root, work_root, prefix)
+        source_normalization[component_id] = normalization
         component_steps[component_id] = steps
         completed.append(component_id)
-        checkpoint_path.write_text(
-            json.dumps(
-                {"build_input_id": plan["build_input_id"], "completed": completed},
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        write_checkpoint(plan, prefix, checkpoint_path, completed,
+                         component_steps, source_normalization)
 
     _, source_generation_after = verify_sources(
         contract, Path(plan["repository"])
@@ -2313,6 +2426,404 @@ def verify_package(
     return result
 
 
+
+def authenticated_json(path: Path, expected_sha256: str) -> dict[str, Any]:
+    if (not path.is_absolute() or path.is_symlink() or not path.is_file()
+            or not HASH_PATTERN.fullmatch(expected_sha256)
+            or path.stat().st_size > 64 * 1024 * 1024
+            or sha256_file(path) != expected_sha256):
+        raise ToolchainError("authenticated receipt path or digest differs")
+    document = read_json(path)
+    if sha256_file(path) != expected_sha256:
+        raise ToolchainError("authenticated receipt changed while reading")
+    return document
+
+
+def verify_reuse_provider(
+    contract: dict[str, Any], repository: Path, receipt_path: Path, receipt_sha256: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read immutable historical evidence; never label its tests reexecuted."""
+    receipt = authenticated_json(receipt_path, receipt_sha256)
+    package = require_object(receipt.get("package"), "provider.package")
+    prefix = Path(require_string(package.get("prefix"), "provider.package.prefix"))
+    if not prefix.is_absolute() or prefix.is_symlink() or not prefix.is_dir():
+        raise ToolchainError("reuse provider requires its original physical absolute prefix")
+    verified = verify_package(contract, prefix, receipt)
+    manifest = read_json(prefix / "share/laplace/toolchain-manifest.json")
+    if (package.get("consumer_manifest_path") != str(prefix / "share/laplace/toolchain-manifest.json")
+            or package.get("consumer_manifest_sha256") != verified["consumer_manifest_sha256"]
+            or receipt.get("consumer_manifest") != manifest
+            or receipt.get("installed_tools") != manifest["tools"]):
+        raise ToolchainError("reuse provider retained manifest binding differs")
+    sources = require_object(receipt.get("source_inputs"), "provider.source_inputs")
+    if set(sources) != set(EXPECTED_ORDER) or receipt.get("source_generation_after") != sources:
+        raise ToolchainError("reuse provider omits its complete stable source inventory")
+    lock = read_json(repository / contract["release_lock"])
+    for component_id in EXPECTED_ORDER:
+        if component_id == "cmake":
+            continue
+        entry = lock["archives"][component_id]
+        source = require_object(sources[component_id], "provider.source")
+        if any(source.get(observed) != entry[declared] for observed, declared in (
+                ("version", "version"), ("archive_sha256", "sha256"),
+                ("tree_sha256", "tree_sha256"))):
+            raise ToolchainError(f"unchanged provider source differs: {component_id}")
+    retained_steps = require_object(receipt.get("component_steps"), "provider.component_steps")
+    if not set(retained_steps).issubset(EXPECTED_ORDER):
+        raise ToolchainError("reuse provider has unknown historical component evidence")
+    binding = {
+        "prefix": str(prefix), "source_receipt": str(receipt_path),
+        "source_receipt_sha256": receipt_sha256, "package_tree": verified["package_tree"],
+    }
+    return binding, receipt
+
+
+def create_cmake_component_plan(
+    contract: dict[str, Any], repository: Path,
+    provider_receipt: Path, provider_receipt_sha256: str,
+) -> dict[str, Any]:
+    validate_contract(contract, repository)
+    provider, historical = verify_reuse_provider(
+        contract, repository, provider_receipt, provider_receipt_sha256)
+    bootstrap = verify_bootstrap(contract)
+    selected, source_receipts = verify_sources(contract, repository, ("cmake",))
+    recipe = recipe_identity(contract, repository)
+    normalization = {
+        "algorithm": "all-non-symlink-source-objects-utime/v1",
+        "source_date_epoch": contract["environment"]["source_date_epoch"],
+        "directory_order": "children-before-parent", "follow_symlinks": False,
+    }
+    affinity = select_processor_affinity(contract["build"]["parallel_jobs"])
+    identity = {
+        "scope": "cmake-component-against-immutable-toolchain-provider",
+        "contract": contract, "bootstrap": bootstrap, "provider": provider,
+        "source": selected["cmake"], "recipe": recipe,
+        "source_normalization": normalization, "processor_affinity": affinity,
+    }
+    build_input_id = canonical_sha256(identity)
+    roots = contract["logical_roots"]
+    return {
+        "schema": PLAN_SCHEMA, "build_input_id": build_input_id,
+        "identity": identity, "repository": str(repository),
+        "build_directory": str(Path(roots["build_root"]) / build_input_id),
+        "work_directory": str(Path(roots["work_root"]) / build_input_id),
+        "prefix": str(Path(roots["stage_root"]) / build_input_id / "cmake"),
+        "component_order": ["cmake"], "provider": provider,
+        "source_inputs": source_receipts, "source_normalization": normalization,
+        "bootstrap_inputs": bootstrap, "recipe": recipe,
+        "parallel_jobs": contract["build"]["parallel_jobs"], "processor_affinity": affinity,
+        "activation": dict(contract["activation"]),
+        "inherited_execution": {
+            "disposition": "authenticated-historical-evidence-not-reexecuted",
+            "source_receipt_sha256": provider_receipt_sha256,
+            "retained_component_step_names": sorted(historical["component_steps"]),
+            "not_reexecuted_components": [name for name in EXPECTED_ORDER if name != "cmake"],
+        },
+    }
+
+
+def cmake_tool_receipts(prefix: Path, version: str) -> dict[str, Any]:
+    tools = {}
+    for name in ("cmake", "ctest", "cpack"):
+        path = prefix / "bin" / name
+        if (not path.is_file() or not os.access(path, os.X_OK)
+                or not path.resolve().is_relative_to(prefix.resolve())):
+            raise ToolchainError("qualified CMake tool is absent or escapes its prefix")
+        observed = tool_version(name, path)
+        if observed != f"{name} version {version}":
+            raise ToolchainError("qualified CMake tool version differs")
+        tools[name] = {"path": str(path), "sha256": sha256_file(path), "version": observed}
+    return tools
+
+
+def verify_retained_cmake_configuration(
+    receipt: dict[str, Any], component_build: Path, selected_make: Path,
+) -> dict[str, Any]:
+    """Revalidate configure-time inputs without adopting later BootstrapTest outputs."""
+    expected = {**EXPECTED_CMAKE_TEST_CAPABILITY_CACHE,
+                "CMAKE_MAKE_PROGRAM": str(selected_make),
+                "CMake_TEST_EXPLICIT_MAKE_PROGRAM": str(selected_make)}
+    cache = component_build / "CMakeCache.txt"
+    if (receipt.get("status") != "verified" or receipt.get("cache_path") != str(cache)
+            or cache.is_symlink() or not cache.is_file()
+            or receipt.get("cache_sha256") != sha256_file(cache)
+            or receipt.get("selected") != expected
+            or {key: cmake_cache_value(cache, key) for key in expected} != expected):
+        raise ToolchainError("retained CMake configure cache or selected providers changed")
+    references = receipt.get("generated_make_program_references")
+    if not isinstance(references, list) or not references:
+        raise ToolchainError("retained CMake configure inventory is absent")
+    seen: set[str] = set()
+    for record in references:
+        if not isinstance(record, dict):
+            raise ToolchainError("retained CMake configure inventory entry is invalid")
+        relative = record.get("path")
+        if (not isinstance(relative, str) or not relative or relative in seen
+                or Path(relative).is_absolute() or ".." in Path(relative).parts
+                or Path(relative).as_posix() != relative
+                or Path(relative).name != "CTestTestfile.cmake"):
+            raise ToolchainError("retained CMake configure inventory path is invalid")
+        seen.add(relative)
+        path = component_build / relative
+        if (path.is_symlink() or not path.is_file()
+                or not path.resolve().is_relative_to(component_build.resolve())
+                or sha256_file(path) != record.get("sha256")):
+            raise ToolchainError("retained CMake configure test file changed")
+        matching = [line for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
+                    if "--build-makeprogram" in line]
+        if (type(record.get("reference_count")) is not int
+                or not matching or len(matching) != record["reference_count"]
+                or any(str(selected_make) not in line for line in matching)):
+            raise ToolchainError("retained CMake configure Make references changed")
+    return receipt
+
+
+def verify_cmake_component_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
+    if receipt.get("schema") != CMAKE_QUALIFICATION_SCHEMA:
+        raise ToolchainError("CMake component qualification schema differs")
+    plan = require_object(receipt.get("plan"), "component.plan")
+    identity = require_object(plan.get("identity"), "component.plan.identity")
+    contract = require_object(identity.get("contract"), "component.contract")
+    validate_contract(contract)
+    if (plan.get("component_order") != ["cmake"]
+            or canonical_sha256(identity) != plan.get("build_input_id")
+            or receipt.get("build_input_id") != plan["build_input_id"]
+            or receipt.get("build_plan_sha256") != canonical_sha256(plan)
+            or receipt.get("consumer_activation_eligible") is not False
+            or receipt.get("product_runtime_activation_eligible") is not False):
+        raise ToolchainError("CMake component identity or staging scope differs")
+    if (plan.get("provider") != identity.get("provider")
+            or plan.get("recipe") != identity.get("recipe")
+            or plan.get("bootstrap_inputs") != identity.get("bootstrap")
+            or plan.get("source_normalization") != identity.get("source_normalization")
+            or plan.get("processor_affinity") != identity.get("processor_affinity")
+            or plan.get("parallel_jobs") != contract["build"]["parallel_jobs"]):
+        raise ToolchainError("CMake component plan diverges from its input identity")
+    source_entry = identity["source"]
+    source_record = plan.get("source_inputs", {}).get("cmake", {})
+    if (set(plan.get("source_inputs", {})) != {"cmake"}
+            or any(source_record.get(observed) != source_entry[declared]
+                   for observed, declared in (("version", "version"),
+                       ("archive_sha256", "sha256"), ("tree_sha256", "tree_sha256")))):
+        raise ToolchainError("CMake component source differs from its input identity")
+    prefix = Path(plan["prefix"])
+    if not prefix.is_absolute() or prefix.is_symlink() or not prefix.is_dir():
+        raise ToolchainError("CMake component must remain at its physical qualified prefix")
+    if receipt.get("package_tree") != package_tree(prefix):
+        raise ToolchainError("qualified CMake package tree changed")
+    verify_retained_steps(plan, ["cmake"],
+        require_object(receipt.get("component_steps"), "component.component_steps"),
+        require_object(receipt.get("source_normalization"), "component.source_normalization"))
+    if (receipt.get("bootstrap_inputs") != plan["bootstrap_inputs"]
+            or receipt.get("inherited_execution") != plan["inherited_execution"]
+            or receipt.get("provider_before") != plan["provider"]
+            or receipt.get("provider_after") != plan["provider"]):
+        raise ToolchainError("CMake component retained provider or compiler evidence differs")
+    source = require_object(receipt.get("source_inputs"), "component.source_inputs")
+    if source != plan.get("source_inputs") or receipt.get("source_generation_after") != source:
+        raise ToolchainError("CMake source identity changed during qualification")
+    selected_make = Path(plan["provider"]["prefix"]) / "bin/make"
+    build = Path(plan["build_directory"]) / "components/cmake"
+    configuration = verify_retained_cmake_configuration(
+        receipt["component_steps"]["cmake"][0].get("test_capability_contract", {}),
+        build, selected_make)
+    test_result = verify_cmake_test_results("cmake", build, build / "test.log", selected_make,
+        plan["parallel_jobs"], contract["build"]["components"]["cmake"]["test_capability_selection"]["result_policy"])
+    steps = receipt["component_steps"]["cmake"]
+    source_root = Path(plan["work_directory"]) / "private-sources/cmake"
+    for step_name, step in zip(("configure", "build", "test", "install"), steps):
+        expected_command = format_command(contract["build"]["components"]["cmake"][step_name],
+            source_root, build, prefix, plan["parallel_jobs"], plan["bootstrap_inputs"],
+            provider_prefix=Path(plan["provider"]["prefix"]))
+        if (step.get("command") != expected_command or step.get("working_directory") != str(build)
+                or step.get("execution_environment") != {"PWD": str(build)}):
+            raise ToolchainError("qualified CMake executed command or working directory differs")
+    if (steps[0].get("test_capability_contract") != configuration
+            or steps[2].get("test_result_contract") != test_result):
+        raise ToolchainError("qualified CMake retained test evidence differs")
+    tools = cmake_tool_receipts(prefix, contract["build"]["components"]["cmake"]["version"])
+    if tools != receipt.get("installed_tools"):
+        raise ToolchainError("qualified CMake selected tool bytes differ")
+    if not receipt.get("compiler_driver_traces") or not receipt.get("linker_map_inputs"):
+        raise ToolchainError("qualified CMake compiler/linker provenance is absent")
+    return tools
+
+
+def execute_cmake_component(
+    contract: dict[str, Any], plan: dict[str, Any], *, resume: bool = False,
+) -> tuple[Path, dict[str, Any]]:
+    provider = plan["provider"]
+    observed, _ = verify_reuse_provider(contract, Path(plan["repository"]),
+        Path(provider["source_receipt"]), provider["source_receipt_sha256"])
+    if observed != provider:
+        raise ToolchainError("CMake provider changed before component execution")
+    build, work, prefix = prepare_plan(plan, resume)
+    receipt_path = build / "cmake-component-qualification.json"
+    if resume and receipt_path.is_file():
+        receipt = read_json(receipt_path)
+        if receipt.get("build_plan_sha256") != canonical_sha256(plan):
+            raise ToolchainError("completed CMake qualification belongs to another plan")
+        verify_cmake_component_receipt(receipt)
+        return receipt_path, receipt
+    checkpoint = build / "completed-components.json"
+    completed, steps, normalization = (
+        read_checkpoint(plan, prefix, checkpoint) if resume else ([], {}, {}))
+    if not completed:
+        steps["cmake"], normalization["cmake"] = execute_component(
+            contract, plan, "cmake", build, work, prefix,
+            provider_prefix=Path(provider["prefix"]))
+        completed.append("cmake")
+        write_checkpoint(plan, prefix, checkpoint, completed, steps, normalization)
+    _, source_after = verify_sources(contract, Path(plan["repository"]), ("cmake",))
+    if source_after != plan["source_inputs"]:
+        raise ToolchainError("canonical CMake source changed during component build")
+    environment = build_environment(contract, plan, "cmake", provider_prefix=Path(provider["prefix"]))
+    traces, linker_inputs = compiler_receipts(plan, Path(provider["prefix"]), environment)
+    observed, _ = verify_reuse_provider(contract, Path(plan["repository"]),
+        Path(provider["source_receipt"]), provider["source_receipt_sha256"])
+    if observed != provider:
+        raise ToolchainError("CMake provider changed during component execution")
+    receipt = {
+        "schema": CMAKE_QUALIFICATION_SCHEMA, "build_input_id": plan["build_input_id"],
+        "plan": plan, "build_plan_sha256": canonical_sha256(plan),
+        "component_steps": steps, "source_normalization": normalization,
+        "source_inputs": plan["source_inputs"], "source_generation_after": source_after,
+        "provider_before": provider, "provider_after": observed,
+        "inherited_execution": plan["inherited_execution"],
+        "installed_tools": cmake_tool_receipts(prefix, contract["build"]["components"]["cmake"]["version"]),
+        "compiler_driver_traces": traces, "linker_map_inputs": linker_inputs,
+        "bootstrap_inputs": plan["bootstrap_inputs"], "package_tree": package_tree(prefix),
+        "consumer_activation_eligible": False, "product_runtime_activation_eligible": False,
+        "disposition": "qualified-component-staging; explicit composed selection is separate",
+    }
+    verify_cmake_component_receipt(receipt)
+    atomic_json(receipt_path, receipt)
+    return receipt_path, receipt
+
+
+def composed_manifest(
+    base: dict[str, Any], historical: dict[str, Any],
+    cmake: dict[str, Any], qualified: dict[str, Any],
+) -> dict[str, Any]:
+    tools = {name: {**record, "provider_root": "base"}
+             for name, record in historical["consumer_manifest"]["tools"].items()
+             if name not in ("cmake", "ctest", "cpack")}
+    tools.update({name: {**record, "provider_root": "cmake"}
+                  for name, record in qualified["installed_tools"].items()})
+    manifest = {
+        "schema": COMPOSED_CONSUMER_SCHEMA, "provider_roots": {"base": base, "cmake": cmake},
+        "tools": tools, "perl_modules": historical["installed_perl_modules"],
+        "activation": {"scope": "build-toolchain-only", "product_runtime_activation_eligible": False},
+    }
+    manifest["build_input_id"] = canonical_sha256(manifest)
+    return manifest
+
+
+def verify_composed_toolchain_receipt(
+    receipt: dict[str, Any], receipt_path: Path,
+) -> dict[str, Any]:
+    """Canonical v2 selection verifier shared by PostgreSQL/publication/product owners."""
+    if receipt.get("schema") != COMPOSED_PACKAGE_SCHEMA:
+        raise ToolchainError("composed toolchain package receipt schema differs")
+    if not receipt_path.is_absolute() or receipt_path.is_symlink() or not receipt_path.is_file():
+        raise ToolchainError("composed receipt requires its physical absolute path")
+    if read_json(receipt_path) != receipt:
+        raise ToolchainError("composed receipt document differs from retained bytes")
+    package = require_object(receipt.get("package"), "composed.package")
+    if set(package) != {"consumer_manifest_path", "consumer_manifest_sha256"}:
+        raise ToolchainError("composed package must not claim a single provider prefix")
+    manifest_path = Path(package["consumer_manifest_path"])
+    manifest = authenticated_json(manifest_path, package["consumer_manifest_sha256"])
+    roots = require_object(manifest.get("provider_roots"), "composed.provider_roots")
+    if set(roots) != {"base", "cmake"}:
+        raise ToolchainError("composed toolchain requires exact base and CMake providers")
+    root_keys = {"prefix", "source_receipt", "source_receipt_sha256", "package_tree"}
+    if any(not isinstance(root, dict) or set(root) != root_keys for root in roots.values()):
+        raise ToolchainError("composed toolchain provider binding differs")
+    cmake = roots["cmake"]
+    qualified = authenticated_json(Path(cmake["source_receipt"]), cmake["source_receipt_sha256"])
+    verify_cmake_component_receipt(qualified)
+    plan = qualified["plan"]
+    repository = Path(__file__).resolve().parents[2]
+    lock = read_json(repository / plan["identity"]["contract"]["release_lock"])
+    if plan["identity"]["source"] != lock["archives"]["cmake"]:
+        raise ToolchainError("composed CMake source differs from the current canonical release lock")
+    base, historical = verify_reuse_provider(plan["identity"]["contract"], repository,
+        Path(roots["base"]["source_receipt"]), roots["base"]["source_receipt_sha256"])
+    if (base != roots["base"] or plan["provider"] != base
+            or qualified.get("provider_before") != base or qualified.get("provider_after") != base
+            or cmake["prefix"] != plan["prefix"] or cmake["package_tree"] != qualified["package_tree"]):
+        raise ToolchainError("composed providers differ from qualified immutable roots")
+    base_path, cmake_path = Path(base["prefix"]).resolve(), Path(cmake["prefix"]).resolve()
+    if base_path == cmake_path or base_path in cmake_path.parents or cmake_path in base_path.parents:
+        raise ToolchainError("composed provider roots must be disjoint")
+    if any(manifest_path.resolve().is_relative_to(path) or receipt_path.resolve().is_relative_to(path)
+           for path in (base_path, cmake_path)):
+        raise ToolchainError("composed selection metadata must not mutate its immutable providers")
+    expected = composed_manifest(base, historical, cmake, qualified)
+    if (manifest != expected or receipt.get("consumer_manifest") != manifest
+            or receipt.get("build_input_id") != manifest["build_input_id"]):
+        raise ToolchainError("composed manifest differs from exact qualified provider selection")
+    for name, expected_value in (
+        ("installed_tools", manifest["tools"]),
+        ("installed_perl_modules", manifest["perl_modules"]),
+        ("component_steps", qualified["component_steps"]),
+        ("inherited_execution", plan["inherited_execution"]),
+        ("bootstrap_inputs", qualified["bootstrap_inputs"]),
+        ("compiler_driver_traces", qualified["compiler_driver_traces"]),
+        ("linker_map_inputs", qualified["linker_map_inputs"]),
+    ):
+        if receipt.get(name) != expected_value:
+            raise ToolchainError("composed receipt evidence differs: " + name)
+    sources = {**historical["source_inputs"], **qualified["source_inputs"]}
+    if receipt.get("source_inputs") != sources or receipt.get("source_generation_after") != sources:
+        raise ToolchainError("composed source provenance differs")
+    if receipt.get("activation") != manifest["activation"]:
+        raise ToolchainError("composed activation scope differs")
+    return manifest
+
+
+def compose_cmake_toolchain(
+    qualified_path: Path, qualified_sha256: str, output: Path,
+) -> dict[str, Any]:
+    """Publish an explicit selection receipt without moving or modifying either root."""
+    qualified = authenticated_json(qualified_path, qualified_sha256)
+    verify_cmake_component_receipt(qualified)
+    plan = qualified["plan"]
+    repository = Path(__file__).resolve().parents[2]
+    base, historical = verify_reuse_provider(plan["identity"]["contract"], repository,
+        Path(plan["provider"]["source_receipt"]), plan["provider"]["source_receipt_sha256"])
+    if base != plan["provider"]:
+        raise ToolchainError("qualified base provider identity differs")
+    cmake = {"prefix": plan["prefix"], "source_receipt": str(qualified_path),
+             "source_receipt_sha256": qualified_sha256, "package_tree": qualified["package_tree"]}
+    manifest = composed_manifest(base, historical, cmake, qualified)
+    if not output.is_absolute() or output.exists():
+        raise ToolchainError("composed receipt output must be a new absolute physical file")
+    output_physical = output.parent.resolve(strict=True) / output.name
+    if any(output_physical.is_relative_to(Path(root["prefix"]).resolve()) for root in (base, cmake)):
+        raise ToolchainError("composed output must not modify immutable provider roots")
+    manifest_path = output.with_name(output.stem + "-manifest.json")
+    if manifest_path.exists():
+        raise ToolchainError("composed consumer manifest output must be absent")
+    atomic_json(manifest_path, manifest)
+    sources = {**historical["source_inputs"], **qualified["source_inputs"]}
+    receipt = {
+        "schema": COMPOSED_PACKAGE_SCHEMA, "build_input_id": manifest["build_input_id"],
+        "package": {"consumer_manifest_path": str(manifest_path),
+                    "consumer_manifest_sha256": sha256_file(manifest_path)},
+        "consumer_manifest": manifest, "source_inputs": sources, "source_generation_after": sources,
+        "installed_tools": manifest["tools"], "installed_perl_modules": manifest["perl_modules"],
+        "component_steps": qualified["component_steps"], "inherited_execution": plan["inherited_execution"],
+        "bootstrap_inputs": qualified["bootstrap_inputs"],
+        "compiler_driver_traces": qualified["compiler_driver_traces"], "linker_map_inputs": qualified["linker_map_inputs"],
+        "activation": manifest["activation"],
+    }
+    atomic_json(output, receipt)
+    verify_composed_toolchain_receipt(receipt, output)
+    return receipt
+
+
 def parse_arguments(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", default=".")
@@ -2322,6 +2833,16 @@ def parse_arguments(argv: Sequence[str]) -> argparse.Namespace:
     subparsers.add_parser("plan")
     subparsers.add_parser("build")
     subparsers.add_parser("resume")
+    for name in ("plan-cmake", "build-cmake", "resume-cmake"):
+        incremental = subparsers.add_parser(name)
+        incremental.add_argument("--provider-receipt", required=True)
+        incremental.add_argument("--provider-receipt-sha256", required=True)
+    compose = subparsers.add_parser("compose-cmake")
+    compose.add_argument("--qualification", required=True)
+    compose.add_argument("--qualification-sha256", required=True)
+    compose.add_argument("--output", required=True)
+    composed = subparsers.add_parser("verify-composed")
+    composed.add_argument("--receipt", required=True)
     verify = subparsers.add_parser("verify-package")
     verify.add_argument("--prefix", required=True)
     verify.add_argument("--receipt")
@@ -2348,6 +2869,27 @@ def main(argv: Sequence[str]) -> int:
         else:
             receipt = execute_plan(contract, plan, resume=arguments.command == "resume")
             print(json.dumps({"plan": plan, "package": receipt}, indent=2, sort_keys=True))
+        return 0
+    if arguments.command in ("plan-cmake", "build-cmake", "resume-cmake"):
+        validate_environment(contract, os.environ)
+        plan = create_cmake_component_plan(contract, repository,
+            Path(arguments.provider_receipt), arguments.provider_receipt_sha256)
+        if arguments.command == "plan-cmake":
+            print(json.dumps(plan, indent=2, sort_keys=True))
+        else:
+            path, receipt = execute_cmake_component(contract, plan,
+                resume=arguments.command == "resume-cmake")
+            print(json.dumps({"receipt_path": str(path), "receipt": receipt}, indent=2, sort_keys=True))
+        return 0
+    if arguments.command == "compose-cmake":
+        receipt = compose_cmake_toolchain(Path(arguments.qualification),
+            arguments.qualification_sha256, Path(arguments.output))
+        print(json.dumps(receipt, indent=2, sort_keys=True))
+        return 0
+    if arguments.command == "verify-composed":
+        path = Path(arguments.receipt)
+        manifest = verify_composed_toolchain_receipt(read_json(path), path)
+        print(json.dumps(manifest, indent=2, sort_keys=True))
         return 0
     if arguments.command == "verify-package":
         receipt = read_json(Path(arguments.receipt)) if arguments.receipt else None
