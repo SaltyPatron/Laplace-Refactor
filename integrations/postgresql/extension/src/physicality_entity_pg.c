@@ -24,6 +24,7 @@
 #include "persistence_rows_pg.h"
 #include "persistence_entities_pg.h"
 #include "physicality_entity_pg.h"
+#include "spi_context_pg.h"
 #include "unicode_atoms_pg.h"
 
 PG_FUNCTION_INFO_V1(laplace_pg_physicality_entity_admit_batch);
@@ -97,6 +98,27 @@ typedef struct reflection_calculation {
     "p.recipe_fingerprint,p.geometry_epoch,p.trajectory_fingerprint," \
     "p.centroid_x,p.centroid_y,p.centroid_z,p.centroid_m,p.radius," \
     "p.logical_count,p.vertex_count)::" LAPLACE_PG_SCHEMA ".physicality_record"
+
+/* Keep each PG exception frame inside the transport boundary; callers retain
+ * ordinary local-variable lifetimes while indirect SPI owners restore context. */
+static void reflection_resolve_unicode_atoms(
+    const laplace_framework_context* context, const uint32_t* positions,
+    size_t count, laplace_composition_known_entity* known,
+    laplace_pg_active_unicode_root* active) {
+    LAPLACE_PG_PRESERVE_MEMORY_CONTEXT(
+        laplace_pg_resolve_active_unicode_atoms(context, positions, count, known, active));
+}
+
+static void reflection_deposit_entities(
+    const laplace_framework_context* context, const laplace_digest256* source,
+    const laplace_digest256* recipe, const laplace_persistence_entity_record* records,
+    size_t count, uint64_t maximum_batch_bytes,
+    const laplace_pg_persistence_options* options,
+    laplace_pg_persistence_producer_result* result) {
+    LAPLACE_PG_PRESERVE_MEMORY_CONTEXT(
+        laplace_pg_persistence_deposit_entities(context, source, recipe, records,
+            count, maximum_batch_bytes, options, result));
+}
 
 static void reflection_limit(const char* detail) {
     ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
@@ -182,7 +204,7 @@ static reflection_source* reflection_sources(
     sources = palloc0(count * sizeof(*sources));
     values[0] = PointerGetDatum(reflection_digests(ids, count));
     reflection_query(budget);
-    if (SPI_execute_with_args(metadata_sql, 1, types, values, NULL, budget->read_only, (long)count + 1) != SPI_OK_SELECT ||
+    if (laplace_pg_spi_execute_with_args(metadata_sql, 1, types, values, NULL, budget->read_only, (long)count + 1) != SPI_OK_SELECT ||
         SPI_processed != count || SPI_tuptable == NULL)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
             errmsg("Laplace physicality descriptor source metadata set is incomplete")));
@@ -210,7 +232,7 @@ static reflection_source* reflection_sources(
     SPI_freetuptable(SPI_tuptable);
     if (!has_payload) return sources;
     reflection_query(budget);
-    if (SPI_execute_with_args(payload_sql, 1, types, values, NULL, budget->read_only, (long)count + 1) != SPI_OK_SELECT ||
+    if (laplace_pg_spi_execute_with_args(payload_sql, 1, types, values, NULL, budget->read_only, (long)count + 1) != SPI_OK_SELECT ||
         SPI_processed != count || SPI_tuptable == NULL)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
             errmsg("Laplace physicality descriptor source payload set is incomplete")));
@@ -279,7 +301,7 @@ static reflection_source* reflection_known_validate(
     if (atom_count != 0u) {
         laplace_pg_active_unicode_root active;
         reflection_query(budget); /* mapped owner performs one durable-root SPI query */
-        laplace_pg_resolve_active_unicode_atoms(context, atom_positions, atom_count, resolved_atoms, &active);
+        reflection_resolve_unicode_atoms(context, atom_positions, atom_count, resolved_atoms, &active);
     }
     for (size_t index = 0u; index < count; ++index) {
         const reflection_source* source = &sources[index];
@@ -423,7 +445,7 @@ static laplace_composition_known_entity* reflection_atoms(
         if (unique == 0u || positions[unique - 1u] != positions[index]) positions[unique++] = positions[index];
     atoms = palloc0(unique * sizeof(*atoms));
     reflection_query(budget);
-    laplace_pg_resolve_active_unicode_atoms(context, positions, unique, atoms, &active);
+    reflection_resolve_unicode_atoms(context, positions, unique, atoms, &active);
     *positions_out = positions;
     *count_out = unique;
     return atoms;
@@ -677,7 +699,7 @@ static void reflection_entities_publish(
         reflection_reserve(budget, 1u, adapter_bytes);
         options.maximum_database_operations = budget->operation_limit - budget->operations;
         options.inserted_entities = &inserted_output;
-        laplace_pg_persistence_deposit_entities(context, &source,
+        reflection_deposit_entities(context, &source,
             &calculations[0].plan_view.recipe_fingerprint, records, unique,
             maximum_batch_bytes, &options, &result);
         if (result.database_operations > options.maximum_database_operations ||
@@ -692,7 +714,7 @@ static void reflection_entities_publish(
             Oid receipt_type = BYTEAOID;
             Datum receipt_value = PointerGetDatum(laplace_pg_bytes_to_bytea(deposit_receipt->bytes, 32u));
             reflection_query(budget);
-            if (SPI_execute_with_args("SELECT pg_catalog.record_send(r) FROM " LAPLACE_PG_SCHEMA
+            if (laplace_pg_spi_execute_with_args("SELECT pg_catalog.record_send(r) FROM " LAPLACE_PG_SCHEMA
                     ".canonical_deposit_receipt r WHERE receipt_id=$1", 1, &receipt_type,
                     &receipt_value, NULL, false, 1) != SPI_OK_SELECT || SPI_processed != 1u)
                 ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace descriptor deposit receipt is absent")));
@@ -711,7 +733,7 @@ static void reflection_entities_publish(
         }
     }
     reflection_query(budget);
-    if (SPI_execute_with_args(laplace_pg_entity_verify_sql(), 1, types, values, NULL, false, 1) != SPI_OK_SELECT ||
+    if (laplace_pg_spi_execute_with_args(laplace_pg_entity_verify_sql(), 1, types, values, NULL, false, 1) != SPI_OK_SELECT ||
         laplace_pg_scalar_count("descriptor entity exact verification") != unique)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
             errmsg("Laplace descriptor entity identities collide with existing canonical witnesses")));
@@ -1097,27 +1119,27 @@ static void reflection_owners_publish(
     types[0] = views.array_oid;
     values[0] = PointerGetDatum(laplace_pg_composite_array(&views, view_rows, count));
     reflection_query(budget);
-    if (SPI_execute_with_args(view_insert, 1, types, values, NULL, false, 0) != SPI_OK_INSERT)
+    if (laplace_pg_spi_execute_with_args(view_insert, 1, types, values, NULL, false, 0) != SPI_OK_INSERT)
         ereport(ERROR, (errmsg("Laplace descriptor view owner insertion failed")));
     Datum view_values[1] = {values[0]};
     Oid view_types[1] = {types[0]};
     types[0] = nodes.array_oid;
     values[0] = PointerGetDatum(laplace_pg_composite_array(&nodes, node_rows, cursor));
     reflection_query(budget);
-    if (SPI_execute_with_args(node_insert, 1, types, values, NULL, false, 0) != SPI_OK_INSERT)
+    if (laplace_pg_spi_execute_with_args(node_insert, 1, types, values, NULL, false, 0) != SPI_OK_INSERT)
         ereport(ERROR, (errmsg("Laplace descriptor node owner insertion failed")));
     reflection_query(budget);
-    if (SPI_execute_with_args(node_verify, 1, types, values, NULL, false, 1) != SPI_OK_SELECT ||
+    if (laplace_pg_spi_execute_with_args(node_verify, 1, types, values, NULL, false, 1) != SPI_OK_SELECT ||
         laplace_pg_scalar_count("descriptor exact node owner") != cursor)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace descriptor node owner changed")));
     SPI_freetuptable(SPI_tuptable);
     reflection_query(budget);
-    if (SPI_execute_with_args(view_verify, 1, view_types, view_values, NULL, false, 1) != SPI_OK_SELECT ||
+    if (laplace_pg_spi_execute_with_args(view_verify, 1, view_types, view_values, NULL, false, 1) != SPI_OK_SELECT ||
         laplace_pg_scalar_count("descriptor exact view owner") != count)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace descriptor view owner changed")));
     SPI_freetuptable(SPI_tuptable);
     reflection_query(budget);
-    if (SPI_execute_with_args(node_complete, 1, types, values, NULL, false, 1) != SPI_OK_SELECT ||
+    if (laplace_pg_spi_execute_with_args(node_complete, 1, types, values, NULL, false, 1) != SPI_OK_SELECT ||
         laplace_pg_scalar_count("descriptor complete node ownership") != cursor)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace descriptor has unexpected node owners")));
     SPI_freetuptable(SPI_tuptable);
@@ -1151,10 +1173,10 @@ static void reflection_depositions_publish(
     values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipt->bytes, 32u));
     values[2] = PointerGetDatum(snapshot);
     reflection_query(budget);
-    if (SPI_execute_with_args(insert_sql, 2, types, values, NULL, false, 0) != SPI_OK_INSERT)
+    if (laplace_pg_spi_execute_with_args(insert_sql, 2, types, values, NULL, false, 0) != SPI_OK_INSERT)
         ereport(ERROR, (errmsg("Laplace descriptor deposition association insertion failed")));
     reflection_query(budget);
-    if (SPI_execute_with_args(verify_sql, 3, types, values, NULL, false, 1) != SPI_OK_SELECT || SPI_processed != 1u ||
+    if (laplace_pg_spi_execute_with_args(verify_sql, 3, types, values, NULL, false, 1) != SPI_OK_SELECT || SPI_processed != 1u ||
         reflection_positive_bigint(reflection_required(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1), true) != count ||
         reflection_positive_bigint(reflection_required(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 2), true) != count ||
         !DatumGetBool(reflection_required(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 3)))
@@ -1995,11 +2017,11 @@ static void reflection_occurrences_publish(
         types[index] = bindings[index]->array_oid;
         values[index] = PointerGetDatum(laplace_pg_composite_array(bindings[index], inputs[index], counts[index]));
         reflection_query(budget);
-        if (SPI_execute_with_args(statements[index], 1, &types[index], &values[index], NULL, false, 0) != SPI_OK_INSERT)
+        if (laplace_pg_spi_execute_with_args(statements[index], 1, &types[index], &values[index], NULL, false, 0) != SPI_OK_INSERT)
             ereport(ERROR, (errmsg("Laplace normalized occurrence publication failed"), errdetail("family=%zu", index)));
     }
     reflection_query(budget);
-    if (SPI_execute_with_args(verify, 4, types, values, NULL, false, 1) != SPI_OK_SELECT || SPI_processed != 1u)
+    if (laplace_pg_spi_execute_with_args(verify, 4, types, values, NULL, false, 1) != SPI_OK_SELECT || SPI_processed != 1u)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace normalized occurrence verification is absent")));
     size_t expected[6] = {complete->parent_count,complete->count,complete->count,scope_count,member_count,member_count};
     for (size_t index = 0u; index < 6u; ++index)
@@ -2189,7 +2211,7 @@ static reflection_bindings* reflection_occurrences_retain(
     headers = palloc0(count * sizeof(*headers));
     value = PointerGetDatum(reflection_digests(ids, count));
     reflection_query(budget);
-    if (SPI_execute_with_args(inventory_sql, 1, &type, &value, NULL, true, (long)count + 1) != SPI_OK_SELECT ||
+    if (laplace_pg_spi_execute_with_args(inventory_sql, 1, &type, &value, NULL, true, (long)count + 1) != SPI_OK_SELECT ||
         SPI_processed != count || SPI_tuptable == NULL)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace retained occurrence set inventory is incomplete")));
     for (size_t index = 0u; index < count; ++index) {
@@ -2224,7 +2246,7 @@ static reflection_bindings* reflection_occurrences_retain(
     SPI_freetuptable(SPI_tuptable);
     if (row_count >= LONG_MAX) reflection_limit("retained occurrence payload row addressability");
     reflection_query(budget);
-    if (SPI_execute_with_args(payload_sql, 1, &type, &value, NULL, true, (long)row_count + 1) != SPI_OK_SELECT ||
+    if (laplace_pg_spi_execute_with_args(payload_sql, 1, &type, &value, NULL, true, (long)row_count + 1) != SPI_OK_SELECT ||
         SPI_processed != row_count || SPI_tuptable == NULL)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace retained occurrence payload is incomplete")));
     for (uint64_t index = 0u; index < row_count; ++index) {
@@ -2508,7 +2530,7 @@ static void reflection_read_views_connected(
         }
     }
     reflection_query(&budget);
-    if (SPI_execute_with_args(inventory_sql, 12, types, values, nulls, true, (long)maximum_rows + 1) != SPI_OK_SELECT || SPI_tuptable == NULL)
+    if (laplace_pg_spi_execute_with_args(inventory_sql, 12, types, values, nulls, true, (long)maximum_rows + 1) != SPI_OK_SELECT || SPI_tuptable == NULL)
         ereport(ERROR, (errmsg("Laplace descriptor candidate inventory failed")));
     if (SPI_processed > maximum_rows) reflection_limit("distinct physicality candidate row grant exhausted");
     count = (size_t)SPI_processed;
@@ -2539,7 +2561,7 @@ static void reflection_read_views_connected(
             PointerGetDatum(construct_array(view_ids, (int)count, BYTEAOID, -1, false, TYPALIGN_INT)),
             PointerGetDatum(construct_array(result_indices, (int)count, INT8OID, sizeof(int64), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE))};
         reflection_query(&budget);
-        if (SPI_execute_with_args(payload_sql, 2, payload_types, payload_values, NULL, true, (long)count + 1) != SPI_OK_SELECT ||
+        if (laplace_pg_spi_execute_with_args(payload_sql, 2, payload_types, payload_values, NULL, true, (long)count + 1) != SPI_OK_SELECT ||
             SPI_processed != count || SPI_tuptable == NULL)
             ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace selected descriptor owner set is incomplete")));
     }

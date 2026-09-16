@@ -140,7 +140,21 @@ TEST(CognitionObservationProviderSetCapacity,
     EXPECT_EQ(usage.crossing_count, 2U);
     EXPECT_EQ(
         usage.limiting_disposition,
-        LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN);
+        LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED);
+
+    // A nested provider set must not turn its child's capacity refusal into an
+    // epistemic abstention and publish another provider's candidate as complete.
+    const std::array outer_providers{composite, Provider(&physical)};
+    ProviderSetOwner outer_owner;
+    laplace_cognition_observation_candidate_provider_v1 outer{};
+    ASSERT_EQ(laplace_cognition_observation_candidate_provider_set_create(
+        outer_providers.data(), outer_providers.size(), &outer_owner.value, &outer),
+        LAPLACE_COGNITION_OBSERVATION_PROVIDER_SET_OK);
+    ASSERT_EQ(outer.enumerate_candidates(
+        outer.state, &binding, source.data(), frontier.data(), costs.data(),
+        frontier.size(), output.data(), output.size(), &count, &usage), 0);
+    EXPECT_EQ(count, 0U);
+    EXPECT_EQ(usage.limiting_disposition, LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED);
 }
 
 TEST(CognitionObservationProviderSetCapacity,

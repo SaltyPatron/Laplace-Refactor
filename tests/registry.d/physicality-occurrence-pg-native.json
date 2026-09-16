@@ -34,6 +34,50 @@
         "replacing canonical external reference geometry with the historical source form violates canonical descriptor operand selections",
         "using singleton wrapper depth as canonical content tier is rejected"
       ]
+    },
+    {
+      "ctest_name": "postgres.spi-context-native-contract",
+      "profiles": [
+        "postgres",
+        "custom-stack"
+      ],
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "production SPI transport restores the allocation context after query success and PG ERROR",
+        "retained caller and scratch allocations survive retirement of the nested SPI procedure context",
+        "indirect provider calls restore context on success and PG ERROR",
+        "actual Unicode metadata owner balances its nested SPI connection on success, query ERROR, absent binding and malformed receipt",
+        "controlled SPI/error/allocator shims exercise lifetime law; actual SQL and cold stored descriptor readback remain separate PostgreSQL acceptance"
+      ],
+      "defect_controls": [
+        "removing shared caller-context restoration invalidates retained allocations",
+        "removing Unicode error cleanup leaks nested SPI depth into a caller that catches the error"
+      ]
+    },
+    {
+      "ctest_name": "postgres.perfcache-spi-lifetime-native-contract",
+      "profiles": [
+        "postgres",
+        "custom-stack"
+      ],
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-OCCURRENCE-PRESERVATION"
+      ],
+      "covered_dimensions": [
+        "whole production perfcache C catalog owner balances nested SPI on success, query error, absent control row and malformed digest",
+        "cold generation owner releases native manifests and prepared generations on status rejection and PG ERROR while retaining successful pin ownership",
+        "registered pin PG ERROR cleanup releases exact shared owner depth, generation reader count, resource-owner registration and allocation",
+        "controlled PostgreSQL and native-provider shims isolate connection, context and resource lifetimes; no SQL execution, real manifest validation or durable readback claim"
+      ],
+      "defect_controls": [
+        "omitting catalog error SPI_finish leaks a nested connection",
+        "omitting cold generation error cleanup leaks a manifest or prepared generation",
+        "omitting registered pin error release leaves shared reader and owner counters held"
+      ]
     }
   ]
 }

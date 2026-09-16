@@ -122,6 +122,100 @@ class ChessDependencies(unittest.TestCase):
         with self.assertRaisesRegex(TOOLS.ChessToolError, "source archive differs"):
             TOOLS.verify_source(source, entry)
 
+    def test_explicit_checkout_build_keeps_operator_path_and_receipt(self) -> None:
+        source, entry = self.source_fixture()
+        selected_path = self.directory / "External/Stockfish/SF_19 with spaces"
+        selected_path.parent.mkdir(parents=True)
+        source.rename(selected_path)
+        source = selected_path
+        (source / "src").mkdir()
+        (source / "src/evaluate.h").write_text(f'#define EvalFileDefaultName "{self.network["filename"]}"\n')
+        (source / ".gitignore").write_text("src/stockfish\nsrc/stockfish.exe\nsrc/*.nnue\n")
+        TOOLS.git(source, "add", ".")
+        TOOLS.git(source, "-c", "user.name=Dependency Test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "build shape")
+        entry["revision"] = TOOLS.git(source, "rev-parse", "HEAD")
+        entry["git_archive_sha256"] = hashlib.sha256(subprocess.check_output(["git", "-C", str(source), "archive", "--format=tar", "HEAD"])).hexdigest()
+        arguments = argparse.Namespace(tool="stockfish", stockfish_source=source,
+            source_root=self.directory / "unrelated estate", build_root=self.directory / "build",
+            prefix=self.directory / "receipt", cache=self.directory / "cache", offline=True,
+            jobs=2, profile=True, arch="native", compiler="gcc")
+        network = self.directory / "network-fixture"
+        network.write_bytes(b"command transport fixture; not an evaluated NNUE")
+        executable = source / "src" / ("stockfish.exe" if platform.system() == "Windows" else "stockfish")
+        real_run, real_json = subprocess.run, TOOLS.json_read
+        commands, probes = [], []
+        def run(command, **kwargs):
+            if command[0] != "make":
+                return real_run(command, **kwargs)
+            commands.append(command)
+            self.assertEqual(str(source / "src"), command[2])
+            if "profile-build" in command:
+                executable.write_bytes(b"command transport fixture; never executed")
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        def read(path):
+            return {"dependencies": {"stockfish": entry}} if path == ROOT / "dependencies/lock.json" else real_json(path)
+        def probe(argv, selected_network):
+            probes.append(argv)
+            self.assertEqual(self.network, selected_network)
+            return {"scope": "test transport only"}
+        with patch.object(TOOLS, "json_read", side_effect=read), \
+             patch.object(TOOLS, "acquire", return_value=network), \
+             patch.object(TOOLS, "probe_stockfish", side_effect=probe), \
+             patch.object(TOOLS.subprocess, "run", side_effect=run):
+            receipt = TOOLS.build_tools(arguments, self.selected, self.artifacts)
+        self.assertEqual(["clean", "profile-build"], ["clean" if "clean" in c else "profile-build" for c in commands])
+        self.assertEqual([[str(executable)]], probes)
+        self.assertFalse(arguments.source_root.exists())
+        tool = receipt["tools"]["stockfish"]
+        self.assertEqual(str(source), tool["source"])
+        self.assertEqual(str(executable), tool["executable"])
+        self.assertEqual(entry["revision"], tool["tracked_source"]["commit"])
+        self.assertEqual(TOOLS.digest(executable), tool["sha256"])
+        self.assertEqual(receipt, json.loads((arguments.prefix / "current.json").read_text()))
+
+    def test_explicit_checkout_refuses_missing_or_non_git_without_creating_it(self) -> None:
+        missing = self.directory / "SF_19"
+        args = argparse.Namespace(stockfish_source=missing, source_root=self.directory / "estate")
+        with self.assertRaises(FileNotFoundError):
+            TOOLS.tool_source(args, "stockfish")
+        self.assertFalse(missing.exists())
+        missing.mkdir()
+        with self.assertRaisesRegex(TOOLS.ChessToolError, "existing Git checkout"):
+            TOOLS.tool_source(args, "stockfish")
+        self.assertEqual([], list(missing.iterdir()))
+
+    def test_explicit_checkout_preserves_dirty_source_and_rejects_unrelated_origin(self) -> None:
+        source, entry = self.source_fixture()
+        args = argparse.Namespace(stockfish_source=source, source_root=None)
+        selected = TOOLS.tool_source(args, "stockfish")
+        (source / "source.cpp").write_text("operator changes must survive\n")
+        with self.assertRaisesRegex(TOOLS.ChessToolError, "preserving"):
+            TOOLS.update_source(selected, entry, True)
+        self.assertEqual("operator changes must survive\n", (source / "source.cpp").read_text())
+        TOOLS.git(source, "checkout", "--", "source.cpp")
+        TOOLS.git(source, "remote", "set-url", "origin", "https://example.invalid/unrelated.git")
+        with self.assertRaisesRegex(TOOLS.ChessToolError, "unrelated source origin"):
+            TOOLS.update_source(selected, entry, True)
+        self.assertEqual(entry["revision"], TOOLS.git(source, "rev-parse", "HEAD"))
+
+    def test_explicit_stockfish_selection_does_not_redirect_cutechess(self) -> None:
+        args = argparse.Namespace(stockfish_source=self.directory / "missing custom SF_19",
+                                  source_root=self.directory / "estate")
+        self.assertEqual(args.source_root / "cutechess", TOOLS.tool_source(args, "cutechess"))
+
+    def test_cli_checkout_precedes_environment_without_unrelated_estate_selection(self) -> None:
+        for cli in ([], ["--stockfish-source", str(self.directory / "command SF_19")]):
+            with self.subTest(cli=cli), \
+                 patch.dict(os.environ, {"LAPLACE_STOCKFISH_SOURCE": str(self.directory / "environment SF_19"), "LAPLACE_VERIFIED_SOURCE_ROOT": ""}), \
+                 patch.object(sys, "argv", ["chess_tools.py", "install", "--offline", "--tool", "stockfish", *cli]), \
+                 patch.object(TOOLS.subprocess, "check_output", side_effect=AssertionError("unrelated estate must not be selected")), \
+                 patch.object(TOOLS, "build_tools", return_value={}) as build, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(0, TOOLS.main())
+                args = build.call_args.args[0]
+                self.assertEqual(Path(cli[1]) if cli else self.directory / "environment SF_19", args.stockfish_source)
+                self.assertIsNone(args.source_root)
+
     def test_tracked_snapshot_retains_binary_empty_and_exact_git_identities(self) -> None:
         source, entry = self.source_fixture()
         observed, files = TOOLS.git_snapshot(source, entry["revision"], retain_bytes=True)

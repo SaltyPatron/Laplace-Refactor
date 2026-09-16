@@ -22,7 +22,7 @@ if [[ $EUID == 0 ]]; then
             install -d -o "$existing_owner" -g laplace-runner -m 2775 "$path"
         done
         environment=("TMPDIR=$TMPDIR" "TMP=$TMP" "TEMP=$TEMP")
-        for name in LAPLACE_VERIFIED_SOURCE_ROOT LAPLACE_BUILD_JOBS CMAKE_BUILD_PARALLEL_LEVEL LAPLACE_QT_PREFIX QT_ROOT_DIR CMAKE_PREFIX_PATH; do
+        for name in LAPLACE_VERIFIED_SOURCE_ROOT LAPLACE_STOCKFISH_SOURCE LAPLACE_BUILD_JOBS CMAKE_BUILD_PARALLEL_LEVEL LAPLACE_QT_PREFIX QT_ROOT_DIR CMAKE_PREFIX_PATH; do
             if [[ -n ${!name:-} ]]; then
                 environment+=("$name=${!name}")
             fi

@@ -295,10 +295,14 @@ int Enumerate(
             if (status == LAPLACE_OBSERVATION_QUERY_OVERFLOW) {
                 *usage = measured;
                 usage->crossing_count = 0U;
-                usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+                usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
                 return 0;
             }
             if (status != LAPLACE_OBSERVATION_QUERY_OK) return 2;
+            if (measured.limiting_disposition != 0U) {
+                *usage = measured;
+                return 0;
+            }
         }
         for (std::size_t source = 0U; source < frontier_state_count; ++source) {
             for (const std::uint32_t family : {LAPLACE_OBSERVATION_QUERY_CONTAINER,
@@ -315,7 +319,7 @@ int Enumerate(
                     if (count == candidate_capacity) {
                         *usage = measured;
                         usage->crossing_count = 0U;
-                        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+                        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
                         return 0;
                     }
                     staged[count] = it->candidate;

@@ -402,7 +402,7 @@ static int semantic_enumerate_impl(
         effective_capacity = (size_t)provider_limit;
     }
     if (effective_capacity == 0u) {
-        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
         return 0;
     }
     row_limit = effective_capacity >= (size_t)LONG_MAX
@@ -457,7 +457,7 @@ static int semantic_enumerate_impl(
     usage->index_plan_count = 1u;
     usage->database_operations = 1u;
     if (SPI_processed > effective_capacity) {
-        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_UNKNOWN;
+        usage->limiting_disposition = LAPLACE_QUERY_SEARCH_DISPOSITION_EXHAUSTED;
         SPI_freetuptable(SPI_tuptable);
         return 0;
     }
@@ -630,6 +630,7 @@ void laplace_pg_semantic_provider_create(
     }
     if (request == NULL || owner == NULL || provider == NULL ||
         maximum_candidate_records_per_expansion == 0u ||
+        maximum_candidate_records_per_expansion == UINT64_MAX ||
         maximum_candidate_records_per_expansion >
             request->search_budget.transition_batch_capacity ||
         (request->relation_mask & LAPLACE_OBSERVATION_QUERY_SEMANTIC) == 0u ||
@@ -663,8 +664,10 @@ void laplace_pg_semantic_provider_create(
 
     provider->state = state;
     provider->provider_fingerprint = state->provider_fingerprint;
+    /* The overflow sentinel is an examined record even when no candidate is
+     * published. Declare its work before the shared provider validates usage. */
     provider->maximum_candidate_records_per_expansion =
-        maximum_candidate_records_per_expansion;
+        maximum_candidate_records_per_expansion + 1u;
     provider->enumerate_candidates = semantic_enumerate_candidates;
     provider->abi_major =
         LAPLACE_COGNITION_OBSERVATION_CANDIDATE_PROVIDER_ABI_MAJOR;

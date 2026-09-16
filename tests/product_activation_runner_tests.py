@@ -30,7 +30,95 @@ UNICODECTL = ROOT / "tools/postgresql/unicodectl_core.py"
 HIGHWAYCTL = ROOT / "tools/postgresql/highwayctl.py"
 
 
+def load_module(relative_path: str):
+    path = ROOT / relative_path
+    spec = importlib.util.spec_from_file_location("tested_" + path.stem, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 class ProductActivationRunnerTests(unittest.TestCase):
+    def test_installed_cognition_request_declares_its_complete_structural_boundary(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        multiturn = load_module("tools/delivery/product_cognition_multiturn_live_proof.py")
+        identities = {"evidence_epoch": "41" * 32, "request_fingerprint": "42" * 32}
+        requests = {
+            "single": proof.request_sql(identities, "43" * 32),
+            "initial": multiturn.request_sql_turn(identities, "43" * 32, None),
+            "continued": multiturn.request_sql_turn(identities, "43" * 32, "44" * 32),
+        }
+        self.assertIn("decode('" + "00" * 32 + "','hex'),false,", requests["initial"])
+        self.assertIn("decode('" + "44" * 32 + "','hex'),true,", requests["continued"])
+        for label, request in requests.items():
+            with self.subTest(route=label):
+                self.assert_cognition_boundary(request)
+
+    def assert_cognition_boundary(self, request: str) -> None:
+        fields = re.search(
+            r",(\d+),(\d+)\)::laplace\.cognition_firmware_product_request", request,
+        )
+        self.assertIsNotNone(fields)
+        assert fields is not None
+        header = (ROOT / "engine/include/laplace/cognition_observation_request.h").read_text()
+        boundary = re.search(
+            r"LAPLACE_COGNITION_OBSERVATION_REQUEST_BOUNDARY_COMPLETE = UINT32_C\((\d+)\)",
+            header,
+        )
+        self.assertIsNotNone(boundary)
+        assert boundary is not None
+        self.assertEqual(int(fields.group(1)), int(boundary.group(1)))
+        self.assertEqual(int(fields.group(2)), 1)
+
+    def test_service_executes_same_native_route_with_separate_provider_grant(self) -> None:
+        service = load_module("tools/cognition_service.py")
+        package = "45" * 32
+        program = "46" * 32
+        identities = {key: "47" * 32 for key in (
+            "source_epoch", "identity_epoch", "geometry_epoch", "evidence_epoch",
+            "dependency_epoch", "database_epoch", "request_fingerprint", "package_epoch",
+            "numeric_epoch", "authority_fingerprint",
+        )}
+        runtime = {"unicode_present": True, "highway_present": True,
+                   "perfcache_epoch": "48" * 32, "numeric_epoch": "49" * 32}
+        initial = {"session_fingerprint": "50" * 32, "discourse_id": "51" * 32,
+                   "turn_ordinal": 0}
+        continued = {**initial, "turn_ordinal": 1, "previous_package_id": package,
+                     "previous_program_id": program, "previous_checkpoint_hex": "abcd",
+                     "previous_checkpoint_fingerprint": "52" * 32}
+        for relations in (["constituent"], None):
+            firmware = {"program_id": program, "image_hex": "abcd",
+                        "mode": "auto" if relations is None else "explicit"}
+            for session in (initial, continued):
+                with self.subTest(relations=relations, turn=session["turn_ordinal"]):
+                    # Control only external state and the SQL transport. The real
+                    # service executes every request/SQL/response builder here.
+                    with mock.patch.object(service, "selected_product", return_value=(package, Path("/selected"))), \
+                         mock.patch.object(service, "compile_firmware", return_value=firmware), \
+                         mock.patch.object(service, "load_identities", return_value=identities), \
+                         mock.patch.object(service, "active_runtime_state", return_value=runtime), \
+                         mock.patch.object(service, "run_psql", return_value={"status": 9, "native_status": 2, "output": "\\x"}) as execute:
+                        result = service.execute_cognition("AA", relations, session)
+                    sql = execute.call_args.args[1]
+                    self.assertIn("FROM laplace.cognition_firmware_execute_product(", sql)
+                    self.assert_cognition_boundary(sql)
+                    grant = re.search(r",(\d+)::bigint,6,2,1023::bigint", sql)
+                    workspace = re.search(r"\n  (\d+)::bigint\n\) AS result;", sql)
+                    self.assertIsNotNone(grant)
+                    self.assertIsNotNone(workspace)
+                    assert grant is not None and workspace is not None
+                    self.assertEqual(int(grant.group(1)), 1073741824)
+                    self.assertEqual(int(workspace.group(1)), 268435456)
+                    self.assertLess(int(workspace.group(1)) + 268435456, int(grant.group(1)))
+                    self.assertIn(",1048576::numeric,8388608::numeric,", sql)
+                    self.assertIn("decode('" + ("52" * 32 if session["turn_ordinal"] else "00" * 32)
+                                  + "','hex')," + ("true," if session["turn_ordinal"] else "false,"), sql)
+                    self.assertEqual(result["status"], 9)
+                    self.assertEqual(result["execution"]["native_status"], 2)
+                    self.assertEqual(result["checkpoint_hex"], "")
+
     @unittest.skipUnless(shutil.which("jq"), "jq is required to execute delivery result predicates")
     def test_workflow_and_setup_accept_only_distinct_complete_revalidation_variant(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")

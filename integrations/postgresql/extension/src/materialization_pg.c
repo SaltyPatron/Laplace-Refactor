@@ -22,6 +22,7 @@
 #include "materialization_pg.h"
 #include "perfcache_pg.h"
 #include "physicality_entity_pg.h"
+#include "spi_context_pg.h"
 
 typedef struct materialization_cache_key {
     laplace_id128 entity_id;
@@ -287,8 +288,9 @@ static void materialization_note_trajectory(
 static void materialization_require_active_perfcache(
     const laplace_pg_materialization_provider_state* state,
     laplace_pg_perfcache_pin** pin) {
-    laplace_pg_perfcache_status status =
-        laplace_pg_perfcache_pin_active(0u, NULL, pin);
+    laplace_pg_perfcache_status status;
+    LAPLACE_PG_PRESERVE_MEMORY_CONTEXT(
+        status = laplace_pg_perfcache_pin_active(0u, NULL, pin));
     if (status != LAPLACE_PG_PERFCACHE_OK || pin == NULL || *pin == NULL) {
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -598,7 +600,13 @@ static void materialization_merge_derived(
          !materialization_digest_equal(&entry->key.selected_physicality_id,
             &view->physicality.physicality_id)))
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-            errmsg("Laplace derived materialization differs from its canonical identity or selection")));
+            errmsg("Laplace derived materialization differs from its canonical identity or selection"),
+            errdetail("entity_match=%u witness_match=%u selected_physicality_match=%u",
+                (unsigned)materialization_id_equal(&entry->key.entity_id, &view->physicality.entity_id),
+                (unsigned)materialization_digest_equal(&entry->node.identity_witness, &view->identity_witness),
+                (unsigned)(materialization_digest_equal(&entry->key.selected_physicality_id, &zero) ||
+                    materialization_digest_equal(&entry->key.selected_physicality_id,
+                        &view->physicality.physicality_id)))));
     if (present) {
         if (!materialization_digest_equal(&entry->node.physicality_id,
                                          &view->physicality.physicality_id))
@@ -751,7 +759,7 @@ static void materialization_resolve_batch(
         state->context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes, 32u));
     entity_values[3] = PointerGetDatum(construct_array(retained_selections,
         (int)unique_count, BOOLOID, 1, true, TYPALIGN_CHAR));
-    result = SPI_execute_with_args(
+    result = laplace_pg_spi_execute_with_args(
         entity_sql, 4, entity_types, entity_values, NULL, true,
         (long)(unique_count + 1u));
     ++state->database_operations;
@@ -912,7 +920,7 @@ static void materialization_resolve_batch(
             composition_retained[selected] = retained_selections[composition_source[selected]];
         physicality_values[4] = PointerGetDatum(construct_array(composition_retained,
             (int)composition_count, BOOLOID, 1, true, TYPALIGN_CHAR));
-        result = SPI_execute_with_args(
+        result = laplace_pg_spi_execute_with_args(
             physicality_sql, 5, physicality_types, physicality_values,
             NULL, true, row_limit);
         ++state->database_operations;
