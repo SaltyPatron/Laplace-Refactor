@@ -1,4 +1,4 @@
-name: product-path
+name: Laplace Refactor — validate, build and deploy
 
 on:
   workflow_dispatch:
@@ -7,6 +7,11 @@ on:
         description: Base commit for explicit physical acceptance
         required: true
         type: string
+      publish_installer:
+        description: Build and upload a downloadable installer (otherwise keep development packages local)
+        required: false
+        type: boolean
+        default: false
   pull_request:
   push:
     branches:
@@ -17,19 +22,25 @@ permissions:
 
 concurrency:
   group: product-path-${{ github.ref }}
-  queue: single
+  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   classify:
+    name: Select work from changed inputs
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      requires_hosted_native: ${{ steps.classify.outputs.requires_hosted_native }}
+      requires_deployment: ${{ steps.classify.outputs.requires_deployment }}
+      requires_stockfish_corpus: ${{ steps.classify.outputs.requires_stockfish_corpus }}
       requires_chess_calibration: ${{ steps.classify.outputs.requires_chess_calibration }}
       hosted_only: ${{ steps.classify.outputs.hosted_only }}
       requires_custom_stack: ${{ steps.classify.outputs.requires_custom_stack }}
       requires_postgresql_product: ${{ steps.classify.outputs.requires_postgresql_product }}
-      requires_package_product: ${{ steps.classify.outputs.requires_package_product }}
+      # Explicit distribution also selects its package prerequisites.
+      requires_package_product: ${{ steps.classify.outputs.requires_package_product == 'true' || (github.event_name == 'workflow_dispatch' && inputs.publish_installer) }}
+      publish_installer: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_installer }}
       blocked: ${{ steps.classify.outputs.blocked }}
       required_evidence: ${{ steps.classify.outputs.required_evidence }}
       unimplemented_evidence: ${{ steps.classify.outputs.unimplemented_evidence }}
@@ -81,6 +92,9 @@ jobs:
           cat "$calibration"
           for key in \
             hosted_only \
+            requires_hosted_native \
+            requires_deployment \
+            requires_stockfish_corpus \
             requires_custom_stack \
             requires_postgresql_product \
             requires_package_product \
@@ -99,8 +113,11 @@ jobs:
   hosted-proof:
     needs: classify
     uses: ./.github/workflows/ci.yml
+    with:
+      build_native: ${{ needs.classify.outputs.requires_hosted_native == 'true' }}
 
   publication-recovery:
+    name: Resolve selected PostgreSQL package
     needs:
       - classify
       - hosted-proof
@@ -205,6 +222,8 @@ jobs:
       (needs.classify.outputs.requires_postgresql_product != 'true' ||
        needs.postgresql-product-proof.result == 'success')
     uses: ./.github/workflows/package-product.yml
+    with:
+      publish_installer: ${{ needs.classify.outputs.publish_installer == 'true' }}
 
   product-path:
     if: always()
@@ -224,6 +243,7 @@ jobs:
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           HOSTED_RESULT: ${{ needs.hosted-proof.result }}
+          HOSTED_NATIVE_SELECTED: ${{ needs.classify.outputs.requires_hosted_native }}
           PUBLICATION_RECOVERY_RESULT: ${{ needs.publication-recovery.result }}
           CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
           CHESS_RESULT: ${{ needs.candidate-chess-calibration.result }}
@@ -272,7 +292,8 @@ jobs:
           {
             echo '## Product-path gate'
             echo "Required evidence: $REQUIRED_EVIDENCE"
-            echo "Hosted proof: $HOSTED_RESULT"
+            echo "Hosted source checks: $HOSTED_RESULT"
+            echo "Hosted native profiles selected: ${HOSTED_NATIVE_SELECTED:-unknown} (false means not executed)"
             echo "Publication recovery: $PUBLICATION_RECOVERY_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
             echo "Candidate chess calibration: $CHESS_RESULT"
@@ -281,12 +302,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   dev-bat-deployment:
-    needs: product-path
+    name: Install changed runtime and verify services
+    needs: [classify, product-path]
     if: >-
       (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      needs.product-path.result == 'success'
+      needs.product-path.result == 'success' &&
+      needs.classify.outputs.requires_deployment == 'true'
     uses: ./.github/workflows/product-activation.yml
     with:
       expected_sha: ${{ github.sha }}
@@ -302,17 +325,20 @@ jobs:
     uses: ./.github/workflows/chess-calibration.yml
 
   deployed-stockfish-corpus:
-    needs: dev-bat-deployment
+    name: Verify changed source-admission path against the installed corpus
+    needs: [classify, dev-bat-deployment]
     if: >-
       (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      needs.dev-bat-deployment.result == 'success'
+      needs.dev-bat-deployment.result == 'success' &&
+      needs.classify.outputs.requires_stockfish_corpus == 'true'
     uses: ./.github/workflows/stockfish-corpus-acceptance.yml
     with:
       expected_sha: ${{ github.sha }}
 
   dev-bat-live-substrate:
+    name: Read back installed substrate
     needs: dev-bat-deployment
     if: (!cancelled()) && needs.dev-bat-deployment.result == 'success'
     runs-on:
@@ -369,10 +395,10 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Temporary compatibility contexts required by the current branch-protection
-  # rule. They do not run independent proof work and can disappear when the
-  # protection rule is changed to require only `product-path`.
-  legacy-requirements:
+  # Existing required GitHub status names. These report the selected aggregate,
+  # not a second test execution. Source-only selection is recorded by classify.
+  # Keep the externally configured names until the repository rule is changed.
+  required-source-status:
     name: requirements
     needs: product-path
     if: always()
@@ -381,7 +407,7 @@ jobs:
     steps:
       - run: test "${{ needs.product-path.result }}" = success
 
-  legacy-native-dev:
+  required-native-status:
     name: native (linux-dev)
     needs: product-path
     if: always()
@@ -390,7 +416,7 @@ jobs:
     steps:
       - run: test "${{ needs.product-path.result }}" = success
 
-  legacy-native-sanitize:
+  required-sanitizer-status:
     name: native (linux-sanitize)
     needs: product-path
     if: always()

@@ -234,6 +234,51 @@
       "covered_dimensions": [
         "An invalid body sharing an exact prompt witness fingerprint remains visible to the native candidate validator and withholds firmware output and realization"
       ]
+    },
+    {
+      "ctest_name": "RootGoalFirmware.UnboundSharedAtomContainersRemainAmbiguous",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "Two actual admitted parent compositions retain goalless ambiguity; no first-row choice or discarded parent. Controlled native providers do not establish installed PostgreSQL behavior."
+      ]
+    },
+    {
+      "ctest_name": "RootGoalFirmware.ObservationGoalSelectsCurrentRootWithAnotherParentRetained",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "An explicit admitted-observation goal selects the current canonical root while another exact parent remains eligible; native identity-checked trajectory materialization remains required. Controlled native providers do not establish installed PostgreSQL behavior."
+      ]
+    },
+    {
+      "ctest_name": "RootGoalFirmware.StoredObservationGoalImageFollowsChangedPromptRoot",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "One unchanged stored firmware image binds a changed admitted root and emits its exact repeated-atom trajectory without a literal expected entity. Controlled native providers do not establish installed PostgreSQL behavior."
+      ]
+    },
+    {
+      "ctest_name": "RootGoalFirmware.UnreachablePriorAnswerGoalDoesNotEmitAnotherContainer",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "An unreachable earlier-answer goal withholds output and materialization instead of substituting an available container. Controlled native providers do not establish installed PostgreSQL behavior."
+      ]
+    },
+    {
+      "ctest_name": "cognition.firmware-compiler-goal-bindings",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "Actual native compiler serializes admitted-observation or earlier-answer goals into distinct stable program identities; invalid/constant/forward bindings publish no image; proof transport verifies exact typed binding echo and compiler identity. This is native compiler qualification, not installed product cognition."
+      ]
     }
   ]
 }

@@ -1,0 +1,22 @@
+{
+  "schema": "laplace.branch-resolutions/v1",
+  "repository": "SaltyPatron/Laplace-Refactor",
+  "reviewed_base": "b8c023b950e4523f88ec8f57b37e79bcffe3e822",
+  "meaning": "Exact archived branch-tip resolutions against current source. Unlisted, changed or unresolved work is retained. Archived diagnostics are not claimed as active product features.",
+  "branches": {
+    "diag/cognition-requests-419-20260916": {"sha":"64cd6c752c3b119bce905bad5cd67091dcbcf080","reason":"Current request diagnostics retain these changes plus package-bytecode counterexamples, build-fingerprint binding and converged receipt selection."},
+    "diag/refactor-installed-cognition-20260916": {"sha":"cc232c55008af3c10afb4fb02853e48a4cde26e3","reason":"Current installed-cognition diagnostics and gateway retain the behavior plus exact replay checks, full lifecycle coverage and private runtime support."},
+    "diag/refactor-x11-prerequisites-20260916": {"sha":"8a2b2dc6abf0f9b1547b3adebcf8f9deb24cd25b","reason":"Current private X11 acquisition replaces the old unavailable-sudo path and retains stronger loader/timing checks. Current persistence assertions use canonical deposit receipts and valid prompt reuse."},
+    "fix/cognition-provider-witness-reuse-20260916": {"sha":"0e845d818fa2c46fc877dc0c25430139d90aa8b8","reason":"Native witness reuse was integrated through PR382. Remaining differences undo newer exact failure logging, frontier validation and their controls; keep current source."},
+    "qualify/original-pilot-observer-20260916": {"sha":"5935cc9fd2310be4d8c9c6f97a4095d882aa1efc","reason":"Inactive workflow template for historical corpus observations. Preserve the complete template in the recovery archive rather than reactivate branch-per-observation workflows."},
+    "qualify/original-pilot-observer-cpu-20260916": {"sha":"1d81a8b2c2e5c7a2f9d057e9f6f7557eb38166cf","reason":"Historical read-only observer template with CPU and process-identity counters. Preserved in full in the recovery archive; not activated as another branch-per-observation workflow."},
+    "verify/chess-line-hosted-20260916": {"sha":"dd1688ccc14d9f2d54dba10b5f05d1f387e1bf60","reason":"Current chess-line SQL has corrected composite projection and assertion expressions; current native adapter uses the selected library loader. The old variant restores those integration defects."},
+    "verify/cognition-permanent-controls-20260916": {"sha":"4b574ed7924e7f43a25d2be441093decc2847070","reason":"Current permanent cognition controls retain the work plus selected-build fingerprint checks and converged receipt migration."},
+    "verify/cognition-service-owner-20260916": {"sha":"21445261244441021795df4912dfb833fe0dca38","reason":"Current cognition service owner includes direct-launch bytecode protection and its omission counterexample; the older test variant removes these additions."},
+    "verify/converged-activation-receipts-20260916": {"sha":"71a1356c799f56f0689719898d6ac7ab4e5f897b","reason":"Current activation receipt convergence retains the work plus complete build-fingerprint binding; older call signatures must not replace it."},
+    "verify/cutechess-rules-provider": {"sha":"fb6ffa3186fb0bd2cb169feaae54235b6c922d2f","reason":"CuteChess rules qualification is present with later native loader, build-log and installed-prefix fixes. Current X11 and durable-prompt receipt handling supersede the older snapshot."},
+    "verify/full-gateway-service-controls-20260916": {"sha":"fbc193ca258412d67194eecd475ba0e44ee4ed6c","reason":"Full gateway controls are on main; remaining conflicts remove newer build-fingerprint binding from corpus acceptance."},
+    "verify/pgn-provider-qualification": {"sha":"9c03473111bd79b9711e0114a68725aa0ce8cf0a","reason":"PGN provider qualification is integrated. Remaining conflicts restore older sudo-based X11 acquisition and invalid composition-receipt assumptions; retain current implementation."},
+    "verify/selected-package-receipts-20260916": {"sha":"a01f5e52d62428a2aaf6bf9c2368803fca91e240","reason":"Current selected-package receipts retain the work with actual shell routing controls and build-fingerprint validation that the older variant omits."}
+  }
+}

@@ -3,7 +3,7 @@
   "classification": "source-built-build-toolchain",
   "release_lock": "dependencies/release-lock.json",
   "logical_roots": {
-    "source_generation": "/opt/laplace/external/release-generations/5512807219f65447991bf42f2560a941682652605d720bc9e71187af9d6266a6",
+    "source_generation": "/opt/laplace/external/release-generations/a06abef13eac752c8a69c7212b30961eeeccb8c174e50d33aef9e18751dcf1c7",
     "archive_root": "/opt/laplace/external/acquisition-cache/source-archives",
     "build_root": "/opt/laplace/build/toolchain",
     "work_root": "/opt/laplace/work/toolchain",
@@ -309,7 +309,7 @@
         "tools": ["flex"]
       },
       "cmake": {
-        "version": "4.4.2",
+        "version": "4.4.3",
         "phase": "meta-build-tools",
         "source_mode": "private-copy-out-of-tree",
         "configure": [

@@ -1,115 +1,93 @@
-name: Read retained installed candidate failure
+name: Qualify durable installed package metadata
 on:
   push:
     branches: [verify/source-admission-bytecode-20260916]
 permissions:
   contents: read
-  actions: read
 jobs:
-  inspect:
+  qualify:
     if: github.repository == 'SaltyPatron/Laplace-Refactor'
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
-      - name: Authenticate the exact retained failure and print bounded diagnostic fields
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source and execute existing metadata lifecycle controls
         shell: bash
         run: |
-          python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, urllib.error, urllib.parse, urllib.request, zipfile
-          API = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
-          EXPECTED_HEAD = "772bad57e5e955bbf1e5d6480f309c0e535ac6cf"
-          EXPECTED_ZIP = "fa7d6015c5e456267a7623441230392903efb09c671da00bb68e83d6f0fa0450"
-          EXPECTED_RESULT = "197c50a8754c4ff3c4397e9b9fff91612ee6ce7bdb7c493224400829e1771a85"
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self, request, fp, code, msg, headers, newurl):
-                  return None
-          opener = urllib.request.build_opener(NoRedirect)
-          def bounded(response, maximum):
-              value = response.read(maximum + 1)
-              if len(value) > maximum:
-                  raise RuntimeError("response exceeds diagnostic bound")
-              return value
-          def api(path):
-              return urllib.request.Request(API + path, headers={
-                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
-                  "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28"})
-          with opener.open(api("/actions/runs/35136939684"), timeout=30) as response:
-              run = json.loads(bounded(response, 1048576))
-          if (run["id"] != 35136939684 or run["head_sha"] != EXPECTED_HEAD
-                  or run["head_branch"] != "verify/source-admission-bytecode-20260916"
-                  or run["status"] != "completed" or run["conclusion"] != "failure"):
-              raise RuntimeError("retained run identity or terminal result differs")
-          with opener.open(api("/actions/artifacts/10464006661"), timeout=30) as response:
-              artifact = json.loads(bounded(response, 1048576))
-          if (artifact["id"] != 10464006661 or artifact["expired"]
-                  or artifact["name"] != "installed-native-candidate-compiler-35136939684-1"
-                  or artifact["size_in_bytes"] != 55940
-                  or artifact["workflow_run"]["id"] != 35136939684
-                  or artifact["workflow_run"]["head_sha"] != EXPECTED_HEAD
-                  or artifact.get("digest") != "sha256:" + EXPECTED_ZIP):
-              raise RuntimeError("retained artifact identity differs")
-          try:
-              opener.open(api("/actions/artifacts/10464006661/zip"), timeout=30)
-              raise RuntimeError("archive endpoint did not return its expected redirect")
-          except urllib.error.HTTPError as error:
-              if error.code != 302:
-                  raise
-              target = error.headers["Location"]
-              error.close()
-          parsed = urllib.parse.urlparse(target)
-          if (parsed.scheme != "https" or parsed.username or parsed.password
-                  or not parsed.hostname
-                  or not (parsed.hostname.endswith(".blob.core.windows.net")
-                          or parsed.hostname.endswith(".actions.githubusercontent.com"))):
-              raise RuntimeError("artifact redirect host is not the supported storage owner")
-          with opener.open(urllib.request.Request(target), timeout=30) as response:
-              raw = bounded(response, 2097152)
-          if len(raw) != 55940 or hashlib.sha256(raw).hexdigest() != EXPECTED_ZIP:
-              raise RuntimeError("archive digest or length differs")
-          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-              entries = archive.infolist()
-              names = [entry.filename for entry in entries]
-              if len(entries) != 10 or len(set(names)) != len(names):
-                  raise RuntimeError("archive member count or uniqueness differs")
-              if sum(entry.file_size for entry in entries) > 8388608:
-                  raise RuntimeError("archive expansion exceeds diagnostic bound")
-              for entry in entries:
-                  path = pathlib.PurePosixPath(entry.filename)
-                  if (path.is_absolute() or ".." in path.parts or entry.flag_bits & 1
-                          or entry.file_size > 2097152):
-                      raise RuntimeError("invalid archive member")
-              result_raw = archive.read("result.json")
-              if hashlib.sha256(result_raw).hexdigest() != EXPECTED_RESULT:
-                  raise RuntimeError("retained result digest differs")
-              result = json.loads(result_raw)
-              if (result["status"] != "failed" or result["active_phase"] != "activation-before"
-                      or result["completed_phases"] != ["source-identity"]
-                      or result["candidate_commit"] != "614bef1f08963e3d935921dd08bc0c39e6ce5331"
-                      or result["installed_package_id"] != "48a00562c1900089593a3333f8a5b0ad90b6f95aafa524a97740d21e490a3198"):
-                  raise RuntimeError("retained failure scope differs")
-              errors_raw = archive.read("errors.json")
-              if len(errors_raw) > 65536:
-                  raise RuntimeError("error evidence exceeds bound")
-              errors = json.loads(errors_raw)
-              if not isinstance(errors.get("errors"), list) or len(errors["errors"]) > 4:
-                  raise RuntimeError("error evidence shape differs")
-              projection = []
-              for entry in errors["errors"]:
-                  if set(entry) != {"phase", "type", "message"} or not all(isinstance(x, str) for x in entry.values()):
-                      raise RuntimeError("error evidence fields differ")
-                  if entry["phase"] != "activation-before" or len(entry["message"]) > 4096:
-                      raise RuntimeError("error evidence scope differs")
-                  projection.append(entry)
-              print(json.dumps({
-                  "schema": "laplace.retained-candidate-failure-readback/v1",
-                  "run_id": 35136939684, "head_sha": EXPECTED_HEAD,
-                  "artifact_id": 10464006661, "archive_sha256": EXPECTED_ZIP,
-                  "result_sha256": EXPECTED_RESULT,
-                  "errors_sha256": hashlib.sha256(errors_raw).hexdigest(),
-                  "errors": projection,
-                  "members": [{"name": x.filename, "bytes": x.file_size} for x in entries],
-                  "host_actions": False}, sort_keys=True))
+          python3 -B - <<'PY'
+          import ast, hashlib, json, os, pathlib, re, subprocess, time
+          root = pathlib.Path.cwd()
+          expected = {"tests/product_build_workspace_retention_tests.py":"a40d2c1cb5bf7efcbcf62488609ea781da1b47d0","tests/product_gateway_contract_tests.py":"1a699c3d1ec8116e1ea5afe3506fbb835e1abec4","tests/stockfish_corpus_acceptance_tests.py":"e695f01e6035b8062508a5f15fb8c240de848e09","tools/delivery/product_gateway_live_proof.py":"b17c5ce2a5f4e3e3a62b7dd7e340e5e0f832b0da","tools/product/build_workspace_retention.py":"b4096647685940393d8880fd1e0bdcc6bf900196","tools/sources/stockfish_corpus_acceptance.py":"b00543ad24b0d6e22624c6ed2b4a2adfc8cb910a"}
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "retained-package-metadata-controls"
+          output.mkdir()
+          observed = {}
+          for name, blob in expected.items():
+              path = root / name
+              raw = path.read_bytes()
+              value = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+              if path.is_symlink() or value != blob:
+                  raise RuntimeError("qualified candidate source differs: " + name)
+              ast.parse(raw, filename=name)
+              observed[name] = {"git_blob": blob, "sha256": hashlib.sha256(raw).hexdigest()}
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "--no-renames",
+               "6347401133605adada0b3ebad06ef0051082e76a", "HEAD"], text=True).splitlines()
+          if set(changed) != set(expected) | {".github/workflows/source-admission-bytecode-qualification.yml"}:
+              raise RuntimeError("cumulative qualification delta differs")
+          if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], text=True):
+              raise RuntimeError("qualification checkout is dirty")
+          report = {"schema": "laplace.retained-package-metadata-controls/v1",
+              "head": os.environ["GITHUB_SHA"], "base": "6347401133605adada0b3ebad06ef0051082e76a",
+              "source": observed, "status": "running", "suites": [],
+              "host_execution": False, "consumer_installed": False}
+          result = output / "result.json"
+          def save():
+              result.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          save()
+          for filename, expected_count in (
+                  ("product_build_workspace_retention_tests.py", 18),
+                  ("stockfish_corpus_acceptance_tests.py", 56),
+                  ("product_gateway_contract_tests.py", 20)):
+              started = time.monotonic()
+              entry = {"suite": filename, "expected_controls": expected_count, "status": "running"}
+              report["suites"].append(entry)
+              save()
+              target = output / (filename + ".log")
+              with target.open("xb") as log:
+                  try:
+                      completed = subprocess.run(["python3", "-B", "tests/" + filename],
+                          stdout=log, stderr=subprocess.STDOUT, timeout=180, check=False)
+                      entry["exit_code"] = completed.returncode
+                  except subprocess.TimeoutExpired:
+                      entry["exit_code"] = 124
+                      entry["status"] = "timed-out"
+              raw = target.read_bytes()
+              text = raw.decode("utf-8", errors="replace")
+              counts = re.findall(r"^Ran (\d+) tests? in ", text, re.M)
+              entry.update({"seconds": time.monotonic() - started,
+                  "log_sha256": hashlib.sha256(raw).hexdigest(),
+                  "actual_controls": int(counts[-1]) if counts else None})
+              if entry["status"] != "timed-out":
+                  entry["status"] = ("passed" if entry["exit_code"] == 0
+                      and entry["actual_controls"] == expected_count else "failed")
+              print(filename + "\n" + text, flush=True)
+              save()
+          report["status"] = "passed" if all(x["status"] == "passed" for x in report["suites"]) else "failed"
+          report["actual_controls"] = sum(x["actual_controls"] or 0 for x in report["suites"])
+          save()
+          print(json.dumps(report, sort_keys=True), flush=True)
+          raise SystemExit(0 if report["status"] == "passed" else 1)
           PY
+      - name: Retain actual control output and source identity
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: retained-package-metadata-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/retained-package-metadata-controls/
+          if-no-files-found: error
+          retention-days: 30
