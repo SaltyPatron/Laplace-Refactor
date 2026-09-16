@@ -47,8 +47,11 @@ def local_import_origin(origin: str) -> bool:
 
 
 def git(root: Path, *arguments: str) -> bytes:
+    require(root.is_absolute() and root.is_dir() and root.resolve(strict=True) == root,
+            "Git checkout must be an absolute physical directory without linked components")
     result = subprocess.run(
-        ["git", "--no-optional-locks", "-C", str(root), *arguments],
+        ["git", "--no-optional-locks", "-c", "safe.directory=" + str(root),
+         "-C", str(root), *arguments],
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         check=False, timeout=120,
         env={**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0",
