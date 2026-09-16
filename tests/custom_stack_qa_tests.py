@@ -62,6 +62,26 @@ class CustomStackQaTests(unittest.TestCase):
             )
         )
 
+    def test_source_runtime_schema_is_required_in_custom_stack_core(self) -> None:
+        name = "postgres.source-runtime-state-schema"
+        rows = [row for row in qa.registry_entries(ROOT) if row["ctest_name"] == name]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["profiles"], ["postgres", "custom-stack"])
+        for path in ("tools/admit_source.py", "tools/admit_source_guard.py",
+                     "tools/sources/runtime_state.py",
+                     "integrations/postgresql/extension/laplace--version.sql.in"):
+            with self.subTest(path=path):
+                plan = self.plan(path)
+                self.assertIn(name, plan["core_tests"])
+                self.assertNotIn(name, plan["manual_source_acceptance_tests"])
+                self.assertNotIn(name, plan["selected_physical_tests"])
+        # Keep the registry connected to the actual PostgreSQL-enabled CTest
+        # declaration and its selected client/server binaries.
+        registration = (ROOT / "tests/CMakeLists.txt").read_text()
+        self.assertIn("NAME " + name, registration)
+        self.assertIn('source_runtime_state_postgres_tests.py"', registration)
+        self.assertIn('--pg-bindir "${LAPLACE_POSTGRES_BINDIR}"', registration)
+
     def test_composition_change_selects_only_composition_boundary(self) -> None:
         plan = self.plan("engine/src/composition.cpp")
         self.assertEqual(
