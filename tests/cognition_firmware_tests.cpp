@@ -1,4 +1,5 @@
 #include "laplace/cognition_firmware.h"
+#include "laplace/persistence.h"
 #include "context_fixture.h"
 #include "prompt_admission_fixture.h"
 #include <array>
@@ -490,6 +491,188 @@ struct Image {
     laplace_cognition_firmware_image* value{};
     ~Image(){laplace_cognition_firmware_image_destroy(&value);}
 };
+
+struct RootReadback {
+    laplace_cognition_materialization_node node{};
+    laplace_trajectory_carrier carrier{};
+    std::size_t realizations{}, resolves{}, reads{};
+
+    void SetRepeatedAtom(std::uint16_t count) {
+        const auto atom = Codepoint('A');
+        const laplace_id_run run{atom, count};
+        std::uint64_t logical_count = 0U;
+        ASSERT_EQ(laplace_identity_composite_runs_witness(
+            &run, 1U, nullptr, &logical_count, &node.entity_id, &node.identity_witness),
+            LAPLACE_IDENTITY_OK);
+        const auto metadata = (UINT64_C(1) << LAPLACE_TRAJECTORY_HAS_ATOM_BIT) |
+            (UINT64_C(65) << LAPLACE_TRAJECTORY_ATOM_SHIFT);
+        ASSERT_EQ(laplace_trajectory_composition_encode(
+            &atom, 1U, count, metadata, &carrier), LAPLACE_TRAJECTORY_OK);
+        node.physicality_id = Digest(0xe2);
+        node.node_receipt_id = Digest(0xe3);
+        node.logical_count = logical_count;
+        node.carrier_count = 1U;
+        node.kind = LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION;
+        node.tier_floor = 1U;
+        ASSERT_EQ(laplace_persistence_trajectory_fingerprint(
+            &carrier, 1U, &node.trajectory_fingerprint), LAPLACE_PERSISTENCE_OK);
+    }
+
+    static int RealizeRoot(void* opaque, const laplace_cognition_semantic_act* act,
+        const laplace_cognition_realization_request* request,
+        laplace_cognition_realization_candidate* out, std::size_t capacity,
+        std::size_t* count, laplace_cognition_realization_usage* usage) {
+        auto& self = *static_cast<RootReadback*>(opaque);
+        ++self.realizations;
+        *count = 0U;
+        *usage = {};
+        if (capacity == 0U || !SameId(act->primary_answer.entity_id, self.node.entity_id) ||
+            !SameId(request->modality_id, Codepoint('T'))) return 1;
+        *out = {};
+        out->content_id = self.node.entity_id;
+        out->candidate_receipt_id = Digest(0xe4);
+        out->realization_recipe_id = Digest(0xe5);
+        out->obligation_fingerprint = act->act_id;
+        out->reused_subtree_count = 1U;
+        out->structural_tier = self.node.tier_floor;
+        out->match_class = LAPLACE_COGNITION_REALIZATION_CANDIDATE_EXACT_WHOLE;
+        out->flags = LAPLACE_COGNITION_REALIZATION_CANDIDATE_REUSED_WITNESSED;
+        usage->provider_receipt_id = Digest(0xe6);
+        usage->rows_examined = 1U;
+        usage->exact_whole_examined = 1U;
+        usage->disposition = LAPLACE_COGNITION_REALIZATION_DISPOSITION_COMPLETE;
+        *count = 1U;
+        return 0;
+    }
+    static int ResolveRoot(void* opaque, const laplace_id128* id,
+        laplace_cognition_materialization_node* output) {
+        auto& self = *static_cast<RootReadback*>(opaque);
+        ++self.resolves;
+        if (!SameId(*id, self.node.entity_id)) return 1;
+        *output = self.node;
+        return 0;
+    }
+    static int ReadRoot(void* opaque, const laplace_cognition_materialization_node* node,
+        laplace_trajectory_carrier* output, std::size_t count, laplace_digest256* receipt) {
+        auto& self = *static_cast<RootReadback*>(opaque);
+        ++self.reads;
+        if (count != 1U || !SameId(node->entity_id, self.node.entity_id) ||
+            !SameDigest(node->physicality_id, self.node.physicality_id)) return 1;
+        *output = self.carrier;
+        *receipt = Digest(0xe7);
+        return 0;
+    }
+};
+
+class RootGoalFirmware : public CognitionFirmware {
+protected:
+    laplace_cognition_prompt_admission* other_admission{};
+    RootReadback root;
+    void SetUp() override {
+        CognitionFirmware::SetUp();
+        text = "AA";
+        steps = {Query({OBS, 0}, LAPLACE_OBSERVATION_QUERY_CONSTITUENT),
+                 Query({ANSWER, 0}, LAPLACE_OBSERVATION_QUERY_CONTAINER, {OBS, 0}),
+                 Emit(1)};
+        steps[0].kind = LAPLACE_COGNITION_FIRMWARE_INTERPRET;
+        ASSERT_NO_FATAL_FAILURE(Admit());
+        auto g = StructureProvider(&grammar);
+        auto a = AtomProvider(&atoms);
+        auto p = PresenceProvider(&presence);
+        const std::string other_text = "AAA";
+        auto input = PromptInput(other_text, &context, &g);
+        ASSERT_EQ(laplace_framework_context_fingerprint(
+            &context, &input.occurrence.context_fingerprint), LAPLACE_FRAMEWORK_OK);
+        ASSERT_EQ(laplace_cognition_prompt_admission_create(
+            &input, &a, &p, &other_admission), LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+        // Both parents come from the real structural provider over independently
+        // admitted exact content, with no goal-aware fixture filtering.
+        ASSERT_EQ(laplace_cognition_prompt_admission_structural_provider(
+            other_admission, &provider), LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+        ASSERT_NO_FATAL_FAILURE(root.SetRepeatedAtom(2U));
+        ASSERT_TRUE(SameId(root.node.entity_id, observation.trunk_entity_id));
+        realizer.state = &root;
+        realizer.enumerate = RootReadback::RealizeRoot;
+        materializer.state = &root;
+        materializer.resolve_node = RootReadback::ResolveRoot;
+        materializer.read_trajectory = RootReadback::ReadRoot;
+    }
+    void TearDown() override {
+        laplace_cognition_prompt_admission_destroy(&other_admission);
+        CognitionFirmware::TearDown();
+    }
+};
+
+TEST_F(RootGoalFirmware, UnboundSharedAtomContainersRemainAmbiguous) {
+    steps[1].goal = {};
+    ASSERT_NO_FATAL_FAILURE(Admit());
+    Result result;
+    EXPECT_EQ(Run(result), LAPLACE_COGNITION_FIRMWARE_AMBIGUOUS);
+    EXPECT_EQ(error.step_index, 1U);
+    EXPECT_EQ(result.value, nullptr);
+    EXPECT_EQ(root.realizations, 0U);
+    EXPECT_EQ(root.resolves, 0U);
+}
+
+TEST_F(RootGoalFirmware, ObservationGoalSelectsCurrentRootWithAnotherParentRetained) {
+    Result result;
+    ASSERT_EQ(Run(result), LAPLACE_COGNITION_FIRMWARE_OK)
+        << error.step_index << ":" << error.native_status << ":" << error.native_disposition;
+    EXPECT_EQ(result.output(), "AA");
+    EXPECT_TRUE(SameId(result.step(0).act.primary_answer.entity_id, Codepoint('A')));
+    EXPECT_TRUE(SameId(result.step(1).request.goal_entity_id, observation.trunk_entity_id));
+    EXPECT_TRUE(SameId(result.step(1).act.primary_answer.entity_id, observation.trunk_entity_id));
+    EXPECT_EQ(result.receipt().completed_steps, 3U);
+    EXPECT_EQ(result.step(2).materialization.resolved_node_count, 1U);
+    EXPECT_EQ(result.step(2).materialization.trajectory_carrier_count, 1U);
+    EXPECT_EQ(root.resolves, 1U);
+    EXPECT_EQ(root.reads, 1U);
+    EXPECT_EQ(result.step(1).act.primary_answer.independent_evidence_root_count, 0U);
+}
+
+TEST_F(RootGoalFirmware, StoredObservationGoalImageFollowsChangedPromptRoot) {
+    Image image;
+    ASSERT_EQ(laplace_cognition_firmware_image_create(
+        &program, 65536U, &image.value), LAPLACE_COGNITION_FIRMWARE_OK);
+    laplace_cognition_firmware_program view{};
+    const std::uint8_t* bytes = nullptr;
+    std::size_t size = 0U;
+    laplace_digest256 id{};
+    ASSERT_EQ(laplace_cognition_firmware_image_view(
+        image.value, &view, &bytes, &size, &id), LAPLACE_COGNITION_FIRMWARE_OK);
+    program = view;
+    Result first;
+    ASSERT_EQ(Run(first), LAPLACE_COGNITION_FIRMWARE_OK);
+    const auto first_root = observation.trunk_entity_id;
+    text = "AAAA";
+    ASSERT_NO_FATAL_FAILURE(Admit());
+    ASSERT_NO_FATAL_FAILURE(root.SetRepeatedAtom(4U));
+    ASSERT_TRUE(SameId(root.node.entity_id, observation.trunk_entity_id));
+    program = view;  // Execute the same retained image, not a recompiled goal ID.
+    Result second;
+    ASSERT_EQ(Run(second), LAPLACE_COGNITION_FIRMWARE_OK)
+        << error.step_index << ":" << error.native_status << ":" << error.native_disposition;
+    EXPECT_EQ(first.output(), "AA");
+    EXPECT_EQ(second.output(), "AAAA");
+    EXPECT_TRUE(SameDigest(first.receipt().program_id, second.receipt().program_id));
+    EXPECT_FALSE(SameId(first_root, observation.trunk_entity_id));
+    EXPECT_TRUE(SameId(second.step(1).request.goal_entity_id, observation.trunk_entity_id));
+    EXPECT_TRUE(SameId(second.step(1).act.primary_answer.entity_id, observation.trunk_entity_id));
+    EXPECT_EQ(second.step(2).materialization.resolved_node_count, 1U);
+    EXPECT_EQ(second.step(2).materialization.trajectory_carrier_count, 1U);
+}
+
+TEST_F(RootGoalFirmware, UnreachablePriorAnswerGoalDoesNotEmitAnotherContainer) {
+    steps[1].goal = {ANSWER, 0};
+    ASSERT_NO_FATAL_FAILURE(Admit());
+    Result result;
+    EXPECT_EQ(Run(result), LAPLACE_COGNITION_FIRMWARE_INCOMPLETE);
+    EXPECT_EQ(error.step_index, 1U);
+    EXPECT_EQ(result.value, nullptr);
+    EXPECT_EQ(root.realizations, 0U);
+    EXPECT_EQ(root.resolves, 0U);
+}
+
 TEST_F(CognitionFirmware, StoredProgramRoundTripsAndExecutesWithoutCallerGoal) {
     Image original,loaded;
     ASSERT_EQ(laplace_cognition_firmware_image_create(&program,65536,&original.value),LAPLACE_COGNITION_FIRMWARE_OK);

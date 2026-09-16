@@ -1,0 +1,94 @@
+name: Qualify CMake source release contract
+on:
+  push:
+    branches: [qualify/cmake-source-443-20260916]
+permissions:
+  contents: read
+jobs:
+  qualify:
+    if: github.repository == 'SaltyPatron/Laplace-Refactor'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the cumulative source and execute existing component and consumer controls
+        shell: bash
+        run: |
+          python3 -B - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess, time
+          root = pathlib.Path.cwd()
+          expected = {"tests/postgresql_build_tests.py":"ec11f18f45aa04ce34d690309ca901a7b3968233","tests/postgresql_package_publication_tests.py":"d1b6e69091481b8cc0d471207d63c384d3129e7f","tests/product_package_tests.py":"933a5bc9d14f659e718e971a94c77e836ea0ef9f","tests/toolchain_build_tests.py":"e9d45a97bf38ae4a43be86c16fc39a0cca5b5b58","tools/delivery/postgresql_package_publication.py":"0ba44f5a15894ac7fe26d2d1706ab5759e4704a5","tools/dependencies/build-runtime-graph.py":"dd134acfe31b505e39f0c642f5d17810dbc66d13","tools/dependencies/package_receipts.py":"29fbc5bd51e849cdef3fd77d2c70044959aa71ec","tools/postgresql/build-package.py":"dff149fdf9db357dfe3e9fc617d4969fb916638f","tools/product/build-package.py":"5db4d8905bbf881b6b6cb63f2153db3e1b7ade5f","tools/toolchain/build-package.py":"bc41dc94e22a93cf2d5514e5bca43555741a9fdb"}
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "cmake-component-consumer-controls"
+          output.mkdir()
+          observed = {}
+          for name, blob in expected.items():
+              path = root / name
+              raw = path.read_bytes()
+              value = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+              if path.is_symlink() or value != blob:
+                  raise RuntimeError("qualified candidate source differs: " + name)
+              observed[name] = {"git_blob": blob, "sha256": hashlib.sha256(raw).hexdigest()}
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "--no-renames",
+               "6347401133605adada0b3ebad06ef0051082e76a", "HEAD"], text=True).splitlines()
+          if set(changed) != set(expected) | {".github/workflows/qualify-cmake-source-release.yml"}:
+              raise RuntimeError("cumulative qualification delta differs")
+          if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], text=True):
+              raise RuntimeError("qualification checkout is dirty")
+          report = {"schema": "laplace.cmake-component-consumer-controls/v1",
+              "head": os.environ["GITHUB_SHA"], "base": "6347401133605adada0b3ebad06ef0051082e76a",
+              "source": observed, "status": "running", "suites": [],
+              "host_execution": False, "upstream_697_executed": False,
+              "component_built": False, "consumer_installed": False}
+          result = output / "result.json"
+          def save():
+              result.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          save()
+          for filename, expected_count in (
+                  ("toolchain_build_tests.py", 58),
+                  ("postgresql_build_tests.py", 53),
+                  ("postgresql_package_publication_tests.py", 10),
+                  ("product_package_tests.py", 40)):
+              started = time.monotonic()
+              entry = {"suite": filename, "expected_controls": expected_count, "status": "running"}
+              report["suites"].append(entry)
+              save()
+              target = output / (filename + ".log")
+              with target.open("xb") as log:
+                  try:
+                      completed = subprocess.run(["python3", "-B", "tests/" + filename],
+                          stdout=log, stderr=subprocess.STDOUT, timeout=180, check=False)
+                      entry["exit_code"] = completed.returncode
+                  except subprocess.TimeoutExpired:
+                      entry["exit_code"] = 124
+                      entry["status"] = "timed-out"
+              raw = target.read_bytes()
+              text = raw.decode("utf-8", errors="replace")
+              counts = re.findall(r"^Ran (\d+) tests? in ", text, re.M)
+              entry.update({"seconds": time.monotonic() - started,
+                  "log_sha256": hashlib.sha256(raw).hexdigest(),
+                  "actual_controls": int(counts[-1]) if counts else None})
+              if entry["status"] != "timed-out":
+                  entry["status"] = ("passed" if entry["exit_code"] == 0
+                      and entry["actual_controls"] == expected_count else "failed")
+              print(filename + "\n" + text, flush=True)
+              save()
+          report["status"] = "passed" if all(x["status"] == "passed" for x in report["suites"]) else "failed"
+          report["actual_controls"] = sum(x["actual_controls"] or 0 for x in report["suites"])
+          save()
+          print(json.dumps(report, sort_keys=True), flush=True)
+          raise SystemExit(0 if report["status"] == "passed" else 1)
+          PY
+      - name: Retain actual control output and source identity
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cmake-component-consumer-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cmake-component-consumer-controls/
+          if-no-files-found: error
+          retention-days: 30

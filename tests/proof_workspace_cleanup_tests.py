@@ -235,11 +235,21 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
 
     def test_deliberate_stale_sweep_omission_is_detected(self) -> None:
         workflow = PACKAGE_PRODUCT.read_text(encoding="utf-8")
-        start = workflow.index("      - name: Sweep stale interrupted package-product residue\n")
-        end = workflow.index("      - name: Verify package-proof authority", start)
-        mutant = workflow[:start] + workflow[end:]
-        with self.assertRaises((AssertionError, ValueError)):
-            self.assert_stale_sweep(mutant, ("laplace-package-product-proof",))
+        # Locate the operation rather than its editable presentation label.
+        # Renaming a step cannot disable this deliberate-omission check.
+        for source in (workflow, workflow.replace("name: ", "name: renamed ")):
+            with self.subTest(renamed=source != workflow):
+                self.assert_stale_sweep(source, ("laplace-package-product-proof",))
+                steps = source.split("\n      - ")
+                sweeps = [index for index, step in enumerate(steps)
+                          if "tools/delivery/proof_workspace_cleanup.py" in step
+                          and "--minimum-age-seconds 300" in step
+                          and "--name laplace-package-product-proof" in step]
+                self.assertEqual(len(sweeps), 1)
+                del steps[sweeps[0]]
+                mutant = "\n      - ".join(steps)
+                with self.assertRaises((AssertionError, ValueError)):
+                    self.assert_stale_sweep(mutant, ("laplace-package-product-proof",))
 
     def test_deliberate_path_escape_is_rejected(self) -> None:
         outside = self.root.parent / "outside-proof-do-not-delete"

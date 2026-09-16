@@ -4,6 +4,7 @@
 #include "laplace/identity.h"
 #include "laplace/observation_query.h"
 
+#include <charconv>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -46,6 +47,36 @@ std::vector<std::string> ParseRelations(std::string_view value) {
         start = comma + 1U;
     }
     return relations;
+}
+
+
+struct GoalBinding {
+    std::uint32_t step{};
+    laplace_cognition_firmware_binding binding{};
+};
+
+bool ParseIndex(std::string_view text, std::uint32_t& value) {
+    if (text.empty()) return false;
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+    return parsed.ec == std::errc{} && parsed.ptr == text.data() + text.size();
+}
+
+bool ParseGoal(std::string_view text, GoalBinding& goal) {
+    const auto colon = text.find(':');
+    if (colon == std::string_view::npos || !ParseIndex(text.substr(0U, colon), goal.step))
+        return false;
+    const auto source = text.substr(colon + 1U);
+    if (source == "observation") {
+        goal.binding = {LAPLACE_COGNITION_FIRMWARE_OBSERVATION, 0U};
+        return true;
+    }
+    constexpr std::string_view answer = "answer:";
+    if (source.substr(0U, answer.size()) == answer &&
+        ParseIndex(source.substr(answer.size()), goal.binding.step_index)) {
+        goal.binding.source = LAPLACE_COGNITION_FIRMWARE_ANSWER;
+        return true;
+    }
+    return false;
 }
 
 laplace_id128 ContentIdentity(std::string_view ascii) {
@@ -132,6 +163,8 @@ void Usage() {
     std::cerr
         << "usage: laplace_cognition_firmware_compile "
            "(--auto | --relation NAME | --relations NAME[,NAME...]) [--output IMAGE]\n"
+           "       [--goal STEP:observation | --goal STEP:answer:EARLIER_STEP]...\n"
+           "goal steps are zero-based later relation steps; no literal entity goals\n"
         << "relations: container constituent predecessor successor cooccur semantic\n";
 }
 
@@ -141,6 +174,7 @@ int main(int argc, char** argv) {
     bool automatic = false;
     std::vector<std::string> relations;
     std::string output_path;
+    std::vector<GoalBinding> goals;
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument(argv[index]);
         if (argument == "--auto") {
@@ -156,6 +190,13 @@ int main(int argc, char** argv) {
             }
             ++index;
             relations = ParseRelations(argv[index]);
+        } else if (argument == "--goal") {
+            GoalBinding goal{};
+            if (index + 1 >= argc || !ParseGoal(argv[++index], goal)) {
+                Usage();
+                return 64;
+            }
+            goals.push_back(goal);
         } else if (argument == "--output") {
             if (!output_path.empty() || index + 1 >= argc) {
                 Usage();
@@ -200,6 +241,17 @@ int main(int argc, char** argv) {
                 : static_cast<std::uint32_t>(index - 1U);
             step.relation_mask = Relation(relations[index]);
         }
+    }
+
+    for (const auto& goal : goals) {
+        if (automatic || goal.step == 0U || goal.step >= relations.size() ||
+            steps[goal.step].goal.source != LAPLACE_COGNITION_FIRMWARE_NO_BINDING ||
+            (goal.binding.source == LAPLACE_COGNITION_FIRMWARE_ANSWER &&
+             goal.binding.step_index >= goal.step)) {
+            Usage();
+            return 64;
+        }
+        steps[goal.step].goal = goal.binding;
     }
 
     auto& emit = steps.back();
@@ -275,6 +327,20 @@ int main(int argc, char** argv) {
         }
         std::cout << "],";
     }
+    // Report the native image view, not merely the requested command-line tokens.
+    std::cout << "\"goal_bindings\":[";
+    bool first_goal = true;
+    for (std::uint32_t index = 0U; index < view.step_count; ++index) {
+        const auto& goal = view.steps[index].goal;
+        if (goal.source == LAPLACE_COGNITION_FIRMWARE_NO_BINDING) continue;
+        if (!first_goal) std::cout << ',';
+        first_goal = false;
+        std::cout << "{\"step\":" << index << ",\"source\":\""
+                  << (goal.source == LAPLACE_COGNITION_FIRMWARE_OBSERVATION
+                      ? "observation" : "answer")
+                  << "\",\"source_step\":" << goal.step_index << '}';
+    }
+    std::cout << "],";
     std::cout << "\"program_id\":\"" << Hex(identity) << "\","
               << "\"image_bytes\":" << byte_count << ','
               << "\"image_hex\":\"" << HexBytes(bytes, byte_count) << "\"";
