@@ -1,0 +1,62 @@
+name: Inspect installed service ownership capability
+on:
+  push:
+    branches: [diag/service-capability-419-20260916]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Observe service manager and declared authority without mutation
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, pwd, stat, subprocess, time
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/("service-capability-"+os.environ["GITHUB_RUN_ID"])
+          root.mkdir(mode=0o700)
+          uid=os.geteuid()
+          home=pathlib.Path(pwd.getpwuid(uid).pw_dir)
+          commands=[
+           ["id"],
+           ["systemctl","show","laplace-refactor-cognition.service","--property=LoadState,ActiveState,SubState,FragmentPath,UnitFileState"],
+           ["systemctl","show","laplace-refactor-postgresql.service","--property=LoadState,ActiveState,SubState,FragmentPath,UnitFileState"],
+           ["loginctl","show-user",str(uid),"--property=Linger,RuntimePath,State"],
+           ["systemctl","--user","is-system-running"],
+           ["sudo","-n","-l"],
+          ]
+          report={"schema":"laplace.service-capability-observation/v1","uid":uid,"home":str(home),
+              "environment":{k:os.environ.get(k) for k in ("XDG_RUNTIME_DIR","DBUS_SESSION_BUS_ADDRESS")},
+              "commands":[],"paths":[],"read_only":True}
+          for argv in commands:
+              started=time.monotonic()
+              try:
+                  done=subprocess.run(argv,capture_output=True,text=True,timeout=10,check=False)
+                  item={"argv":argv,"exit_code":done.returncode,"stdout":done.stdout[:16384],"stderr":done.stderr[:4096]}
+              except (OSError,subprocess.TimeoutExpired) as error:
+                  item={"argv":argv,"error":str(error)[:1000]}
+              item["elapsed_seconds"]=time.monotonic()-started
+              report["commands"].append(item)
+          for path in [pathlib.Path("/etc/systemd/system"),pathlib.Path("/run/systemd/system"),
+              pathlib.Path("/etc/systemd/user"),pathlib.Path("/run/user")/str(uid),
+              pathlib.Path("/run/user")/str(uid)/"bus",home/".config",home/".config/systemd/user",
+              pathlib.Path("/var/lib/systemd/linger")/"laplace-runner"]:
+              item={"path":str(path),"exists":path.exists(),"symlink":path.is_symlink(),
+                  "writable":os.access(path,os.W_OK)}
+              try:
+                  s=path.lstat();item.update({"mode":oct(stat.S_IMODE(s.st_mode)),"uid":s.st_uid,"gid":s.st_gid})
+              except OSError as error:
+                  item["stat_error"]=str(error)[:500]
+              report["paths"].append(item)
+          (root/"capability.json").write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
+          print(json.dumps(report,sort_keys=True))
+          
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: service-capability-${{ github.run_id }}
+          path: ${{ runner.temp }}/service-capability-${{ github.run_id }}/
+          if-no-files-found: error
+          retention-days: 7
