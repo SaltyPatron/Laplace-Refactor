@@ -30,6 +30,8 @@ jobs:
     timeout-minutes: 120
     env:
       PYTHONDONTWRITEBYTECODE: "1"
+      # setup-host owns this persistent source parent; inherited by the installed guard.
+      LAPLACE_SOURCE_ESTATE_ROOT: /opt/laplace/sources
       TMPDIR: /build/laplace/work
       TMP: /build/laplace/work
       TEMP: /build/laplace/work

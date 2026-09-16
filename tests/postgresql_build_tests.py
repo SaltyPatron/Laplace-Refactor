@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import toolchain_build_tests as toolchain_fixture
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools/postgresql/build-package.py"
@@ -23,6 +25,24 @@ if SPEC is None or SPEC.loader is None:
 BUILD = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = BUILD
 SPEC.loader.exec_module(BUILD)
+
+
+def composed_consumer_fixture(root: Path) -> tuple[Path, dict, dict, dict]:
+    """Use the owner's protocol fixture and real v2 authentication, without building upstream."""
+    root.mkdir(parents=True, exist_ok=True)
+    receipt_path, receipt, manifest, _, _ = toolchain_fixture.ToolchainBuildTests().composed_fixture(root)
+    expected = {
+        "receipt_schema": "laplace.toolchain-package-receipt/v1",
+        "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+        "required_tools": list(manifest["tools"]),
+        "required_perl_modules": {
+            name: record["version"] for name, record in manifest["perl_modules"].items()
+        },
+        "required_bootstrap_inputs": {},
+        "required_linker_map_inputs": {},
+    }
+    selected = BUILD.verify_toolchain_receipt({"build_toolchain": expected}, receipt_path)
+    return receipt_path, receipt, manifest, selected
 
 
 class PostgreSQLBuildTests(unittest.TestCase):
@@ -869,6 +889,97 @@ class PostgreSQLBuildTests(unittest.TestCase):
         )
         self.assertEqual(closure["system_abi"], ["libc.so.6"])
         self.assertEqual(closure["unknown"], [])
+
+    def test_composed_toolchain_selects_original_roots_and_mounts_both(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, _, manifest, selected = composed_consumer_fixture(Path(temporary))
+            roots = manifest["provider_roots"]
+            self.assertEqual(selected["provider_roots"], roots)
+            self.assertEqual(selected["prefix"], roots["base"]["prefix"])
+            self.assertEqual(selected["tools"], manifest["tools"])
+            self.assertEqual(
+                BUILD.toolchain_provider_prefixes(selected),
+                [roots["cmake"]["prefix"], roots["base"]["prefix"]],
+            )
+            plan = {
+                "source_root": "/evidence/source", "build_directory": "/work/build",
+                "stage_directory": "/work/stage", "build_toolchain": selected,
+                "host_build_provider": {"roots": [{"path": "/usr"}], "files": []},
+            }
+            sandbox = BUILD.sandboxed_build_command(self.contract(), plan, ["/bin/true"])
+            mounts = [sandbox[index:index + 3] for index in range(len(sandbox) - 2)]
+            for root in roots.values():
+                self.assertIn(["--ro-bind", root["prefix"], root["prefix"]], mounts)
+                self.assertNotIn(["--bind", root["prefix"], root["prefix"]], mounts)
+
+    def test_composed_postgresql_environment_prefers_cmake_and_keeps_base_linker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, _, manifest, selected = composed_consumer_fixture(root)
+            staged = root / "postgresql-stage"
+            openssl = staged / "bin/openssl"
+            openssl.parent.mkdir(parents=True)
+            openssl.write_bytes(b"protocol-only selected OpenSSL provider")
+            openssl.chmod(0o755)
+            plan = {
+                "build_toolchain": selected,
+                "staged_product_prefix": str(staged),
+                "build_directory": str(root / "pg-build"),
+                "runtime_package": {"selected_build_executables": {"openssl": {
+                    "relative_path": "bin/openssl", "sha256": BUILD.sha256_file(openssl),
+                }}},
+                "stage_directory": str(root / "pg-stage"),
+            }
+            environment = BUILD.build_environment(self.contract(), plan, root / "pg-home")
+            roots = manifest["provider_roots"]
+            self.assertEqual(environment["PATH"].split(":")[:3], [
+                str(openssl.parent), str(Path(roots["cmake"]["prefix"]) / "bin"),
+                str(Path(roots["base"]["prefix"]) / "bin"),
+            ])
+            self.assertIn("-B" + str(Path(roots["base"]["prefix"]) / "bin"), environment["CFLAGS"])
+            self.assertEqual(environment["MAKE"], manifest["tools"]["make"]["path"])
+            self.assertEqual(environment["PERL"], manifest["tools"]["perl"]["path"])
+
+    def test_composed_runtime_environment_prefers_selected_cmake(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt_path, _, manifest, _ = composed_consumer_fixture(root)
+            specification = importlib.util.spec_from_file_location(
+                "composed_runtime_consumer", REPO_ROOT / "tools/dependencies/build-runtime-graph.py"
+            )
+            assert specification is not None and specification.loader is not None
+            runtime = importlib.util.module_from_spec(specification)
+            sys.modules[specification.name] = runtime
+            specification.loader.exec_module(runtime)
+            contract = runtime.read_json(REPO_ROOT / "contracts/postgresql-runtime-build.json")
+            selected = runtime.verify_toolchain_receipt(contract, receipt_path)
+            roots = manifest["provider_roots"]
+            plan = {
+                "tools": selected["tools"], "toolchain_prefix": selected["prefix"],
+                "staged_prefix": str(root / "runtime-stage/root"),
+                "build_directory": str(root / "runtime-build"),
+                "stage_directory": str(root / "runtime-stage"),
+            }
+            environment = runtime.build_environment(contract, plan, root / "runtime-home")
+            self.assertEqual(environment["PATH"].split(":")[:2], [
+                str(Path(roots["cmake"]["prefix"]) / "bin"),
+                str(Path(roots["base"]["prefix"]) / "bin"),
+            ])
+            self.assertEqual(selected["tools"]["cmake"], manifest["tools"]["cmake"])
+            self.assertIn("-B" + str(Path(roots["base"]["prefix"]) / "bin"), environment["CFLAGS"])
+
+    def test_composed_toolchain_never_falls_back_after_provider_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path, _, manifest, _ = composed_consumer_fixture(Path(temporary))
+            tool = Path(manifest["tools"]["cmake"]["path"])
+            tool.write_bytes(tool.read_bytes() + b"\n# changed after qualification\n")
+            expected = {
+                "receipt_schema": "laplace.toolchain-package-receipt/v1",
+                "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+                "required_tools": ["cmake"],
+            }
+            with self.assertRaises(BUILD.BuildError):
+                BUILD.verify_toolchain_receipt({"build_toolchain": expected}, path)
 
     def test_toolchain_receipt_selects_every_required_build_tool(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
