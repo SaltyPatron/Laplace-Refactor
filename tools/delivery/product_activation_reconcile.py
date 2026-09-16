@@ -616,7 +616,7 @@ def recover_preserved_cluster(contract_path, package_path, resource_path, eviden
                 "command": status_command, "returncode": observed.returncode,
                 "stdout": observed.stdout, "stderr": observed.stderr})
             if observed.returncode == 0:
-                ctl.execute_activation_command("stop-preserved-candidate-after-failure",
+                ctl.execute_plan_command(plan, "stop-preserved-candidate-after-failure",
                                                ctl._pg_ctl_command(plan, "stop"), 300)
             elif observed.returncode != 3:
                 raise runner.RunnerActivationError(

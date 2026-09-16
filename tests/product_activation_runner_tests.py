@@ -783,7 +783,7 @@ class ProductActivationRunnerTests(unittest.TestCase):
         controller = CLUSTERCTL.read_text(encoding="utf-8")
         self.assertIn('"execution_owner": RUNNER_USER', provider)
         self.assertIn('"root_product_executor": False', provider)
-        self.assertIn('"postgresql_lifecycle_provider": clusterctl.LIFECYCLE_PROVIDER', provider)
+        self.assertIn('"postgresql_lifecycle_provider": clusterctl.selected_lifecycle_provider(plan)', provider)
         self.assertIn('LIFECYCLE_PROVIDER = "pg_ctl"', controller)
         self.assertIn("RUNNER_USER = \"laplace-runner\"", controller)
         self.assertIn("RUNTIME_LINK = \"/opt/laplace/runtime/refactor\"", controller)

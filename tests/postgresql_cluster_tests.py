@@ -1305,5 +1305,363 @@ class LoadedObjectProbeCleanup(unittest.TestCase):
         self.assertEqual(process.communicate.call_count, 3)
 
 
+
+
+class PersistentPostgreSQLServiceOwnerTests(unittest.TestCase):
+    """Real file/identity controls; service commands are explicit protocol stand-ins."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="laplace-pg-service-owner-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.service = clusterctl.service_lifecycle()
+        self.unit = self.root / "postgresql.service"
+        self.unit.write_bytes((REPOSITORY / "packaging/systemd" / self.service.UNIT).read_bytes())
+        self.unit.chmod(0o644)
+        self.plan = {
+            "instance": dict(self.service.CANONICAL),
+            "package_id": "a" * 64, "package_root": "/opt/laplace/releases/" + "a" * 64,
+            "active_link": "/opt/laplace/current", "runtime_link": "/opt/laplace/runtime/refactor",
+            "collision_observation_source": "laplace_clusterctl_live_probe",
+            "collision_observation_root": "/", "files": []}
+        self.state = {
+            "LoadState": "loaded", "ActiveState": "inactive", "SubState": "dead",
+            "UnitFileState": "enabled", "FragmentPath": str(self.unit),
+            "NeedDaemonReload": "no", "User": "laplace-runner", "Group": "laplace-runner",
+            "MainPID": "0", "ControlGroup": "", "DropInPaths": ""}
+        self.checked = []
+        self.mutations = []
+        self.denied = None
+        self.owner = self.service.Owner(clusterctl, unit_path=self.unit, root_uid=os.getuid(), root_gid=os.getgid(),
+                                        execute=self.execute)
+        self.owner.command = self.command
+
+    def command(self, arguments, timeout=30):
+        self.checked.append(list(arguments))
+        if arguments[:2] == ["/usr/bin/systemctl", "show"]:
+            return subprocess.CompletedProcess(arguments, 0,
+                "\n".join(key + "=" + value for key, value in self.state.items()), "")
+        self.assertEqual(arguments[:5], ["/usr/bin/sudo", "-n", "-l", "/usr/bin/systemctl",
+                                        arguments[4]])
+        self.assertIn(arguments[4], ("start", "stop", "restart"))
+        self.assertEqual(arguments[5], self.service.UNIT)
+        return subprocess.CompletedProcess(arguments, int(arguments[4] == self.denied), "", "")
+
+    def execute(self, label, arguments, timeout):
+        self.mutations.append((label, list(arguments), timeout))
+        return {"label": label, "argv": list(arguments), "exit_code": 0,
+                "stdout_sha256": "1" * 64, "stderr_sha256": "2" * 64}
+
+    def test_canonical_route_is_contract_bound_and_relocated_proofs_remain_rootless(self):
+        self.assertTrue(self.service.persistent(self.plan))
+        relocated = copy.deepcopy(self.plan)
+        for field in ("data_directory", "wal_directory", "socket_directory",
+                      "config_directory", "receipt_directory"):
+            relocated["instance"][field] = str(self.root / field)
+        with mock.patch.dict(os.environ, {"LAPLACE_POSTGRESQL_PROVIDER": "systemd-system"}):
+            self.assertFalse(self.service.persistent(relocated))
+        typed = copy.deepcopy(self.plan)
+        typed.update(collision_observation_source="laplace_typed_fixture",
+                     collision_observation_root=str(self.root / "installation-root"))
+        self.assertFalse(self.service.persistent(typed))
+        typed["collision_observation_root"] = "/"
+        self.assertFalse(self.service.persistent(typed))
+        with self.assertRaisesRegex(clusterctl.ClusterError, "live root"):
+            clusterctl.execute_cluster_activation(typed, {}, {}, Path("/"), False, [])
+        partial = copy.deepcopy(relocated)
+        partial["instance"]["data_directory"] = self.service.CANONICAL["data_directory"]
+        with self.assertRaisesRegex(self.service.ServiceError, "partially relocated"):
+            self.service.persistent(partial)
+
+    def test_exact_unit_and_all_fixed_grants_are_observed_without_lifecycle_mutation(self):
+        observed = self.owner.verify()
+        self.assertTrue(observed["boot_enabled"])
+        self.assertFalse(observed["cold_boot_proven"])
+        self.assertEqual(observed["unit_sha256"], hashlib.sha256(self.unit.read_bytes()).hexdigest())
+        self.assertEqual([entry[4] for entry in self.checked if entry[0] == "/usr/bin/sudo"],
+                         ["start", "stop", "restart"])
+        self.assertEqual(self.mutations, [])
+
+    def test_real_unit_mutation_mode_and_symlink_refuse_before_any_manager_command(self):
+        original = self.unit.read_bytes()
+        for defect in ("bytes", "mode", "link"):
+            with self.subTest(defect=defect):
+                self.checked.clear()
+                if self.unit.is_symlink():
+                    self.unit.unlink()
+                self.unit.write_bytes(original)
+                self.unit.chmod(0o644)
+                if defect == "bytes":
+                    self.unit.write_bytes(original + b"# drift\n")
+                elif defect == "mode":
+                    self.unit.chmod(0o664)
+                else:
+                    outside = self.root / "outside"
+                    outside.write_bytes(original)
+                    self.unit.unlink()
+                    self.unit.symlink_to(outside)
+                with self.assertRaises(self.service.ServiceError):
+                    self.owner.verify()
+                self.assertEqual(self.checked, [])
+                self.assertEqual(self.mutations, [])
+
+    def test_loaded_unit_drift_or_any_missing_fixed_grant_refuses(self):
+        original = dict(self.state)
+        for key, value in (("NeedDaemonReload", "yes"), ("DropInPaths", "/tmp/override.conf"),
+                           ("UnitFileState", "disabled"), ("FragmentPath", "/tmp/other.service"),
+                           ("User", "root"), ("Group", "root")):
+            with self.subTest(field=key):
+                self.state = {**original, key: value}
+                with self.assertRaises(self.service.ServiceError):
+                    self.owner.verify()
+        self.state = original
+        for action in ("start", "stop", "restart"):
+            with self.subTest(denied=action):
+                self.denied = action
+                with self.assertRaisesRegex(self.service.ServiceError, "authority"):
+                    self.owner.verify()
+        self.assertEqual(self.mutations, [])
+
+    def test_canonical_dispatch_uses_service_and_only_real_relocated_plan_uses_pg_ctl(self):
+        fixed = ["fixed-package/pg_ctl", "start"]
+        with mock.patch.object(clusterctl, "validate_plan"), \
+             mock.patch.object(clusterctl, "_pg_ctl_command", return_value=fixed), \
+             mock.patch.object(self.service.Owner, "action", return_value={"provider": "systemd-system"}) as action, \
+             mock.patch.object(clusterctl, "execute_activation_command") as direct:
+            self.assertEqual(clusterctl.execute_plan_command(self.plan, "start", fixed, 30),
+                             {"provider": "systemd-system"})
+            action.assert_called_once()
+            direct.assert_not_called()
+        relocated = copy.deepcopy(self.plan)
+        for field in ("data_directory", "wal_directory", "socket_directory",
+                      "config_directory", "receipt_directory"):
+            relocated["instance"][field] = str(self.root / field)
+        with mock.patch.object(self.service.Owner, "action") as action, \
+             mock.patch.object(clusterctl, "execute_activation_command", return_value={"relocated": True}) as direct:
+            self.assertEqual(clusterctl.execute_plan_command(relocated, "start", fixed, 30),
+                             {"relocated": True})
+            action.assert_not_called()
+            direct.assert_called_once_with("start", fixed, 30)
+        for marker in ("/", str(self.root / "claimed-fixture-root")):
+            fixture = copy.deepcopy(self.plan)
+            fixture.update(collision_observation_source="laplace_typed_fixture",
+                           collision_observation_root=marker)
+            with self.subTest(marker=marker), \
+                 mock.patch.object(self.service.Owner, "action") as action, \
+                 mock.patch.object(clusterctl, "execute_activation_command") as direct:
+                with self.assertRaisesRegex(clusterctl.ClusterError, "typed fixture"):
+                    clusterctl.execute_plan_command(fixture, "start", fixed, 30)
+                action.assert_not_called()
+                direct.assert_not_called()
+
+    def test_running_unmanaged_postmaster_is_not_silently_adopted_or_stopped(self):
+        # This models the observed incident state: pg_ctl reports running while
+        # the real system owner has MainPID=0. No native success is synthesized.
+        fixed = ["fixture-pg_ctl", "status"]
+        original = self.owner.command
+        self.owner.command = lambda args, timeout=30: (
+            subprocess.CompletedProcess(args, 0, "running", "") if args == fixed
+            else original(args, timeout))
+        with mock.patch.object(self.owner, "selection"), \
+             mock.patch.object(clusterctl, "_pg_ctl_command", return_value=fixed):
+            for action in ("start", "stop"):
+                with self.subTest(action=action):
+                    with self.assertRaisesRegex(self.service.ServiceError, "does not supervise"):
+                        self.owner.action(self.plan, action, action, 30)
+        self.assertEqual(self.mutations, [])
+
+    def test_live_owner_binds_pidfile_executable_cgroup_and_loaded_sql_pid(self):
+        package = self.root / "package"
+        executable = package / "pgsql-18/bin/postgres"
+        executable.parent.mkdir(parents=True)
+        executable.write_bytes(b"explicit process-identity protocol fixture\n")
+        data = self.root / "data"
+        data.mkdir()
+        (data / "postmaster.pid").write_text("123\n" + str(data) + "\n")
+        proc = self.root / "proc/123"
+        proc.mkdir(parents=True)
+        (proc / "exe").symlink_to(executable)
+        group = "/system.slice/" + self.service.UNIT
+        (proc / "cgroup").write_text("0::" + group + "\n")
+        (proc / "stat").write_text("123 (postgres) " + " ".join(["S"] + ["0"] * 18 + ["456"]) + "\n")
+        plan = {**self.plan, "package_root": str(package),
+                "instance": {**self.plan["instance"], "data_directory": str(data)}}
+        self.owner.proc = self.root / "proc"
+        self.state.update(MainPID="123", ActiveState="active", SubState="running", ControlGroup=group)
+        with mock.patch.object(self.service.pwd, "getpwnam", return_value=mock.Mock(pw_uid=os.getuid())), \
+             mock.patch.object(self.owner, "selection"):
+            observed = self.owner.observe(plan, {"postmaster_pid": 123})
+            self.assertEqual(observed["postmaster_pid"], 123)
+            self.assertEqual(observed["start_ticks"], 456)
+            with self.assertRaisesRegex(self.service.ServiceError, "authenticated SQL"):
+                self.owner.observe(plan, {"postmaster_pid": 124})
+            (proc / "cgroup").write_text("0::/system.slice/unrelated.service\n")
+            with self.assertRaisesRegex(self.service.ServiceError, "cgroup"):
+                self.owner.observe(plan, {"postmaster_pid": 123})
+            (proc / "cgroup").write_text("0::" + group + "\n")
+            (data / "postmaster.pid").write_text("124\n" + str(data) + "\n")
+            with self.assertRaisesRegex(self.service.ServiceError, "MainPID"):
+                self.owner.observe(plan, {"postmaster_pid": 123})
+
+    def test_historical_pgctl_and_new_system_receipts_keep_distinct_semantics(self):
+        historical = {"lifecycle_provider": "pg_ctl", "boot_enabled": False,
+                      "service_integration_required": False}
+        self.assertTrue(clusterctl.valid_lifecycle_receipt(historical))
+        self.assertEqual(historical["lifecycle_provider"], "pg_ctl")
+        modern = {"lifecycle_provider": "systemd-system", "boot_enabled": True,
+                  "service_integration_required": True, "cold_boot_proven": False,
+                  "postgresql_service": {"provider": "systemd-system", "unit": self.service.UNIT,
+                                         "boot_enabled": True, "cold_boot_proven": False}}
+        self.assertTrue(clusterctl.valid_lifecycle_receipt(modern))
+        for field, value in (("boot_enabled", False), ("cold_boot_proven", True),
+                             ("postgresql_service", None), ("lifecycle_provider", "unknown")):
+            with self.subTest(field=field):
+                self.assertFalse(clusterctl.valid_lifecycle_receipt({**modern, field: value}))
+
+    def test_bad_durable_convergence_refuses_before_current_owner_observation(self):
+        target = self.root / "postgresql-service-owner.json"
+        value = {"schema": self.service.SCHEMA, "status": "passed", "provider": self.service.PROVIDER,
+                 "cold_boot_proven": False, "instance": dict(self.service.CANONICAL),
+                 "system_identifier": "123", "package_id": "b" * 64,
+                 "repository_commit": "c" * 40, "cluster_activation_receipt_sha256": "d" * 64,
+                 "service": {"unit_sha256": "e" * 64}}
+        value["receipt_sha256"] = self.service.identity(value)
+        target.write_bytes(self.service.canonical(value))
+        target.chmod(0o640)
+        with mock.patch.object(self.service, "selection_path", return_value=target), \
+             mock.patch.object(self.service.Owner, "observe",
+                               return_value={"unit_sha256": "e" * 64}) as observe:
+            read = self.service.observe_selected(clusterctl, self.plan, {"system_identifier": "123"})
+            self.assertEqual(read["historical_package_id"], "b" * 64)
+            observe.reset_mock()
+            with self.assertRaisesRegex(self.service.ServiceError, "convergence identity"):
+                self.service.observe_selected(clusterctl, self.plan, {"system_identifier": "456"})
+            observe.assert_not_called()
+            value["package_id"] = "f" * 64
+            target.write_bytes(self.service.canonical(value))
+            with self.assertRaisesRegex(self.service.ServiceError, "convergence identity"):
+                self.service.observe_selected(clusterctl, self.plan, {"system_identifier": "123"})
+            observe.assert_not_called()
+
+    def test_activation_environment_never_propagates_actions_tracking_or_loader_variables(self):
+        with mock.patch.dict(os.environ, {"RUNNER_TRACKING_ID": "do-not-inherit",
+                                         "LD_PRELOAD": "/untrusted/provider.so"}):
+            self.assertEqual(clusterctl.activation_environment(),
+                             {"LANG": "C", "LC_ALL": "C", "PATH": "/usr/sbin:/usr/bin:/sbin:/bin"})
+
+
+    def convergence_fixture(self):
+        # Explicit lifecycle protocol model: real receipt files and original
+        # state preservation, but no assertion of PostgreSQL/native acceptance.
+        plan = copy.deepcopy(self.plan)
+        plan.update(plan_sha256="1" * 64, commands={"probe_readiness": ["fixture-ready"]})
+        loaded = {"system_identifier": "123", "postmaster_pid": 100,
+                  "loaded_objects": [{"fixture": "original"}], "config_files": [{"fixture": "config"}],
+                  "observation_sha256": "2" * 64}
+        original_receipt = {"activation_receipt_sha256": "3" * 64,
+                            "lifecycle_provider": "pg_ctl", "boot_enabled": False}
+        snapshot = {"package_id": self.plan["package_id"], "repository_commit": "4" * 40,
+                    "cluster_plan": plan, "loaded": loaded, "cluster_activation": original_receipt,
+                    "runner_receipts": [{"document": {"result_sha256": "5" * 64}}]}
+        model = {"pid": 100, "managed": False, "failure": None, "actions": []}
+        target = self.root / "durable-owner.json"
+        owner = mock.Mock()
+        owner.selection.return_value = None
+
+        def observed_state():
+            return {"provider": self.service.PROVIDER, "unit": self.service.UNIT,
+                    "unit_sha256": "6" * 64, "boot_enabled": True, "cold_boot_proven": False,
+                    "properties": {"MainPID": str(model["pid"]) if model["managed"] else "0",
+                                   "ActiveState": "active" if model["managed"] else "inactive"}}
+
+        owner.verify.side_effect = observed_state
+        owner.observe.side_effect = lambda _plan, _loaded: observed_state()
+
+        def execute(label, command, timeout):
+            model["actions"].append(label)
+            if label in ("stop-authenticated-unmanaged-postmaster", "stop-failed-system-handoff"):
+                model["pid"] = 0
+                model["managed"] = False
+            elif label == "restore-authenticated-unmanaged-postmaster":
+                if model["failure"] == "rollback":
+                    raise self.service.ServiceError("controlled rollback refusal")
+                model["pid"] = 900
+                model["managed"] = False
+            return {"label": label, "argv": command, "exit_code": 0}
+
+        def action(_plan, label, kind, timeout):
+            model["actions"].append(label)
+            if label == "start-system-postmaster" and model["failure"]:
+                raise self.service.ServiceError("controlled system start refusal")
+            if kind == "stop":
+                model["pid"] = 0
+                model["managed"] = False
+            else:
+                model["pid"] = 200 if label == "start-system-postmaster" else 300
+                model["managed"] = True
+            return {"label": label, "argv": ["/usr/bin/systemctl", kind, self.service.UNIT],
+                    "provider": self.service.PROVIDER, "exit_code": 0}
+
+        owner.action.side_effect = action
+        ctl = mock.Mock()
+        ctl._pg_ctl_command.side_effect = lambda _plan, kind: ["fixture-pg_ctl", kind]
+        ctl.execute_activation_command.side_effect = execute
+        ctl.load_json.return_value = {"instance": dict(self.service.CANONICAL)}
+        ctl.observe_loaded_live.side_effect = lambda *_: {**loaded, "postmaster_pid": model["pid"]}
+        ctl.await_postgresql_ready.side_effect = lambda label, command, timeout: {
+            "label": label, "exit_code": 0}
+        ctl.write_json.side_effect = lambda path, value: path.write_bytes(self.service.canonical(value))
+        acceptance = mock.Mock()
+        acceptance.runner.clusterctl = ctl
+        acceptance.observe_activation.side_effect = lambda _sha, _output: {
+            **snapshot, "loaded": {**loaded, "postmaster_pid": model["pid"]}}
+        acceptance.stable_activation.side_effect = lambda snap: {
+            key: snap[key] for key in ("package_id", "repository_commit", "cluster_activation")}
+        return acceptance, owner, model, target, original_receipt
+
+    def test_convergence_retains_distinct_history_and_publishes_only_after_real_owner_protocol(self):
+        acceptance, owner, model, target, historical = self.convergence_fixture()
+        original = copy.deepcopy(historical)
+        output = self.root / "converge"
+        with mock.patch.object(self.service, "Owner", return_value=owner), \
+             mock.patch.object(self.service, "selection_path", return_value=target):
+            report = self.service.converge("4" * 40, output, acceptance=acceptance)
+        self.assertEqual(report["status"], "passed")
+        self.assertEqual(report["original_aggregate_receipt_sha256s"], ["5" * 64])
+        self.assertEqual(report["cluster_activation_receipt_sha256"], "3" * 64)
+        self.assertFalse(report["historical_activation_receipts_rewritten"])
+        self.assertFalse(report["cold_boot_proven"])
+        self.assertTrue(report["warm_restart_performed"])
+        self.assertEqual(json.loads(target.read_text()), report)
+        self.assertEqual(historical, original)
+        self.assertEqual(model["actions"], [
+            "stop-system-owner-before-handoff", "stop-authenticated-unmanaged-postmaster",
+            "start-system-postmaster", "stop-system-for-warm-restart", "start-system-after-warm-restart"])
+        self.assertEqual(report["receipt_sha256"], self.service.identity(report))
+
+    def test_failed_system_handoff_retains_failure_and_restores_authenticated_previous_owner(self):
+        for fault in ("start", "rollback"):
+            with self.subTest(fault=fault):
+                acceptance, owner, model, target, historical = self.convergence_fixture()
+                model["failure"] = fault
+                output = self.root / ("failed-" + fault)
+                with mock.patch.object(self.service, "Owner", return_value=owner), \
+                     mock.patch.object(self.service, "selection_path", return_value=target):
+                    with self.assertRaisesRegex(self.service.ServiceError, "system start refusal"):
+                        self.service.converge("4" * 40, output, acceptance=acceptance)
+                self.assertFalse(target.exists())
+                report = json.loads((output / "result.json").read_text())
+                self.assertEqual(report["status"], "failed")
+                self.assertFalse(report["successful_selection_published"])
+                self.assertEqual(report["previous_owner_restored"], fault == "start")
+                self.assertFalse(report["cold_boot_proven"])
+                self.assertEqual(historical["lifecycle_provider"], "pg_ctl")
+                self.assertIn("restore-authenticated-unmanaged-postmaster", model["actions"])
+                if fault == "rollback":
+                    self.assertIn("controlled rollback refusal", report["rollback_error"])
+                else:
+                    self.assertTrue((output / "loaded-rollback.json").is_file())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
