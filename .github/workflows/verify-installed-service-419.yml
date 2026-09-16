@@ -1,0 +1,160 @@
+name: Recover exact installed 419 service surface
+on:
+  push:
+    branches: [diag/installed-service-419-20260916]
+permissions:
+  contents: read
+jobs:
+  installed-service:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify installed package and execute existing service and HTTP checks
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$(git rev-parse HEAD^)" = 419cbcb4fd4c569706ee3c253ab4775f5fcaebad
+          test "$(git diff --name-only HEAD^ HEAD)" = .github/workflows/verify-installed-service-419.yml
+          git diff --exit-code --quiet
+          git diff --cached --exit-code --quiet
+          export output="$RUNNER_TEMP/installed-service-419-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 0700 "$output"
+          python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / "tools"))
+          from sources.stockfish_corpus_acceptance import observe_activation
+          snapshot = observe_activation("419cbcb4fd4c569706ee3c253ab4775f5fcaebad",
+              Path(os.environ["output"]) / "activation-before.json")
+          if snapshot["package_id"] != "daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64":
+              raise RuntimeError("installed package changed before service recovery")
+          print(json.dumps({"phase":"exact-installed-package-verified","package_id":snapshot["package_id"],
+              "manifest_sha256":snapshot["manifest_sha256"]}, sort_keys=True))
+          PY
+          cat > "$output/service-check.sh" <<'SHELL'
+          set -euo pipefail
+          package_id=daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64
+          service=/opt/laplace/runtime/refactor/bin/laplace-cognition-service
+          client=/opt/laplace/runtime/refactor/bin/laplace-cognition
+          service_socket=/opt/laplace/runtime/laplace-cognition.sock
+          test -x "$service"
+          test -x "$client"
+          test -d /opt/laplace/runtime
+          test ! -L /opt/laplace/runtime
+          sudo -n /usr/bin/systemctl restart laplace-refactor-cognition.service
+          for attempt in {1..30}; do
+            if observed="$($client --relations constituent AA 2>/dev/null)" && [[ "$observed" == A ]]; then break; fi
+            [[ "$attempt" != 30 ]] || { echo 'Installed cognition service did not become ready' >&2; exit 1; }
+            sleep 1
+          done
+          
+          test -S "$service_socket"
+          test "$(stat -c '%a' "$service_socket")" = 666
+          
+          observed="$($client --relations constituent 'AA')"
+          test "$observed" = A
+          structured="$($client --relations constituent --json 'AA')"
+          printf '%s\n' "$structured" > "$output/explicit-cognition.json"
+          test "$(jq -r '.status' <<<"$structured")" = 0
+          test "$(jq -r '.output_utf8' <<<"$structured")" = A
+          test "$(jq -r '.relations | join(",")' <<<"$structured")" = constituent
+          test "$(jq -r '.execution_route' <<<"$structured")" = explicit-firmware
+          
+          http_receipt="$output/installed-http-readiness.json"
+          printf 'LAPLACE_INSTALLED_HTTP_READINESS=%s\n' "$http_receipt" >> "$GITHUB_ENV"
+          python3 tools/delivery/product_gateway_live_proof.py \
+            --readiness-only \
+            --package-id "$package_id" \
+            --product-receipt /build/laplace/runner/product/build/4c403055443c121f8d4b71bb91fa7cd77ba802a818eb0bb1976304c0e77246be/package-receipt.json \
+            --output "$http_receipt"
+          
+          
+          state_root="$output/native-conversation-state"
+          first="$($client --session activation-native --state-root "$state_root" --reset-session --json 'AA')"
+          printf '%s\n' "$first" > "$output/native-first.json"
+          jq -e '
+            .status == 0 and
+            .mode == "auto" and
+            .execution_route == "native-conversation" and
+            .turn_ordinal == 0 and
+            .continued == false and
+            (.checkpoint_hex | type == "string" and length > 0) and
+            (.next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$"))
+          ' <<<"$first" >/dev/null
+          first_checkpoint=$(jq -er '.next_checkpoint_fingerprint' <<<"$first")
+          
+          second="$($client --session activation-native --state-root "$state_root" --json 'AA')"
+          printf '%s\n' "$second" > "$output/native-second.json"
+          jq -e '
+            .status == 0 and
+            .mode == "auto" and
+            .execution_route == "native-conversation" and
+            .turn_ordinal == 1 and
+            .continued == true and
+            (.checkpoint_hex | type == "string" and length > 0) and
+            (.next_checkpoint_fingerprint | test("^[0-9a-f]{64}$")) and
+            (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$"))
+          ' <<<"$second" >/dev/null
+          second_checkpoint=$(jq -er '.next_checkpoint_fingerprint' <<<"$second")
+          test "$second_checkpoint" != "$first_checkpoint"
+          
+          
+          SHELL
+          set +e
+          timeout --signal=TERM --kill-after=10s 300s bash "$output/service-check.sh" > "$output/service-check.log" 2>&1
+          result=$?
+          export result
+          python3 - <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / "tools"))
+          from sources.stockfish_corpus_acceptance import load, observe_activation, stable_activation
+          root = Path(os.environ["output"])
+          report = {"schema":"laplace.installed-service-recovery/v1",
+              "repository_commit":"419cbcb4fd4c569706ee3c253ab4775f5fcaebad",
+              "package_id":"daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64",
+              "scope":"Existing installed service restart, explicit and continued cognition, and HTTP readiness",
+              "previous_main_workflow_passed":False,
+              "previous_installed_proof":"failed counter assertion; raw execution succeeded",
+              "command_exit_code":int(os.environ["result"]), "activation_unchanged":False, "status":"failed"}
+          try:
+              before = load(root / "activation-before.json")
+              after = observe_activation(report["repository_commit"], root / "activation-after.json")
+              if stable_activation(before) != stable_activation(after):
+                  raise RuntimeError("installed package or native activation changed during service recovery")
+              report["activation_unchanged"] = True
+              readiness = root / "installed-http-readiness.json"
+              if readiness.is_file():
+                  report["http_readiness"] = load(readiness)
+              if report["command_exit_code"] != 0:
+                  raise RuntimeError("existing installed surface checks failed; see retained service-check.log")
+              if report.get("http_readiness", {}).get("status") != "passed":
+                  raise RuntimeError("HTTP readiness did not pass")
+              report["status"] = "passed"
+          except Exception as error:
+              report["failure"] = str(error)[:1000]
+          finally:
+              report["files"] = [{"path":str(path.relative_to(root)), "bytes":path.stat().st_size,
+                  "sha256":hashlib.sha256(path.read_bytes()).hexdigest()}
+                  for path in sorted(root.rglob("*")) if path.is_file() and not path.is_symlink()]
+              encoded = json.dumps(report, sort_keys=True, separators=(",",":"), ensure_ascii=True).encode()
+              report["receipt_sha256"] = hashlib.sha256(encoded).hexdigest()
+              (root / "service-recovery.json").write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
+              print(json.dumps({key:report[key] for key in ("schema","package_id","command_exit_code",
+                  "activation_unchanged","status","receipt_sha256")}, sort_keys=True))
+          if report["status"] != "passed":
+              raise SystemExit(1)
+          PY
+          
+      - name: Retain exact installed service evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installed-service-419-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/installed-service-419-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
