@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 15
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      SOURCE_SHA: ea6710b22a06d166218403d74d5cd6caf6ff526e
-      SOURCE_TREE: 00a4cb88106a65657c190810a53a9e457e048750
+      SOURCE_SHA: 16b3c3aa872f826b85e56f9707fe8518021f58a3
+      SOURCE_TREE: 0e93a391130e21d4085ec9d8f9d0e8962fb466c4
       TMPDIR: /build/laplace/work/sql
       TMP: /build/laplace/work/sql
       TEMP: /build/laplace/work/sql
@@ -50,7 +50,7 @@ jobs:
             printf '%s\t%s\n' "$label" "$result" >> "$EVIDENCE/exit-codes.tsv"
             if [ "$result" -ne 0 ]; then status=1; fi
           }
-          qualify installed-callers python3 tests/source_admission_guard_tests.py tools/admit_source_guard.py -v
+          qualify installed-callers python3 tests/source_admission_guard_tests.py tools/admit_source_guard.py
           qualify actual-postgresql python3 tests/source_runtime_state_postgres_tests.py --pg-bindir "$PG_BINDIR" -v
           python3 - <<'PY' 2>&1 | tee "$EVIDENCE/python-ast.log"
           import ast
