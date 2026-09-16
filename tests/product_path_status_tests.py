@@ -98,9 +98,9 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def assert_legacy_branch_protection_bridge(self, workflow: str) -> None:
         aliases = {
-            "legacy-requirements": "requirements",
-            "legacy-native-dev": "native (linux-dev)",
-            "legacy-native-sanitize": "native (linux-sanitize)",
+            "required-source-status": "requirements",
+            "required-native-status": "native (linux-dev)",
+            "required-sanitizer-status": "native (linux-sanitize)",
         }
         for job_id, check_name in aliases.items():
             marker = f"  {job_id}:\n    name: {check_name}\n    needs: product-path\n"
@@ -123,7 +123,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self, workflow: str, activation: str, contract: str
     ) -> None:
         self.assertIn(
-            "  dev-bat-deployment:\n    needs: product-path\n",
+            "  dev-bat-deployment:\n    name: Install changed runtime and verify services\n    needs: [classify, product-path]\n",
             workflow,
         )
         start, end = self.job_boundary(workflow, "dev-bat-deployment")
@@ -328,8 +328,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
     def test_deliberate_legacy_context_bypass_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         mutant = workflow.replace(
-            "  legacy-requirements:\n    name: requirements\n    needs: product-path\n",
-            "  legacy-requirements:\n    name: requirements\n    needs: hosted-proof\n",
+            "  required-source-status:\n    name: requirements\n    needs: product-path\n",
+            "  required-source-status:\n    name: requirements\n    needs: hosted-proof\n",
             1,
         )
         self.assertNotEqual(workflow, mutant)
@@ -338,7 +338,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def test_deliberate_legacy_skip_cascade_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        start, end = self.job_boundary(workflow, "legacy-requirements")
+        start, end = self.job_boundary(workflow, "required-source-status")
         block = workflow[start:end]
         mutant = workflow.replace(
             block,
@@ -351,7 +351,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def test_legacy_alias_commands_fail_for_unsuccessful_aggregate(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        for job_id in ("legacy-requirements", "legacy-native-dev", "legacy-native-sanitize"):
+        for job_id in ("required-source-status", "required-native-status", "required-sanitizer-status"):
             start, end = self.job_boundary(workflow, job_id)
             block = workflow[start:end]
             self.assertIn("    if: always()\n", block)
@@ -366,7 +366,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def test_success_only_legacy_condition_is_rejected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        start, end = self.job_boundary(workflow, "legacy-requirements")
+        start, end = self.job_boundary(workflow, "required-source-status")
         block = workflow[start:end]
         mutant = workflow.replace(block, block.replace(
             "    if: always()\n",

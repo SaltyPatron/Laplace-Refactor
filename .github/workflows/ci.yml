@@ -1,7 +1,12 @@
-name: clean-room-ci
+name: Shared source and native checks
 
 on:
   workflow_call:
+    inputs:
+      build_native:
+        description: Build and execute both native profiles for native or build-input changes.
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -52,6 +57,7 @@ jobs:
         run: python3 tests/hosted_ci_cache_contract_tests.py
 
   native:
+    if: inputs.build_native
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:

@@ -1,13 +1,23 @@
 {
   "schema": "laplace.product-path/v1",
   "issue": 54,
-  "merge_policy": "Pull requests and ordinary main pushes execute hosted requirements and both native lanes plus every selected implemented physical PostgreSQL/custom-stack/package proof required by the changed paths. A green pull request cannot defer a selected provider and cannot claim code was proven when its owning physical product lane never compiled or executed it. Accepted-main product deployment additionally retains actual installation and live readback; merge success is still not release acceptance.",
-  "purpose": "Select the exact proof surfaces required by a change without converting unavailable physical evidence into success.",
+  "merge_policy": "Source and housekeeping changes execute hosted source checks without acquiring the installed host. Native/build inputs additionally execute both hosted native profiles. Runtime changes execute their selected PostgreSQL/custom-stack/package checks before main deployment. Installed source-corpus acceptance is selected by its actual engine, admission, dependency, package and source inputs or explicitly dispatched; unrelated changes do not redeploy or reingest content. Skipped work is reported as not selected, never as executed proof.",
+  "purpose": "Select validation, build, deployment and installed acceptance by their actual source inputs, with one owner for each decision.",
   "hosted_only_patterns": [
     ".gitattributes",
     ".gitignore",
     "README.md",
-    "docs/**"
+    "docs/**",
+    ".github/workflows/final-convergence-audit.yml",
+    ".github/workflows/product-path.yml",
+    ".github/workflows/ci.yml",
+    ".github/dependabot.yml",
+    ".github/CODEOWNERS",
+    "tools/delivery/product_path.py",
+    "tools/branch_estate*.py",
+    "tests/product_path*_tests.py",
+    "tests/branch_estate*_tests.py",
+    "contracts/product-path.json"
   ],
   "default_class": "product-semantic",
   "default_evidence": [
@@ -110,7 +120,7 @@
       "id": "hosted",
       "implemented": true,
       "check": "hosted-proof",
-      "meaning": "requirements, generated-contract drift, clean-room native builds, registered tests, and hosted mutation checks"
+      "meaning": "hosted source requirements and contract checks, with both native profiles only when requires_hosted_native is true; unselected native profiles are not execution evidence"
     },
     {
       "id": "custom-stack",
@@ -135,5 +145,27 @@
     "unknown_path": "Treat as product-semantic and require hosted plus custom-stack evidence.",
     "missing_provider": "Fail product-path; an unimplemented required evidence provider cannot be interpreted as skipped success.",
     "runner_unavailable": "Remain queued or fail; physical runner loss cannot produce green semantic evidence."
+  },
+  "hosted_native_patterns": [
+    ".github/workflows/ci.yml"
+  ],
+  "installed_acceptance": {
+    "stockfish_corpus_patterns": [
+      "engine/**",
+      "integrations/postgresql/**",
+      "dependencies/**",
+      "tools/sources/**",
+      "tools/admit_source*",
+      "tools/product/**",
+      "tools/postgresql/**",
+      "tools/delivery/stockfish_corpus*",
+      "tools/dependencies/chess*",
+      "contracts/sources/**",
+      "contracts/source-*.json",
+      "contracts/product-package.json",
+      "contracts/runtime-package.json",
+      ".github/workflows/stockfish-corpus-acceptance.yml",
+      "contracts/**"
+    ]
   }
 }
