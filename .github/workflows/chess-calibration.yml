@@ -42,6 +42,7 @@ jobs:
       TMPDIR: /build/laplace/work
       TMP: /build/laplace/work
       TEMP: /build/laplace/work
+      STOCKFISH_SOURCE_OVERRIDE: ${{ vars.LAPLACE_STOCKFISH_SOURCE }}
       CHESS_EVIDENCE_CONTEXT: ${{ github.event_name == 'pull_request' && 'candidate-chess-dependencies' || 'chess-dependencies' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,7 +50,21 @@ jobs:
         run: |
           output="$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           mkdir -p "$output"
+          if [[ -n "${STOCKFISH_SOURCE_OVERRIDE:-}" ]]; then
+            export LAPLACE_STOCKFISH_SOURCE="$STOCKFISH_SOURCE_OVERRIDE"
+          fi
+          python3 tools/dependencies/chess_tools.py select-source \
+            --selection-output "$output/stockfish-source-selection.json"
+          # A verified local import remains owned by current.json; exporting it as
+          # an explicit official override would change that existing contract.
+          selected_source=$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print(r["selected_source"] if (r.get("selected_checkout") or {}).get("origin_kind") == "official" else "")' "$output/stockfish-source-selection.json")
+          if [[ -n "$selected_source" ]]; then
+            export LAPLACE_STOCKFISH_SOURCE="$selected_source"
+          fi
           scripts/setup-chess.sh 2>&1 | tee "$output/source-setup.log"
+          python3 tools/dependencies/chess_tools.py check-source-selection \
+            --selection-receipt "$output/stockfish-source-selection.json" \
+            --selection-output "$output/stockfish-source-selection-verified.json"
       - name: Measure the actual runner with bounded resource admission
         env:
           CPU_BUDGET: ${{ inputs.cpu_budget }}

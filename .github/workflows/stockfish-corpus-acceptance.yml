@@ -33,6 +33,7 @@ jobs:
       TMP: /build/laplace/work
       TEMP: /build/laplace/work
       EXPECTED_SHA: ${{ inputs.expected_sha }}
+      STOCKFISH_SOURCE_OVERRIDE: ${{ vars.LAPLACE_STOCKFISH_SOURCE }}
       ACTIVATION_RUN_ID: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,7 +45,13 @@ jobs:
           test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           python3 tests/stockfish_corpus_acceptance_tests.py
+          if [[ -n "${STOCKFISH_SOURCE_OVERRIDE:-}" ]]; then
+            export LAPLACE_STOCKFISH_SOURCE="$STOCKFISH_SOURCE_OVERRIDE"
+          fi
+          selection="$RUNNER_TEMP/stockfish-source-selection-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          python3 tools/dependencies/chess_tools.py select-source --selection-output "$selection"
           python3 tools/sources/stockfish_corpus_acceptance.py \
+            --source-selection "$selection" \
             --expected-sha "$EXPECTED_SHA" \
             --output "$RUNNER_TEMP/stockfish-corpus-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --timeout 5400
@@ -53,10 +60,13 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import json, os, platform
+          import json, os, platform, shutil
           from pathlib import Path
           output = Path(os.environ['RUNNER_TEMP']) / f"stockfish-corpus-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
           output.mkdir(parents=True, exist_ok=True)
+          selection = Path(os.environ['RUNNER_TEMP']) / f"stockfish-source-selection-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}.json"
+          if selection.is_file():
+              shutil.copyfile(selection, output / 'stockfish-source-selection.json')
           context = {
               'schema': 'laplace.stockfish-corpus-execution-context/v1',
               'repository': os.environ['GITHUB_REPOSITORY'],

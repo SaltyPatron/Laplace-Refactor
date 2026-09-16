@@ -18,6 +18,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from pathlib import Path, PurePosixPath
 
 
@@ -26,6 +27,8 @@ sys.path.insert(0, str(ROOT))
 from tools.dependencies.git_checkout import GitCheckoutError, snapshot as git_snapshot
 SCRATCH = Path("/build/laplace/work")
 USER_AGENT = "Laplace-Refactor-chess-dependency-check/1"
+REQUESTED_STOCKFISH_SOURCE = Path("/vault/External/Stockfish/SF_19")
+SOURCE_SELECTION_SCHEMA = "laplace.stockfish-source-selection/v1"
 
 
 class ChessToolError(RuntimeError):
@@ -248,12 +251,39 @@ def verify_source(source: Path, entry: dict) -> dict:
     return observed
 
 
+def official_git_origin_matches(origin: str, upstream: str) -> bool:
+    """Match the declared GitHub repository without accepting credential URLs."""
+    def repository(value: str) -> tuple[str, str] | None:
+        if value.startswith("git@github.com:"):
+            value = "ssh://git@github.com/" + value[len("git@github.com:"):]
+        try:
+            parsed = urlsplit(value)
+            if parsed.hostname is None or parsed.hostname.lower() != "github.com" or parsed.query or parsed.fragment:
+                return None
+            if parsed.scheme == "https":
+                if parsed.username is not None or parsed.password is not None or parsed.port not in (None, 443):
+                    return None
+            elif parsed.scheme == "ssh":
+                if parsed.username != "git" or parsed.password is not None or parsed.port not in (None, 22):
+                    return None
+            else:
+                return None
+            path = parsed.path.removesuffix("/").removesuffix(".git")
+            if re.fullmatch(r"/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", path) is None:
+                return None
+            return parsed.hostname.lower(), path.lower()
+        except ValueError:
+            return None
+    expected = repository(upstream)
+    return expected is not None and repository(origin) == expected
+
+
 def verify_origin(source: Path, entry: dict) -> None:
     origin = git(source, "remote", "get-url", "origin")
     # The existing import-verified.sh creates no-hardlink clones with a local
     # origin. Exact archive and license identity still proves that imported tree.
     local_import = Path(origin).is_absolute() or origin.startswith("file:///")
-    require(local_import or origin.removesuffix(".git") == entry["upstream"].removesuffix(".git"), f"refusing unrelated source origin: {source}")
+    require(local_import or official_git_origin_matches(origin, entry["upstream"]), f"refusing unrelated source origin: {source}")
 
 
 def update_source(source: Path, entry: dict, offline: bool) -> None:
@@ -278,6 +308,137 @@ def update_source(source: Path, entry: dict, offline: bool) -> None:
     verify_source(source, entry)
 
 
+
+def recorded_stockfish_source(prefix: Path) -> Path | None:
+    receipt = prefix / "current.json"
+    if not receipt.exists():
+        return None
+    installation = json_read(receipt)
+    tools = installation.get("tools")
+    require(isinstance(tools, dict), "chess installation receipt has no tools mapping")
+    if "stockfish" not in tools:
+        return None
+    require(isinstance(tools["stockfish"], dict), "recorded Stockfish tool is not a mapping")
+    value = tools["stockfish"].get("source")
+    require(isinstance(value, str) and bool(value.strip()),
+            "recorded Stockfish source is missing; refusing a different checkout")
+    return Path(value)
+
+
+def observe_stockfish_checkout(path: Path, entry: dict, *, official: bool) -> dict:
+    """Read only; unavailable candidates never cause clone, checkout or relink."""
+    result = {"path": str(path), "exists": None, "available": False,
+              "source": None, "git_root": None, "origin": None, "commit": None}
+    try:
+        require("\n" not in str(path) and "\r" not in str(path),
+                "Stockfish input path cannot be exported safely")
+        path.lstat()
+        result["exists"] = True
+        source = path.resolve(strict=True)
+        if not source.is_dir() or not (source / ".git").exists():
+            result["reason"] = "not-an-existing-git-checkout"
+            return result
+        root = Path(git(source, "rev-parse", "--show-toplevel")).resolve(strict=True)
+        if root != source:
+            result["reason"] = "path-is-not-the-git-root"
+            return result
+        origin = git(source, "remote", "get-url", "origin")
+        official_origin = official_git_origin_matches(origin, entry["upstream"])
+        local_import = Path(origin).is_absolute() or origin.startswith("file:///")
+        if not official_origin and (official or not local_import):
+            # Never copy a rejected remote URL (possibly with credentials) into evidence.
+            result["reason"] = "origin-is-not-the-official-stockfish-repository"
+            return result
+        commit = git(source, "rev-parse", "HEAD")
+        require(re.fullmatch(r"[0-9a-f]{40,64}", commit) is not None,
+                "Stockfish checkout returned an invalid commit")
+        require("\n" not in str(source) and "\r" not in str(source),
+                "Stockfish source path cannot be exported safely")
+        result.update({"available": True, "source": str(source), "git_root": str(root),
+                       "origin": origin if official_origin else None, "commit": commit,
+                       "origin_kind": "official" if official_origin else "local-import",
+                       "reason": "existing-checkout"})
+    except FileNotFoundError:
+        if result["exists"] is None:
+            result["exists"] = False
+        result["reason"] = "requested-local-path-unavailable" if not result["exists"] else "checkout-target-unavailable"
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        result["reason"] = "checkout-observation-failed"
+    return result
+
+
+def select_stockfish_source(prefix: Path, explicit: Path | None = None) -> dict:
+    """Choose a host checkout without changing it or inventing a runner path."""
+    entry = json_read(ROOT / "dependencies/lock.json")["dependencies"]["stockfish"]
+    configured = recorded_stockfish_source(prefix)
+    requested = observe_stockfish_checkout(REQUESTED_STOCKFISH_SOURCE, entry, official=True)
+    current = observe_stockfish_checkout(configured, entry, official=False) if configured is not None else None
+    receipt = {"schema": SOURCE_SELECTION_SCHEMA,
+               "requested_local_path": str(REQUESTED_STOCKFISH_SOURCE),
+               "requested_checkout": requested,
+               "configured_source": str(configured) if configured is not None else None,
+               "configured_checkout": current, "explicit_override": str(explicit) if explicit is not None else None,
+               "selected_source": None, "selected_checkout": None, "disposition": "refused"}
+    if explicit is not None:
+        chosen = observe_stockfish_checkout(explicit, entry, official=True)
+        reason = "explicit-override"
+    elif requested["available"]:
+        chosen, reason = requested, "requested-existing-official-checkout"
+    elif current is not None:
+        chosen, reason = current, "retained-configured-checkout"
+    else:
+        receipt.update({"disposition": "first-install-default",
+                        "selection_reason": "no-existing-requested-or-configured-checkout; portable setup default remains",
+                        "planned_official_repository": entry["upstream"]})
+        return receipt
+    receipt["selection_reason"] = reason
+    receipt["selected_checkout"] = chosen
+    if chosen["available"]:
+        receipt.update({"disposition": "selected", "selected_source": chosen["source"]})
+    return receipt
+
+
+def verify_stockfish_selection(selection: dict, prefix: Path, explicit: Path | None = None) -> dict:
+    require(selection.get("schema") == SOURCE_SELECTION_SCHEMA,
+            "invalid Stockfish source selection receipt")
+    require(selection.get("disposition") in {"selected", "first-install-default"},
+            "Stockfish source selection was refused")
+    configured = recorded_stockfish_source(prefix)
+    require(configured is not None, "Stockfish build receipt is missing")
+    source = configured.resolve(strict=True)
+    expected = selection.get("selected_source")
+    if expected is not None:
+        require(isinstance(expected, str) and source == Path(expected).resolve(strict=True),
+                "Stockfish current.json source differs from the selected checkout")
+    else:
+        require(selection["disposition"] == "first-install-default" and
+                selection.get("configured_source") is None,
+                "Stockfish selection does not name a checkout")
+    entry = json_read(ROOT / "dependencies/lock.json")["dependencies"]["stockfish"]
+    if explicit is not None:
+        override = observe_stockfish_checkout(explicit, entry, official=True)
+        require(override["available"] and override["source"] == str(source),
+                "Stockfish current.json source differs from the explicit official checkout")
+    observation = observe_stockfish_checkout(source, entry, official=False)
+    require(observation["available"], "selected Stockfish checkout is unavailable")
+    current = json_read(prefix / "current.json")
+    tool = current["tools"]["stockfish"]
+    tracked = verify_source(source, entry)
+    require(tool.get("revision") == entry["revision"] and
+            tool.get("source_archive_sha256") == entry["git_archive_sha256"] and tool.get("tracked_source") == tracked,
+            "Stockfish current.json committed-source provenance differs from the selected checkout")
+    expected_executable = source / "src" / ("stockfish.exe" if platform.system() == "Windows" else "stockfish")
+    require(Path(tool["executable"]) == expected_executable and not expected_executable.is_symlink() and
+            digest(expected_executable) == tool["sha256"],
+            "Stockfish current.json executable differs from the selected direct source build")
+    # The build may update an older selected HEAD to the lock. Bind its resulting
+    # exact provenance rather than treating the pre-build commit as immutable.
+    return {"schema": "laplace.stockfish-source-selection-verification/v1",
+            "selection": selection, "selected_source": str(source),
+            "selected_checkout": observation, "current_receipt_sha256": digest(prefix / "current.json"),
+            "locked_commit": entry["revision"], "disposition": "verified"}
+
+
 def tool_source(arguments: argparse.Namespace, name: str) -> Path:
     explicit = getattr(arguments, "stockfish_source", None) if name == "stockfish" else None
     if explicit is not None:
@@ -286,7 +447,17 @@ def tool_source(arguments: argparse.Namespace, name: str) -> Path:
         source = explicit.resolve(strict=True)
         require(source.is_dir() and (source / ".git").exists(),
                 f"selected Stockfish source is not an existing Git checkout: {explicit}")
+        entry = json_read(ROOT / "dependencies/lock.json")["dependencies"]["stockfish"]
+        observation = observe_stockfish_checkout(source, entry, official=True)
+        require(observation["available"], "selected Stockfish source is not an existing official checkout")
         return source
+    if name == "stockfish" and getattr(arguments, "prefix", None) is not None:
+        recorded = recorded_stockfish_source(arguments.prefix)
+        if recorded is not None:
+            source = recorded.resolve(strict=True)
+            require(source.is_dir() and (source / ".git").exists(),
+                    "recorded Stockfish source is unavailable; refusing a different checkout")
+            return source
     require(arguments.source_root is not None, "default source estate is not selected")
     return arguments.source_root / name
 
@@ -488,13 +659,15 @@ def lichess_readback(online: bool) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["install", "check", "latest", "run"])
+    parser.add_argument("action", choices=["install", "check", "latest", "run", "select-source", "check-source-selection"])
     parser.add_argument("--prefix", type=Path, default=Path("/opt/laplace/tools/chess"))
     parser.add_argument("--cache", type=Path, default=Path("/opt/laplace/external/chess-downloads"))
     parser.add_argument("--source-root", type=Path, default=Path(os.environ["LAPLACE_VERIFIED_SOURCE_ROOT"]) if os.environ.get("LAPLACE_VERIFIED_SOURCE_ROOT") else None)
     parser.add_argument("--stockfish-source", type=Path,
                         default=Path(os.environ["LAPLACE_STOCKFISH_SOURCE"].strip()) if os.environ.get("LAPLACE_STOCKFISH_SOURCE", "").strip() else None,
                         help="build this existing official Stockfish Git checkout directly (or LAPLACE_STOCKFISH_SOURCE); overrides source-root/stockfish")
+    parser.add_argument("--selection-output", type=Path, help="retain a read-only source selection or verification receipt")
+    parser.add_argument("--selection-receipt", type=Path, help="source selection to compare with the completed build")
     parser.add_argument("--build-root", type=Path, default=Path("/build/laplace/build/chess"))
     parser.add_argument("--qt-prefix", type=Path, help="use this compatible Qt SDK instead of acquiring the selected SDK")
     available_cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
@@ -512,6 +685,25 @@ def main() -> int:
         parser.error("unrecognized arguments: " + " ".join(extra))
     try:
         selected, artifacts = configuration()
+        if arguments.action in {"select-source", "check-source-selection"}:
+            require(arguments.selection_output is not None, "--selection-output is required")
+            if arguments.action == "select-source":
+                observation = select_stockfish_source(arguments.prefix, arguments.stockfish_source)
+            else:
+                require(arguments.selection_receipt is not None, "--selection-receipt is required")
+                observation = verify_stockfish_selection(json_read(arguments.selection_receipt), arguments.prefix, arguments.stockfish_source)
+            destination = arguments.selection_output.resolve()
+            for checkout in (observation.get("requested_checkout"), observation.get("configured_checkout"),
+                             observation.get("selected_checkout")):
+                if checkout and checkout.get("source"):
+                    source = Path(checkout["source"])
+                    require(destination != source and source not in destination.parents,
+                            "selection evidence must be outside the upstream checkout")
+            arguments.selection_output.parent.mkdir(parents=True, exist_ok=True)
+            json_write(arguments.selection_output, observation)
+            require(observation["disposition"] != "refused", "Stockfish source selection refused; consult retained receipt")
+            print(json.dumps(observation, indent=2, sort_keys=True))
+            return 0
         if arguments.action == "run":
             require(arguments.tool is not None, "run requires --tool")
             current = json_read(arguments.prefix / "current.json")
@@ -526,7 +718,8 @@ def main() -> int:
             require(all(item["current"] for item in report["upstream"].values()), "newer upstream stable release exists; update exact release and artifact locks before creating a new experiment generation: " + json.dumps(report["upstream"]))
         if arguments.action == "install":
             require(arguments.jobs > 0, "--jobs must be positive")
-            if arguments.source_root is None and not (arguments.tool == "stockfish" and arguments.stockfish_source is not None):
+            if arguments.source_root is None and not (arguments.tool == "stockfish" and
+                    (arguments.stockfish_source is not None or recorded_stockfish_source(arguments.prefix) is not None)):
                 arguments.source_root = Path(subprocess.check_output([sys.executable, str(ROOT / "tools/dependencies/source_estate.py")], text=True).strip())
             if arguments.source_root is not None:
                 arguments.source_root = arguments.source_root.resolve()

@@ -224,6 +224,237 @@ class ChessDependencies(unittest.TestCase):
                 self.assertEqual(Path(cli[1]) if cli else self.directory / "environment SF_19", args.stockfish_source)
                 self.assertIsNone(args.source_root)
 
+
+    def installed_source_fixture(self, source: Path, entry: dict) -> Path:
+        # Real Git state and a retained executable hash; no engine-performance claim.
+        (source / "src").mkdir(exist_ok=True)
+        executable = source / "src" / ("stockfish.exe" if platform.system() == "Windows" else "stockfish")
+        executable.write_bytes(b"source-selection executable fixture")
+        with (source / ".git/info/exclude").open("a") as ignored:
+            ignored.write("\n/src/stockfish\n/src/stockfish.exe\n")
+        prefix = self.directory / "installation"
+        prefix.mkdir(exist_ok=True)
+        TOOLS.json_write(prefix / "current.json", {"tools": {"stockfish": {
+            "source": str(source), "revision": entry["revision"],
+            "source_archive_sha256": entry["git_archive_sha256"],
+            "tracked_source": TOOLS.verify_tracked_inputs(source, entry["revision"]),
+            "executable": str(executable), "sha256": TOOLS.digest(executable)}}})
+        return prefix
+
+    def test_selection_prefers_existing_requested_official_checkout_without_mutation(self) -> None:
+        source, entry = self.source_fixture()
+        requested = self.directory / "External/Stockfish/SF_19 with spaces"
+        requested.parent.mkdir(parents=True)
+        source.rename(requested)
+        prefix = self.installed_source_fixture(requested, entry)
+        head = TOOLS.git(requested, "rev-parse", "HEAD")
+        before = (prefix / "current.json").read_bytes()
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", requested), \
+             patch.object(TOOLS, "update_source", side_effect=AssertionError("selection must be read-only")):
+            receipt = TOOLS.select_stockfish_source(prefix)
+        self.assertEqual(receipt["selected_source"], str(requested))
+        self.assertEqual(receipt["selected_checkout"]["git_root"], str(requested))
+        self.assertEqual(receipt["selected_checkout"]["origin"], entry["upstream"])
+        self.assertEqual(receipt["selected_checkout"]["commit"], head)
+        self.assertTrue(receipt["requested_checkout"]["exists"])
+        self.assertTrue(receipt["requested_checkout"]["available"])
+        self.assertEqual(receipt["selection_reason"], "requested-existing-official-checkout")
+        self.assertEqual((prefix / "current.json").read_bytes(), before)
+        self.assertEqual(TOOLS.git(requested, "rev-parse", "HEAD"), head)
+
+    def test_missing_requested_local_path_retains_actual_configured_checkout(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        missing = self.directory / "absent local SF_19"
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", missing):
+            receipt = TOOLS.select_stockfish_source(prefix)
+        self.assertFalse(receipt["requested_checkout"]["exists"])
+        self.assertFalse(receipt["requested_checkout"]["available"])
+        self.assertEqual(receipt["requested_checkout"]["reason"], "requested-local-path-unavailable")
+        self.assertEqual(receipt["configured_source"], str(source))
+        self.assertEqual(receipt["selected_source"], str(source))
+        self.assertEqual(receipt["selection_reason"], "retained-configured-checkout")
+        self.assertFalse(missing.exists())
+
+    def test_ineligible_requested_path_is_not_reported_absent_or_populated(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        requested = self.directory / "not a repository"
+        requested.mkdir()
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", requested):
+            receipt = TOOLS.select_stockfish_source(prefix)
+        self.assertTrue(receipt["requested_checkout"]["exists"])
+        self.assertFalse(receipt["requested_checkout"]["available"])
+        self.assertEqual(receipt["requested_checkout"]["reason"], "not-an-existing-git-checkout")
+        self.assertEqual(receipt["selected_source"], str(source))
+        self.assertEqual(list(requested.iterdir()), [])
+
+
+    def test_unobservable_requested_path_retains_known_configured_source(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        requested = self.directory / "inaccessible local path"
+        original = Path.lstat
+        for exception in (PermissionError("unavailable provider"), RuntimeError("symlink cycle")):
+            def denied(path, *args, **kwargs):
+                if path == requested:
+                    raise exception
+                return original(path, *args, **kwargs)
+            with self.subTest(exception=type(exception).__name__), \
+                 patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", requested), \
+                 patch.object(Path, "lstat", denied):
+                receipt = TOOLS.select_stockfish_source(prefix)
+            self.assertIsNone(receipt["requested_checkout"]["exists"])
+            self.assertFalse(receipt["requested_checkout"]["available"])
+            self.assertEqual(receipt["requested_checkout"]["reason"], "checkout-observation-failed")
+            self.assertEqual(receipt["selected_source"], str(source))
+
+    def test_explicit_missing_override_never_falls_back_to_available_requested(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        missing = self.directory / "explicit typo"
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", source):
+            receipt = TOOLS.select_stockfish_source(prefix, missing)
+        self.assertTrue(receipt["requested_checkout"]["available"])
+        self.assertEqual(receipt["disposition"], "refused")
+        self.assertIsNone(receipt["selected_source"])
+        self.assertEqual(receipt["selection_reason"], "explicit-override")
+        self.assertFalse(missing.exists())
+
+
+    def test_official_ssh_origins_share_selection_and_build_validation(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        for origin in ("git@github.com:official-stockfish/Stockfish.git",
+                       "ssh://git@github.com/official-stockfish/Stockfish.git"):
+            with self.subTest(origin=origin):
+                TOOLS.git(source, "remote", "set-url", "origin", origin)
+                with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", source):
+                    receipt = TOOLS.select_stockfish_source(prefix)
+                self.assertTrue(receipt["requested_checkout"]["available"])
+                self.assertEqual(receipt["selected_checkout"]["origin"], origin)
+                args = argparse.Namespace(stockfish_source=source, source_root=None)
+                self.assertEqual(TOOLS.tool_source(args, "stockfish"), source)
+                TOOLS.update_source(source, entry, True)
+                self.assertEqual(TOOLS.git(source, "rev-parse", "HEAD"), entry["revision"])
+
+    def test_rejected_origin_is_not_copied_into_selection_evidence(self) -> None:
+        source, _ = self.source_fixture()
+        for origin in ("https://operator:secret-token@example.invalid/not-stockfish",
+                       "https://operator:secret-token@github.com/official-stockfish/Stockfish.git",
+                       "ssh://git:secret-token@github.com/official-stockfish/Stockfish.git"):
+            with self.subTest(origin=origin):
+                TOOLS.git(source, "remote", "set-url", "origin", origin)
+                with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", source):
+                    receipt = TOOLS.select_stockfish_source(self.directory / "no installation", source)
+                self.assertEqual(receipt["disposition"], "refused")
+                self.assertTrue(receipt["requested_checkout"]["exists"])
+                self.assertFalse(receipt["requested_checkout"]["available"])
+                self.assertNotIn("secret-token", json.dumps(receipt))
+                self.assertIsNone(receipt["selected_checkout"]["origin"])
+
+    def test_plain_setup_retains_current_source_and_refuses_missing_recorded_source(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        default = self.directory / "different estate"
+        args = argparse.Namespace(stockfish_source=None, source_root=default, prefix=prefix)
+        self.assertEqual(TOOLS.tool_source(args, "stockfish"), source)
+        self.assertFalse(default.exists())
+        moved = self.directory / "moved checkout"
+        source.rename(moved)
+        with self.assertRaises(FileNotFoundError):
+            TOOLS.tool_source(args, "stockfish")
+        self.assertFalse(default.exists())
+
+
+    def test_recorded_local_import_keeps_existing_provenance_without_becoming_an_explicit_override(self) -> None:
+        upstream, entry = self.source_fixture()
+        source = self.directory / "verified imported checkout"
+        subprocess.run(["git", "clone", "--quiet", "--no-hardlinks", str(upstream), str(source)], check=True)
+        prefix = self.installed_source_fixture(source, entry)
+        real_read = TOOLS.json_read
+        def read(path):
+            return {"dependencies": {"stockfish": entry}} if path == ROOT / "dependencies/lock.json" else real_read(path)
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", self.directory / "absent"), \
+             patch.object(TOOLS, "json_read", side_effect=read):
+            receipt = TOOLS.select_stockfish_source(prefix)
+            self.assertEqual(receipt["selected_checkout"]["origin_kind"], "local-import")
+            self.assertIsNone(receipt["selected_checkout"]["origin"])
+            self.assertEqual(TOOLS.verify_stockfish_selection(receipt, prefix)["selected_source"], str(source))
+            refused = TOOLS.select_stockfish_source(prefix, source)
+            self.assertEqual(refused["disposition"], "refused")
+        args = argparse.Namespace(stockfish_source=None, prefix=prefix, source_root=self.directory / "other estate")
+        self.assertEqual(TOOLS.tool_source(args, "stockfish"), source)
+
+    def test_uninstalled_default_selection_preserves_portable_installer(self) -> None:
+        requested = self.directory / "absent local"
+        prefix = self.directory / "uninstalled"
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", requested):
+            receipt = TOOLS.select_stockfish_source(prefix)
+        self.assertEqual(receipt["disposition"], "first-install-default")
+        self.assertIsNone(receipt["selected_source"])
+        self.assertIsNone(receipt["configured_source"])
+        self.assertEqual(receipt["planned_official_repository"].removesuffix(".git"), "https://github.com/official-stockfish/Stockfish")
+        self.assertFalse(prefix.exists())
+        self.assertFalse(requested.exists())
+        args = argparse.Namespace(stockfish_source=None, prefix=prefix, source_root=self.directory / "estate")
+        self.assertEqual(TOOLS.tool_source(args, "stockfish"), args.source_root / "stockfish")
+
+    @unittest.skipIf(platform.system() == "Windows", "newline symlink path control uses POSIX names")
+    def test_selection_refuses_input_and_resolved_newline_paths(self) -> None:
+        source, _ = self.source_fixture()
+        newline = self.directory / "checkout\nwith-newline"
+        source.rename(newline)
+        alias = self.directory / "apparently safe alias"
+        alias.symlink_to(newline, target_is_directory=True)
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", self.directory / "absent"):
+            for path in (newline, alias):
+                with self.subTest(path=path):
+                    receipt = TOOLS.select_stockfish_source(self.directory / "uninstalled", path)
+                    self.assertEqual(receipt["disposition"], "refused")
+                    self.assertIsNone(receipt["selected_source"])
+
+    def test_postbuild_selection_accepts_updated_locked_head_but_rejects_stale_manifest(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", source):
+            selection = TOOLS.select_stockfish_source(prefix)
+        old_head = selection["selected_checkout"]["commit"]
+        (source / "source.cpp").write_text("int main() { return 1; }\n")
+        TOOLS.git(source, "add", "source.cpp")
+        TOOLS.git(source, "-c", "user.name=Dependency Test", "-c", "user.email=test@example.invalid",
+                  "commit", "--quiet", "-m", "new official fixture release")
+        entry["revision"] = TOOLS.git(source, "rev-parse", "HEAD")
+        entry["git_archive_sha256"] = hashlib.sha256(subprocess.check_output(
+            ["git", "-C", str(source), "archive", "--format=tar", "HEAD"])).hexdigest()
+        self.assertNotEqual(old_head, entry["revision"])
+        real_read = TOOLS.json_read
+        def read(path):
+            return {"dependencies": {"stockfish": entry}} if path == ROOT / "dependencies/lock.json" else real_read(path)
+        with patch.object(TOOLS, "json_read", side_effect=read):
+            with self.assertRaisesRegex(TOOLS.ChessToolError, "committed-source provenance"):
+                TOOLS.verify_stockfish_selection(selection, prefix)
+            self.installed_source_fixture(source, entry)
+            verified = TOOLS.verify_stockfish_selection(selection, prefix)
+        self.assertEqual(verified["selected_source"], str(source))
+        self.assertEqual(verified["locked_commit"], entry["revision"])
+        self.assertEqual(verified["selected_checkout"]["commit"], entry["revision"])
+        self.assertEqual(verified["selection"]["selected_checkout"]["commit"], old_head)
+
+    def test_postbuild_selection_rejects_another_checkout_with_identical_git_content(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", source):
+            selection = TOOLS.select_stockfish_source(prefix)
+        other = self.directory / "different same-content checkout"
+        subprocess.run(["git", "clone", "--quiet", "--no-hardlinks", str(source), str(other)], check=True)
+        manifest = TOOLS.json_read(prefix / "current.json")
+        manifest["tools"]["stockfish"]["source"] = str(other)
+        TOOLS.json_write(prefix / "current.json", manifest)
+        with self.assertRaisesRegex(TOOLS.ChessToolError, "source differs from the selected checkout"):
+            TOOLS.verify_stockfish_selection(selection, prefix)
+        self.assertEqual(TOOLS.git(other, "rev-parse", "HEAD"), entry["revision"])
+
     def test_tracked_snapshot_retains_binary_empty_and_exact_git_identities(self) -> None:
         source, entry = self.source_fixture()
         observed, files = TOOLS.git_snapshot(source, entry["revision"], retain_bytes=True)
