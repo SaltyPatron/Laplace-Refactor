@@ -1,0 +1,36 @@
+name: Observe installed authenticated gateway capability
+on:
+  push:
+    branches: [diag/gateway-capability-419-20260916]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 5
+    steps:
+      - name: Probe installed gateway and compare configured key identity
+        env:
+          LAPLACE_ACTIVATION_HMAC_KEY_B64: ${{ secrets.LAPLACE_ACTIVATION_HMAC_KEY_B64 }}
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess
+          p=subprocess.run(["sudo","-n","/opt/laplace/deployment/current/bin/laplace-product-activate","probe"],
+              capture_output=True,text=True,check=False,timeout=30)
+          report={"schema":"laplace.installed-gateway-capability/v1","probe_exit_code":p.returncode,
+              "configured_signing_key_present":bool(os.environ.get("LAPLACE_ACTIVATION_HMAC_KEY_B64"))}
+          if p.returncode==0:
+              probe=json.loads(p.stdout)
+              report["probe"]=probe
+              if report["configured_signing_key_present"]:
+                  try:
+                      key=base64.b64decode(os.environ["LAPLACE_ACTIVATION_HMAC_KEY_B64"],validate=True)
+                      fingerprint=hashlib.sha256(b"laplace.product-activation-key-fingerprint/v1"+bytes([0])+key).hexdigest()
+                      report["configured_signing_key_matches_installed"]=fingerprint==probe.get("key_fingerprint_sha256")
+                  except Exception:
+                      report["configured_signing_key_format_valid"]=False
+          else:
+              report["probe_stderr"]=p.stderr[:4096]
+          print(json.dumps(report,sort_keys=True))
+          
+          PY
