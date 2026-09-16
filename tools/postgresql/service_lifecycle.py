@@ -417,15 +417,29 @@ def main():
     parser.add_argument("--output-directory", required=True, type=Path)
     args = parser.parse_args()
     previous_term = signal.getsignal(signal.SIGTERM)
+    previous_int = signal.getsignal(signal.SIGINT)
+    interruption_started = False
 
-    def interrupted(_signum, _frame):
+    def interrupted(signum, _frame):
+        nonlocal interruption_started
+        # Runner cancellation sends INT then TERM; timeout may also send TERM.
+        # Only the first interruption enters bounded rollback.
+        if interruption_started:
+            return
+        interruption_started = True
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if signum == signal.SIGINT:
+            raise KeyboardInterrupt("PostgreSQL service convergence interrupted by SIGINT")
         raise InterruptedError("PostgreSQL service convergence interrupted by SIGTERM")
 
     signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
     try:
         result = converge(args.expected_sha, args.output_directory)
     finally:
         signal.signal(signal.SIGTERM, previous_term)
+        signal.signal(signal.SIGINT, previous_int)
     print(json.dumps({key: result[key] for key in (
         "schema", "status", "provider", "package_id", "repository_commit",
         "system_identifier", "cold_boot_proven", "receipt_sha256")}, sort_keys=True))
