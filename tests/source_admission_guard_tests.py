@@ -293,13 +293,16 @@ print(json.dumps({"modules": paths, "dont_write_bytecode": sys.dont_write_byteco
                         ("directory" if item.is_dir() else hashlib.sha256(item.read_bytes()).hexdigest())
                         for item in root.rglob("*")}
 
-            for has_policy in (True, False):
-                with self.subTest(entry_point_policy=has_policy):
-                    package = workspace / ("guarded" if has_policy else "deliberately-broken") / "bin"
+            for mode in ("entry-point-policy", "old-core-without-envelope", "old-core-with-envelope"):
+                has_policy = mode == "entry-point-policy"
+                environmental_policy = mode == "old-core-with-envelope"
+                expected_read_only = has_policy or environmental_policy
+                with self.subTest(mode=mode):
+                    package = workspace / mode / "bin"
                     package.mkdir(parents=True, mode=0o700)
                     core = package / "laplace-admit-source-core"
                     core.write_text(core_source if has_policy else
-                                    core_source.replace(policy, "sys.dont_write_bytecode = False", 1),
+                                    core_source.replace(policy, "", 1),
                                     encoding="utf-8")
                     for relative in expected_modules:
                         target = package / relative
@@ -307,17 +310,25 @@ print(json.dumps({"modules": paths, "dont_write_bytecode": sys.dont_write_byteco
                         shutil.copyfile(tools / relative, target)
                         target.chmod(0o600)
                     before = inventory(package)
+                    child_environment = dict(environment)
+                    if environmental_policy:
+                        child_environment["PYTHONDONTWRITEBYTECODE"] = "1"
+                    # -I deliberately ignores environment for the permanent
+                    # entry-point proof. The already-built old core is tested
+                    # under the real environment-only execution envelope.
+                    arguments = [sys.executable, *(["-I"] if has_policy else []),
+                                 "-c", script, str(package)]
                     for repeat in range(2):
-                        result = subprocess.run([sys.executable, "-I", "-c", script, str(package)],
-                                                env=environment, capture_output=True, text=True,
+                        result = subprocess.run(arguments,
+                                                env=child_environment, capture_output=True, text=True,
                                                 check=False, timeout=15)
                         self.assertEqual(result.returncode, 0, result.stderr)
                         observed = json.loads(result.stdout)
                         self.assertEqual(observed["modules"], expected_modules)
-                        self.assertEqual(observed["dont_write_bytecode"], has_policy)
+                        self.assertEqual(observed["dont_write_bytecode"], expected_read_only)
                     after = inventory(package)
                     caches = list(package.rglob("*.pyc"))
-                    if has_policy:
+                    if expected_read_only:
                         self.assertEqual(before, after)
                         self.assertEqual(caches, [])
                     else:
