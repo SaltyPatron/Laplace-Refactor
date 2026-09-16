@@ -1,0 +1,203 @@
+name: Installed complete Stockfish source acceptance
+on:
+  push:
+    branches: [verify/source-admission-bytecode-20260916]
+permissions:
+  contents: read
+concurrency:
+  group: installed-full-stockfish-source
+  cancel-in-progress: false
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  GIT_OPTIONAL_LOCKS: "0"
+  LAPLACE_SOURCE_ESTATE_ROOT: /opt/laplace/sources
+  TMPDIR: /build/laplace/work
+  TMP: /build/laplace/work
+  TEMP: /build/laplace/work
+  STOCKFISH_SOURCE_OVERRIDE: ${{ vars.LAPLACE_STOCKFISH_SOURCE }}
+  CORPUS_EVIDENCE: /build/laplace/work/installed-full-stockfish-source/${{ github.run_id }}-${{ github.run_attempt }}
+jobs:
+  qualify:
+    if: github.repository == 'SaltyPatron/Laplace-Refactor'
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: cf9b80e6b9f4457a9b8167623ea1fb10e6d870c0
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Retain exact candidate driver and prepare the thin caller
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$GITHUB_REF" = refs/heads/verify/source-admission-bytecode-20260916
+          test "$(git rev-parse HEAD)" = cf9b80e6b9f4457a9b8167623ea1fb10e6d870c0
+          test "$(git rev-parse HEAD^{tree})" = 61ba9e5ae9f320446b9cfb9308ab223c71035fac
+          test "$(git diff --name-only --no-renames cf9b80e6b9f4457a9b8167623ea1fb10e6d870c0 "$GITHUB_SHA")" = .github/workflows/source-admission-bytecode-qualification.yml
+          test -z "$(git status --porcelain --untracked-files=all)"
+          python3 -B - <<'PY'
+          import os,stat
+          from pathlib import Path
+          target=Path(os.environ["CORPUS_EVIDENCE"])
+          target.parent.mkdir(mode=0o700,exist_ok=True)
+          info=target.parent.lstat()
+          if not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.geteuid() or stat.S_IMODE(info.st_mode)!=0o700:
+              raise SystemExit("evidence parent is not a private owned directory")
+          target.mkdir(mode=0o700)
+          PY
+          git show "$GITHUB_SHA:.github/workflows/source-admission-bytecode-qualification.yml" > "$CORPUS_EVIDENCE/executed-workflow.yml"
+          git archive --format=tar HEAD tools/sources tools/product/build_workspace_retention.py tools/product/repository_inputs.py tools/admit_source_guard.py tools/dependencies/chess_tools.py tools/dependencies/git_checkout.py tools/host/run-exclusive.sh dependencies/lock.json dependencies/tree-sitter-grammars.lock.json .github/workflows/product-path.yml .github/workflows/stockfish-corpus-acceptance.yml > "$CORPUS_EVIDENCE/candidate-source.tar"
+          cat > "$CORPUS_EVIDENCE/qualify.py" <<'PY'
+          import hashlib, json, os, subprocess, sys, time
+          from pathlib import Path
+          sys.path.insert(0,str(Path.cwd()/"tools"))
+          from sources import stockfish_corpus_acceptance as owner
+          
+          out=Path(os.environ["CORPUS_EVIDENCE"])
+          base="6347401133605adada0b3ebad06ef0051082e76a"
+          package="1117fa6aca97a6f1a0f49341cc95fca4281ad3dbaecc31aec2b0f4abf81a2d55"
+          aggregate="da9e8e07115f770cf0d17f24b31b0fd475a2df1d36e87b3c57f7eec496e2c11b"
+          candidate="cf9b80e6b9f4457a9b8167623ea1fb10e6d870c0"
+          began=time.monotonic()
+          report={"schema":"laplace.installed-full-source-operation/v1","status":"running",
+                  "candidate_commit":candidate,"installed_repository_commit":base,
+                  "installed_package_id":package,"expected_activation_aggregate_sha256":aggregate,
+                  "driver_scope":"candidate observer and orchestration; unchanged installed admission engine",
+                  "source_estate":os.environ["LAPLACE_SOURCE_ESTATE_ROOT"],
+                  "source_scope":"complete locked Stockfish Git tree, all 119 tracked files; no subset",
+                  "owner_timeout_seconds":5400,"native_engine_rebuilt":False,
+                  "service_restarted":False,"completed_phases":[]}
+          before=None
+          def save():
+              report["elapsed_seconds"]=time.monotonic()-began
+              owner.save(out/"operation-result.json",report)
+          def checked_activation(name):
+              value=owner.observe_activation(base,out/(name+".json"))
+              owner.require(value["package_id"]==package,"installed package differs from selected1117")
+              owner.require(any(item["document"].get("result_sha256")==aggregate
+                                for item in value["runner_receipts"]),"installed activation aggregate differs")
+              return value
+          def command(name,args,seconds):
+              report["active_phase"]=name
+              save()
+              with (out/(name+".stdout")).open("xb") as stdout,(out/(name+".stderr")).open("xb") as stderr:
+                  result=subprocess.run(args,stdout=stdout,stderr=stderr,timeout=seconds,check=False)
+                  stdout.flush();stderr.flush();os.fsync(stdout.fileno());os.fsync(stderr.fileno())
+              report[name+"_exit_code"]=result.returncode
+              owner.require(result.returncode==0,name+" failed; exact stdout/stderr and owner receipt are retained")
+              report["completed_phases"].append(name)
+              save()
+          save()
+          try:
+              before=checked_activation("activation-before")
+              report["completed_phases"].append("activation-before")
+              # Extract and run the exact already-qualified four-row predicate.
+              workflow=Path(".github/workflows/product-path.yml").read_text()
+              block=workflow.split("\n  dev-bat-live-substrate:",1)[1]
+              opening='--arg package_id "$package_id" \''
+              predicate=block.split(opening,1)[1].split('\' "$result" >/dev/null',1)[0]
+              (out/"live-substrate-predicate.jq").write_text(predicate)
+              command("live-substrate",[str(Path(before["release"])/"bin/laplace-live-substrate"),"Aé中Ω"],30)
+              command("live-substrate-predicate",["jq","-e","--arg","package_id",package,predicate,
+                                               str(out/"live-substrate.stdout")],10)
+              report["live_substrate_result_sha256"]=owner.sha(out/"live-substrate.stdout")
+              raw=os.environ.get("STOCKFISH_SOURCE_OVERRIDE","").strip()
+              if raw:
+                  os.environ["LAPLACE_STOCKFISH_SOURCE"]=raw
+              selection=out/"stockfish-source-selection.json"
+              command("source-selection",[sys.executable,"-B","tools/dependencies/chess_tools.py",
+                                         "select-source","--selection-output",str(selection)],180)
+              command("complete-source-admission-and-repeat",
+                      [sys.executable,"-B","tools/sources/stockfish_corpus_acceptance.py",
+                       "--source-selection",str(selection),"--expected-sha",base,
+                       "--output",str(out/"corpus"),"--timeout","5400"],5700)
+              report["status"]="passed"
+          except Exception as error:
+              report.update(status="failed",error={"type":type(error).__module__+"."+type(error).__name__,
+                                                  "message":str(error)[:1600]})
+          finally:
+              if before is not None:
+                  try:
+                      after=checked_activation("activation-after")
+                      owner.require(owner.stable_activation(before)==owner.stable_activation(after),
+                                    "activated product changed during source acceptance")
+                      report["activation_unchanged"]=True
+                      report["completed_phases"].append("activation-after")
+                  except Exception as error:
+                      report.update(status="failed",activation_after_error={
+                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:1600]})
+              partial=out/"corpus/result.json"
+              if partial.is_file() and not partial.is_symlink():
+                  try:
+                      value=owner.load(partial)
+                      report["corpus"]={key:value.get(key) for key in
+                          ("status","canonical_corpus_admission_completed","zero_amplification_repeat_proven",
+                           "database_mutation_outcome")}
+                      report["corpus"]["error"]=str(value.get("error",""))[:1600]
+                      report["corpus"]["receipt_sha256"]=owner.sha(partial)
+                  except Exception as error:
+                      report.update(status="failed",retained_receipt_error={
+                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:1600]})
+              if not report.get("activation_unchanged"):
+                  report["status"]="failed"
+              save()
+          raise SystemExit(0 if report["status"]=="passed" else 1)
+          
+          PY
+          python3 -B - "$CORPUS_EVIDENCE/qualify.py" <<'PY'
+          import ast,sys
+          from pathlib import Path
+          ast.parse(Path(sys.argv[1]).read_text())
+          PY
+      - name: Execute the existing complete source owner under the shared host lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          timeout --signal=TERM --kill-after=20s 6600s \
+            bash tools/host/run-exclusive.sh \
+            python3 -B "$CORPUS_EVIDENCE/qualify.py" \
+            > "$CORPUS_EVIDENCE/operation.stdout" \
+            2> "$CORPUS_EVIDENCE/operation.stderr"
+          status=$?
+          set -e
+          printf '%s\n' "CORPUS_OPERATION_EXIT=$status" >> "$GITHUB_ENV"
+          exit "$status"
+      - name: Print bounded phase and exception evidence
+        if: always()
+        shell: bash
+        run: |
+          python3 -B - <<'PY'
+          import json,os
+          from pathlib import Path
+          path=Path(os.environ["CORPUS_EVIDENCE"])/"operation-result.json"
+          result={"operation_exit":os.environ.get("CORPUS_OPERATION_EXIT"),
+                  "operation_result_present":path.is_file()}
+          if path.is_file():
+              if path.is_symlink() or path.stat().st_size>131072:
+                  raise SystemExit("operation result is linked or oversized")
+              value=json.loads(path.read_text())
+              for key in ("schema","status","candidate_commit","installed_repository_commit",
+                          "installed_package_id","expected_activation_aggregate_sha256","driver_scope",
+                          "source_estate","source_scope","owner_timeout_seconds","native_engine_rebuilt",
+                          "service_restarted","completed_phases","active_phase","activation_unchanged",
+                          "live_substrate_result_sha256","elapsed_seconds","error","activation_after_error",
+                          "retained_receipt_error","corpus"):
+                  if key in value:
+                      result[key]=value[key]
+          print(json.dumps(result,sort_keys=True))
+          PY
+      - name: Retain successful or partial exact owner evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installed-full-stockfish-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.CORPUS_EVIDENCE }}/
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
