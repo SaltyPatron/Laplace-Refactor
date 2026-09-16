@@ -601,15 +601,10 @@ class WorkflowTests(unittest.TestCase):
         import yaml
         workflow=yaml.safe_load((ROOT/'.github/workflows/product-path.yml').read_text())
         job=workflow['jobs']['deployed-stockfish-corpus']
-        self.assertEqual(job['needs'],['classify','dev-bat-deployment'])
-        self.assertIn("needs.classify.outputs.requires_stockfish_corpus == 'true'",job['if'])
+        self.assertEqual(job['needs'],'dev-bat-deployment')
         self.assertIn("needs.dev-bat-deployment.result == 'success'",job['if'])
         self.assertIn("github.ref == 'refs/heads/main'",job['if'])
         self.assertEqual(job['with']['expected_sha'],'${{ github.sha }}')
-        hosted=yaml.safe_load((ROOT/'.github/workflows/ci.yml').read_text())
-        self.assertTrue(any(s.get('run')=='python3 tests/stockfish_corpus_acceptance_tests.py'
-                            and 'if' not in s
-                            for s in hosted['jobs']['requirements']['steps']))
         acceptance=yaml.safe_load((ROOT/'.github/workflows/stockfish-corpus-acceptance.yml').read_text())
         steps=acceptance['jobs']['installed-source-acceptance']['steps']
         executing=next(s for s in steps if 'stockfish_corpus_acceptance.py' in s.get('run',''))

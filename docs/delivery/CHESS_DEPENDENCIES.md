@@ -68,26 +68,11 @@ locks together and rebuild. `--offline` deliberately reuses the exact selected
 source and cached network; it makes no claim about the newest upstream release.
 
 Lichess is a hosted API, with no Lichess server package required for a bot client.
-`check --online` uses `LICHESS_TOKEN` for sequential, read-only account and scope
-verification: GET `/api/account` then POST `/api/token/test`. The second request
-tests the existing credential; it creates no account, title, challenge, move or
-chat. Requests target the fixed official HTTPS origin without proxy discovery or
-redirects. Each network operation has a 15-second socket timeout and responses
-are limited to 64 KiB; this is not an aggregate wall-time guarantee. HTTP failures,
-including rate limiting, stop the check without a retry. A 429 retains a minimum
-60-second retry delay (or a longer numeric Retry-After). No token, response body,
-or upstream exception detail is printed. Offline checks never contact Lichess.
-
-The receipt distinguishes token validity, BOT title, exact `bot:play` scope,
-matching account identity, and `account_prerequisites_ready`. Even a successful
-account/scope observation leaves `product_gameplay_ready=false` and
-`product_bot_api_adapter=not-implemented`. Refactor has no product bot service
-or operator stop-marker owner yet. Its qualified native rules/trace adapter and
-canonical LINE planner do not implement the required chess forward/search
-program, UCI product adapter, or BOT game/session lifecycle. Original's independent
-service and external Stockfish cannot stand in for that missing native program.
-A separate `lichess-bot` bridge and Python `chess` package are not dependencies
-of the native Refactor implementation.
+`check --online` can read `/api/account` using `LICHESS_TOKEN`; it never creates
+an account, changes a title, sends a move, accepts a challenge or posts chat.
+A bot needs a BOT account and `bot:play` scope. Account readback alone does not
+verify that scope. A separate `lichess-bot` bridge and Python `chess` package are
+not dependencies of the native Refactor implementation.
 
 Syzygy files remain a separate selected dataset. `SYZYGY_PATH` only identifies a
 location. For exact byte verification pass `--syzygy-manifest` with an object

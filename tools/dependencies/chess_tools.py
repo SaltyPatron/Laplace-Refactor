@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import http.client
 import json
 import os
 import platform
@@ -946,87 +945,16 @@ def tablebase_readback(manifest_path: Path | None) -> dict:
     return {"disposition": "manifest-bytes-verified-probe-not-implemented", "coverage": manifest["coverage"], "file_count": len(manifest["files"]), "manifest_sha256": digest(manifest_path)}
 
 
-class LichessNoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, request, response, code, message, headers, location):
-        # Neither the Authorization header nor the token-test POST body may move
-        # to another endpoint. Authentication observes only these fixed origins.
-        return None
-
-
-def lichess_document(opener, path: str, token: str) -> dict:
-    require(path in {"/api/account", "/api/token/test"}, "unsupported Lichess account probe")
-    headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
-    data = None
-    if path == "/api/token/test":
-        headers["Content-Type"] = "text/plain"
-        data = token.encode("utf-8")
-    request = urllib.request.Request("https://lichess.org" + path, headers=headers, data=data)
-    if data is None:
-        request.add_unredirected_header("Authorization", f"Bearer {token}")
-    with opener.open(request, timeout=15) as response:
-        require(response.status == 200, "unexpected Lichess account response")
-        # A token-test response names the secret in its object key. Neither the
-        # body nor JSON/HTTP exception details belong in retained diagnostics.
-        payload = response.read(64 * 1024 + 1)
-    require(len(payload) <= 64 * 1024, "Lichess account response exceeded 64 KiB")
-    document = json.loads(payload)
-    require(isinstance(document, dict), "Lichess account response is not an object")
-    return document
-
-
 def lichess_readback(online: bool) -> dict:
     token = os.environ.get("LICHESS_TOKEN", "").strip()
-    result = {
-        "disposition": "not-verified", "credentials_present": bool(token),
-        "required_scope": "bot:play", "product_bot_api_adapter": "not-implemented",
-        "product_service": "not-implemented", "product_gameplay_ready": False,
-        "operator_stop_marker": "not-applicable-no-product-service",
-        "token_valid": None, "bot_account": None, "bot_play_scope": None,
-        "account_prerequisites_ready": False, "online_attempted": False,
-    }
-    if not online or not token:
-        return result
-    # The official API specifies sequential requests. Stop immediately on any
-    # unsuccessful response; this doctor never retries or starts a game stream.
-    # https://github.com/lichess-org/api/blob/master/doc/specs/tags/oauth/api-token-test.yaml
-    result["online_attempted"] = True
-    operation = "account"
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), LichessNoRedirect())
-    try:
-        account = lichess_document(opener, "/api/account", token)
-        account_id, username = account.get("id"), account.get("username")
-        require(isinstance(account_id, str) and bool(account_id.strip())
-                and isinstance(username, str) and bool(username.strip()),
-                "Lichess account response omitted identity")
-        result.update({"token_valid": True, "bot_account": account.get("title") == "BOT",
-                       "account_id": account_id, "account_username": username})
-        operation = "token-scope"
-        document = lichess_document(opener, "/api/token/test", token)
-        require(token in document, "Lichess token response omitted requested token")
-        info = document[token]
-        if info is None:
-            result.update({"token_valid": False, "disposition": "token-rejected"})
-            return result
-        require(isinstance(info, dict) and isinstance(info.get("scopes"), str),
-                "Lichess token response omitted scopes")
-        require(info.get("userId") == account_id, "Lichess token/account identity mismatch")
-        result["bot_play_scope"] = "bot:play" in {item.strip() for item in info["scopes"].split(",")}
-        result["account_prerequisites_ready"] = result["bot_account"] and result["bot_play_scope"]
-        result["disposition"] = "account-and-scope-readback-only"
-    except urllib.error.HTTPError as error:
-        result.update({"disposition": "account-readback-failed", "failed_operation": operation,
-                       "http_status": error.code})
-        if error.code == 401:
-            result["token_valid"] = False
-        if error.code == 429:
-            # No retry occurs here. A server-supplied longer delay remains visible.
-            retry = error.headers.get("Retry-After", "") if error.headers else ""
-            result["minimum_retry_delay_seconds"] = max(60, int(retry)) if retry.isascii() and retry.isdigit() and len(retry) <= 12 else 60
-        error.close()
-    except (OSError, ValueError, http.client.HTTPException, ChessToolError):
-        result.update({"disposition": "account-readback-failed", "failed_operation": operation,
-                       "error": "Lichess account/scope transport or response validation failed"})
+    result = {"disposition": "not-verified", "credentials_present": bool(token), "required_scope": "bot:play", "product_bot_api_adapter": "not-implemented"}
+    if online and token:
+        request = urllib.request.Request("https://lichess.org/api/account", headers={"Authorization": f"Bearer {token}", "User-Agent": USER_AGENT})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            account = json.load(response)
+        result.update({"disposition": "account-readback-only", "bot_account": account.get("title") == "BOT", "bot_play_scope": "not-verified-by-account-endpoint"})
     return result
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)

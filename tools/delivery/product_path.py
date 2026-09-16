@@ -47,11 +47,6 @@ def validate_contract(contract: dict[str, Any]) -> None:
     if contract.get("schema") != SCHEMA:
         raise ProductPathError("product-path schema differs")
     hosted = _strings(contract.get("hosted_only_patterns"), "hosted_only_patterns")
-    _strings(contract.get("hosted_native_patterns"), "hosted_native_patterns", allow_empty=True)
-    acceptance = contract.get("installed_acceptance")
-    if not isinstance(acceptance, dict):
-        raise ProductPathError("installed_acceptance must be an object")
-    _strings(acceptance.get("stockfish_corpus_patterns"), "stockfish_corpus_patterns")
     default_class = contract.get("default_class")
     if not isinstance(default_class, str) or not default_class:
         raise ProductPathError("default_class is invalid")
@@ -156,14 +151,6 @@ def classify(contract: dict[str, Any], paths: Sequence[str], proof_profile: str 
 
     hosted_patterns = contract["hosted_only_patterns"]
     hosted_only = all(matches(path, hosted_patterns) for path in normalized)
-    requires_hosted_native = not hosted_only or any(
-        matches(path, contract["hosted_native_patterns"]) for path in normalized
-    )
-    requires_deployment = not hosted_only
-    requires_stockfish_corpus = requires_deployment and any(
-        matches(path, contract["installed_acceptance"]["stockfish_corpus_patterns"])
-        for path in normalized
-    )
     classes: set[str] = set()
     required_evidence: set[str] = {"hosted"}
     unmatched_semantic: list[str] = []
@@ -184,8 +171,6 @@ def classify(contract: dict[str, Any], paths: Sequence[str], proof_profile: str 
         if unmatched_semantic:
             classes.add(contract["default_class"])
 
-    # An unknown runtime path cannot silently omit installed admission coverage.
-    requires_stockfish_corpus = requires_stockfish_corpus or bool(unmatched_semantic)
     selected_evidence = sorted(required_evidence)
     deferred_evidence = []
     if proof_profile == "merge":
@@ -204,9 +189,6 @@ def classify(contract: dict[str, Any], paths: Sequence[str], proof_profile: str 
         "deferred_evidence": deferred_evidence,
         "paths": normalized,
         "hosted_only": hosted_only,
-        "requires_hosted_native": requires_hosted_native,
-        "requires_deployment": requires_deployment,
-        "requires_stockfish_corpus": requires_stockfish_corpus,
         "classes": sorted(classes),
         "required_evidence": sorted(required_evidence),
         "unimplemented_evidence": unimplemented,

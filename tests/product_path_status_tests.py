@@ -98,9 +98,9 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def assert_legacy_branch_protection_bridge(self, workflow: str) -> None:
         aliases = {
-            "required-source-status": "requirements",
-            "required-native-status": "native (linux-dev)",
-            "required-sanitizer-status": "native (linux-sanitize)",
+            "legacy-requirements": "requirements",
+            "legacy-native-dev": "native (linux-dev)",
+            "legacy-native-sanitize": "native (linux-sanitize)",
         }
         for job_id, check_name in aliases.items():
             marker = f"  {job_id}:\n    name: {check_name}\n    needs: product-path\n"
@@ -123,7 +123,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self, workflow: str, activation: str, contract: str
     ) -> None:
         self.assertIn(
-            "  dev-bat-deployment:\n    name: Install changed runtime and verify services\n    needs: [classify, product-path]\n",
+            "  dev-bat-deployment:\n    needs: product-path\n",
             workflow,
         )
         start, end = self.job_boundary(workflow, "dev-bat-deployment")
@@ -328,8 +328,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
     def test_deliberate_legacy_context_bypass_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         mutant = workflow.replace(
-            "  required-source-status:\n    name: requirements\n    needs: product-path\n",
-            "  required-source-status:\n    name: requirements\n    needs: hosted-proof\n",
+            "  legacy-requirements:\n    name: requirements\n    needs: product-path\n",
+            "  legacy-requirements:\n    name: requirements\n    needs: hosted-proof\n",
             1,
         )
         self.assertNotEqual(workflow, mutant)
@@ -338,7 +338,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def test_deliberate_legacy_skip_cascade_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        start, end = self.job_boundary(workflow, "required-source-status")
+        start, end = self.job_boundary(workflow, "legacy-requirements")
         block = workflow[start:end]
         mutant = workflow.replace(
             block,
@@ -351,7 +351,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def test_legacy_alias_commands_fail_for_unsuccessful_aggregate(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        for job_id in ("required-source-status", "required-native-status", "required-sanitizer-status"):
+        for job_id in ("legacy-requirements", "legacy-native-dev", "legacy-native-sanitize"):
             start, end = self.job_boundary(workflow, job_id)
             block = workflow[start:end]
             self.assertIn("    if: always()\n", block)
@@ -366,7 +366,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
 
     def test_success_only_legacy_condition_is_rejected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        start, end = self.job_boundary(workflow, "required-source-status")
+        start, end = self.job_boundary(workflow, "legacy-requirements")
         block = workflow[start:end]
         mutant = workflow.replace(block, block.replace(
             "    if: always()\n",
@@ -440,74 +440,6 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertNotEqual(activation, mutant)
         with self.assertRaises(AssertionError):
             self.assert_main_push_deployment_boundary(workflow, mutant, contract)
-
-    def assert_required_native_contexts_and_execution_selection(self, workflow: str) -> None:
-        start, end = self.job_boundary(workflow, "native")
-        native = workflow[start:end]
-        pre_steps, steps = native.split("    steps:\n", 1)
-        self.assertNotRegex(pre_steps, r"(?m)^    if:",
-                            "job-level selection erases the required flavored matrix contexts")
-        self.assertIn("          - linux-dev\n          - linux-sanitize\n", pre_steps)
-        chunks = re.split(r"(?m)^      - name: ", steps)[1:]
-        self.assertEqual(len(chunks), 15)
-        self.assertTrue(chunks[0].startswith("Report native execution selection\n"))
-        self.assertNotIn("        if:", chunks[0])
-        for chunk in chunks[1:]:
-            header = chunk.split("        run:", 1)[0].split("        uses:", 1)[0]
-            condition = re.findall(r"(?m)^        if: (.+)$", header)
-            self.assertEqual(len(condition), 1, chunk.splitlines()[0])
-            self.assertIn(condition[0],
-                          ("inputs.build_native", "always() && inputs.build_native"),
-                          chunk.splitlines()[0])
-        self.assertIn("        default: true\n", workflow)
-        self.assertIn("no native build or tests executed", chunks[0])
-
-    def test_required_native_matrix_contexts_survive_unrequested_build(self) -> None:
-        workflow = CLEAN_ROOM_PATH.read_text(encoding="utf-8")
-        self.assert_required_native_contexts_and_execution_selection(workflow)
-        erased_context = workflow.replace("  native:\n",
-                                          "  native:\n    if: inputs.build_native\n", 1)
-        with self.assertRaises(AssertionError):
-            self.assert_required_native_contexts_and_execution_selection(erased_context)
-        unguarded_build = workflow.replace(
-            "      - name: Build\n        if: inputs.build_native\n",
-            "      - name: Build\n", 1)
-        self.assertNotEqual(workflow, unguarded_build)
-        with self.assertRaises(AssertionError):
-            self.assert_required_native_contexts_and_execution_selection(unguarded_build)
-        unguarded_finalizer = workflow.replace(
-            "if: always() && inputs.build_native", "if: always()", 1)
-        with self.assertRaises(AssertionError):
-            self.assert_required_native_contexts_and_execution_selection(unguarded_finalizer)
-
-    def test_native_selection_summary_reports_nonexecution_and_rejects_bad_input(self) -> None:
-        import os
-        workflow = CLEAN_ROOM_PATH.read_text(encoding="utf-8")
-        selection = workflow.split("      - name: Report native execution selection\n", 1)[1]
-        selection = selection.split("      - name:", 1)[0]
-        command = selection.split("        run: |\n", 1)[1]
-        command = "\n".join(line[10:] for line in command.splitlines())
-        with tempfile.TemporaryDirectory() as temporary:
-            for selected, expected in (
-                ("false", "not requested; no native build or tests executed"),
-                ("true", "selected; execution steps follow"),
-                ("", None), ("invented", None),
-            ):
-                for preset in ("linux-dev", "linux-sanitize"):
-                    with self.subTest(selected=selected, preset=preset):
-                        summary = Path(temporary) / f"{preset}-{selected}.txt"
-                        execution = subprocess.run(
-                            ["bash", "-c", command], capture_output=True, text=True,
-                            env={**os.environ, "BUILD_NATIVE": selected, "NATIVE_PRESET": preset,
-                                 "GITHUB_STEP_SUMMARY": str(summary)},
-                            timeout=10,
-                        )
-                        self.assertEqual(execution.returncode == 0, expected is not None)
-                        if expected is None:
-                            self.assertFalse(summary.exists())
-                        else:
-                            self.assertEqual(summary.read_text(),
-                                             f"Native profile {preset}: {expected}\n")
 
 
 if __name__ == "__main__":

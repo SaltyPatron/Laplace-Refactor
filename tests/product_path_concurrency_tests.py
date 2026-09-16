@@ -63,7 +63,6 @@ class ProductPathConcurrencyTests(unittest.TestCase):
             )},
             **{f"needs.classify.outputs.requires_{name}": "true" for name in (
                 "custom_stack", "postgresql_product", "package_product", "chess_calibration",
-                "deployment", "stockfish_corpus",
             )},
         }
 
@@ -118,28 +117,18 @@ class ProductPathConcurrencyTests(unittest.TestCase):
 
     def test_short_aggregate_and_protected_status_jobs_still_evaluate_after_cancellation(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        for job in ("product-path", "required-source-status", "required-native-status", "required-sanitizer-status"):
+        for job in ("product-path", "legacy-requirements", "legacy-native-dev", "legacy-native-sanitize"):
             with self.subTest(job=job):
                 condition = job_condition(workflow, job)
                 self.assertEqual(condition, "always()")
                 self.assertTrue(condition_allows(condition, {}, True))
-
-    def test_source_only_main_cannot_enter_installed_jobs(self) -> None:
-        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-        for job, flag in (("dev-bat-deployment", "deployment"),
-                          ("deployed-stockfish-corpus", "stockfish_corpus")):
-            condition = job_condition(workflow, job)
-            context = self.admitted_context(job) | {f"needs.classify.outputs.requires_{flag}": "false"}
-            self.assertFalse(condition_allows(condition, context, False), job)
-            mutant = condition.replace(f" && needs.classify.outputs.requires_{flag} == 'true'", "")
-            self.assertTrue(condition_allows(mutant, context, False), job)
 
     def test_pull_request_runs_cancel_obsolete_active_head_without_cancelling_main(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         marker = (
             "concurrency:\n"
             "  group: product-path-${{ github.ref }}\n"
-            "  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}\n"
+            "  queue: single\n"
             "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n"
         )
         self.assertIn(
@@ -159,7 +148,7 @@ class ProductPathConcurrencyTests(unittest.TestCase):
             workflow.index("  publication-recovery:") : workflow.index("  custom-stack-proof:")
         ]
         live_substrate = workflow[
-            workflow.index("  dev-bat-live-substrate:") : workflow.index("  required-source-status:")
+            workflow.index("  dev-bat-live-substrate:") : workflow.index("  legacy-requirements:")
         ]
         for name, block in {
             "publication-recovery": publication,
