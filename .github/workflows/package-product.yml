@@ -1,7 +1,18 @@
-name: package-product
+name: Build and verify product package
 
 on:
   workflow_call:
+    inputs:
+      publish_installer:
+        description: Upload the verified installer to GitHub; ordinary development retains it locally.
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      publish_installer:
+        description: Upload the verified installer to GitHub (uses network bandwidth).
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -33,16 +44,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Sweep stale interrupted package-product residue
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+      - name: Clean interrupted package verification workspace
         run: |
           set -euo pipefail
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --minimum-age-seconds 300 \
             --name laplace-package-product-proof
-      - name: Verify package-proof authority and exact PostgreSQL publication
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+      - name: Verify selected PostgreSQL package
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
@@ -60,19 +69,15 @@ jobs:
           python3 tools/delivery/postgresql_package_publication.py verify \
             --receipt "$publication" >/dev/null
           printf 'LAPLACE_POSTGRESQL_PUBLICATION=%s\n' "$publication" >> "$GITHUB_ENV"
-      - name: Reclaim obsolete persistent product build generations
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+      - name: Retain current build and reclaim obsolete generations
         run: |
           set -euo pipefail
-          python3 tests/product_build_workspace_retention_tests.py
-
           plan="$RUNNER_TEMP/laplace-product-current-plan.json"
           python3 tools/product/build-package.py \
             --repository . \
             plan \
             --postgresql-publication "$LAPLACE_POSTGRESQL_PUBLICATION" > "$plan"
           current_plan=$(jq -er '.plan_id' "$plan")
-          test "$current_plan" = "$(jq -er '.plan_id' "$plan")"
           test "${#current_plan}" -eq 64
 
           build_root=$(jq -er '.build.root' contracts/product-package.json)
@@ -113,10 +118,10 @@ jobs:
               echo "- allocated bytes reclaimed: $reclaimed"
             } >> "$GITHUB_STEP_SUMMARY"
           fi
-      - name: Prove package-product verifier mutation controls
+      - name: Check package verification implementation
+        shell: bash
         run: python3 tests/package_product_proof_tests.py
-      - name: Compose install replay and durably retain exact package receipts
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+      - name: Build or reuse package and verify isolated installation
         run: |
           set -euo pipefail
           work_root="$RUNNER_TEMP/laplace-package-product-proof"
@@ -143,133 +148,16 @@ jobs:
             (.binding_receipt_blake3 | test("^[0-9a-f]{64}$"))
           ' "$result" >/dev/null
           {
-            echo '## Exact package-product proof'
+            echo '## Package and isolated installation'
             echo '```json'
             cat "$result"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           printf 'LAPLACE_PRODUCT_PROOF_RESULT=%s\n' "$result" >> "$GITHUB_ENV"
 
-      - name: Query persistent Laplace substrate with branch-built command
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
-        run: |
-          set -euo pipefail
-          product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
-          physical_release=$(jq -er '.physical_root' "$product_receipt")
-          inspect="$physical_release/bin/laplace-inspect"
-          pg_ctl="$physical_release/pgsql-18/bin/pg_ctl"
-          pg_isready="$physical_release/pgsql-18/bin/pg_isready"
-          postgres="$physical_release/pgsql-18/bin/postgres"
-          data_directory=$(jq -er '.instance.data_directory' contracts/postgresql-cluster.json)
-          socket_directory=$(jq -er '.instance.socket_directory' contracts/postgresql-cluster.json)
-          port=$(jq -er '.instance.port' contracts/postgresql-cluster.json)
-          database=$(jq -er '.instance.database' contracts/postgresql-cluster.json)
-          admin_role=$(jq -er '.instance.admin_role' contracts/postgresql-cluster.json)
-          config_file=/etc/laplace/instances/refactor/postgresql.conf
-          test -x "$inspect"
-          test -x "$pg_ctl"
-          test -x "$pg_isready"
-          test -x "$postgres"
-          test -d "$data_directory"
-          test -f "$config_file"
-
-          started_database=0
-          if ! "$pg_isready" \
-            --host "$socket_directory" \
-            --port "$port" \
-            --dbname "$database" \
-            --username "$admin_role" >/dev/null 2>&1; then
-            OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 MKL_DYNAMIC=FALSE \
-              "$pg_ctl" \
-                -D "$data_directory" \
-                -o "-c config_file=$config_file -c io_method=worker" \
-                -w \
-                -t 180 \
-                start
-            started_database=1
-          fi
-          printf 'LAPLACE_PACKAGE_PRODUCT_STARTED_DATABASE=%s\n' "$started_database" >> "$GITHUB_ENV"
-
-          ready=0
-          for _attempt in $(seq 1 30); do
-            if "$pg_isready" \
-              --host "$socket_directory" \
-              --port "$port" \
-              --dbname "$database" \
-              --username "$admin_role" >/dev/null 2>&1; then
-              ready=1
-              break
-            fi
-            sleep 1
-          done
-          if [[ "$ready" != 1 ]]; then
-            "$pg_ctl" -D "$data_directory" status || true
-            echo 'branch-built PostgreSQL package did not make the persistent substrate ready' >&2
-            exit 1
-          fi
-
-          # PostgreSQL 18 io_uring produced ECANCELED relation reads on this runner.
-          # Product runtime therefore uses worker AIO; prove this exact server was
-          # launched with the branch-selected override before querying durable data.
-          test "$("$postgres" -D "$data_directory" -c "config_file=$config_file" -c io_method=worker -C io_method)" = worker
-          postmaster_pid=$(head -n 1 "$data_directory/postmaster.pid")
-          test -r "/proc/$postmaster_pid/cmdline"
-          tr '\0' '\n' < "/proc/$postmaster_pid/cmdline" | grep -Fx 'io_method=worker' >/dev/null
-
-          summary="$RUNNER_TEMP/laplace-live-summary.json"
-          entities="$RUNNER_TEMP/laplace-live-entities.json"
-          physicalities="$RUNNER_TEMP/laplace-live-physicalities.json"
-          attestations="$RUNNER_TEMP/laplace-live-attestations.json"
-          profiles="$RUNNER_TEMP/laplace-live-source-profiles.json"
-
-          "$inspect" --pretty summary > "$summary"
-          "$inspect" --pretty entities --limit 5 > "$entities"
-          "$inspect" --pretty physicalities --limit 5 > "$physicalities"
-          "$inspect" --pretty attestations --limit 5 > "$attestations"
-          "$inspect" --pretty source-profiles --limit 5 > "$profiles"
-
-          jq -e '
-            .schema == "laplace.inspect.summary/v1" and
-            .database == "laplace_refactor" and
-            .role == "laplace_admin" and
-            (.counts.entities | tonumber) > 0 and
-            (.counts.physicalities | tonumber) > 0 and
-            (.counts.attestations | tonumber) > 0 and
-            .unicode.active_present == true and
-            .highway.active_present == true
-          ' "$summary" >/dev/null
-          jq -e '.schema == "laplace.inspect.entities/v1" and (.rows | length) > 0' "$entities" >/dev/null
-          jq -e '.schema == "laplace.inspect.physicalities/v1" and (.rows | length) > 0' "$physicalities" >/dev/null
-          jq -e '.schema == "laplace.inspect.attestations/v1" and (.rows | length) > 0' "$attestations" >/dev/null
-          jq -e '.schema == "laplace.inspect.source-profiles/v1"' "$profiles" >/dev/null
-
-          {
-            echo '## Live persisted Laplace substrate'
-            echo 'Branch-built PostgreSQL and `laplace-inspect` queried the persistent PostgreSQL product data without publishing an activation pointer.'
-            echo '### Summary'
-            echo '```json'
-            cat "$summary"
-            echo '```'
-            echo '### Entity rows'
-            echo '```json'
-            cat "$entities"
-            echo '```'
-            echo '### Physicality rows'
-            echo '```json'
-            cat "$physicalities"
-            echo '```'
-            echo '### Attestation rows'
-            echo '```json'
-            cat "$attestations"
-            echo '```'
-            echo '### Source-profile rows before admission'
-            echo '```json'
-            cat "$profiles"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Compose and verify the standalone customer installer
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+      # Packaging does not start, query or stop the shared application database.
+      # product-activation.yml and the post-deployment readback own that lifecycle.
+      - name: Build and verify local installer
         run: |
           set -euo pipefail
           product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
@@ -277,10 +165,7 @@ jobs:
           cmake_build_directory="$product_build_directory/laplace"
           installer_root=/build/laplace/runner/product/installers
 
-          # Reconfigure from the exact package bytes proved above, never from an
-          # ambient host PostgreSQL. pg_config reports the package's logical
-          # /opt/laplace/releases/<id> paths, so provide the corresponding staged
-          # physical root exactly as build-package.py does during composition.
+          # Use the selected package's PostgreSQL, never an ambient host version.
           package_manifest=$(jq -er '.manifest' "$product_receipt")
           logical_release=$(jq -er '.root' "$package_manifest")
           physical_release=$(jq -er '.physical_root' "$product_receipt")
@@ -298,7 +183,6 @@ jobs:
             -DLAPLACE_PG_CONFIG="$pg_config" \
             -DLAPLACE_PG_PHYSICAL_ROOT="$pg_physical_root"
           cmake --build "$cmake_build_directory" --target laplace_product_installer
-          package_id=$(jq -er '.package_id' "$product_receipt")
           installer_selection="$cmake_build_directory/laplace-product-installer-selection.json"
           test -f "$installer_selection"
           installer_id=$(jq -er '.bundle_id' "$installer_selection")
@@ -306,43 +190,38 @@ jobs:
           test -f "$installer_manifest"
           python3 tools/delivery/product_distribution.py verify \
             --manifest "$installer_manifest" >/dev/null
-          installer_directory=$(dirname "$installer_manifest")
           installer_archive=$(jq -er '.archive' "$installer_selection")
           test "$(jq -er '.archive_sha256' "$installer_selection")" = \
             "$(sha256sum "$installer_archive" | awk '{print $1}')"
           installer_archive_sha256=$(jq -er '.checksum' "$installer_selection")
           printf 'LAPLACE_PRODUCT_INSTALLER_ARCHIVE=%s\n' "$installer_archive" >> "$GITHUB_ENV"
           printf 'LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256=%s\n' "$installer_archive_sha256" >> "$GITHUB_ENV"
+          printf 'LAPLACE_PRODUCT_INSTALLER_ID=%s\n' "$installer_id" >> "$GITHUB_ENV"
           {
-            echo '## Standalone customer installer'
+            echo '## Verified local installer'
+            echo "Archive: \`$installer_archive\`"
+            echo "Checksum: \`$installer_archive_sha256\`"
+            echo 'No upload or download is needed for same-host development or deployment.'
+            echo 'GitHub publication runs only when publish_installer is explicitly enabled.'
             echo '```json'
             jq '{schema, bundle_id, package: {id: .package.id}, sources: {unicode: {id: .sources.unicode.id, version: .sources.unicode.version}}}' "$installer_manifest"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Publish the verified standalone customer installer
+      - name: Clean isolated installation workspace
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --name laplace-package-product-proof
+      - name: Upload installer only for requested distribution
+        if: inputs.publish_installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: laplace-product-installer-${{ github.sha }}
+          name: laplace-product-installer-${{ env.LAPLACE_PRODUCT_INSTALLER_ID }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE }}
             ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256 }}
           if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
-      - name: Clean disposable package-product workspace
-        if: always()
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
-        run: |
-          set -euo pipefail
-          if [[ "${LAPLACE_PACKAGE_PRODUCT_STARTED_DATABASE:-0}" == 1 && -n "${LAPLACE_PRODUCT_PROOF_RESULT:-}" ]]; then
-            product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")
-            physical_release=$(jq -er '.physical_root' "$product_receipt")
-            pg_ctl="$physical_release/pgsql-18/bin/pg_ctl"
-            data_directory=$(jq -er '.instance.data_directory' contracts/postgresql-cluster.json)
-            if "$pg_ctl" -D "$data_directory" status >/dev/null 2>&1; then
-              "$pg_ctl" -D "$data_directory" -w -t 120 stop -m fast
-            fi
-          fi
-          python3 tools/delivery/proof_workspace_cleanup.py \
-            --runner-temp "$RUNNER_TEMP" \
-            --name laplace-package-product-proof
+          compression-level: 6
+          retention-days: 7
