@@ -20,7 +20,8 @@ jobs:
           import hashlib, io, json, os, urllib.request, zipfile
           base='https://api.github.com/repos/SaltyPatron/Laplace-Refactor'
           def get(path):
-              request=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              request=urllib.request.Request(base+path,headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              request.add_unredirected_header('Authorization','Bearer '+os.environ['GH_TOKEN'])
               with urllib.request.urlopen(request,timeout=60) as response:
                   return response.read()
           run=json.loads(get('/actions/runs/35158959755'))
