@@ -1,0 +1,88 @@
+name: Hosted Lichess account scope doctor controls
+on:
+  push:
+    branches: [qualify/lichess-doctor-20260916]
+permissions:
+  contents: read
+jobs:
+  doctor-controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      LICHESS_TOKEN: ''
+      TMPDIR: /build/laplace/work/lichess-doctor-controls
+      TMP: /build/laplace/work/lichess-doctor-controls
+      TEMP: /build/laplace/work/lichess-doctor-controls
+    steps:
+      - name: Prepare the dedicated work and receipt paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /build/laplace
+          sudo chown "$(id -u):$(id -g)" /build/laplace
+          umask 0002
+          mkdir -p "$TMPDIR" /build/laplace/worktrees /build/laplace/work/lichess-doctor-evidence
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: df7f4a6d237900d50b43d770b324e54460e95c0f
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Bind immutable source and execute the eight existing controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = df7f4a6d237900d50b43d770b324e54460e95c0f
+          test "$(git rev-parse HEAD^{tree})" = 56612313dde15ea9e977997a34ca899b70140d2c
+          git worktree add --detach /build/laplace/worktrees/lichess-doctor-controls HEAD
+          cd /build/laplace/worktrees/lichess-doctor-controls
+          python3 --version
+          timeout --signal=TERM --kill-after=5s 60s python3 - <<'PY' 2>&1 | tee /build/laplace/work/lichess-doctor-evidence/controls.log
+          import ast, hashlib, json, os, runpy, socket, sys, time, unittest
+          from pathlib import Path
+          from unittest.mock import patch
+          paths = ["tools/dependencies/chess_tools.py", "tests/chess_dependency_tests.py",
+                   "docs/delivery/CHESS_DEPENDENCIES.md"]
+          inventory = []
+          for name in paths:
+              path = Path(name)
+              raw = path.read_bytes()
+              if name.endswith(".py"):
+                  ast.parse(raw, filename=name)
+              inventory.append({"path":name, "bytes":len(raw),
+                                "sha256":hashlib.sha256(raw).hexdigest()})
+          namespace = runpy.run_path("tests/chess_dependency_tests.py", run_name="doctor_controls")
+          suite = unittest.defaultTestLoader.loadTestsFromTestCase(namespace["LichessAccountScopeReadback"])
+          names = [test.id() for test in suite]
+          if len(names) != 8:
+              raise AssertionError("the expected eight doctor controls were not selected")
+          begin = time.monotonic()
+          with patch.object(socket, "create_connection", side_effect=AssertionError("no network in fixture qualification")), \
+               patch.object(socket.socket, "connect", side_effect=AssertionError("no network in fixture qualification")):
+              result = unittest.TextTestRunner(verbosity=2).run(suite)
+          receipt = {"schema":"laplace.lichess-doctor-protocol-controls/v1",
+                     "candidate_commit":"df7f4a6d237900d50b43d770b324e54460e95c0f",
+                     "candidate_tree":"56612313dde15ea9e977997a34ca899b70140d2c",
+                     "workflow_commit":os.environ["GITHUB_SHA"],
+                     "tests":result.testsRun, "failures":len(result.failures),
+                     "errors":len(result.errors), "skipped":len(result.skipped),
+                     "elapsed_seconds":time.monotonic()-begin, "selected":names,
+                     "source_files":inventory, "python":sys.version,
+                     "actual_lichess_requests":False, "credentials_used":False,
+                     "product_gameplay_ready":False,
+                     "scope":"existing doctor fixture controls with socket connections refused"}
+          Path("/build/laplace/work/lichess-doctor-evidence/receipt.json").write_text(
+              json.dumps(receipt, sort_keys=True, indent=2)+"\n")
+          print(json.dumps(receipt, sort_keys=True))
+          if not result.wasSuccessful() or result.skipped:
+              raise SystemExit(1)
+          PY
+          test -z "$(git status --porcelain --untracked-files=all)"
+      - name: Retain exact source and control result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lichess-doctor-protocol-controls
+          path: /build/laplace/work/lichess-doctor-evidence/
+          if-no-files-found: error
+          retention-days: 90
