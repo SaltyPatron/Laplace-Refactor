@@ -579,7 +579,7 @@
                 "seventy_five_move_current_counter_met": false
               },
               "fen_realization": "8/k7/2K5/8/8/8/R7/8 b - - 99 1",
-              "in_check": false,
+              "in_check": true,
               "no_legal_move_outcome": "none",
               "no_legal_move_winner": null,
               "provider_adjudication": {
@@ -622,7 +622,7 @@
                 "seventy_five_move_current_counter_met": false
               },
               "fen_realization": "8/k7/2K5/8/8/8/R7/8 b - - 100 1",
-              "in_check": false,
+              "in_check": true,
               "no_legal_move_outcome": "none",
               "no_legal_move_winner": null,
               "provider_adjudication": {
@@ -711,7 +711,8 @@
               "provider_adjudication": {
                 "result": "1/2-1/2"
               },
-              "reversible_plies": 149
+              "reversible_plies": 149,
+              "in_check": true
             },
             "ply_count": 0
           }
@@ -752,7 +753,8 @@
               "provider_adjudication": {
                 "result": "1/2-1/2"
               },
-              "reversible_plies": 150
+              "reversible_plies": 150,
+              "in_check": true
             },
             "ply_count": 0
           }
