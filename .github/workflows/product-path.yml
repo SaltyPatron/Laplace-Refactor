@@ -1,4 +1,4 @@
-name: product-path
+name: Laplace Refactor — validate, build and deploy
 
 on:
   workflow_dispatch:
@@ -17,17 +17,18 @@ permissions:
 
 concurrency:
   group: product-path-${{ github.ref }}
-  queue: single
+  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   classify:
+    name: Select work from changed inputs
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      audit_only: ${{ steps.classify.outputs.audit_only }}
-      base_sha: ${{ steps.classify.outputs.base_sha }}
-      head_sha: ${{ steps.classify.outputs.head_sha }}
+      requires_hosted_native: ${{ steps.classify.outputs.requires_hosted_native }}
+      requires_deployment: ${{ steps.classify.outputs.requires_deployment }}
+      requires_stockfish_corpus: ${{ steps.classify.outputs.requires_stockfish_corpus }}
       requires_chess_calibration: ${{ steps.classify.outputs.requires_chess_calibration }}
       hosted_only: ${{ steps.classify.outputs.hosted_only }}
       requires_custom_stack: ${{ steps.classify.outputs.requires_custom_stack }}
@@ -82,10 +83,11 @@ jobs:
             --classification "$result" --base "$BASE_SHA" --head "$HEAD_SHA" > "$calibration"
           printf 'requires_chess_calibration=%s\n' "$(jq -r '.requested' "$calibration")" >> "$GITHUB_OUTPUT"
           cat "$calibration"
-          printf 'base_sha=%s\nhead_sha=%s\n' "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
           for key in \
-            audit_only \
             hosted_only \
+            requires_hosted_native \
+            requires_deployment \
+            requires_stockfish_corpus \
             requires_custom_stack \
             requires_postgresql_product \
             requires_package_product \
@@ -105,16 +107,14 @@ jobs:
     needs: classify
     uses: ./.github/workflows/ci.yml
     with:
-      run_native: ${{ needs.classify.outputs.audit_only != 'true' }}
-      audit_base_sha: ${{ needs.classify.outputs.base_sha }}
-      audit_head_sha: ${{ needs.classify.outputs.head_sha }}
+      build_native: ${{ needs.classify.outputs.requires_hosted_native == 'true' }}
 
   publication-recovery:
+    name: Resolve selected PostgreSQL package
     needs:
       - classify
       - hosted-proof
     if: >-
-      needs.classify.outputs.audit_only != 'true' &&
       needs.hosted-proof.result == 'success' &&
       (needs.classify.outputs.requires_postgresql_product == 'true' ||
        needs.classify.outputs.requires_package_product == 'true')
@@ -165,7 +165,6 @@ jobs:
       - hosted-proof
       - publication-recovery
     if: >-
-      needs.classify.outputs.audit_only != 'true' &&
       (!cancelled()) &&
       needs.classify.outputs.requires_custom_stack == 'true' &&
       needs.hosted-proof.result == 'success' &&
@@ -177,7 +176,6 @@ jobs:
     name: Candidate chess dependency calibration on hart-server
     needs: [classify, hosted-proof]
     if: >-
-      needs.classify.outputs.audit_only != 'true' &&
       (!cancelled()) &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
@@ -192,7 +190,6 @@ jobs:
       - publication-recovery
       - custom-stack-proof
     if: >-
-      needs.classify.outputs.audit_only != 'true' &&
       (!cancelled()) &&
       needs.classify.outputs.requires_postgresql_product == 'true' &&
       needs.hosted-proof.result == 'success' &&
@@ -209,7 +206,6 @@ jobs:
       - custom-stack-proof
       - postgresql-product-proof
     if: >-
-      needs.classify.outputs.audit_only != 'true' &&
       (!cancelled()) &&
       needs.classify.outputs.requires_package_product == 'true' &&
       needs.hosted-proof.result == 'success' &&
@@ -238,6 +234,7 @@ jobs:
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           HOSTED_RESULT: ${{ needs.hosted-proof.result }}
+          HOSTED_NATIVE_SELECTED: ${{ needs.classify.outputs.requires_hosted_native }}
           PUBLICATION_RECOVERY_RESULT: ${{ needs.publication-recovery.result }}
           CUSTOM_RESULT: ${{ needs.custom-stack-proof.result }}
           CHESS_RESULT: ${{ needs.candidate-chess-calibration.result }}
@@ -286,7 +283,8 @@ jobs:
           {
             echo '## Product-path gate'
             echo "Required evidence: $REQUIRED_EVIDENCE"
-            echo "Hosted proof: $HOSTED_RESULT"
+            echo "Hosted source checks: $HOSTED_RESULT"
+            echo "Hosted native profiles selected: ${HOSTED_NATIVE_SELECTED:-unknown} (false means not executed)"
             echo "Publication recovery: $PUBLICATION_RECOVERY_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
             echo "Candidate chess calibration: $CHESS_RESULT"
@@ -295,14 +293,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   dev-bat-deployment:
+    name: Install changed runtime and verify services
     needs: [classify, product-path]
     if: >-
       (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      needs.classify.result == 'success' &&
-      needs.classify.outputs.audit_only != 'true' &&
-      needs.product-path.result == 'success'
+      needs.product-path.result == 'success' &&
+      needs.classify.outputs.requires_deployment == 'true'
     uses: ./.github/workflows/product-activation.yml
     with:
       expected_sha: ${{ github.sha }}
@@ -310,7 +308,6 @@ jobs:
   deployed-chess-calibration:
     needs: [classify, dev-bat-deployment]
     if: >-
-      needs.classify.outputs.audit_only != 'true' &&
       (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
@@ -319,20 +316,22 @@ jobs:
     uses: ./.github/workflows/chess-calibration.yml
 
   deployed-stockfish-corpus:
+    name: Verify changed source-admission path against the installed corpus
     needs: [classify, dev-bat-deployment]
     if: >-
-      needs.classify.outputs.audit_only != 'true' &&
       (!cancelled()) &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      needs.dev-bat-deployment.result == 'success'
+      needs.dev-bat-deployment.result == 'success' &&
+      needs.classify.outputs.requires_stockfish_corpus == 'true'
     uses: ./.github/workflows/stockfish-corpus-acceptance.yml
     with:
       expected_sha: ${{ github.sha }}
 
   dev-bat-live-substrate:
-    needs: [classify, dev-bat-deployment]
-    if: needs.classify.outputs.audit_only != 'true' && (!cancelled()) && needs.dev-bat-deployment.result == 'success'
+    name: Read back installed substrate
+    needs: dev-bat-deployment
+    if: (!cancelled()) && needs.dev-bat-deployment.result == 'success'
     runs-on:
       - self-hosted
       - Linux
@@ -387,10 +386,10 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Historical compatibility contexts remain subordinate to product-path.
-  # Current protected checks are hosted-proof / requirements and both actual
-  # hosted-proof / native matrix jobs; these aliases do not replace those checks.
-  legacy-requirements:
+  # Existing required GitHub status names. These report the selected aggregate,
+  # not a second test execution. Source-only selection is recorded by classify.
+  # Keep the externally configured names until the repository rule is changed.
+  required-source-status:
     name: requirements
     needs: product-path
     if: always()
@@ -399,7 +398,7 @@ jobs:
     steps:
       - run: test "${{ needs.product-path.result }}" = success
 
-  legacy-native-dev:
+  required-native-status:
     name: native (linux-dev)
     needs: product-path
     if: always()
@@ -408,7 +407,7 @@ jobs:
     steps:
       - run: test "${{ needs.product-path.result }}" = success
 
-  legacy-native-sanitize:
+  required-sanitizer-status:
     name: native (linux-sanitize)
     needs: product-path
     if: always()

@@ -1,4 +1,4 @@
-name: Qualify exact audit-only classification
+name: Qualify independent CI execution selection
 on:
   push:
     branches: [verify/source-admission-bytecode-20260916]
@@ -8,82 +8,73 @@ jobs:
   qualify:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    outputs:
-      base_sha: ${{ steps.classify.outputs.base_sha }}
-      head_sha: ${{ steps.classify.outputs.head_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 3
           persist-credentials: false
-      - name: Bind reviewed source and the real audit-only diagnostic delta
-        id: classify
+      - name: Bind reviewed product source and diagnostic-only workflow
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^1^2)" = 992dc30f1b30221afd9ca7d47d983bda70f1654d
-          test "$(git rev-parse HEAD^1^1)" = 185c3a4eb44c36f0948f1e21d383d51010319f67
-          root="/build/laplace/work/audit-only-classification/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "$(git rev-parse HEAD^2)" = 1295af748d6a5de594968c9e01e629135298b2fa
+          test "$(git diff --name-only HEAD^2 HEAD)" = .github/workflows/source-admission-bytecode-qualification.yml
+          test "$(git hash-object '.github/workflows/ci.yml')" = 61a3f31a01f5a341efb382bdd1b9c0b759d5e662
+          test "$(git hash-object '.github/workflows/product-path.yml')" = 461fce9ebb2826898fcdd7180d563e84279cbed3
+          test "$(git hash-object 'contracts/product-path.json')" = 71a23b68ac00d6d7c03cfc756323809ff5db9395
+          test "$(git hash-object 'tests/product_path_concurrency_tests.py')" = d36beb648338abc8a9d35f612f0b457bc411d2ed
+          test "$(git hash-object 'tests/product_path_status_tests.py')" = ef5cc892906b9b43c227f7a529f12b3e754818f0
+          test "$(git hash-object 'tests/product_path_tests.py')" = b588e45bad08087a74fefd4a049183e3bb403aad
+          test "$(git hash-object 'tools/delivery/product_path.py')" = 46b83a4580e5e2e50cb21880c82ddc41019934a6
+          root="/build/laplace/work/ci-execution-selection/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           test ! -e "$root"
           sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$root"
           printf 'QUALIFICATION_DIR=%s\n' "$root" >> "$GITHUB_ENV"
-          test "$(git hash-object .github/workflows/ci.yml)" = 771a7ea7f16294fb3a2e2790904dbe93c28b76dd
-          test "$(git hash-object .github/workflows/product-path.yml)" = 626afe5a633677ba3d5315bfe6811317c77539b7
-          test "$(git hash-object contracts/product-path.json)" = 26840ae96f3faa164cc5900ee9d8dab398f5fae2
-          test "$(git hash-object tests/product_path_concurrency_tests.py)" = 23c1208e370c889dd7664ca30a2cca86bea0e7b7
-          test "$(git hash-object tests/product_path_status_tests.py)" = 6b9d6e6bb7a4908ca1b7f28bb7106d886ace1f05
-          test "$(git hash-object tests/product_path_tests.py)" = 4df70b3acadeb56e3873991d73fa8aad5f13663b
-          test "$(git hash-object tools/delivery/product_path.py)" = ebd733f21cf0c8a37672ad6dbe91cea49884ab7b
-          test "$(git hash-object tests/chess_host_evidence_tests.py)" = 22f57fa53136af0e90f82b562f5bdcae7b2b526a
-          git diff --name-status -z -M HEAD^ HEAD > "$root/changed.status"
-          python3 tools/delivery/product_path.py classify \
-            --git-name-status-z "$root/changed.status" --output "$root/classification.json"
-          python3 - "$root/classification.json" <<'PY'
-          import json,sys
-          from pathlib import Path
-          result=json.loads(Path(sys.argv[1]).read_text())
-          assert result["paths"]==[".github/workflows/final-convergence-audit.yml"]
-          assert result["audit_only"] is True and result["requires_native"] is False
-          assert result["required_evidence"]==["hosted"] and result["blocked"] is False
-          print(json.dumps(result,sort_keys=True))
-          PY
-          printf 'base_sha=%s\nhead_sha=%s\n' "$(git rev-parse HEAD^)" "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-          git diff --name-status 992dc30f1b30221afd9ca7d47d983bda70f1654d HEAD > "$root/diagnostic-delta.txt"
-      - name: Execute actual classification, Git, matrix, deployment and cancellation controls
+      - name: Execute actual classifier and workflow counterexamples
         shell: bash
         run: |
           set -euo pipefail
-          for suite in product_path_tests product_path_status_tests product_path_concurrency_tests hosted_ci_cache_contract_tests chess_host_evidence_tests; do
+          for suite in product_path_tests product_path_status_tests product_path_concurrency_tests hosted_ci_cache_contract_tests; do
             timeout --signal=TERM --kill-after=5s 120s python3 "tests/$suite.py" \
               2>&1 | tee "$QUALIFICATION_DIR/$suite.log"
           done
+          python3 tools/delivery/product_path.py classify \
+            --path .github/scripts/consolidate-branches.py \
+            --path .github/branch-resolutions.json \
+            --output "$QUALIFICATION_DIR/housekeeping-classification.json"
+          python3 - "$QUALIFICATION_DIR/housekeeping-classification.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          result=json.loads(Path(sys.argv[1]).read_text())
+          assert result["required_evidence"] == ["hosted"]
+          assert result["requires_hosted_native"] is False
+          assert result["requires_deployment"] is False
+          assert result["requires_stockfish_corpus"] is False
+          print(json.dumps(result,sort_keys=True))
+          PY
           git diff --exit-code
           git diff --cached --exit-code
-      - name: Retain actual successful or failed control output
+      - name: Retain actual controls and selection evidence
         if: always() && env.QUALIFICATION_DIR != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: audit-only-classification-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ci-execution-selection-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.QUALIFICATION_DIR }}/
           if-no-files-found: error
           retention-days: 30
-  # The real parent-to-head change is only an audit-workflow comment. The reviewed
-  # source under qualification is pinned above; this is not native execution proof.
   hosted-proof:
     needs: qualify
     uses: ./.github/workflows/ci.yml
     with:
-      run_native: false
-      audit_base_sha: ${{ needs.qualify.outputs.base_sha }}
-      audit_head_sha: ${{ needs.qualify.outputs.head_sha }}
+      build_native: false
   result:
     if: always()
     needs: [qualify, hosted-proof]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: Require this run's real controls and required hosted contexts
+      - name: Require actual current-run controls and hosted source checks
         env:
           CONTROLS: ${{ needs.qualify.result }}
           HOSTED: ${{ needs.hosted-proof.result }}
@@ -91,5 +82,5 @@ jobs:
           set -euo pipefail
           test "$CONTROLS" = success
           test "$HOSTED" = success
-          echo 'Current-source audit-only policy verification and hosted requirements passed.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Both native matrix contexts ran policy verification; native builds and tests were not requested.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Current-source classifier/workflow controls and hosted requirements passed.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Both required native matrix contexts reported no native build or tests requested.' >> "$GITHUB_STEP_SUMMARY"

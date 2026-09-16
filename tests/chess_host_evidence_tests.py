@@ -274,7 +274,6 @@ class HostEvidence(unittest.TestCase):
             'github.event.pull_request.head.repo.full_name': 'owner/repo',
             'github.repository': 'owner/repo',
             'needs.classify.outputs.requires_chess_calibration': 'true',
-            'needs.classify.outputs.audit_only': 'false',
             'needs.hosted-proof.result': 'success',
             'needs.custom-stack-proof.result': 'failure',
         }
@@ -290,7 +289,6 @@ class HostEvidence(unittest.TestCase):
             with self.subTest(custom=result):
                 self.assertTrue(admitted({'needs.custom-stack-proof.result': result}))
         for overrides in (
-            {'needs.classify.outputs.audit_only': 'true'},
             {'github.event_name': 'push'},
             {'github.event.pull_request.head.repo.full_name': 'fork/repo'},
             {'needs.classify.outputs.requires_chess_calibration': 'false'},

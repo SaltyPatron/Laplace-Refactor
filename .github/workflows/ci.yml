@@ -1,21 +1,12 @@
-name: clean-room-ci
+name: Shared source and native checks
 
 on:
   workflow_call:
     inputs:
-      run_native:
-        description: Execute native builds and tests; false requires current-source audit-only proof
+      build_native:
+        description: Build and execute both native profiles for native or build-input changes.
         type: boolean
-        required: false
         default: true
-      audit_base_sha:
-        type: string
-        required: false
-        default: ''
-      audit_head_sha:
-        type: string
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -76,35 +67,24 @@ jobs:
           - linux-sanitize
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      # Keep both protected matrix contexts instantiated. This step verifies the
-      # current commit delta; it does not claim that native tests executed.
-      - name: Verify current-source audit-only classification
-        if: ${{ !inputs.run_native }}
+      - name: Report native execution selection
         shell: bash
         env:
-          AUDIT_BASE_SHA: ${{ inputs.audit_base_sha }}
-          AUDIT_HEAD_SHA: ${{ inputs.audit_head_sha }}
-          EVENT_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          BUILD_NATIVE: ${{ inputs.build_native }}
+          NATIVE_PRESET: ${{ matrix.preset }}
         run: |
           set -euo pipefail
-          test "$AUDIT_HEAD_SHA" = "$EVENT_HEAD_SHA"
-          python3 tools/delivery/product_path.py verify-audit-only \
-            --base "$AUDIT_BASE_SHA" --head "$AUDIT_HEAD_SHA" \
-            --expected-checkout "$GITHUB_SHA" \
-            | tee "$RUNNER_TEMP/laplace-audit-only-${{ matrix.preset }}.json"
-          {
-            echo '## Native execution not requested'
-            echo 'This matrix context verified the current-source audit-only classification.'
-            echo 'Native builds and tests did not execute.'
-            cat "$RUNNER_TEMP/laplace-audit-only-${{ matrix.preset }}.json"
-          } >> "$GITHUB_STEP_SUMMARY"
+          case "$BUILD_NATIVE" in
+            true) disposition='selected; execution steps follow' ;;
+            false) disposition='not requested; no native build or tests executed' ;;
+            *) echo 'native selection is not a boolean' >&2; exit 1 ;;
+          esac
+          printf 'Native profile %s: %s\n' "$NATIVE_PRESET" "$disposition" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Install build tools
-        if: inputs.run_native
+        if: inputs.build_native
         run: sudo apt-get update && sudo apt-get install --yes ccache jq ninja-build
       - name: Restore compiler object cache
-        if: inputs.run_native
+        if: inputs.build_native
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ runner.temp }}/laplace-ccache/${{ matrix.preset }}
@@ -112,7 +92,7 @@ jobs:
           restore-keys: |
             laplace-ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.preset }}-
       - name: Configure compiler object cache
-        if: inputs.run_native
+        if: inputs.build_native
         shell: bash
         run: |
           set -euo pipefail
@@ -133,7 +113,7 @@ jobs:
           printf 'CCACHE_COMPILERCHECK=%s\n' "$CCACHE_COMPILERCHECK" >> "$GITHUB_ENV"
           printf 'CCACHE_MAXSIZE=%s\n' "$CCACHE_MAXSIZE" >> "$GITHUB_ENV"
       - name: Acquire pinned build dependencies
-        if: inputs.run_native
+        if: inputs.build_native
         shell: bash
         run: |
           set -euo pipefail
@@ -143,7 +123,7 @@ jobs:
             blake3 eigen googletest spectra tree-sitter
           printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
       - name: Acquire locked source-profile fixtures
-        if: inputs.run_native
+        if: inputs.build_native
         shell: bash
         run: |
           set -euo pipefail
@@ -158,7 +138,7 @@ jobs:
             --destination "$cili_root"
           printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_root" >> "$GITHUB_ENV"
       - name: Build and verify the locked C++ syntax provider
-        if: inputs.run_native
+        if: inputs.build_native
         shell: bash
         run: |
           set -euo pipefail
@@ -172,7 +152,7 @@ jobs:
             --grammar tree-sitter-cpp --output "$provider_root"
           test -s "$provider_root/build-receipt.json"
       - name: Build and verify the locked PGN syntax provider
-        if: inputs.run_native
+        if: inputs.build_native
         shell: bash
         run: |
           set -euo pipefail
@@ -186,7 +166,7 @@ jobs:
             --grammar tree-sitter-pgn --output "$provider_root"
           test -s "$provider_root/build-receipt.json"
       - name: Configure
-        if: inputs.run_native
+        if: inputs.build_native
         shell: bash
         run: |
           set -euo pipefail
@@ -205,19 +185,19 @@ jobs:
             -DLAPLACE_CILI_SOURCE_ROOT="$LAPLACE_CILI_SOURCE_ROOT"
           printf 'LAPLACE_CI_BUILD_DIRECTORY=%s\n' "$build_directory" >> "$GITHUB_ENV"
       - name: Build
-        if: inputs.run_native
+        if: inputs.build_native
         run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 2
       - name: Report compiler object cache
-        if: always() && inputs.run_native
+        if: always() && inputs.build_native
         run: ccache --show-stats --verbose
       - name: Execute implementation tests
-        if: inputs.run_native
+        if: inputs.build_native
         run: ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" --output-on-failure
       - name: Verify test registry
-        if: inputs.run_native
+        if: inputs.build_native
         run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"
       - name: Retain exact C++ provider build evidence
-        if: always() && inputs.run_native
+        if: always() && inputs.build_native
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cpp-provider-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -229,7 +209,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: Retain exact PGN provider and native conformance evidence
-        if: always() && inputs.run_native
+        if: always() && inputs.build_native
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pgn-provider-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
