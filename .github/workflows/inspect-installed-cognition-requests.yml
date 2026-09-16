@@ -1,0 +1,72 @@
+name: Inspect exact installed cognition request failures
+on:
+  push:
+    branches: [diag/cognition-requests-419-20260916]
+permissions:
+  contents: read
+jobs:
+  requests:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Verify actual HTTP assets and retain explicit native request results
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          test "$(id -un)" = laplace-runner
+          git merge-base --is-ancestor 21445261244441021795df4912dfb833fe0dca38 HEAD
+          test "$(git diff --name-only 21445261244441021795df4912dfb833fe0dca38 HEAD)" = .github/workflows/inspect-installed-cognition-requests.yml
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess,sys,time
+          from pathlib import Path
+          sys.path.insert(0,str(Path.cwd()/"tools"))
+          from sources.stockfish_corpus_acceptance import observe_activation,stable_activation
+          output=Path(os.environ["RUNNER_TEMP"])/("installed-requests-"+os.environ["GITHUB_RUN_ID"])
+          output.mkdir(mode=0o700)
+          expected="419cbcb4fd4c569706ee3c253ab4775f5fcaebad"
+          before=observe_activation(expected,output/"activation-before.json")
+          assert before["package_id"]=="daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64"
+          commands=[
+            ("http",[sys.executable,"tools/delivery/product_gateway_live_proof.py","--readiness-only",
+              "--package-id",before["package_id"],"--product-receipt",
+              "/build/laplace/runner/product/build/4c403055443c121f8d4b71bb91fa7cd77ba802a818eb0bb1976304c0e77246be/package-receipt.json",
+              "--output",str(output/"http-readiness.json")],50),
+            ("explicit",["/opt/laplace/runtime/refactor/bin/laplace-cognition","--relations","constituent","--json","AA"],30),
+            ("automatic",["/opt/laplace/runtime/refactor/bin/laplace-cognition","--session","service-diagnostic",
+              "--state-root",str(output/"state"),"--reset-session","--json","AA"],30),
+          ]
+          report={"schema":"laplace.installed-request-diagnostic/v1","package_id":before["package_id"],
+              "commands":[],"activation_unchanged":False}
+          for label,command,budget in commands:
+              started=time.monotonic()
+              try:
+                  result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=budget,check=False)
+                  code=result.returncode;stdout=result.stdout;stderr=result.stderr
+              except subprocess.TimeoutExpired as error:
+                  code=None;stdout=error.stdout or b"";stderr=error.stderr or b""
+              (output/(label+".stdout")).write_bytes(stdout)
+              (output/(label+".stderr")).write_bytes(stderr)
+              item={"label":label,"exit_code":code,"elapsed_seconds":time.monotonic()-started,
+                  "stdout_sha256":hashlib.sha256(stdout).hexdigest(),"stderr_sha256":hashlib.sha256(stderr).hexdigest(),
+                  "stdout_bytes":len(stdout),"stderr_bytes":len(stderr)}
+              report["commands"].append(item)
+              print(json.dumps(item,sort_keys=True))
+              if label!="http" or code!=0:
+                  print(label+" STDOUT: "+stdout[-16000:].decode(errors="replace"))
+                  print(label+" STDERR: "+stderr[-8000:].decode(errors="replace"))
+          after=observe_activation(expected,output/"activation-after.json")
+          report["activation_unchanged"]=stable_activation(before)==stable_activation(after)
+          assert report["activation_unchanged"]
+          (output/"requests.json").write_text(json.dumps(report,sort_keys=True,indent=2)+"\n")
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Retain actual request and HTTP evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installed-requests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/installed-requests-${{ github.run_id }}/
+          if-no-files-found: error
+          retention-days: 7
