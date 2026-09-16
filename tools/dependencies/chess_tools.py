@@ -70,11 +70,24 @@ def configuration() -> tuple[dict, dict]:
     return selected, artifacts
 
 
+def github_release_request(repository: str) -> urllib.request.Request:
+    require(bool(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)),
+            "invalid GitHub release repository")
+    request = urllib.request.Request(
+        f"https://api.github.com/repos/{repository}/releases/latest",
+        headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"})
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if token:
+        # urllib excludes unredirected headers from every redirected request.
+        # This credential is only for the initial, fixed GitHub API origin.
+        request.add_unredirected_header("Authorization", f"Bearer {token}")
+    return request
+
+
 def upstream_versions(selected: dict) -> dict:
     result = {}
     for name, release in selected["releases"].items():
-        url = f'https://api.github.com/repos/{release["repository"]}/releases/latest'
-        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"})
+        request = github_release_request(release["repository"])
         with urllib.request.urlopen(request, timeout=30) as response:
             observed = json.load(response)
         require(not observed.get("draft") and not observed.get("prerelease"), f"{name} upstream did not return a stable release")

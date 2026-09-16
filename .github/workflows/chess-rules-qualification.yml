@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - verify/cutechess-rules-provider
+      - verify/cutechess-rules-api-auth
       - main
     paths:
       - '.github/workflows/chess-rules-qualification.yml'
@@ -71,8 +72,12 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --yes ninja-build libgl1-mesa-dev libxkbcommon-dev libvulkan1
+      - name: Verify GitHub release authentication boundaries
+        run: python3 tests/chess_dependency_tests.py GitHubReleaseRequests -v
       - name: Build selected official CuteChess and Qt through the common tool owner
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/laplace-cutechess-rules"
