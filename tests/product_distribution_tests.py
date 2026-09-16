@@ -256,7 +256,9 @@ class ProductDistributionTests(unittest.TestCase):
         self.assertIn("--target laplace_product_installer", workflow)
         self.assertIn("product_distribution.py verify", workflow)
         self.assertIn("actions/upload-artifact@", workflow)
-        self.assertIn("compression-level: 0", workflow)
+        self.assertIn("if: inputs.publish_installer", workflow)
+        # The installer is an uncompressed TAR; requested transfers compress it.
+        self.assertRegex(workflow, r"compression-level: [1-9]\b")
         self.assertIn("'.archive' \"$installer_selection\"", workflow)
         self.assertIn("LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256", workflow)
 
