@@ -10,6 +10,9 @@ import subprocess
 import sys
 from typing import Any, Sequence
 
+# Installed source modules remain exact package bytes, including prepublication reads.
+sys.dont_write_bytecode = True
+
 DEFAULT_SOURCE_ESTATE_ROOT = Path("/vault/Data")
 SOURCE_ESTATE_ENV = "LAPLACE_SOURCE_ESTATE_ROOT"
 DEFAULT_UNICODE_RELATIVE = Path("UCD/Public/UCD/latest")
