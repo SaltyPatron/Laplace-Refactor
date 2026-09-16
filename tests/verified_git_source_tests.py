@@ -405,7 +405,7 @@ class CommittedSourceReceiptTests(unittest.TestCase):
 
 
 class GitReadbackReceiptTests(unittest.TestCase):
-    def execute(self, witness='ab'*32, corrupt_last=False):
+    def execute(self, witness='ab'*32, corrupt_last=False, span_count=4):
         profile='\\x'+'12'*32
         artifacts=[{'path':'one.cpp','sha256':hashlib.sha256(b'one').hexdigest(),'byte_count':3},
                    {'path':'two.cpp','sha256':hashlib.sha256('λ'.encode()).hexdigest(),'byte_count':2}]
@@ -417,12 +417,15 @@ class GitReadbackReceiptTests(unittest.TestCase):
         returned={'structural_receipt_count':1,'structural_witness_fingerprint':witness,'records':records}
         result={'admission':{'profile_id':profile,'composition_working_set_receipt_id':'\\x'+'34'*32,
                             'source_fingerprint':'\\x'+'56'*32,'testimony_count':0,'evidence_node_count':0},
-                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':4}}
+                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':span_count}}
         identities={key:'78'*32 for key in ('source_epoch','identity_epoch','evidence_epoch','firmware_epoch',
                     'dependency_epoch','database_epoch','package_epoch','authority_fingerprint')}
-        with patch.object(A,'run_scalar',return_value=json.dumps(returned)):
-            return A.verify_git_readback(['psql'],result,{'manifest':{'artifacts':artifacts,'byte_count':5}},
-                                        identities,'90'*32,'91'*32,'92'*32)
+        with patch.object(A,'run_scalar',return_value=json.dumps(returned)) as scalar:
+            receipt = A.verify_git_readback(['psql'],result,{'manifest':{'artifacts':artifacts,'byte_count':5}},
+                                           identities,'90'*32,'91'*32,'92'*32)
+            self.readback_sql = scalar.call_args.args[1]
+            self.assertEqual(scalar.call_count, 1)
+            return receipt
 
     def test_readback_retains_semantic_witness_identity_and_all_exact_artifacts(self):
         result=self.execute()
@@ -431,14 +434,21 @@ class GitReadbackReceiptTests(unittest.TestCase):
         self.assertEqual(result['verified_byte_count'],5)
         self.assertTrue(result['all_artifacts_exact'])
 
+    def test_large_committed_profile_reaches_readback_with_its_own_finite_bound(self):
+        result = self.execute(span_count=5000001)
+        self.assertIn('5000001::numeric,5::numeric)', self.readback_sql)
+        self.assertTrue(result['all_artifacts_exact'])
+        self.assertEqual(result['verified_file_count'], 2)
+
     def test_missing_or_malformed_structural_witness_identity_is_rejected(self):
         for witness in (None,'malformed','\\x'+'ab'*32):
             with self.subTest(witness=witness), self.assertRaisesRegex(A.AdmissionError,'verified structural witness fingerprint'):
                 self.execute(witness)
 
     def test_changed_later_artifact_is_rejected(self):
-        with self.assertRaisesRegex(A.AdmissionError,'two.cpp'):
-            self.execute(corrupt_last=True)
+        for span_count in (4, 5000001):
+            with self.subTest(span_count=span_count), self.assertRaisesRegex(A.AdmissionError,'two.cpp'):
+                self.execute(corrupt_last=True, span_count=span_count)
 
 
 if __name__ == '__main__':
