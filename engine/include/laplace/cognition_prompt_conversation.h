@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 enum {
-    LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION = 1
+    LAPLACE_COGNITION_PROMPT_CONVERSATION_VERSION = 3
 };
 
 typedef enum laplace_cognition_prompt_conversation_status {
@@ -31,19 +31,30 @@ typedef enum laplace_cognition_prompt_conversation_status {
     LAPLACE_COGNITION_PROMPT_CONVERSATION_ORIENTATION_FAILURE = 10
 } laplace_cognition_prompt_conversation_status;
 
+typedef enum laplace_cognition_prompt_orientation_disposition {
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_NOT_REQUIRED = 0,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_RESOLVED = 1,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_NO_RESPONSE = 2,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_AMBIGUOUS = 3,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_INCOMPLETE = 4,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_EXHAUSTED = 5,
+    LAPLACE_COGNITION_PROMPT_ORIENTATION_FAILED = 6
+} laplace_cognition_prompt_orientation_disposition;
+
 /*
  * One response policy downstream of an already-created exact prompt admission.
  * The incoming turn is deliberately absent: it is copied only from the admission
  * view so a caller cannot admit one prompt and execute cognition against another
  * observation identity or occurrence.
  *
- * For the raw-prompt route, cognition_policy.relation_mask is an admissibility
- * envelope, not a selected intent. Before the turn is compiled, the conversation
- * owner executes the full typed response field over all relation families and
- * narrows the active request to the families that actually responded inside that
- * envelope. A supplied goal is likewise only accepted when that canonical entity
- * is present in the measured response field. The caller therefore cannot name an
- * unrelated read/goal and bypass prompt orientation.
+ * With GOAL_PRESENT, the caller's relation mask is an admissibility envelope:
+ * the complete typed response scan must witness that goal and the responding
+ * relation families before the explicit request can execute.
+ * Without GOAL_PRESENT, the native sparse coupling field and joint interpretation
+ * derive the goal and active relation families from the exact admitted prompt
+ * and its witnessed occurrences, not from the caller's guessed intent or mask.
+ * These routes share the same admitted structural and persistent providers.
+ * Version 3 retains the distinct receipts of both routes in the result below.
  */
 typedef struct laplace_cognition_prompt_conversation_request {
     laplace_cognition_turn_policy cognition_policy;
@@ -60,8 +71,15 @@ typedef struct laplace_cognition_prompt_conversation_result {
     laplace_digest256 composite_cognition_provider_fingerprint;
     laplace_digest256 orientation_context_fingerprint;
     laplace_cognition_response_scan_receipt orientation_receipt;
+    /* Present when an unbound prompt executed the sparse typed coupling field. */
+    laplace_digest256 orientation_coupling_receipt_id;
+    /* Present when coupling responses were lowered into joint interpretation. */
+    laplace_digest256 orientation_interpretation_receipt_id;
+    laplace_digest256 orientation_response_fingerprint;
+    laplace_id128 derived_goal_entity_id;
     laplace_cognition_conversation_result conversation;
     uint32_t orientation_relation_mask;
+    uint32_t orientation_disposition;
     uint32_t version;
     uint32_t reserved;
 } laplace_cognition_prompt_conversation_result;
@@ -71,13 +89,14 @@ typedef struct laplace_cognition_prompt_conversation_result {
  * composing its exact structural provider with zero or more caller-owned
  * persistent cognition providers.
  *
- * Before turn compilation, the same composite provider is traversed by the
- * response-field scanner starting from the whole admitted trunk. That scan is
- * set-wise, typed and bounded; it preserves structural, testimony, calculation,
- * geometry and standing channels separately and binds its receipt into the turn
- * context. Only then is the ordinary cognition request compiled. This prevents a
- * raw prompt from skipping orientation by supplying a preselected topic/read.
+ * Before turn compilation, an explicit goal is validated by the response scan
+ * over the whole admitted trunk. An unbound prompt instead executes the sparse
+ * multi-seed coupling field and joint interpretation across witnessed prompt
+ * occurrences. Both routes are typed and bounded, keep evidence channels
+ * distinct and bind their actual receipts into the turn context. A caller cannot
+ * skip orientation by supplying an unrelated goal, topic or guessed relation.
  *
+
  * The prompt admission and every additional provider state must remain alive for
  * the duration of this call. The provider set owns descriptor copies only. A
  * typed WHY_NOT preserves its complete nested result while publishing zero output

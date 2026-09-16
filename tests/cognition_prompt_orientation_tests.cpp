@@ -1,4 +1,6 @@
 #include "laplace/cognition_prompt_conversation.h"
+#include "laplace/identity.h"
+#include <cstring>
 
 #include <array>
 #include <cstddef>
@@ -107,3 +109,11 @@ TEST(CognitionPromptOrientation, RejectsCallerGoalThatDidNotTugBackFromPrompt) {
 }
 
 }  // namespace
+
+#include "cognition_prompt_orientation_tests_part00.inc"
+
+#include "cognition_prompt_orientation_tests_part01.inc"
+
+#include "cognition_prompt_orientation_tests_part02.inc"
+
+#include "cognition_prompt_orientation_tests_part03.inc"

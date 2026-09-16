@@ -1,0 +1,65 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "CognitionCoupling.PreservesMultiOccurrenceTypedBackReactionAndAlternativePaths",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-CONVERSATION-RANK1-TOPIC-NONCOLLAPSE"
+      ],
+      "covered_dimensions": [
+        "distinct occurrences of equal canonical content remain independent perturbation seeds",
+        "physicality and semantic paths to the same endpoint remain independently expandable instead of collapsing by endpoint",
+        "a downstream response records support from every prompt occurrence and every retained typed path"
+      ]
+    },
+    {
+      "ctest_name": "CognitionCoupling.RetainsTypedWitnessChannelsWithoutScalarFlattening",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-ENTITY-PHYSICALITY-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "structural physicality, testimony uncertainty and deterministic calculation remain distinct readable channels",
+        "query-relative coupling does not replace typed evidence state with one opaque relevance scalar"
+      ]
+    },
+    {
+      "ctest_name": "CognitionCoupling.RejectsASeedSetThatCannotFitTheDeclaredFrontier",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "prompt response-field execution is bounded before provider work and fails closed when the declared frontier cannot contain its occurrence seeds"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptOrientation.DerivesGoalAndRelationFamiliesFromWholePromptBackReaction",
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-CONVERSATION-RANK1-TOPIC-NONCOLLAPSE",
+        "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION",
+        "LP-TEST-SEMANTIC-ACT-REALIZATION-SEPARATION"
+      ],
+      "covered_dimensions": [
+        "a raw prompt with no explicit goal is oriented through the whole composite structural and semantic provider estate before cognition compilation",
+        "the caller relation mask cannot preselect the interpretation boundary for an unbound prompt",
+        "joint factor intersection across the responding prompt occurrences derives the cognition goal, relation families and context receipts before semantic completion and realization"
+      ]
+    },
+    {
+      "ctest_name": "CognitionPromptOrientation.AmbiguousJointBackReactionPublishesWhyNotInsteadOfRankOneGuess",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-RANK1-TOPIC-NONCOLLAPSE",
+        "LP-TEST-CONVERSATION-SEMANTIC-COMPLETION",
+        "LP-TEST-SEARCH-COGNITION-LOWERING"
+      ],
+      "covered_dimensions": [
+        "two equally compatible joint semantic bindings remain ambiguous rather than being broken by endpoint order, frequency or a scalar score",
+        "ambiguous prompt orientation publishes typed WHY_NOT before realization or materialization",
+        "coupling and interpretation receipts remain visible on the failed-closed public prompt result"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+#include "cognition_coupling_part00a.inc"
+#include "cognition_coupling_part00b.inc"
+#include "cognition_coupling_part01a.inc"
+#include "cognition_coupling_part01b.inc"
+#include "cognition_coupling_part02a.inc"
+#include "cognition_coupling_part02b.inc"
