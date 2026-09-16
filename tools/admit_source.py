@@ -11,6 +11,9 @@ import subprocess
 import sys
 from typing import Any, Sequence
 
+# Installed source modules are manifested package bytes; imports must not add caches.
+sys.dont_write_bytecode = True
+
 HEX = re.compile(r"^[0-9a-f]+$")
 HEX256 = re.compile(r"^[0-9a-f]{64}$")
 HEX128 = re.compile(r"^[0-9a-f]{32}$")
