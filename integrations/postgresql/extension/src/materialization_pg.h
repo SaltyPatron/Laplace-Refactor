@@ -38,6 +38,23 @@ void laplace_pg_materialization_provider_create(
     laplace_pg_materialization_provider_state** owner,
     laplace_cognition_materialization_provider_v1* provider);
 
+/* Require the exact retained view owner on every read. An absent owner or a
+ * mismatched source receipt is an integrity failure, never ordinary fallback. */
+void laplace_pg_materialization_provider_create_for_view(
+    const laplace_framework_context* context,
+    const laplace_digest256* required_view_id,
+    laplace_pg_materialization_provider_state** owner,
+    laplace_cognition_materialization_provider_v1* provider);
+
+/* The original source physicality is read under that retained observation's
+ * historical occurrence bindings, separately from generated reference views. */
+void laplace_pg_materialization_provider_create_for_view_selected(
+    const laplace_framework_context* context,
+    const laplace_digest256* required_view_id,
+    const laplace_digest256* original_root_physicality_id,
+    laplace_pg_materialization_provider_state** owner,
+    laplace_cognition_materialization_provider_v1* provider);
+
 void laplace_pg_materialization_provider_create_selected(
     const laplace_framework_context* context,
     const laplace_digest256* selection_receipt,

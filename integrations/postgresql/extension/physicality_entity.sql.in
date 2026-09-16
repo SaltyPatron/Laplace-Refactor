@@ -1,0 +1,269 @@
+-- Finite native derivations of existing immutable physicality records.
+-- The owner retains exact source/context/selectors; node metadata and child IDs
+-- are rebuildable candidate acceleration and are revalidated by native readback.
+-- Generated view physicalities are not deposited in the physicality table.
+CREATE TYPE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_selection AS (
+    parent_physicality_id bytea,
+    entity_id bytea,
+    selected_physicality_id bytea,
+    first_logical_ordinal numeric(20,0),
+    logical_count numeric(20,0),
+    metadata numeric(20,0),
+    version integer
+);
+
+-- One authenticated interval set may serve many descriptor views. Historical
+-- occurrence choices do not become fields in immutable descriptor identity.
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding_set (
+    binding_set_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 PRIMARY KEY,
+    parent_count bigint NOT NULL CHECK (parent_count >= 0),
+    binding_count bigint NOT NULL CHECK (binding_count >= 0),
+    logical_count numeric(20,0) NOT NULL CHECK (logical_count BETWEEN 0 AND 18446744073709551615),
+    exact_sources @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_known_entity_record[] NOT NULL
+        CHECK ((cardinality(exact_sources)=0 AND parent_count=0) OR
+            (array_ndims(exact_sources)=1 AND array_lower(exact_sources,1)=1 AND
+             cardinality(exact_sources)>0 AND array_position(exact_sources,NULL) IS NULL)),
+    CHECK ((parent_count = 0) = (binding_count = 0)),
+    CHECK ((parent_count = 0) = (logical_count = 0))
+);
+
+-- Each parent's authenticated intervals have an immutable owner independent
+-- of other roots admitted in the same execution batch.
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_parent (
+    parent_receipt_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 PRIMARY KEY,
+    parent_physicality_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality(physicality_id),
+    binding_count bigint NOT NULL CHECK (binding_count > 0),
+    logical_count numeric(20,0) NOT NULL CHECK (logical_count BETWEEN 1 AND 18446744073709551615),
+    UNIQUE (parent_receipt_id,parent_physicality_id)
+);
+CREATE INDEX physicality_occurrence_parent_physicality_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_parent
+    (parent_physicality_id,parent_receipt_id);
+
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding (
+    parent_receipt_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    parent_physicality_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality(physicality_id),
+    first_logical_ordinal numeric(20,0) NOT NULL CHECK (first_logical_ordinal BETWEEN 1 AND 18446744073709551615),
+    entity_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.entity(entity_id),
+    selected_physicality_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality(physicality_id),
+    logical_count numeric(20,0) NOT NULL CHECK (logical_count BETWEEN 1 AND 18446744073709551615),
+    metadata numeric(20,0) NOT NULL CHECK (metadata BETWEEN 0 AND 18446744073709551615),
+    version integer NOT NULL CHECK (version = 1),
+    PRIMARY KEY (parent_receipt_id,parent_physicality_id,first_logical_ordinal),
+    FOREIGN KEY (parent_receipt_id,parent_physicality_id)
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_parent
+        (parent_receipt_id,parent_physicality_id),
+    CHECK (first_logical_ordinal + logical_count - 1 <= 18446744073709551615)
+);
+CREATE INDEX physicality_occurrence_binding_selected_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding
+    (parent_receipt_id,selected_physicality_id);
+
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding_member (
+    binding_set_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding_set(binding_set_id),
+    parent_receipt_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    parent_physicality_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality(physicality_id),
+    PRIMARY KEY (binding_set_id,parent_physicality_id),
+    UNIQUE (binding_set_id,parent_receipt_id),
+    FOREIGN KEY (parent_receipt_id,parent_physicality_id)
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_parent
+        (parent_receipt_id,parent_physicality_id)
+);
+CREATE INDEX physicality_occurrence_binding_member_parent_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding_member
+    (parent_receipt_id,binding_set_id);
+
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_view (
+    view_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 PRIMARY KEY,
+    source_physicality_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality(physicality_id),
+    root_entity_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.entity(entity_id),
+    root_witness @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    admission_context @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context NOT NULL
+        CHECK (admission_context IS NOT NULL),
+    external_known @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_known_entity_record[] NOT NULL
+        CHECK (array_ndims(external_known) = 1 AND array_lower(external_known, 1) = 1
+            AND cardinality(external_known) > 0 AND array_position(external_known, NULL) IS NULL),
+    native_input_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    descriptor_recipe @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    maximum_requests bigint NOT NULL CHECK (maximum_requests > 0),
+    maximum_operands bigint NOT NULL CHECK (maximum_operands > 0),
+    maximum_carriers bigint NOT NULL CHECK (maximum_carriers >= 0),
+    maximum_logical_count numeric(20, 0) NOT NULL
+        CHECK (maximum_logical_count BETWEEN 1 AND 18446744073709551615),
+    binding_set_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding_set(binding_set_id),
+    CHECK (substring(root_witness FROM 1 FOR 16) = root_entity_id)
+);
+
+CREATE INDEX physicality_entity_view_source_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_view
+    (source_physicality_id, view_id);
+CREATE INDEX physicality_entity_view_root_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_view
+    (root_entity_id, view_id);
+
+-- A view can participate in several genuine framework deposition batches.
+-- Keep those execution receipts without changing its immutable derivation ID.
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_deposition (
+    view_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_view(view_id),
+    deposit_receipt_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.canonical_deposit_receipt(receipt_id),
+    PRIMARY KEY (deposit_receipt_id,view_id)
+);
+CREATE INDEX physicality_entity_deposition_view_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_deposition(view_id,deposit_receipt_id);
+
+CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_node (
+    view_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_view(view_id),
+    result_index bigint NOT NULL CHECK (result_index >= 0),
+    entity_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_id_128 NOT NULL
+        REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.entity(entity_id),
+    identity_witness @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    physicality_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+    physicality_metadata @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_record NOT NULL,
+    -- A native sorted, unique constituent set accelerates membership queries.
+    -- Exact ordered runs and metadata come from the retained derivation owner.
+    child_ids bytea[] NOT NULL,
+    PRIMARY KEY (view_id, result_index),
+    CHECK (substring(identity_witness FROM 1 FOR 16) = entity_id),
+    CHECK (physicality_metadata IS NOT NULL),
+    CHECK ((physicality_metadata).physicality_id = physicality_id
+        AND (physicality_metadata).entity_id = entity_id),
+    CHECK ((physicality_metadata).physicality_type = @LAPLACE_PG_PERSISTENCE_PHYSICALITY_COMPOSITION@
+        AND (physicality_metadata).vertex_class = @LAPLACE_PG_PERSISTENCE_VERTEX_TRAJECTORY_CARRIER@
+        AND (physicality_metadata).structural_form = @LAPLACE_PG_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION@
+        AND (physicality_metadata).recipe_version > 0
+        AND (physicality_metadata).dimension_count = 4
+        AND (physicality_metadata).flags = @LAPLACE_PG_PERSISTENCE_PHYSICALITY_FLAGS_NONE@),
+    CHECK (octet_length((physicality_metadata).recipe_fingerprint) = 32
+        AND octet_length((physicality_metadata).geometry_epoch) = 32
+        AND octet_length((physicality_metadata).trajectory_fingerprint) = 32),
+    CHECK ((physicality_metadata).centroid_x BETWEEN -1.0 AND 1.0
+        AND (physicality_metadata).centroid_y BETWEEN -1.0 AND 1.0
+        AND (physicality_metadata).centroid_z BETWEEN -1.0 AND 1.0
+        AND (physicality_metadata).centroid_m BETWEEN -1.0 AND 1.0
+        AND (physicality_metadata).radius BETWEEN 0.0 AND 1.0),
+    CHECK ((physicality_metadata).logical_count BETWEEN 1 AND 18446744073709551615
+        AND (physicality_metadata).vertex_count BETWEEN 1 AND (physicality_metadata).logical_count),
+    CHECK (array_ndims(child_ids) = 1 AND array_lower(child_ids, 1) = 1
+        AND cardinality(child_ids) BETWEEN 1 AND (physicality_metadata).vertex_count
+        AND array_position(child_ids, NULL) IS NULL
+        AND child_ids::@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_id_128[] IS NOT NULL)
+);
+
+CREATE INDEX physicality_entity_node_entity_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_node
+    (entity_id, physicality_id);
+CREATE INDEX physicality_entity_node_physicality_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_node
+    (physicality_id, view_id, result_index);
+CREATE INDEX physicality_entity_node_children_idx
+    ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_node
+    USING gin (child_ids);
+
+-- Inspect a stored varlena's raw length before fetching/detoasting its payload.
+-- The native binding rejects fixed-width inputs. This is storage metadata only.
+CREATE FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_varlena_bytes(anyelement)
+RETURNS bigint
+AS 'MODULE_PATHNAME', 'laplace_pg_physicality_entity_varlena_bytes'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_admit_batch(
+    admission_context @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context,
+    record_ids bytea[],
+    exact_external_inputs @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_known_entity_record[],
+    maximum_requests bigint,
+    maximum_operands bigint,
+    maximum_carriers bigint,
+    maximum_logical_count numeric,
+    preferred_batch_bytes bigint,
+    maximum_database_operations bigint,
+    exact_occurrence_selections @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_selection[]
+        DEFAULT ARRAY[]::@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_selection[])
+RETURNS TABLE (
+    record_id bytea,
+    view_id bytea,
+    root_entity_id bytea,
+    root_witness bytea,
+    entity_candidate_count bigint,
+    inserted_entity_count bigint,
+    derived_node_count bigint,
+    deposit_receipt_id bytea,
+    batch_database_operations bigint)
+AS 'MODULE_PATHNAME', 'laplace_pg_physicality_entity_admit_batch'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_view FROM PUBLIC;
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_node FROM PUBLIC;
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding_set FROM PUBLIC;
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_parent FROM PUBLIC;
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding FROM PUBLIC;
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_binding_member FROM PUBLIC;
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_deposition FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_entity_admit_batch(
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context, bytea[],
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.composition_known_entity_record[],
+    bigint, bigint, bigint, numeric, bigint, bigint,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.physicality_occurrence_selection[]) FROM PUBLIC;
+
+-- Ordinary canonical content readback carries its actual source receipt. It
+-- does not assert that a cognition realization or candidate selection occurred.
+CREATE TYPE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_materialization_result AS (
+    output bytea,
+    materialization_id bytea,
+    source_receipt_id bytea,
+    source_recipe_id bytea,
+    provider_fingerprint bytea,
+    readset_fingerprint bytea,
+    output_fingerprint bytea,
+    root_content_id bytea,
+    resolved_node_count numeric(20, 0),
+    trajectory_carrier_count numeric(20, 0),
+    codepoint_count numeric(20, 0),
+    output_bytes numeric(20, 0),
+    maximum_depth_observed integer,
+    status integer,
+    version integer
+);
+
+CREATE FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_materialize_utf8(
+    context @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context,
+    root_entity_id bytea,
+    source_receipt_id bytea,
+    source_recipe_id bytea,
+    request @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.cognition_materialization_request)
+RETURNS @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_materialization_result
+AS 'MODULE_PATHNAME', 'laplace_pg_content_materialize_utf8'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE EXECUTE ON FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_materialize_utf8(
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context, bytea, bytea, bytea,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.cognition_materialization_request) FROM PUBLIC;
+
+-- An original content read names both its retained occurrence owner and exact
+-- root physicality. Generated descriptor/reference reads use the five arguments
+-- above; each route authenticates its own interval evidence before traversal.
+CREATE FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_materialize_utf8(
+    context @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context,
+    root_entity_id bytea,
+    source_receipt_id bytea,
+    source_recipe_id bytea,
+    request @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.cognition_materialization_request,
+    root_physicality_id bytea)
+RETURNS @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_materialization_result
+AS 'MODULE_PATHNAME', 'laplace_pg_content_materialize_utf8'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+REVOKE EXECUTE ON FUNCTION @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.content_materialize_utf8(
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.execution_context, bytea, bytea, bytea,
+    @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.cognition_materialization_request, bytea) FROM PUBLIC;

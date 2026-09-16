@@ -468,6 +468,221 @@ class ChessDependencies(unittest.TestCase):
             self.assertEqual(hashlib.sha256(files[artifact["path"]]).hexdigest(), artifact["sha256"])
             self.assertEqual(TOOLS.git(source, "rev-parse", "HEAD:" + artifact["path"]), artifact["git_blob"])
 
+    def test_requested_diagnostic_distinguishes_absence_file_and_directory(self) -> None:
+        source, entry = self.source_fixture()
+        missing = self.directory / "absent parent" / "SF_19"
+        absent = TOOLS.diagnose_stockfish_path(missing, entry)
+        self.assertEqual("missing", absent["input_kind"])
+        self.assertEqual("missing-target", absent["resolution"])
+        self.assertEqual(str(self.directory.resolve()), absent["nearest_existing_directory"])
+        self.assertEqual(str(missing), absent["ancestry"][-1]["path"])
+        self.assertFalse(missing.parent.exists())
+        plain = self.directory / "plain file"
+        plain.write_bytes(b"preserved operator bytes")
+        file_view = TOOLS.diagnose_stockfish_path(plain, entry)
+        self.assertEqual("regular-file", file_view["input_kind"])
+        self.assertEqual("regular-file", file_view["resolved_kind"])
+        self.assertIsNone(file_view["git_marker_kind"])
+        blocked = TOOLS.diagnose_stockfish_path(plain / "child", entry)
+        self.assertEqual("not-a-directory", blocked["input_kind"])
+        self.assertEqual("non-directory-component", blocked["resolution"])
+        self.assertEqual(str(self.directory.resolve()), blocked["nearest_existing_directory"])
+        directory = self.directory / "plain directory"
+        directory.mkdir()
+        directory_view = TOOLS.diagnose_stockfish_path(directory, entry)
+        self.assertEqual("directory", directory_view["input_kind"])
+        self.assertEqual("directory", directory_view["resolved_kind"])
+        self.assertEqual("missing", directory_view["git_marker_kind"])
+        self.assertEqual(b"preserved operator bytes", plain.read_bytes())
+        self.assertEqual([], list(directory.iterdir()))
+
+    def test_requested_diagnostic_records_exact_official_checkout_without_writes(self) -> None:
+        source, entry = self.source_fixture()
+        before = (source / ".git/config").read_bytes()
+        head = (source / ".git/HEAD").read_bytes()
+        view = TOOLS.diagnose_stockfish_path(source, entry)
+        self.assertEqual("directory", view["git_marker_kind"])
+        self.assertEqual({"status": "observed-official-checkout", "stage": None,
+                          "top_level": str(source.resolve()), "origin": entry["upstream"],
+                          "commit": entry["revision"]}, view["enclosing_git"])
+        self.assertEqual(before, (source / ".git/config").read_bytes())
+        self.assertEqual(head, (source / ".git/HEAD").read_bytes())
+
+    def test_requested_diagnostic_finds_nested_root_without_promoting_selection(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        nested = source / "include"
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", nested):
+            receipt = TOOLS.select_stockfish_source(prefix)
+        requested = receipt["requested_checkout"]
+        self.assertFalse(requested["available"])
+        self.assertEqual("not-an-existing-git-checkout", requested["reason"])
+        self.assertEqual("missing", requested["diagnostic"]["git_marker_kind"])
+        self.assertEqual(str(source.resolve()), requested["diagnostic"]["enclosing_git"]["top_level"])
+        self.assertEqual(entry["revision"], requested["diagnostic"]["enclosing_git"]["commit"])
+        self.assertEqual("retained-configured-checkout", receipt["selection_reason"])
+        self.assertEqual(str(source), receipt["selected_source"])
+
+    def test_requested_diagnostic_accepts_real_git_file_worktree_marker(self) -> None:
+        source, entry = self.source_fixture()
+        worktree = self.directory / "linked worktree with spaces"
+        TOOLS.git(source, "worktree", "add", "--detach", str(worktree), entry["revision"])
+        marker = (worktree / ".git").read_bytes()
+        view = TOOLS.diagnose_stockfish_path(worktree, entry)
+        self.assertEqual("regular-file", view["git_marker_kind"])
+        self.assertEqual(str(worktree.resolve()), view["enclosing_git"]["top_level"])
+        self.assertEqual(entry["revision"], view["enclosing_git"]["commit"])
+        self.assertTrue(TOOLS.observe_stockfish_checkout(worktree, entry, official=True)["available"])
+        self.assertEqual(marker, (worktree / ".git").read_bytes())
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX symlinks")
+    def test_requested_diagnostic_keeps_link_kind_and_resolved_target_distinct(self) -> None:
+        source, entry = self.source_fixture()
+        alias = self.directory / "source alias"
+        alias.symlink_to(source, target_is_directory=True)
+        view = TOOLS.diagnose_stockfish_path(alias, entry)
+        self.assertEqual("symlink", view["input_kind"])
+        self.assertEqual("directory", view["resolved_kind"])
+        self.assertEqual(str(source.resolve()), view["resolved_path"])
+        self.assertEqual(str(source.resolve()), view["enclosing_git"]["top_level"])
+        self.assertEqual("symlink", view["ancestry"][-1]["kind"])
+        dangling = self.directory / "dangling alias"
+        dangling.symlink_to(self.directory / "missing target")
+        unavailable = TOOLS.diagnose_stockfish_path(dangling, entry)
+        self.assertEqual("symlink", unavailable["input_kind"])
+        self.assertEqual("missing-target", unavailable["resolution"])
+        self.assertIsNone(unavailable["resolved_path"])
+        loop = self.directory / "loop"
+        loop.symlink_to(loop)
+        self.assertEqual("resolution-failed", TOOLS.diagnose_stockfish_path(loop, entry)["resolution"])
+        self.assertEqual(str(source), os.readlink(alias))
+        self.assertTrue(dangling.is_symlink())
+
+    def test_requested_diagnostic_invalid_marker_retains_kind_and_failed_stage(self) -> None:
+        _, entry = self.source_fixture()
+        directory = self.directory / "broken marker"
+        directory.mkdir()
+        marker = directory / ".git"
+        marker.write_text("not a valid Git marker\n")
+        view = TOOLS.diagnose_stockfish_path(directory, entry)
+        self.assertEqual("regular-file", view["git_marker_kind"])
+        self.assertEqual("observation-failed", view["enclosing_git"]["status"])
+        self.assertEqual("top-level", view["enclosing_git"]["stage"])
+        self.assertIsNone(view["enclosing_git"]["top_level"])
+        self.assertEqual("not a valid Git marker\n", marker.read_text())
+
+    def test_requested_diagnostic_does_not_echo_rejected_origin_or_command_errors(self) -> None:
+        source, entry = self.source_fixture()
+        origin = "https://operator:secret-token@example.invalid/unrelated.git"
+        TOOLS.git(source, "remote", "set-url", "origin", origin)
+        rejected = TOOLS.diagnose_stockfish_path(source, entry)
+        self.assertEqual("origin-not-official", rejected["enclosing_git"]["status"])
+        self.assertEqual(str(source.resolve()), rejected["enclosing_git"]["top_level"])
+        self.assertIsNone(rejected["enclosing_git"]["origin"])
+        self.assertIsNone(rejected["enclosing_git"]["commit"])
+        with patch.object(TOOLS.subprocess, "run", return_value=subprocess.CompletedProcess(
+                ["git"], 128, stdout=origin, stderr="secret-token: unsafe directory")):
+            failed = TOOLS.diagnose_stockfish_path(source, entry)
+        self.assertEqual("observation-failed", failed["enclosing_git"]["status"])
+        self.assertEqual("top-level", failed["enclosing_git"]["stage"])
+        self.assertNotIn("secret-token", json.dumps([rejected, failed]))
+
+    def test_requested_diagnostic_refuses_oversized_or_multiline_git_metadata(self) -> None:
+        source, entry = self.source_fixture()
+        original = subprocess.run
+        for stage, failed_call in (("top-level", 1), ("origin", 2), ("commit", 3)):
+            for output in ("x" * 4097, "unexpected\nsecond-line"):
+                with self.subTest(stage=stage, output_length=len(output)):
+                    calls = 0
+                    def invalid_output(command, **options):
+                        nonlocal calls
+                        calls += 1
+                        if calls == failed_call:
+                            return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+                        return original(command, **options)
+                    with patch.object(TOOLS.subprocess, "run", side_effect=invalid_output):
+                        view = TOOLS.diagnose_stockfish_path(source, entry)
+                    self.assertEqual(failed_call, calls)
+                    self.assertEqual(stage, view["enclosing_git"]["stage"])
+                    self.assertEqual("observation-failed", view["enclosing_git"]["status"])
+                    self.assertIsNone(view["enclosing_git"]["commit"])
+                    self.assertNotIn(output, json.dumps(view))
+
+    def test_requested_diagnostic_cannot_follow_inherited_repository_selectors(self) -> None:
+        source, entry = self.source_fixture()
+        unrelated = self.directory / "unrelated"
+        unrelated.mkdir()
+        subprocess.run(["git", "init", "--quiet", str(unrelated)], check=True)
+        inherited = {"GIT_DIR": str(unrelated / ".git"), "GIT_WORK_TREE": str(unrelated),
+                     "GIT_COMMON_DIR": str(unrelated / ".git"), "GIT_CONFIG_COUNT": "1",
+                     "GIT_CONFIG_KEY_0": "core.worktree", "GIT_CONFIG_VALUE_0": str(unrelated)}
+        original = subprocess.run
+        calls = []
+        def inspected(command, **options):
+            calls.append(command)
+            self.assertEqual(2, options["timeout"])
+            self.assertEqual(subprocess.DEVNULL, options["stdin"])
+            for key in inherited:
+                self.assertNotIn(key, options["env"])
+            self.assertEqual("1", options["env"]["GIT_NO_REPLACE_OBJECTS"])
+            self.assertEqual("0", options["env"]["GIT_TERMINAL_PROMPT"])
+            return original(command, **options)
+        with patch.dict(os.environ, inherited), \
+             patch.object(TOOLS.subprocess, "run", side_effect=inspected):
+            view = TOOLS.diagnose_stockfish_path(source / "include", entry)
+            self.assertEqual(inherited["GIT_DIR"], os.environ["GIT_DIR"])
+        self.assertEqual(3, len(calls))
+        self.assertEqual(str(source.resolve()), view["enclosing_git"]["top_level"])
+        self.assertEqual(entry["revision"], view["enclosing_git"]["commit"])
+
+    def test_requested_diagnostic_timeout_does_not_change_source_selection(self) -> None:
+        source, entry = self.source_fixture()
+        prefix = self.installed_source_fixture(source, entry)
+        requested = self.directory / "plain requested"
+        requested.mkdir()
+        original = subprocess.run
+        def timeout_diagnostic(command, **options):
+            if options.get("timeout") == 2:
+                raise subprocess.TimeoutExpired(command, 2, output="secret-token")
+            return original(command, **options)
+        with patch.object(TOOLS, "REQUESTED_STOCKFISH_SOURCE", requested), \
+             patch.object(TOOLS.subprocess, "run", side_effect=timeout_diagnostic):
+            receipt = TOOLS.select_stockfish_source(prefix)
+        self.assertEqual("command-timeout", receipt["requested_checkout"]["diagnostic"]["enclosing_git"]["status"])
+        self.assertEqual(str(source), receipt["selected_source"])
+        self.assertEqual("retained-configured-checkout", receipt["selection_reason"])
+        self.assertFalse(receipt["requested_checkout"]["available"])
+        self.assertNotIn("secret-token", json.dumps(receipt))
+
+    def test_requested_diagnostic_permission_failure_is_not_claimed_absent(self) -> None:
+        _, entry = self.source_fixture()
+        requested = self.directory / "inaccessible"
+        requested.mkdir()
+        original_lstat = Path.lstat
+        original_resolve = Path.resolve
+        def denied_lstat(path, *args, **kwargs):
+            if path == requested:
+                raise PermissionError("private detail")
+            return original_lstat(path, *args, **kwargs)
+        def denied_resolve(path, *args, **kwargs):
+            if path == requested:
+                raise PermissionError("private detail")
+            return original_resolve(path, *args, **kwargs)
+        with patch.object(Path, "lstat", denied_lstat), patch.object(Path, "resolve", denied_resolve):
+            view = TOOLS.diagnose_stockfish_path(requested, entry)
+        self.assertEqual("permission-denied", view["input_kind"])
+        self.assertEqual("permission-denied", view["resolution"])
+        self.assertEqual("permission-denied", view["ancestry"][-1]["kind"])
+        self.assertEqual(str(self.directory.resolve()), view["nearest_existing_directory"])
+        self.assertNotIn("private detail", json.dumps(view))
+
+    def test_requested_diagnostic_ancestry_bound_prevents_git_probe(self) -> None:
+        _, entry = self.source_fixture()
+        with patch.object(TOOLS.subprocess, "run", side_effect=AssertionError("out-of-bound path must not run Git")):
+            view = TOOLS.diagnose_stockfish_path(Path("/") / Path(*(["component"] * 65)), entry)
+        self.assertEqual([], view["ancestry"])
+        self.assertEqual("observation-failed", view["enclosing_git"]["status"])
+
     def test_snapshot_stops_when_a_file_grows_past_its_observed_bound(self) -> None:
         source, entry = self.source_fixture()
         path = source / "source.cpp"
@@ -789,6 +1004,248 @@ class ChessDependencies(unittest.TestCase):
         with patch.object(TOOLS, "execute", side_effect=["cutechess-cli 1.5.1\nUsing Qt version 6.11.2\n", "-engine -pgnout -repeat -openings"]) as execute:
             TOOLS.probe_cutechess(["selected-cli"], environment=environment)
         self.assertEqual([call.kwargs["env"] for call in execute.call_args_list], [environment, environment])
+
+    def gui_sdk_fixture(self) -> Path:
+        # Files identify a controlled SDK fixture; they are never loaded as Qt.
+        sdk = self.directory / "Qt SDK with spaces"
+        for name in ("Core", "Gui", "Widgets", "Concurrent", "Svg", "PrintSupport", "Core5Compat"):
+            path = sdk / f"lib/cmake/Qt6{name}/Qt6{name}Config.cmake"
+            path.parent.mkdir(parents=True)
+            path.write_text(f"# {name} fixture\n")
+        version = sdk / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
+        version.parent.mkdir(parents=True)
+        version.write_text('set(PACKAGE_VERSION "6.11.2")\n')
+        suffix, lead = (".dll", "") if platform.system() == "Windows" else (".dylib", "lib") if platform.system() == "Darwin" else (".so", "lib")
+        plugin = sdk / "plugins/platforms" / (lead + "qoffscreen" + suffix)
+        plugin.parent.mkdir(parents=True)
+        plugin.write_bytes(b"fixture identity; not a loadable plugin")
+        return sdk
+
+    def gui_protocol_fixture(self, *, version: str = "1.5.1", qt: str = "6.11.2",
+                             emit_plugin: bool = True, exit_code: int = 0,
+                             plugin: str | None = None) -> list[str]:
+        # This actual child process exercises receipt/probe transport only.
+        # Actual Qt initialization is exercised by the candidate's official GUI.
+        script = self.directory / "gui_protocol_fixture.py"
+        script.write_text("\n".join([
+            "import json, os, pathlib, sys",
+            "assert sys.argv[1:] == ['-platform', 'offscreen', '--version']",
+            "assert os.environ['QT_QPA_PLATFORM'] == 'offscreen'",
+            "assert os.environ['QT_DEBUG_PLUGINS'] == '1'",
+            "assert not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY')",
+            "assert pathlib.Path(os.environ['XDG_CONFIG_HOME']).is_dir()",
+            "assert pathlib.Path(os.environ['XDG_CONFIG_DIRS']).is_dir()",
+            "assert sys.stdin.read() == ''",
+            f"print('Cute Chess {version}')",
+            f"print('Using Qt version {qt}')",
+            "platforms = pathlib.Path(os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'])",
+            f"selected = {plugin!r}",
+            "if selected is None: selected = str(next(platforms.glob('*qoffscreen.*')))",
+            f"if {emit_plugin!r}: print('qt.core.library: ' + json.dumps(selected) + ' loaded library', file=sys.stderr)",
+            f"sys.exit({exit_code})",
+        ]) + "\n")
+        return [sys.executable, str(script)]
+
+    def test_gui_probe_runs_child_with_isolated_settings_and_exact_plugin_evidence(self) -> None:
+        sdk = self.gui_sdk_fixture()
+        command = self.gui_protocol_fixture()
+        with patch.object(TOOLS, "SCRATCH", self.directory), \
+             patch.dict(os.environ, {"DISPLAY": ":123", "WAYLAND_DISPLAY": "inherited-wayland",
+                                     "QT_QPA_PLATFORM": "xcb", "QT_PLUGIN_PATH": "/other/sdk"}):
+            before = os.environ.copy()
+            receipt = TOOLS.probe_cutechess_gui(command, sdk)
+            self.assertEqual(before, os.environ.copy())
+        self.assertEqual("ready-headless", receipt["disposition"])
+        self.assertTrue(receipt["qapplication_initialized"])
+        self.assertFalse(receipt["interactive_desktop_tested"])
+        self.assertIsNone(receipt["interactive_desktop_ready"])
+        self.assertEqual({"DISPLAY": True, "WAYLAND_DISPLAY": True}, receipt["display_environment_present"])
+        plugin = receipt["loaded_offscreen_plugin"]
+        self.assertEqual(TOOLS.digest(Path(plugin["path"])), plugin["sha256"])
+        self.assertEqual(command + ["-platform", "offscreen", "--version"], receipt["command"])
+        self.assertGreaterEqual(receipt["elapsed_seconds"], 0)
+        self.assertEqual([], list(self.directory.glob("cutechess-gui-probe-*")))
+
+    def test_gui_inventory_records_both_split_and_unified_wayland_plugins(self) -> None:
+        with patch.object(TOOLS.platform, "system", return_value="Linux"):
+            sdk = self.gui_sdk_fixture()
+            paths = {name: sdk / "plugins/platforms" / filename for name, filename in
+                     (("wayland", "libqwayland.so"),
+                      ("wayland_generic", "libqwayland-generic.so"),
+                      ("wayland_egl", "libqwayland-egl.so"))}
+            paths["wayland_generic"].write_bytes(b"split generic fixture")
+            paths["wayland_egl"].write_bytes(b"split EGL fixture")
+            split = TOOLS.qt_gui_inventory(sdk)
+            self.assertFalse(split["plugins"]["wayland"]["present"])
+            for name in ("wayland_generic", "wayland_egl"):
+                self.assertTrue(split["plugins"][name]["present"])
+                self.assertEqual(str(paths[name]), split["plugins"][name]["path"])
+                self.assertEqual(TOOLS.digest(paths[name]), split["plugins"][name]["sha256"])
+                paths[name].unlink()
+            paths["wayland"].write_bytes(b"unified fixture")
+            unified = TOOLS.qt_gui_inventory(sdk)
+            self.assertTrue(unified["plugins"]["wayland"]["present"])
+            self.assertEqual(TOOLS.digest(paths["wayland"]), unified["plugins"]["wayland"]["sha256"])
+            for name in ("wayland_generic", "wayland_egl"):
+                self.assertFalse(unified["plugins"][name]["present"])
+                self.assertIsNone(unified["plugins"][name]["sha256"])
+            self.assertIn("CMake package configuration files", unified["module_identity_scope"])
+            self.assertIn("shared-library binaries are not hashed", unified["module_identity_scope"])
+
+    def test_gui_probe_does_not_claim_cross_platform_settings_isolation(self) -> None:
+        expected = {"Linux": "isolated-XDG-probe",
+                    "Darwin": "isolated-XDG-INI-user-settings; system and Qt native settings not isolated",
+                    "Windows": "Windows-user-known-folder; version branch only"}
+        for system, scope in expected.items():
+            with self.subTest(system=system), tempfile.TemporaryDirectory(dir=self.directory) as scratch:
+                with patch.object(self, "directory", Path(scratch)), \
+                     patch.object(TOOLS, "SCRATCH", Path(scratch)), \
+                     patch.object(TOOLS.platform, "system", return_value=system):
+                    sdk = self.gui_sdk_fixture()
+                    receipt = TOOLS.probe_cutechess_gui(self.gui_protocol_fixture(), sdk)
+                    self.assertEqual(scope, receipt["settings_scope"])
+                    self.assertFalse(receipt["interactive_desktop_tested"])
+                    self.assertEqual([], list(Path(scratch).glob("cutechess-gui-probe-*")))
+
+    def test_gui_version_without_plugin_load_cannot_be_ready(self) -> None:
+        sdk = self.gui_sdk_fixture()
+        with patch.object(TOOLS, "SCRATCH", self.directory):
+            for options, message in (({"emit_plugin": False}, "did not prove"),
+                                     ({"version": "1.0.0"}, "version mismatch"),
+                                     ({"qt": "6.8.0"}, "selected SDK"),
+                                     ({"exit_code": 7}, "initialization failed")):
+                with self.subTest(options=options), self.assertRaisesRegex(TOOLS.ChessToolError, message):
+                    TOOLS.probe_cutechess_gui(self.gui_protocol_fixture(**options), sdk)
+
+    def test_gui_probe_rejects_another_sdk_plugin_even_with_matching_bytes(self) -> None:
+        sdk = self.gui_sdk_fixture()
+        inventory = TOOLS.qt_gui_inventory(sdk)
+        original = Path(inventory["plugins"]["offscreen"]["path"])
+        other = self.directory / "other SDK" / original.name
+        other.parent.mkdir()
+        other.write_bytes(original.read_bytes())
+        with patch.object(TOOLS, "SCRATCH", self.directory), \
+             self.assertRaisesRegex(TOOLS.ChessToolError, "selected offscreen plugin"):
+            TOOLS.probe_cutechess_gui(self.gui_protocol_fixture(plugin=str(other)), sdk)
+
+    def test_gui_module_and_offscreen_absence_fail_before_process_launch(self) -> None:
+        sdk = self.gui_sdk_fixture()
+        svg = sdk / "lib/cmake/Qt6Svg/Qt6SvgConfig.cmake"
+        raw = svg.read_bytes()
+        with patch.object(TOOLS.subprocess, "run", side_effect=AssertionError("missing dependencies must refuse before launch")):
+            svg.unlink()
+            with self.assertRaisesRegex(TOOLS.ChessToolError, "module is missing: Svg"):
+                TOOLS.probe_cutechess_gui(["unlaunched"], sdk)
+            svg.write_bytes(raw)
+            offscreen = Path(TOOLS.qt_gui_inventory(sdk)["plugins"]["offscreen"]["path"])
+            offscreen.unlink()
+            with self.assertRaisesRegex(TOOLS.ChessToolError, "offscreen platform plugin is missing"):
+                TOOLS.probe_cutechess_gui(["unlaunched"], sdk)
+
+    def test_gui_reuse_refuses_changed_binary_or_plugin_before_launch(self) -> None:
+        sdk = self.gui_sdk_fixture()
+        binary = self.directory / "gui bytes"
+        binary.write_bytes(b"fixture artifact, not executed")
+        tool = {"qt_prefix": str(sdk), "gui": {"executable": str(binary),
+                "sha256": TOOLS.digest(binary), "checks": {"qt": TOOLS.qt_gui_inventory(sdk)}}}
+        with patch.object(TOOLS, "probe_cutechess_gui", side_effect=AssertionError("tamper must refuse before launch")):
+            binary.write_bytes(b"changed artifact")
+            with self.assertRaisesRegex(TOOLS.ChessToolError, "executable differs"):
+                TOOLS.verify_cutechess_gui(tool)
+            binary.write_bytes(b"fixture artifact, not executed")
+            Path(tool["gui"]["checks"]["qt"]["plugins"]["offscreen"]["path"]).write_bytes(b"changed plugin")
+            with self.assertRaisesRegex(TOOLS.ChessToolError, "inventory differs"):
+                TOOLS.verify_cutechess_gui(tool)
+
+    def test_gui_timeout_cleans_settings_without_publishing_readiness(self) -> None:
+        sdk = self.gui_sdk_fixture()
+        with patch.object(TOOLS, "SCRATCH", self.directory), \
+             patch.object(TOOLS.subprocess, "run", side_effect=subprocess.TimeoutExpired(["fixture"], 30)):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                TOOLS.probe_cutechess_gui(["fixture"], sdk)
+        self.assertEqual([], list(self.directory.glob("cutechess-gui-probe-*")))
+
+    @unittest.skipUnless(os.name == "posix" and shutil.which("cmake"), "actual CMake fixture target dispatch requires POSIX and CMake")
+    def test_gui_build_uses_actual_targets_and_survives_plain_reinstall(self) -> None:
+        source, entry = self.source_fixture()
+        sdk = self.gui_sdk_fixture()
+        # A tiny independent CMake project proves our installer invokes both
+        # upstream target names; its executable is a protocol fixture, not Qt.
+        script = source / "fixture.py"
+        script.write_text("\n".join([
+            "#!/usr/bin/env python3",
+            "import json, os, pathlib, sys",
+            "gui = pathlib.Path(sys.argv[0]).name == 'cutechess'",
+            "if '--help' in sys.argv: print('-engine -pgnout -repeat -openings')",
+            "else:",
+            "    print('Cute Chess 1.5.1' if gui else 'cutechess-cli 1.5.1')",
+            "    print('Using Qt version 6.11.2')",
+            "    if gui:",
+            "        plugin = next(pathlib.Path(os.environ['QT_QPA_PLATFORM_PLUGIN_PATH']).glob('*qoffscreen.*'))",
+            "        print('qt.core.library: ' + json.dumps(str(plugin)) + ' loaded library', file=sys.stderr)",
+        ]) + "\n")
+        script.chmod(0o755)
+        (source / "CMakeLists.txt").write_text("\n".join([
+            "cmake_minimum_required(VERSION 3.20)",
+            "project(installer_dispatch_fixture NONE)",
+            "foreach(pair IN ITEMS cli gui)",
+            '  if(pair STREQUAL "cli")',
+            "    set(output cutechess-cli)",
+            "  else()",
+            "    set(output cutechess)",
+            "  endif()",
+            "  add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/${output}",
+            "    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/fixture.py ${CMAKE_BINARY_DIR}/${output}",
+            "    DEPENDS ${CMAKE_SOURCE_DIR}/fixture.py)",
+            "  add_custom_target(${pair} DEPENDS ${CMAKE_BINARY_DIR}/${output})",
+            "endforeach()",
+        ]) + "\n")
+        TOOLS.git(source, "add", ".")
+        TOOLS.git(source, "-c", "user.name=Dependency Test", "-c", "user.email=test@example.invalid",
+                  "commit", "--quiet", "-m", "independent target dispatch fixture")
+        entry["revision"] = TOOLS.git(source, "rev-parse", "HEAD")
+        entry["git_archive_sha256"] = hashlib.sha256(subprocess.check_output(
+            ["git", "-C", str(source), "archive", "--format=tar", "HEAD"])).hexdigest()
+        arguments = argparse.Namespace(tool="cutechess", prefix=self.directory / "installed",
+            build_root=self.directory / "build", qt_prefix=sdk, jobs=1, offline=True, cutechess_gui=False)
+        original_read = TOOLS.json_read
+        def fixture_lock(path):
+            return {"dependencies": {"cutechess": entry}} if path == TOOLS.ROOT / "dependencies/lock.json" else original_read(path)
+        with patch.object(TOOLS, "SCRATCH", self.directory), patch.object(TOOLS, "json_read", side_effect=fixture_lock), \
+             patch.object(TOOLS, "tool_source", return_value=source):
+            cli_only = TOOLS.build_tools(arguments, self.selected, self.artifacts)
+            self.assertNotIn("gui", cli_only["tools"]["cutechess"])
+            arguments.cutechess_gui = True
+            installed = TOOLS.build_tools(arguments, self.selected, self.artifacts)
+            gui = installed["tools"]["cutechess"]["gui"]
+            self.assertEqual("gui", gui["build_target"])
+            self.assertEqual("cutechess-cli", Path(installed["tools"]["cutechess"]["executable"]).name)
+            self.assertEqual("cutechess", Path(gui["executable"]).name)
+            self.assertEqual([gui["executable"]], gui["direct_launch"]["argv"])
+            self.assertEqual(TOOLS.digest(Path(gui["executable"])), gui["sha256"])
+            Path(gui["executable"]).write_text("stale former GUI")
+            arguments.cutechess_gui = False
+            rebuilt = TOOLS.build_tools(arguments, self.selected, self.artifacts)
+            self.assertEqual(gui["sha256"], rebuilt["tools"]["cutechess"]["gui"]["sha256"])
+            checked = TOOLS.verify_installation(arguments.prefix, self.selected, self.artifacts, "cutechess", with_gui=True)
+            self.assertEqual("ready-headless", checked["tools"]["cutechess"]["gui"]["checks"]["disposition"])
+            persisted = original_read(arguments.prefix / "current.json")
+            self.assertEqual(rebuilt["tools"]["cutechess"]["gui"], persisted["tools"]["cutechess"]["gui"])
+            for gui_flag, expected in (([], persisted["tools"]["cutechess"]["executable"]),
+                                       (["--cutechess-gui"], gui["executable"])):
+                argv = ["chess_tools.py", "run", "--prefix", str(arguments.prefix),
+                        "--tool", "cutechess", *gui_flag, "--", "--version"]
+                with patch.object(sys, "argv", argv), patch.object(TOOLS.subprocess, "call", return_value=23) as launched:
+                    self.assertEqual(23, TOOLS.main())
+                self.assertEqual([expected, "--version"], launched.call_args.args[0])
+                if gui_flag:
+                    self.assertEqual(str(sdk / "plugins"), launched.call_args.kwargs["env"]["QT_PLUGIN_PATH"])
+
+    def test_gui_candidate_workflow_explicitly_installs_and_checks_gui(self) -> None:
+        workflow = (ROOT / ".github/workflows/chess-calibration.yml").read_text()
+        self.assertIn("scripts/setup-chess.sh --cutechess-gui", workflow)
+        self.assertIn("chess_tools.py check --tool cutechess --cutechess-gui", workflow)
+        self.assertIn('tee "$output/cutechess-gui-readiness.json"', workflow)
 
     def test_sdk_pip_bootstrap_does_not_require_unsupported_report_option(self) -> None:
         _, artifacts = TOOLS.configuration()

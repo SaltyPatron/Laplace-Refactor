@@ -1,4 +1,5 @@
 #include "postgres.h"
+#include <string.h>
 
 #include "catalog/pg_type.h"
 #include "utils/builtins.h"
@@ -69,6 +70,59 @@ void laplace_pg_physicality_binding_open(
     laplace_pg_composite_binding_open(
         "physicality_record", attribute_types, attribute_typmods,
         18, binding);
+}
+
+void laplace_pg_physicality_read_record(
+    Datum value, laplace_persistence_physicality_record* physicality) {
+    HeapTupleHeader tuple = DatumGetHeapTupleHeader(value);
+    uint32_t* scalars[6];
+    bytea* id;
+    laplace_digest256 actual;
+    int index;
+    if (physicality == NULL)
+        ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+            errmsg("Laplace physicality output cannot be null")));
+    memset(physicality, 0, sizeof(*physicality));
+    laplace_pg_read_digest(laplace_pg_required_composite_attribute(
+        tuple, 1, "physicality_id"), &physicality->physicality_id, "physicality_id");
+    id = DatumGetByteaPP(laplace_pg_required_composite_attribute(tuple, 2, "entity_id"));
+    if ((size_t)VARSIZE_ANY_EXHDR(id) != sizeof(physicality->entity_id.bytes))
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace physicality entity identity has invalid width")));
+    memcpy(physicality->entity_id.bytes, VARDATA_ANY(id), sizeof(physicality->entity_id.bytes));
+    scalars[0] = &physicality->physicality_type;
+    scalars[1] = &physicality->vertex_class;
+    scalars[2] = &physicality->recipe_version;
+    scalars[3] = &physicality->structural_form;
+    scalars[4] = &physicality->dimension_count;
+    scalars[5] = &physicality->flags;
+    for (index = 0; index < 6; ++index) {
+        int32 scalar = DatumGetInt32(laplace_pg_required_composite_attribute(
+            tuple, index + 3, "physicality scalar"));
+        if (scalar < 0)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace physicality scalar cannot be negative")));
+        *scalars[index] = (uint32_t)scalar;
+    }
+    laplace_pg_read_digest(laplace_pg_required_composite_attribute(tuple, 9, "recipe_fingerprint"),
+        &physicality->recipe_fingerprint, "recipe_fingerprint");
+    laplace_pg_read_digest(laplace_pg_required_composite_attribute(tuple, 10, "geometry_epoch"),
+        &physicality->geometry_epoch, "geometry_epoch");
+    laplace_pg_read_digest(laplace_pg_required_composite_attribute(tuple, 11, "trajectory_fingerprint"),
+        &physicality->trajectory_fingerprint, "trajectory_fingerprint");
+    for (index = 0; index < 4; ++index)
+        physicality->centroid.component[index] = DatumGetFloat8(
+            laplace_pg_required_composite_attribute(tuple, index + 12, "centroid"));
+    physicality->radius = DatumGetFloat8(
+        laplace_pg_required_composite_attribute(tuple, 16, "radius"));
+    physicality->logical_count = laplace_pg_uint64_from_numeric(
+        laplace_pg_required_composite_attribute(tuple, 17, "logical_count"), "logical_count");
+    physicality->vertex_count = laplace_pg_uint64_from_numeric(
+        laplace_pg_required_composite_attribute(tuple, 18, "vertex_count"), "vertex_count");
+    if (laplace_persistence_physicality_identify(physicality, &actual) != LAPLACE_PERSISTENCE_OK ||
+        memcmp(actual.bytes, physicality->physicality_id.bytes, sizeof(actual.bytes)) != 0)
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace physicality fields differ from their native immutable identity")));
 }
 
 Datum laplace_pg_physicality_record(

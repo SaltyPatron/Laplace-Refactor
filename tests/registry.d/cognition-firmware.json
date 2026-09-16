@@ -216,6 +216,24 @@
       "covered_dimensions": [
         "Concrete provider workspace is reserved with native state before any provider executes; overflow cannot authorize work."
       ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.ExactPromptWitnessFromAnotherProviderIsReusedByNativeFirmware",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "Actual native prompt AA constituent witnesses exposed by two provider descriptors execute through shared firmware and emit A without duplicate transition failure or invented independent evidence; this controlled native fixture does not establish installed PostgreSQL behavior"
+      ]
+    },
+    {
+      "ctest_name": "CognitionFirmware.MatchingWitnessDoesNotHideMalformedCandidateFromAnotherProvider",
+      "evidence_targets": [
+        "LP-TEST-CONVERSATION-ONE-OP-COMPILER"
+      ],
+      "covered_dimensions": [
+        "An invalid body sharing an exact prompt witness fingerprint remains visible to the native candidate validator and withholds firmware output and realization"
+      ]
     }
   ]
 }

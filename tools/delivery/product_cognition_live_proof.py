@@ -253,6 +253,13 @@ def request_sql(identities: dict[str, Any], program_id: str) -> str:
 FAILURE_SCHEMA = "laplace.installed-product-cognition-failure/v1"
 MAX_FAILURE_OUTPUT_BYTES = 65536
 NATIVE_FAILURE_MARKER = "LAPLACE_COGNITION_FAILURE "
+NATIVE_FAILURE_COUNTER_FIELDS = (
+    "status", "failed_step", "native_status", "native_disposition",
+    "physical_provider_rows", "physical_provider_batches", "semantic_provider_rows",
+    "semantic_database_operations", "materialization_nodes",
+    "materialization_trajectory_reads", "materialization_trajectory_bytes",
+    "materialization_database_operations",
+)
 
 
 def bounded_output(content: str) -> dict[str, Any]:
@@ -280,13 +287,7 @@ def native_failure_diagnostic(stderr: str, result: Any) -> dict[str, Any]:
         diagnostic = json.loads(lines[0])
     except json.JSONDecodeError:
         return {"state": "invalid", "reason": "native marker is not JSON"}
-    fields = (
-        "status", "failed_step", "native_status", "native_disposition",
-        "physical_provider_rows", "physical_provider_batches", "semantic_provider_rows",
-        "semantic_database_operations", "materialization_nodes",
-        "materialization_trajectory_reads", "materialization_trajectory_bytes",
-        "materialization_database_operations",
-    )
+    fields = NATIVE_FAILURE_COUNTER_FIELDS
     if (
         not isinstance(diagnostic, dict)
         or diagnostic.get("schema") != "laplace.cognition-failure-diagnostic/v1"
@@ -356,6 +357,22 @@ def retain_execution_failure(
     if failure_artifact is not None:
         failure_artifact.parent.mkdir(parents=True, exist_ok=True)
         failure_artifact.write_text(encoded, encoding="utf-8")
+
+    # Publish the exact retained identity and validated native counters to the
+    # ordinary CI log. Raw SQL, prompt and process output stay in the artifact.
+    native = document["native_failure"]
+    visible_native = {key: native[key] for key in ("state", "reason") if key in native}
+    if isinstance(native.get("diagnostic"), dict):
+        visible_native["diagnostic"] = {
+            key: native["diagnostic"][key]
+            for key in ("schema", *NATIVE_FAILURE_COUNTER_FIELDS)
+        }
+    print(json.dumps({
+        "schema": "laplace.installed-product-cognition-failure-log/v1",
+        "label": label,
+        "failure_sha256": document["failure_sha256"],
+        "native_failure": visible_native,
+    }, sort_keys=True), flush=True)
 
 
 def execute_product(

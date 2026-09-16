@@ -142,6 +142,147 @@
         "source roots reconstruct exact ordered Unicode through the shared trajectory validator",
         "a changed trajectory fails canonical identity and publishes no partial bytes"
       ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.EveryRootBeginsItsOwnAuthenticatedScope",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "every native materialization begins the actual root before provider reads",
+        "root A then B then A preserves exact single-call output and receipt",
+        "changing only authenticated scope changes readset and materialization identity"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.BeginFailureAndInvalidMinorCannotReadOrPublish",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "a failed root admission performs no node or trajectory read and publishes no output",
+        "an unknown ABI minor rejects before the callback"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.MinorZeroIgnoresTailAndPreservesExistingReceipt",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "ABI minor zero never reads the optional begin callback",
+        "unscoped minor zero and minor one preserve the same native receipt"
+      ]
+    },
+    {
+      "ctest_name": "content-materialization.mutation-root-scope-receipt-omission-detected",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "the actual native owner with scope readset hashing removed fails the scope-only receipt assertion"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.OccurrenceSelectionsSplitOneStoredRunWithoutCollapsingPhysicalities",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "one native stored RLE run is split by exact parent-relative occurrence bindings",
+        "same child entity with distinct physicalities is validated and read independently",
+        "A/B/A root scope replay is exact and binding-only mutation changes receipt"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.InvalidOccurrenceSelectionsPublishNoPartialOutput",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "zero overrun partial and failed occurrence selections publish no bytes",
+        "a selected node with a different physicality fails before trajectory access"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.MinorOneIgnoresOccurrenceTailAndRejectsPartialCurrentCallbacks",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "minor one ignores the appended callback tail and preserves original receipts",
+        "minor two requires both selection callbacks or neither"
+      ]
+    },
+    {
+      "ctest_name": "content-materialization.mutation-physicality-cache-collapse-detected",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "actual native owner with entity-only cache fails distinct physicality read and carrier counts"
+      ]
+    },
+    {
+      "ctest_name": "content-materialization.mutation-occurrence-binding-omission-detected",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-REALIZATION-PROVENANCE-CLOSURE"
+      ],
+      "covered_dimensions": [
+        "actual native owner without interval receipt hashing fails binding-only receipt mutation"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.BoundAtomicPhysicalityIsValidatedWithoutErasingItsSelection",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "a selected atomic physicality retains its exact identifier and full canonical Unicode witness",
+        "a changed bound atom witness fails without partial publication"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.SingletonFormPreservesContentTierThroughItsExactChildPhysicality",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "a valid singleton physicality retains canonical content tier while descending through an exact different physicality of the same entity",
+        "singleton collapse preserves the complete 256-bit content witness and actual physicality cycles remain rejected"
+      ]
+    },
+    {
+      "ctest_name": "content-materialization.mutation-singleton-witness-omission-detected",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "the actual native owner with singleton descendant witness verification removed accepts a forged full witness and is rejected by the fixture"
+      ]
+    },
+    {
+      "ctest_name": "ContentMaterialization.SelectedUnicodeSingletonRetainsAtomContentTierInsideItsParent",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "an occurrence with canonical atom metadata may select a genuine singleton composition of that same atom",
+        "physical descent preserves canonical tier zero and exact content while an inflated content tier is rejected"
+      ]
     }
   ]
 }

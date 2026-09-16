@@ -568,7 +568,7 @@ static void deconstruct_composite_array(
     }
 }
 
-static laplace_composition_known_entity* read_known_entities(
+laplace_composition_known_entity* laplace_pg_composition_read_known_entities(
     ArrayType* array,
     uint64_t* count) {
     Datum* values = NULL;
@@ -1044,7 +1044,7 @@ Datum LAPLACE_PG_COMPOSITION_ENTRYPOINT(PG_FUNCTION_ARGS) {
     input.context = &context;
     input.source_fingerprint = &source_fingerprint;
     input.calculation_recipe_fingerprint = &calculation_recipe_fingerprint;
-    input.known_entities = read_known_entities(
+    input.known_entities = laplace_pg_composition_read_known_entities(
         PG_GETARG_ARRAYTYPE_P(3), &input.known_entity_count);
     input.operands = read_operands(
         PG_GETARG_ARRAYTYPE_P(4), &input.operand_count);

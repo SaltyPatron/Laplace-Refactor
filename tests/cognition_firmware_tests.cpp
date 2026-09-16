@@ -144,6 +144,34 @@ int ResolveMaterialization(void* opaque, const laplace_id128* id,
 }
 int NoTrajectory(void*, const laplace_cognition_materialization_node*,
                  laplace_trajectory_carrier*, std::size_t, laplace_digest256*) { return 1; }
+
+struct PromptWitnessMirror {
+    laplace_cognition_observation_candidate_provider_v1 native{};
+    std::size_t calls{};
+    std::uint64_t rows{};
+    bool malformed{};
+};
+
+int EnumeratePromptWitnessMirror(
+    void* opaque, const laplace_observation_query_binding* binding,
+    const laplace_id128* ids, const laplace_query_search_state* states,
+    const std::uint64_t* costs, std::size_t size,
+    laplace_cognition_observation_candidate* out, std::size_t capacity,
+    std::size_t* count, laplace_cognition_observation_candidate_usage* usage) {
+    auto& mirror = *static_cast<PromptWitnessMirror*>(opaque);
+    ++mirror.calls;
+    const int status = mirror.native.enumerate_candidates(
+        mirror.native.state, binding, ids, states, costs, size,
+        out, capacity, count, usage);
+    mirror.rows += usage->rows_examined;
+    if (status == 0 && *count != 0U && mirror.malformed) {
+        // Same native witness identity, invalid typed body. Aggregation must
+        // retain it for the owner to reject, never replace it with the valid copy.
+        out[0].reserved = 1U;
+    }
+    return status;
+}
+
 struct Result {
     laplace_cognition_firmware_result* value{};
     ~Result() { laplace_cognition_firmware_result_destroy(&value); }
@@ -237,9 +265,9 @@ protected:
     }
 };
 TEST_F(CognitionFirmware, WholeObservationBindsNativeGoalEmitsAndFeedsBack) {
-    // A found path is only an upper bound when the selected candidate boundary
-    // has not been declared complete. This is the installed request's failure
-    // mode: no realization or checkpoint may escape that incomplete execution.
+    // Explicit incomplete-boundary control: a found path is only an upper
+    // bound until the selected candidate boundary is declared complete. No
+    // realization or checkpoint may escape that incomplete execution.
     request.boundary_flags=0U;
     Result incomplete;
     ASSERT_EQ(Run(incomplete),LAPLACE_COGNITION_FIRMWARE_INCOMPLETE);
@@ -296,6 +324,71 @@ TEST_F(CognitionFirmware, DistinctPathsToSameEntityDoNotInventAmbiguityOrEvidenc
     Result result;ASSERT_EQ(Run(result),LAPLACE_COGNITION_FIRMWARE_OK);
     EXPECT_EQ(result.output(),"AB");EXPECT_EQ(result.step(0).act.primary_answer.independent_evidence_root_count,0U);
 }
+
+TEST_F(CognitionFirmware, ExactPromptWitnessFromAnotherProviderIsReusedByNativeFirmware) {
+    text = "AA";
+    steps = {Query({OBS, 0}, LAPLACE_OBSERVATION_QUERY_CONSTITUENT), Emit(0)};
+    steps[0].kind = LAPLACE_COGNITION_FIRMWARE_INTERPRET;
+    ASSERT_NO_FATAL_FAILURE(Admit());
+    world.edges.clear();
+    world.surfaces = {{Codepoint('A'), Codepoint('T'), 'A'}};
+    Result baseline;
+    ASSERT_EQ(Run(baseline), LAPLACE_COGNITION_FIRMWARE_OK);
+    ASSERT_EQ(baseline.output(), "A");
+
+    // Both providers execute the real prompt admission's canonical projection.
+    // The second descriptor models another transport exposing the same retained
+    // witness. It does not manufacture a semantic answer or independent evidence.
+    PromptWitnessMirror mirror;
+    ASSERT_EQ(laplace_cognition_prompt_admission_structural_provider(
+        admission, &mirror.native), LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+    provider = mirror.native;
+    provider.state = &mirror;
+    provider.enumerate_candidates = EnumeratePromptWitnessMirror;
+    provider.provider_fingerprint = Digest(0xe1);
+    Result repeated;
+    ASSERT_EQ(Run(repeated), LAPLACE_COGNITION_FIRMWARE_OK)
+        << error.step_index << ":" << error.native_status
+        << ":" << error.native_disposition;
+    EXPECT_EQ(repeated.output(), "A");
+    EXPECT_GT(mirror.calls, 0U);
+    EXPECT_GT(mirror.rows, 0U);
+    EXPECT_TRUE(SameId(repeated.step(0).act.primary_answer.entity_id, Codepoint('A')));
+    EXPECT_EQ(repeated.step(0).act.primary_answer.independent_evidence_root_count, 0U);
+    EXPECT_EQ(repeated.receipt().completed_steps, 2U);
+    EXPECT_GT(repeated.step(0).cognition.resource_cost,
+              baseline.step(0).cognition.resource_cost);
+}
+
+TEST_F(CognitionFirmware, MatchingWitnessDoesNotHideMalformedCandidateFromAnotherProvider) {
+    text = "AA";
+    steps = {Query({OBS, 0}, LAPLACE_OBSERVATION_QUERY_CONSTITUENT), Emit(0)};
+    steps[0].kind = LAPLACE_COGNITION_FIRMWARE_INTERPRET;
+    ASSERT_NO_FATAL_FAILURE(Admit());
+    world.edges.clear();
+    world.surfaces = {{Codepoint('A'), Codepoint('T'), 'A'}};
+    PromptWitnessMirror mirror;
+    ASSERT_EQ(laplace_cognition_prompt_admission_structural_provider(
+        admission, &mirror.native), LAPLACE_COGNITION_PROMPT_ADMISSION_OK);
+    mirror.malformed = true;
+    provider = mirror.native;
+    provider.state = &mirror;
+    provider.enumerate_candidates = EnumeratePromptWitnessMirror;
+    provider.provider_fingerprint = Digest(0xe1);
+    Result result;
+    EXPECT_EQ(Run(result), LAPLACE_COGNITION_FIRMWARE_INCOMPLETE);
+    EXPECT_EQ(error.step_index, 0U);
+    EXPECT_EQ(error.native_status,
+              static_cast<std::uint32_t>(LAPLACE_COGNITION_SEMANTIC_ACT_INCOMPLETE));
+    EXPECT_EQ(error.native_disposition,
+              static_cast<std::uint32_t>(LAPLACE_COGNITION_FORWARD_PROVIDER_FAILURE));
+    EXPECT_GT(mirror.calls, 0U);
+    EXPECT_GT(mirror.rows, 0U);
+    EXPECT_EQ(result.value, nullptr);
+    EXPECT_EQ(world.realization_calls, 0U);
+    EXPECT_EQ(world.materialization_calls, 0U);
+}
+
 TEST_F(CognitionFirmware, IncompleteCandidateBoundaryNeverBecomesCompletedAnswer) {
     world.limited=true;
     Result result;EXPECT_NE(Run(result),LAPLACE_COGNITION_FIRMWARE_OK);EXPECT_EQ(result.value,nullptr);

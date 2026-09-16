@@ -6,6 +6,7 @@
 
 #include "laplace/composition.h"
 #include "laplace/framework.h"
+#include "spi_budget_pg.h"
 
 typedef struct laplace_pg_active_unicode_root {
     laplace_digest256 root_receipt;
@@ -19,5 +20,15 @@ void laplace_pg_resolve_active_unicode_atoms(
     size_t count,
     laplace_composition_known_entity* known,
     laplace_pg_active_unicode_root* active);
+
+/* The same resolver meters every direct query and nested perfcache operation
+ * before execution. Existing callers retain the compatibility wrapper above. */
+void laplace_pg_resolve_active_unicode_atoms_metered(
+    const laplace_framework_context* context,
+    const uint32_t* positions,
+    size_t count,
+    laplace_composition_known_entity* known,
+    laplace_pg_active_unicode_root* active,
+    laplace_pg_spi_budget* budget);
 
 #endif

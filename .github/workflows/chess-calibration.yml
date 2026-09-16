@@ -61,7 +61,9 @@ jobs:
           if [[ -n "$selected_source" ]]; then
             export LAPLACE_STOCKFISH_SOURCE="$selected_source"
           fi
-          scripts/setup-chess.sh 2>&1 | tee "$output/source-setup.log"
+          scripts/setup-chess.sh --cutechess-gui 2>&1 | tee "$output/source-setup.log"
+          python3 tools/dependencies/chess_tools.py check --tool cutechess --cutechess-gui \
+            2>&1 | tee "$output/cutechess-gui-readiness.json"
           python3 tools/dependencies/chess_tools.py check-source-selection \
             --selection-receipt "$output/stockfish-source-selection.json" \
             --selection-output "$output/stockfish-source-selection-verified.json"

@@ -179,7 +179,29 @@ struct ProviderState final {
     std::vector<NodeEntry> entries;
     std::uint64_t resolve_calls{};
     std::uint64_t read_calls{};
+    std::uint64_t begin_calls{};
+    laplace_digest256 scope_receipt{};
+    laplace_id128 begun_root{};
+    laplace_digest256 begun_source{};
+    laplace_digest256 begun_recipe{};
+    bool begin_failure{};
+    std::size_t selected_root{};
+    unsigned selection_failure{};
+    std::uint8_t binding_seed{140U};
+    std::uint64_t selected_resolve_calls{};
 };
+
+int BeginRead(void* opaque, const laplace_id128* root,
+    const laplace_digest256* source, const laplace_digest256* recipe,
+    laplace_digest256* scope) {
+    auto& state = *static_cast<ProviderState*>(opaque);
+    ++state.begin_calls;
+    state.begun_root = *root;
+    state.begun_source = *source;
+    state.begun_recipe = *recipe;
+    *scope = state.scope_receipt;
+    return state.begin_failure ? 1 : 0;
+}
 
 const NodeEntry* Find(
     const ProviderState& state,
@@ -217,7 +239,13 @@ int ReadTrajectory(
     }
     auto& state = *static_cast<ProviderState*>(opaque);
     ++state.read_calls;
-    const auto* entry = Find(state, node->entity_id);
+    const auto found = std::find_if(state.entries.begin(), state.entries.end(),
+        [&](const NodeEntry& candidate) {
+            return SameId(candidate.node.entity_id, node->entity_id) &&
+                std::memcmp(&candidate.node.physicality_id, &node->physicality_id,
+                    sizeof(node->physicality_id)) == 0;
+        });
+    const auto* entry = found == state.entries.end() ? nullptr : &*found;
     if (entry == nullptr || entry->carriers.size() != carrier_count) return 2;
     std::copy(entry->carriers.begin(), entry->carriers.end(), carriers);
     *read_receipt = entry->trajectory_read_receipt;
@@ -616,6 +644,375 @@ TEST(ContentMaterialization, SourceRootUsesSharedTrajectoryValidationAndPublishe
         &bytes,&receipt),LAPLACE_COGNITION_MATERIALIZATION_OK);
     EXPECT_EQ(bytes,0u);EXPECT_TRUE(ZeroDigest(receipt.materialization_id));
     EXPECT_TRUE(std::all_of(output.begin(),output.end(),[](auto value){return value==0xa5;}));
+}
+
+TEST(ContentMaterialization, EveryRootBeginsItsOwnAuthenticatedScope) {
+    ProviderState state{{Atom(0x41U,10U), Atom(0x42U,11U)}};
+    auto provider = Provider(&state);
+    provider.begin_read = BeginRead;
+    auto request = Request();
+    const auto source = Digest(51U), recipe = Digest(52U);
+    std::array<std::uint8_t,32> output{};
+    std::array<laplace_content_materialization_receipt,3> receipts{};
+    for (std::size_t call=0; call<3; ++call) {
+        const auto index = call % 2U;
+        const auto root = state.entries[index].node.entity_id;
+        state.scope_receipt = Digest(static_cast<std::uint8_t>(60U+index));
+        std::size_t bytes=0;
+        ASSERT_EQ(laplace_content_materialize_encoded(&root,&source,&recipe,
+            &request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,output.data(),output.size(),
+            &bytes,&receipts[call]),LAPLACE_COGNITION_MATERIALIZATION_OK);
+        EXPECT_EQ(bytes,1U);
+        EXPECT_EQ(output[0],static_cast<std::uint8_t>(0x41U+index));
+        EXPECT_EQ(state.begin_calls,call+1U);
+        EXPECT_EQ(state.resolve_calls,call+1U);
+        EXPECT_TRUE(SameId(state.begun_root,root));
+        EXPECT_EQ(std::memcmp(&state.begun_source,&source,sizeof(source)),0);
+        EXPECT_EQ(std::memcmp(&state.begun_recipe,&recipe,sizeof(recipe)),0);
+    }
+    EXPECT_EQ(std::memcmp(&receipts[0],&receipts[2],sizeof(receipts[0])),0);
+    // Only the authenticated scope changes: content, source, provider and all
+    // node bytes stay identical. Omitting scope from the readset must fail.
+    state.scope_receipt = Digest(99U);
+    std::size_t bytes=0;
+    laplace_content_materialization_receipt changed{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+        &source,&recipe,&request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(),output.size(),&bytes,&changed),LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_NE(std::memcmp(&receipts[0].readset_fingerprint,&changed.readset_fingerprint,
+        sizeof(changed.readset_fingerprint)),0);
+    EXPECT_NE(std::memcmp(&receipts[0].materialization_id,&changed.materialization_id,
+        sizeof(changed.materialization_id)),0);
+}
+
+TEST(ContentMaterialization, BeginFailureAndInvalidMinorCannotReadOrPublish) {
+    ProviderState state{{Atom(0x41U,10U)}};
+    auto provider=Provider(&state);provider.begin_read=BeginRead;
+    auto request=Request();const auto source=Digest(51U),recipe=Digest(52U);
+    std::array<std::uint8_t,32> output{};output.fill(0xa5U);
+    state.begin_failure=true;
+    for (unsigned attempt=0;attempt<2;++attempt) {
+        if (attempt==1U) ++provider.abi_minor;
+        std::size_t bytes=17U;
+        laplace_content_materialization_receipt receipt{};
+        EXPECT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+            &source,&recipe,&request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,
+            output.data(),output.size(),&bytes,&receipt), attempt==0U ?
+            LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_FAILURE :
+            LAPLACE_COGNITION_MATERIALIZATION_INVALID_PROVIDER);
+        EXPECT_EQ(bytes,0U);EXPECT_TRUE(ZeroDigest(receipt.materialization_id));
+        EXPECT_EQ(state.begin_calls,1U);EXPECT_EQ(state.resolve_calls,0U);
+        EXPECT_EQ(state.read_calls,0U);
+        EXPECT_TRUE(std::all_of(output.begin(),output.end(),[](auto v){return v==0xa5U;}));
+    }
+}
+
+TEST(ContentMaterialization, MinorZeroIgnoresTailAndPreservesExistingReceipt) {
+    ProviderState state{{Atom(0x41U,10U)}};
+    auto provider=Provider(&state);provider.abi_minor=0U;
+    provider.begin_read=BeginRead;state.begin_failure=true;
+    auto request=Request();const auto source=Digest(51U),recipe=Digest(52U);
+    std::array<std::uint8_t,32> output{};std::size_t bytes=0;
+    laplace_content_materialization_receipt legacy{},current{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+        &source,&recipe,&request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(),output.size(),&bytes,&legacy),LAPLACE_COGNITION_MATERIALIZATION_OK);
+    provider.abi_minor=LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_ABI_MINOR;
+    provider.begin_read=nullptr;
+    ASSERT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+        &source,&recipe,&request,&provider,LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(),output.size(),&bytes,&current),LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(state.begin_calls,0U);
+    EXPECT_EQ(std::memcmp(&legacy,&current,sizeof(legacy)),0);
+}
+
+int SelectOccurrence(void* opaque,
+    const laplace_cognition_materialization_reference* reference,
+    laplace_cognition_materialization_selection* selection) {
+    auto& state = *static_cast<ProviderState*>(opaque);
+    *selection = {};
+    selection->contiguous_run_length = reference->occurrence.run_length;
+    if (ZeroDigest(reference->parent_physicality_id)) {
+        EXPECT_EQ(reference->occurrence.logical_ordinal, 0U);
+        EXPECT_EQ(reference->occurrence.run_length, 1U);
+        selection->physicality_id = state.entries[state.selected_root].node.physicality_id;
+        selection->binding_receipt_id = Digest(state.binding_seed);
+    } else if (std::memcmp(&reference->parent_physicality_id,
+        &state.entries[state.selected_root].node.physicality_id,
+        sizeof(reference->parent_physicality_id)) == 0) {
+        const auto ordinal = reference->occurrence.logical_ordinal;
+        if (ordinal < 1U || ordinal > 2U) return 1;
+        EXPECT_EQ(reference->occurrence.metadata, Metadata(1U, false, 0U));
+        EXPECT_EQ(reference->occurrence.run_length, 3U - ordinal);
+        const auto index = 2U + ((static_cast<std::size_t>(ordinal) - 1U +
+            state.selected_root) % 2U);
+        selection->physicality_id = state.entries[index].node.physicality_id;
+        selection->binding_receipt_id = Digest(static_cast<std::uint8_t>(
+            state.binding_seed + ordinal));
+        selection->contiguous_run_length = 1U;
+    }
+    switch (state.selection_failure) {
+        case 1U: selection->contiguous_run_length = 0U; break;
+        case 2U: selection->contiguous_run_length = reference->occurrence.run_length + 1U; break;
+        case 3U: selection->binding_receipt_id = {}; break;
+        case 4U: return 1;
+        default: break;
+    }
+    return 0;
+}
+
+int ResolveSelected(void* opaque, const laplace_id128* entity,
+    const laplace_digest256* physicality,
+    laplace_cognition_materialization_node* node) {
+    auto& state = *static_cast<ProviderState*>(opaque);
+    ++state.selected_resolve_calls;
+    const auto found = std::find_if(state.entries.begin(), state.entries.end(),
+        [&](const NodeEntry& candidate) {
+            return SameId(candidate.node.entity_id, *entity) &&
+                std::memcmp(&candidate.node.physicality_id, physicality,
+                    sizeof(*physicality)) == 0;
+        });
+    if (found == state.entries.end()) return 1;
+    *node = found->node;
+    if (state.selection_failure == 5U) node->physicality_id = Digest(199U);
+    return 0;
+}
+
+ProviderState OccurrenceFixture() {
+    const std::vector<DirectChild> atoms{
+        {Codepoint(0x41U), 1U, 0x41U, 0U, true},
+        {Codepoint(0x42U), 1U, 0x42U, 0U, true}};
+    auto first = Composite(atoms, 1U, 20U);
+    auto second = Composite(atoms, 1U, 30U);
+    const std::vector<DirectChild> repeated{
+        {first.node.entity_id, 2U, 0U, 1U, false}};
+    auto root_a = Composite(repeated, 2U, 40U);
+    auto root_b = Composite(repeated, 2U, 50U);
+    EXPECT_EQ(root_a.carriers.size(), 1U);
+    EXPECT_TRUE(SameId(first.node.entity_id, second.node.entity_id));
+    return ProviderState{{root_a, root_b, first, second}};
+}
+
+TEST(ContentMaterialization, OccurrenceSelectionsSplitOneStoredRunWithoutCollapsingPhysicalities) {
+    auto state = OccurrenceFixture();
+    auto provider = Provider(&state);
+    provider.begin_read = BeginRead;
+    provider.select_reference = SelectOccurrence;
+    provider.resolve_selected = ResolveSelected;
+    auto request = Request();
+    request.maximum_nodes = 3U;
+    request.maximum_trajectory_carriers = 5U;
+    const auto recipe = Digest(120U);
+    std::array<std::uint8_t, 32> output{};
+    std::array<laplace_content_materialization_receipt, 3> receipts{};
+    for (std::size_t call = 0U; call < receipts.size(); ++call) {
+        state.selected_root = call % 2U;
+        const auto source = Digest(static_cast<std::uint8_t>(121U + state.selected_root));
+        const auto& root = state.entries[state.selected_root].node.entity_id;
+        std::size_t bytes = 0U;
+        ASSERT_EQ(laplace_content_materialize_encoded(&root, &source, &recipe,
+            &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8, output.data(),
+            output.size(), &bytes, &receipts[call]), LAPLACE_COGNITION_MATERIALIZATION_OK);
+        EXPECT_EQ(bytes, 4U);
+        EXPECT_EQ(std::memcmp(output.data(), "ABAB", 4U), 0);
+        EXPECT_EQ(receipts[call].resolved_node_count, 3U);
+        EXPECT_EQ(receipts[call].trajectory_carrier_count, 5U);
+        EXPECT_EQ(receipts[call].codepoint_count, 4U);
+        EXPECT_EQ(state.selected_resolve_calls, 3U * (call + 1U));
+        EXPECT_EQ(state.read_calls, 3U * (call + 1U));
+        EXPECT_EQ(state.resolve_calls, 0U);
+    }
+    EXPECT_EQ(std::memcmp(&receipts[0], &receipts[2], sizeof(receipts[0])), 0);
+    EXPECT_NE(std::memcmp(&receipts[0].readset_fingerprint,
+        &receipts[1].readset_fingerprint, sizeof(laplace_digest256)), 0);
+    // Only the retained binding receipt changes; content, physicalities, source
+    // and provider remain exact. The occurrence provenance must still bind it.
+    ++state.binding_seed;
+    const auto source = Digest(121U);
+    std::size_t bytes = 0U;
+    laplace_content_materialization_receipt changed{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &changed), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_NE(std::memcmp(&receipts[0].readset_fingerprint,
+        &changed.readset_fingerprint, sizeof(laplace_digest256)), 0);
+}
+
+TEST(ContentMaterialization, InvalidOccurrenceSelectionsPublishNoPartialOutput) {
+    for (unsigned failure = 1U; failure <= 5U; ++failure) {
+        auto state = OccurrenceFixture();
+        state.selection_failure = failure;
+        auto provider = Provider(&state);
+        provider.select_reference = SelectOccurrence;
+        provider.resolve_selected = ResolveSelected;
+        const auto request = Request();
+        const auto source = Digest(121U), recipe = Digest(120U);
+        std::array<std::uint8_t, 32> output{};
+        output.fill(0xa5U);
+        std::size_t bytes = 17U;
+        laplace_content_materialization_receipt receipt{};
+        EXPECT_NE(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+            &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+            output.data(), output.size(), &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_OK);
+        EXPECT_EQ(bytes, 0U);
+        EXPECT_TRUE(ZeroDigest(receipt.materialization_id));
+        EXPECT_EQ(state.read_calls, 0U);
+        EXPECT_EQ(state.selected_resolve_calls, failure == 5U ? 1U : 0U);
+        EXPECT_TRUE(std::all_of(output.begin(), output.end(), [](auto byte) { return byte == 0xa5U; }));
+    }
+}
+
+TEST(ContentMaterialization, MinorOneIgnoresOccurrenceTailAndRejectsPartialCurrentCallbacks) {
+    ProviderState state{{Atom(0x41U, 10U)}};
+    auto provider = Provider(&state);
+    provider.abi_minor = 1U;
+    provider.select_reference = SelectOccurrence;
+    provider.resolve_selected = nullptr;
+    const auto request = Request();
+    const auto source = Digest(121U), recipe = Digest(120U);
+    std::array<std::uint8_t, 32> output{};
+    std::size_t bytes = 0U;
+    laplace_content_materialization_receipt legacy{}, current{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &legacy), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    provider.abi_minor = 2U;
+    EXPECT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &current), LAPLACE_COGNITION_MATERIALIZATION_INVALID_PROVIDER);
+    provider.select_reference = nullptr;
+    ASSERT_EQ(laplace_content_materialize_encoded(&state.entries[0].node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &current), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(std::memcmp(&legacy, &current, sizeof(legacy)), 0);
+}
+
+int SelectSingleChild(void* opaque,
+    const laplace_cognition_materialization_reference* reference,
+    laplace_cognition_materialization_selection* selection) {
+    auto& state = *static_cast<ProviderState*>(opaque);
+    *selection = {};
+    selection->contiguous_run_length = reference->occurrence.run_length;
+    if (ZeroDigest(reference->parent_physicality_id)) {
+        selection->physicality_id = state.entries[0].node.physicality_id;
+        selection->binding_receipt_id = Digest(150U);
+    } else if (std::memcmp(&reference->parent_physicality_id,
+            &state.entries[0].node.physicality_id, sizeof(laplace_digest256)) == 0 &&
+        SameId(reference->occurrence.entity_id, state.entries[1].node.entity_id)) {
+        selection->physicality_id = state.entries[state.selected_root == 0U ? 1U : 0U].node.physicality_id;
+        selection->binding_receipt_id = Digest(151U);
+    }
+    return 0;
+}
+
+TEST(ContentMaterialization, BoundAtomicPhysicalityIsValidatedWithoutErasingItsSelection) {
+    auto atom = Atom(0x41U, 20U);
+    atom.node.physicality_id = Digest(21U);
+    auto root = Composite({{atom.node.entity_id, 1U, 0x41U, 0U, true},
+        {Codepoint(0x42U), 1U, 0x42U, 0U, true}}, 1U, 30U);
+    ProviderState state{{root, atom}};
+    auto provider = Provider(&state);
+    provider.select_reference = SelectSingleChild;
+    provider.resolve_selected = ResolveSelected;
+    const auto request = Request();
+    const auto source = Digest(121U), recipe = Digest(120U);
+    std::array<std::uint8_t, 32> output{};
+    std::size_t bytes = 0U;
+    laplace_content_materialization_receipt receipt{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&root.node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(bytes, 2U);
+    EXPECT_EQ(std::memcmp(output.data(), "AB", 2U), 0);
+    EXPECT_EQ(receipt.resolved_node_count, 2U);
+    EXPECT_EQ(state.selected_resolve_calls, 2U);
+    state.entries[1].node.identity_witness.bytes[31] ^= 1U;
+    EXPECT_EQ(laplace_content_materialize_encoded(&root.node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH);
+    EXPECT_EQ(bytes, 0U);
+}
+
+TEST(ContentMaterialization, SingletonFormPreservesContentTierThroughItsExactChildPhysicality) {
+    auto child = Composite({{Codepoint(0x41U), 1U, 0x41U, 0U, true},
+        {Codepoint(0x42U), 1U, 0x42U, 0U, true}}, 1U, 30U);
+    NodeEntry wrapper{};
+    wrapper.node = child.node;
+    wrapper.node.logical_count = 1U;
+    wrapper.node.carrier_count = 1U;
+    wrapper.node.tier_floor = child.node.tier_floor;
+    wrapper.node.physicality_id = Digest(40U);
+    wrapper.node.node_receipt_id = Digest(41U);
+    wrapper.trajectory_read_receipt = Digest(42U);
+    wrapper.carriers.resize(1U);
+    ASSERT_EQ(laplace_trajectory_composition_encode(&child.node.entity_id, 1U, 1U,
+        Metadata(1U, false, 0U), wrapper.carriers.data()), LAPLACE_TRAJECTORY_OK);
+    ASSERT_EQ(laplace_persistence_trajectory_fingerprint(wrapper.carriers.data(), 1U,
+        &wrapper.node.trajectory_fingerprint), LAPLACE_PERSISTENCE_OK);
+    ProviderState state{{wrapper, child}};
+    auto provider = Provider(&state);
+    provider.select_reference = SelectSingleChild;
+    provider.resolve_selected = ResolveSelected;
+    const auto request = Request();
+    const auto source = Digest(121U), recipe = Digest(120U);
+    std::array<std::uint8_t, 32> output{};
+    std::size_t bytes = 0U;
+    laplace_content_materialization_receipt receipt{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&wrapper.node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(bytes, 2U);
+    EXPECT_EQ(std::memcmp(output.data(), "AB", 2U), 0);
+    EXPECT_EQ(receipt.resolved_node_count, 2U);
+    EXPECT_EQ(receipt.trajectory_carrier_count, 3U);
+    state.entries[0].node.identity_witness.bytes[31] ^= 1U;
+    EXPECT_EQ(laplace_content_materialize_encoded(&wrapper.node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH);
+    EXPECT_EQ(bytes, 0U);
+    state.entries[0].node.identity_witness.bytes[31] ^= 1U;
+    state.selected_root = 1U; // An actual P -> same P cycle, not a transparent alternate P.
+    EXPECT_EQ(laplace_content_materialize_encoded(&wrapper.node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_CYCLE);
+    EXPECT_EQ(bytes, 0U);
+}
+
+TEST(ContentMaterialization, SelectedUnicodeSingletonRetainsAtomContentTierInsideItsParent) {
+    auto wrapper = Atom(0x41U, 40U);
+    wrapper.node.kind = LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION;
+    wrapper.node.atom = 0U;
+    wrapper.node.physicality_id = Digest(41U);
+    wrapper.node.carrier_count = 1U;
+    wrapper.trajectory_read_receipt = Digest(42U);
+    wrapper.carriers.resize(1U);
+    ASSERT_EQ(laplace_trajectory_composition_encode(&wrapper.node.entity_id, 1U, 1U,
+        Metadata(0U, true, 0x41U), wrapper.carriers.data()), LAPLACE_TRAJECTORY_OK);
+    ASSERT_EQ(laplace_persistence_trajectory_fingerprint(wrapper.carriers.data(), 1U,
+        &wrapper.node.trajectory_fingerprint), LAPLACE_PERSISTENCE_OK);
+    auto root = Composite({{wrapper.node.entity_id, 1U, 0x41U, 0U, true},
+        {Codepoint(0x42U), 1U, 0x42U, 0U, true}}, 1U, 30U);
+    ProviderState state{{root, wrapper}};
+    auto provider = Provider(&state);
+    provider.select_reference = SelectSingleChild;
+    provider.resolve_selected = ResolveSelected;
+    const auto request = Request();
+    const auto source = Digest(121U), recipe = Digest(120U);
+    std::array<std::uint8_t, 32> output{};
+    std::size_t bytes = 0U;
+    laplace_content_materialization_receipt receipt{};
+    ASSERT_EQ(laplace_content_materialize_encoded(&root.node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_OK);
+    EXPECT_EQ(bytes, 2U);
+    EXPECT_EQ(std::memcmp(output.data(), "AB", 2U), 0);
+    EXPECT_EQ(receipt.resolved_node_count, 2U);
+    EXPECT_EQ(receipt.trajectory_carrier_count, 3U);
+    state.entries[1].node.tier_floor = 1U;
+    EXPECT_EQ(laplace_content_materialize_encoded(&root.node.entity_id,
+        &source, &recipe, &request, &provider, LAPLACE_COGNITION_OUTPUT_UTF8,
+        output.data(), output.size(), &bytes, &receipt), LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID);
+    EXPECT_EQ(bytes, 0U);
 }
 
 }  // namespace

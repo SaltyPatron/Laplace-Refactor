@@ -71,6 +71,62 @@ target_compile_options(laplace_composition_tests PRIVATE
 gtest_discover_tests(laplace_composition_tests PROPERTIES
     LABELS "implementation;composition;working-set;producer")
 
+add_executable(laplace_physicality_entity_tests physicality_entity_tests.cpp)
+include("${CMAKE_CURRENT_SOURCE_DIR}/physicality_occurrence_binding.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/content_reference_view.cmake")
+target_link_libraries(laplace_physicality_entity_tests PRIVATE
+    Laplace::Composition GTest::gtest_main)
+target_compile_options(laplace_physicality_entity_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_physicality_entity_tests PROPERTIES
+    LABELS "implementation;physicality;identity;materialization")
+
+add_library(laplace_physicality_entity_zero_mutant STATIC
+    ../engine/src/physicality_entity.cpp)
+target_include_directories(laplace_physicality_entity_zero_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include" "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_physicality_entity_zero_mutant PRIVATE
+    Laplace::Composition BLAKE3::blake3)
+target_compile_definitions(laplace_physicality_entity_zero_mutant PRIVATE
+    LAPLACE_TEST_PHYSICALITY_ENTITY_NORMALIZE_SIGNED_ZERO=1)
+target_compile_options(laplace_physicality_entity_zero_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_physicality_entity_zero_mutation_probe physicality_entity_tests.cpp)
+target_link_libraries(laplace_physicality_entity_zero_mutation_probe PRIVATE
+    laplace_physicality_entity_zero_mutant Laplace::Composition GTest::gtest_main)
+target_compile_options(laplace_physicality_entity_zero_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME physicality-entity.mutation-signed-zero-loss-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_physicality_entity_zero_mutation_probe>"
+        "-DFILTER=PhysicalityEntity.DistinctRecordFormsAndSignedZeroRemainDistinctEntities"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(physicality-entity.mutation-signed-zero-loss-detected PROPERTIES
+    LABELS "implementation;physicality;identity;mutation")
+
+add_library(laplace_physicality_entity_number_mutant STATIC
+    ../engine/src/physicality_entity.cpp)
+target_include_directories(laplace_physicality_entity_number_mutant PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../engine/include" "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(laplace_physicality_entity_number_mutant PRIVATE
+    Laplace::Composition BLAKE3::blake3)
+target_compile_definitions(laplace_physicality_entity_number_mutant PRIVATE
+    LAPLACE_TEST_PHYSICALITY_ENTITY_PRIVATE_NUMBER_TAG=1)
+target_compile_options(laplace_physicality_entity_number_mutant PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_physicality_entity_number_mutation_probe physicality_entity_tests.cpp)
+target_link_libraries(laplace_physicality_entity_number_mutation_probe PRIVATE
+    laplace_physicality_entity_number_mutant Laplace::Composition GTest::gtest_main)
+target_compile_options(laplace_physicality_entity_number_mutation_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME physicality-entity.mutation-private-number-tag-detected
+    COMMAND "${CMAKE_COMMAND}"
+        "-DPROBE=$<TARGET_FILE:laplace_physicality_entity_number_mutation_probe>"
+        "-DFILTER=PhysicalityEntity.CanonicalNumeralsAreSharedWithHighway"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/expect_gtest_failure.cmake")
+set_tests_properties(physicality-entity.mutation-private-number-tag-detected PROPERTIES
+    LABELS "implementation;physicality;identity;mutation")
+
 add_executable(laplace_tabular_source_tests
     tabular_source_tests.cpp)
 target_link_libraries(laplace_tabular_source_tests PRIVATE

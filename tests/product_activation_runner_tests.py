@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 import re
@@ -197,6 +198,84 @@ class ProductActivationRunnerTests(unittest.TestCase):
             self.assertFalse(success_output.exists())
             self.assertFalse(success_artifact.exists())
             self.assertEqual(json.loads(output.read_text()), failure)
+
+    def test_installed_cognition_failure_log_matches_retained_evidence_without_raw_output(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        _, _, firmware, result, diagnostic = self.cognition_failure_inputs()
+        private = "private-prompt-sql-stderr-and-extension-field"
+        expanded = {**diagnostic, "future_private_field": private}
+        cases = (
+            ("observed", proof.NATIVE_FAILURE_MARKER + json.dumps(expanded), result),
+            ("mismatched", proof.NATIVE_FAILURE_MARKER + json.dumps(expanded), {**result, "status": 10}),
+            ("invalid", proof.NATIVE_FAILURE_MARKER + private, result),
+            ("unavailable", private, result),
+        )
+        for state, stderr, execution in cases:
+            with self.subTest(state=state), tempfile.TemporaryDirectory(dir=ROOT) as directory:
+                output = Path(directory) / "proof.json"
+                artifact = Path(directory) / "attempt.json"
+                emitted = []
+                def observe_print(encoded, *, flush):
+                    self.assertTrue(flush)
+                    self.assertEqual(output.read_bytes(), artifact.read_bytes())
+                    retained = json.loads(output.read_text())
+                    immutable = Path(directory) / (
+                        "installed-cognition-failure-" + retained["failure_sha256"] + ".json"
+                    )
+                    self.assertEqual(json.loads(immutable.read_text()), retained)
+                    emitted.append(json.loads(encoded))
+                with mock.patch("builtins.print", side_effect=observe_print):
+                    proof.retain_execution_failure(
+                        output, failure_artifact=artifact, label="installed-failure-control",
+                        result=execution, command_receipt={"exit_code": 0},
+                        captured={"stderr": stderr, "outputs": {"stderr": proof.bounded_output(stderr)}},
+                        sql=private, firmware=firmware, prompt=private,
+                        provenance={"package_id": "45" * 32}, error=private,
+                    )
+                self.assertEqual(len(emitted), 1)
+                summary = emitted[0]
+                document = json.loads(output.read_text())
+                self.assertEqual(set(summary), {"schema", "label", "failure_sha256", "native_failure"})
+                self.assertEqual(summary["schema"], "laplace.installed-product-cognition-failure-log/v1")
+                self.assertEqual(summary["label"], document["label"])
+                self.assertEqual(summary["failure_sha256"], document["failure_sha256"])
+                self.assertEqual(summary["native_failure"]["state"], state)
+                expected_native = {key: value for key, value in document["native_failure"].items()
+                                   if key in ("state", "reason")}
+                if "diagnostic" in document["native_failure"]:
+                    expected_native["diagnostic"] = {
+                        key: document["native_failure"]["diagnostic"][key]
+                        for key in ("schema", *proof.NATIVE_FAILURE_COUNTER_FIELDS)
+                    }
+                    self.assertEqual(document["native_failure"]["diagnostic"]["future_private_field"], private)
+                self.assertEqual(summary["native_failure"], expected_native)
+                self.assertNotIn(private, json.dumps(summary))
+                self.assertLess(len(json.dumps(summary)), 2048)
+                identity = document.pop("failure_sha256")
+                self.assertEqual(identity, proof.u.sha256_bytes(proof.u.canonical_bytes(document)))
+
+    def test_installed_cognition_failure_log_is_not_issued_before_retention(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        _, _, firmware, result, diagnostic = self.cognition_failure_inputs()
+        values = dict(
+            label="retention-refusal", result=result, command_receipt={"exit_code": 0},
+            captured={"stderr": proof.NATIVE_FAILURE_MARKER + json.dumps(diagnostic)},
+            sql="SELECT private_input", firmware=firmware, prompt="private_input",
+            provenance=None, error="native refusal",
+        )
+        with mock.patch("builtins.print") as output:
+            proof.retain_execution_failure(None, failure_artifact=None, **values)
+        output.assert_not_called()
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            with mock.patch.object(proof.u, "write_immutable", side_effect=RuntimeError("retention refused")), \
+                 mock.patch("builtins.print") as output, \
+                 self.assertRaisesRegex(RuntimeError, "retention refused"):
+                proof.retain_execution_failure(
+                    Path(directory) / "proof.json", failure_artifact=Path(directory) / "attempt.json",
+                    **values,
+                )
+            output.assert_not_called()
+            self.assertFalse((Path(directory) / "attempt.json").exists())
 
     def test_installed_cognition_request_declares_its_complete_structural_boundary(self) -> None:
         proof = load_module("tools/delivery/product_cognition_live_proof.py")
@@ -482,6 +561,83 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertIn("restart-after-highway-activation", highway)
         self.assertIn('plan["commands"]["stop_candidate"]', provider)
         self.assertIn('plan["commands"]["start_candidate"]', provider)
+
+
+class IndexedCognitionSuccessorReconciliationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "laplace_indexed_successor_reconcile_tests", RECONCILER)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load actual product reconciliation owner")
+        cls.owner = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = cls.owner
+        spec.loader.exec_module(cls.owner)
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="laplace-indexed-successor-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        relative = "pgsql-18/share/extension/laplace--1.0.0--1.0.1.sql"
+        self.migration = self.root / relative
+        self.migration.parent.mkdir(parents=True)
+        self.migration.write_bytes((ROOT / "integrations/postgresql/extension/observation_cognition_persisted.sql.in").read_bytes())
+        self.package = {"package_id": "42" * 32, "files": [{
+            "path": relative, "kind": "file",
+            "sha256": hashlib.sha256(self.migration.read_bytes()).hexdigest()}]}
+        self.plan = {"postgresql_major": 18, "package_root": str(self.root)}
+        self.contract = {"instance": {"admin_role": "laplace_admin"}}
+
+    def observations(self, version: str) -> list:
+        return [({"version": version, "owner": "laplace_admin"}, {}), ({
+            "schema": "laplace.indexed-cognition-upgrade/v1", "version": version,
+            "owner": "laplace_admin", "native_bindings": 2, "ready_indexes": 2},
+            {"fixture": "acknowledged server verification"})]
+
+    def test_supported_successors_verify_inherited_native_bindings_without_downgrade(self) -> None:
+        for version in ("1.0.2", "1.0.3", "1.0.4"):
+            with self.subTest(version=version), mock.patch.object(
+                self.owner.runner, "runner_sql", side_effect=self.observations(version)
+            ) as sql, mock.patch.object(self.owner, "fresh_reconcile_indexed_cognition") as predecessor:
+                receipt = self.owner.reconcile_indexed_cognition_after_generation_upgrade(
+                    self.plan, self.contract, self.package)
+                predecessor.assert_not_called()
+                self.assertEqual(sql.call_count, 2)
+                self.assertEqual(receipt["version"], version)
+                self.assertEqual(receipt["script_sha256"], self.package["files"][0]["sha256"])
+                self.assertEqual(receipt["package_id"], self.package["package_id"])
+                self.assertEqual(receipt["receipt_sha256"],
+                    self.owner.runner.document_identity(receipt, "receipt_sha256"))
+
+    def test_new_successor_refuses_changed_package_migration_before_database_reconciliation(self) -> None:
+        self.migration.write_bytes(self.migration.read_bytes() + b"\n-- changed package bytes\n")
+        with mock.patch.object(self.owner.runner, "runner_sql",
+                side_effect=self.observations("1.0.4")) as sql:
+            with self.assertRaisesRegex(self.owner.runner.RunnerActivationError, "migration bytes differ"):
+                self.owner.reconcile_indexed_cognition_after_generation_upgrade(
+                    self.plan, self.contract, self.package)
+            self.assertEqual(sql.call_count, 1)
+
+    def test_new_successor_refuses_version_or_native_proof_drift(self) -> None:
+        for field, changed in (("version", "1.0.5"), ("owner", "other_role"),
+                ("native_bindings", 1), ("ready_indexes", 1)):
+            observed = self.observations("1.0.4")
+            observed[1][0][field] = changed
+            with self.subTest(field=field), mock.patch.object(
+                self.owner.runner, "runner_sql", side_effect=observed):
+                with self.assertRaisesRegex(self.owner.runner.RunnerActivationError, "result differs"):
+                    self.owner.reconcile_indexed_cognition_after_generation_upgrade(
+                        self.plan, self.contract, self.package)
+
+    def test_unknown_version_uses_existing_version_admission_owner(self) -> None:
+        with mock.patch.object(self.owner.runner, "runner_sql",
+                return_value=({"version": "1.0.5"}, {})) as sql, mock.patch.object(
+                self.owner, "fresh_reconcile_indexed_cognition", return_value={"deferred": True}) as predecessor:
+            result = self.owner.reconcile_indexed_cognition_after_generation_upgrade(
+                self.plan, self.contract, self.package)
+            predecessor.assert_called_once_with(self.plan, self.contract, self.package)
+            self.assertEqual(sql.call_count, 1)
+            self.assertEqual(result, {"deferred": True})
 
 
 if __name__ == "__main__":

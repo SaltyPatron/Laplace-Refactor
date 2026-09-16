@@ -525,6 +525,11 @@ if [[ -n "${variable_file:-}" ]]; then
     psql_command+=(-f "$variable_file")
 fi
 psql_command+=(-f "$sql_file")
+if [[ "$mode" == "source-admission" ]]; then
+    # This companion uses the admitted Unicode context, then reconnects to prove
+    # cold descriptor readback. Keep it last because pg_temp state is per backend.
+    psql_command+=(-f "$(dirname "$sql_file")/physicality_entity_contract.sql")
+fi
 
 if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
       "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then

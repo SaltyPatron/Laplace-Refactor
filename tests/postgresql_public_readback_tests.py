@@ -3,6 +3,7 @@
 from __future__ import annotations
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -127,6 +128,35 @@ class PublicReadbackBindings(unittest.TestCase):
         self.assertIn('laplace_pg_materialization_provider_take_error', wrapper)
         self.assertNotIn('SELECT physicality_id', wrapper)
         self.assertNotIn('laplace_pg_perfcache_pin_active', wrapper)
+
+    def test_packaged_reconciliation_targets_the_current_extension_generation(self):
+        extension = ROOT/'integrations/postgresql/extension'
+        cmake = (extension/'CMakeLists.txt').read_text()
+        # Execute the production packaging block, including the prefix omitted
+        # by the base-binding generator used by the fresh-schema tests above.
+        packaging = cmake.split('file(READ "${CMAKE_SOURCE_DIR}/contracts/isa.json"', 1)[0]
+        destination = self.root/'packaged'
+        destination.mkdir()
+        script = destination/'package.cmake'
+        script.write_text('set(PROJECT_VERSION "1.0.0")\n'
+            + f'set(CMAKE_SOURCE_DIR "{ROOT}")\n'
+            + f'set(CMAKE_CURRENT_SOURCE_DIR "{extension}")\n'
+            + f'set(CMAKE_BINARY_DIR "{destination}")\n'
+            + f'set(CMAKE_CURRENT_BINARY_DIR "{destination}")\n' + packaging)
+        subprocess.run(['cmake','-P',str(script)],check=True,capture_output=True,text=True)
+        program = (destination/'share/extension/laplace-public-readback.sql').read_text()
+        current = re.search(r"default_version\s*=\s*'([^']+)'",
+            (extension/'laplace.control.in').read_text()).group(1)
+        self.assertIn(f"ALTER EXTENSION laplace UPDATE TO '{current}'", program)
+        self.assertIn(f"ELSIF version <> '{current}' THEN", program)
+        self.assertIn("IF version IN ('1.0.1', '1.0.2', '1.0.3') THEN", program)
+        self.assertIn('unsupported product cognition predecessor version', program)
+        self.assertIn('owner <> current_user', program)
+        required = json.loads((ROOT/'contracts/product-package.json').read_text())['package']['required_files']
+        self.assertIn(f'pgsql-18/share/extension/laplace--{current}.sql', required)
+        self.assertIn(f'pgsql-18/share/extension/laplace--1.0.3--{current}.sql', required)
+        fixture = (extension/'tests/observation_cognition_contract.sql.in').read_text()
+        self.assertEqual(fixture.count('\\ir @CMAKE_BINARY_DIR@/integrations/postgresql/extension/share/extension/laplace-public-readback.sql'), 2)
 
     def test_committed_revalidation_type_and_binding_upgrade_are_exact_and_private(self):
         declaration = 'CREATE TYPE laplace.highway_registry_revalidation_result AS ('

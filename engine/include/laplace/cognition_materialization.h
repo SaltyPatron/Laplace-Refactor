@@ -18,7 +18,7 @@ enum {
     LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION = UINT32_C(2),
     LAPLACE_COGNITION_MATERIALIZATION_VERSION = 1,
     LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_ABI_MAJOR = 1,
-    LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_ABI_MINOR = 0,
+    LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_ABI_MINOR = 2,
     LAPLACE_COGNITION_MATERIALIZATION_RECEIPT_VERSION = 1
 };
 
@@ -43,7 +43,10 @@ typedef enum laplace_cognition_materialization_status {
  * Exact immutable content descriptor supplied by a persistence provider. Atom
  * nodes carry one Unicode codepoint position. Composition nodes carry the exact
  * ordered trajectory identity needed for recursive readback. The native reader
- * validates the full content witness before any bytes are published.
+ * validates the full content witness before any bytes are published. tier_floor
+ * describes canonical content: a transparent singleton retains its child's
+ * tier, including zero for an atom. Physical descent has separate depth and
+ * exact-physicality cycle limits.
  */
 typedef struct laplace_cognition_materialization_node {
     laplace_id128 entity_id;
@@ -79,6 +82,48 @@ typedef int (*laplace_cognition_materialization_read_trajectory_fn)(
     size_t carrier_count,
     laplace_digest256* read_receipt_id);
 
+/* Called exactly once before any node read for each materialization, including
+ * calls made internally by cognition firmware. A provider may pin root-specific
+ * physical selections here. The returned nonzero receipt authenticates that
+ * scope and is included in the native readset. Zero means no additional scope.
+ * Failure publishes no output and performs no node or trajectory callback. */
+typedef int (*laplace_cognition_materialization_begin_read_fn)(
+    void* provider_state,
+    const laplace_id128* root_content_id,
+    const laplace_digest256* source_receipt_id,
+    const laplace_digest256* source_recipe_id,
+    laplace_digest256* scope_receipt_id);
+
+/* Root references have an all-zero parent and logical ordinal zero. Child
+ * references preserve the actual selected parent physicality and exact decoded
+ * occurrence metadata. run_length is the unconsumed suffix of one stored run. */
+typedef struct laplace_cognition_materialization_reference {
+    laplace_digest256 parent_physicality_id;
+    laplace_composition_occurrence occurrence;
+} laplace_cognition_materialization_reference;
+
+typedef struct laplace_cognition_materialization_selection {
+    laplace_digest256 physicality_id;
+    laplace_digest256 binding_receipt_id;
+    uint64_t contiguous_run_length;
+} laplace_cognition_materialization_selection;
+
+/* A bound selection has a nonzero physicality and binding receipt. Its positive
+ * contiguous run may split stored RLE at a retained occurrence boundary. An
+ * unbound selection has both digests zero and spans the entire requested run;
+ * it preserves the original strict provider choice. No first/minimum heuristic
+ * supplies missing occurrence provenance. */
+typedef int (*laplace_cognition_materialization_select_reference_fn)(
+    void* provider_state,
+    const laplace_cognition_materialization_reference* reference,
+    laplace_cognition_materialization_selection* selection);
+
+typedef int (*laplace_cognition_materialization_resolve_selected_fn)(
+    void* provider_state,
+    const laplace_id128* entity_id,
+    const laplace_digest256* physicality_id,
+    laplace_cognition_materialization_node* node);
+
 typedef struct laplace_cognition_materialization_provider_v1 {
     void* state;
     laplace_digest256 provider_fingerprint;
@@ -88,6 +133,14 @@ typedef struct laplace_cognition_materialization_provider_v1 {
     uint16_t abi_minor;
     uint32_t flags;
     uint32_t reserved;
+    /* ABI minor 1 tail. Minor 0 callers need only supply the original prefix;
+     * the native reader must not inspect this field unless abi_minor >= 1.
+     * A null callback preserves the original immutable provider behavior. */
+    laplace_cognition_materialization_begin_read_fn begin_read;
+    /* ABI minor 2 tail; both callbacks are present or both are null. The reader
+     * must not access either field for a minor 0 or minor 1 provider prefix. */
+    laplace_cognition_materialization_select_reference_fn select_reference;
+    laplace_cognition_materialization_resolve_selected_fn resolve_selected;
 } laplace_cognition_materialization_provider_v1;
 
 typedef struct laplace_cognition_materialization_receipt {
