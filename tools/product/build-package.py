@@ -20,6 +20,9 @@ from typing import Any, Mapping, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from repository_inputs import repository_build_fingerprint
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dependencies"))
+import package_receipts as toolchain_receipts
+
 
 CONTRACT_SCHEMA = "laplace.product-package-contract/v1"
 MANIFEST_SCHEMA = "laplace.package-manifest/v1"
@@ -530,10 +533,15 @@ def verify_postgresql_publication(
         or source.get("recursive_elf_closure_verified") is not True
     ):
         raise ProductPackageError("published PostgreSQL source proof state differs")
-    for name, record in (
-        ("postgresql", postgresql_record),
-        ("toolchain", toolchain_record),
-    ):
+    retained = toolchain_record.get("schema") == toolchain_receipts.RETAINED_TOOLCHAIN_SCHEMA
+    if retained:
+        verify_product_toolchain(source, publication)
+        if publication.get("toolchain_provider_roots_sha256") != canonical_sha256(toolchain_record["provider_roots"]):
+            raise ProductPackageError("retained toolchain provider roots identity differs")
+    records = [("postgresql", postgresql_record)]
+    if not retained:
+        records.append(("toolchain", toolchain_record))
+    for name, record in records:
         prefix = require_absolute(
             record.get("prefix"), f"postgresql_publication.{name}.prefix"
         )
@@ -573,6 +581,35 @@ def verify_postgresql_publication(
     return publication, source
 
 
+def verify_retained_product_toolchain(
+    selected: Mapping[str, Any], published: Mapping[str, Any]
+) -> dict[str, Any]:
+    try:
+        manifest = toolchain_receipts.verify_retained_toolchain(published, selected)
+    except toolchain_receipts.ReceiptError as error:
+        raise ProductPackageError(str(error)) from error
+    tools = {}
+    for name in ("cmake", "ninja", "ar", "ranlib", "ld", "readelf"):
+        record = manifest["tools"].get(name)
+        if not isinstance(record, dict):
+            raise ProductPackageError(f"composed build-toolchain omits selected {name}")
+        verify_receipted_file(record, f"retained build_toolchain.tools.{name}")
+        tools[name] = dict(record)
+    selected_readelf = selected.get("tools", {}).get("readelf")
+    if not isinstance(selected_readelf, dict) or selected_readelf != tools["readelf"]:
+        raise ProductPackageError("PostgreSQL and product toolchain readelf differ")
+    return {
+        "schema": "laplace.product-build-toolchain/v2",
+        "build_input_id": manifest["build_input_id"],
+        "receipt_path": published["source_receipt"],
+        "receipt_sha256": published["source_receipt_sha256"],
+        "prefix": manifest["provider_roots"]["base"]["prefix"],
+        "provider_roots": manifest["provider_roots"],
+        "consumer_manifest_sha256": canonical_sha256(manifest),
+        "tools": tools,
+    }
+
+
 def verify_product_toolchain(
     postgresql: Mapping[str, Any], publication: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -582,6 +619,8 @@ def verify_product_toolchain(
     published = publication.get("toolchain")
     if not isinstance(published, dict):
         raise ProductPackageError("PostgreSQL publication omits its toolchain")
+    if published.get("schema") == toolchain_receipts.RETAINED_TOOLCHAIN_SCHEMA:
+        return verify_retained_product_toolchain(selected, published)
     receipt_path = require_absolute(
         published.get("source_receipt"),
         "postgresql_publication.toolchain.source_receipt",
@@ -785,22 +824,25 @@ def verify_postgresql_receipt(
     prefix = require_absolute(
         postgresql_publication.get("prefix"), "postgresql_publication.postgresql.prefix"
     )
-    source_toolchain_prefix = require_absolute(
-        toolchain_publication.get("source_prefix"),
-        "postgresql_publication.toolchain.source_prefix",
-    )
-    published_toolchain_prefix = require_absolute(
-        toolchain_publication.get("prefix"), "postgresql_publication.toolchain.prefix"
-    )
-    source_readelf = require_absolute(
-        receipt.get("build_toolchain", {}).get("tools", {}).get("readelf", {}).get("path"),
-        "postgresql_receipt.build_toolchain.tools.readelf.path",
-    )
-    if not source_readelf.is_relative_to(source_toolchain_prefix):
-        raise ProductPackageError("selected readelf escaped the source toolchain")
-    readelf = published_toolchain_prefix / source_readelf.relative_to(
-        source_toolchain_prefix
-    )
+    if toolchain_publication.get("schema") == toolchain_receipts.RETAINED_TOOLCHAIN_SCHEMA:
+        readelf = Path(verify_product_toolchain(receipt, publication)["tools"]["readelf"]["path"])
+    else:
+        source_toolchain_prefix = require_absolute(
+            toolchain_publication.get("source_prefix"),
+            "postgresql_publication.toolchain.source_prefix",
+        )
+        published_toolchain_prefix = require_absolute(
+            toolchain_publication.get("prefix"), "postgresql_publication.toolchain.prefix"
+        )
+        source_readelf = require_absolute(
+            receipt.get("build_toolchain", {}).get("tools", {}).get("readelf", {}).get("path"),
+            "postgresql_receipt.build_toolchain.tools.readelf.path",
+        )
+        if not source_readelf.is_relative_to(source_toolchain_prefix):
+            raise ProductPackageError("selected readelf escaped the source toolchain")
+        readelf = published_toolchain_prefix / source_readelf.relative_to(
+            source_toolchain_prefix
+        )
     if not prefix.is_dir() or prefix.is_symlink() or not readelf.is_file():
         raise ProductPackageError("PostgreSQL package bytes or selected readelf are absent")
     postgresql_layout = f"pgsql-{contract['postgresql']['major']}"
@@ -1128,7 +1170,7 @@ def sandboxed_build_command(
         arguments.extend(("--ro-bind", str(path), str(path)))
     repository = Path(plan["repository_root"])
     for path_value, writable in (
-        (plan["product_toolchain"]["prefix"], False),
+        *((root, False) for root in toolchain_receipts.toolchain_provider_prefixes(plan["product_toolchain"])),
         (str(repository), False),
         (plan["build_directory"], True),
         (plan["stage_directory"], True),
@@ -1500,7 +1542,8 @@ def execute_plan(
     environment.update(
         {
             "HOME": str(home),
-            "PATH": f"{plan['product_toolchain']['prefix']}/bin:/usr/bin",
+            "PATH": ":".join([*(str(Path(root) / "bin") for root in
+                               toolchain_receipts.toolchain_provider_prefixes(plan["product_toolchain"])), "/usr/bin"]),
         }
     )
     configure = [

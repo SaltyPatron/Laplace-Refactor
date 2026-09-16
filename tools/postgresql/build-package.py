@@ -24,6 +24,7 @@ from package_receipts import (  # noqa: E402
     verify_recorded_package_tree,
     verify_installed_provider_selection,
     verify_toolchain_package_receipt,
+    toolchain_provider_prefixes,
 )
 
 CONTRACT_SCHEMA = "laplace.postgresql-build-contract/v2"
@@ -953,6 +954,9 @@ def build_environment(
         directory = str(Path(tool["path"]).parent)
         if directory not in tool_directories:
             tool_directories.append(directory)
+    if "provider_roots" in plan["build_toolchain"]:
+        tool_directories = [str(Path(root) / "bin") for root in
+                            toolchain_provider_prefixes(plan["build_toolchain"])]
     staged_product = Path(plan["staged_product_prefix"])
     openssl_receipt = plan["runtime_package"]["selected_build_executables"]["openssl"]
     openssl = staged_product / openssl_receipt["relative_path"]
@@ -1338,7 +1342,7 @@ def sandboxed_build_command(
         arguments.extend(("--ro-bind", str(path), str(path)))
     for path_value, writable in (
         (plan["source_root"], False),
-        (plan["build_toolchain"]["prefix"], False),
+        *((root, False) for root in toolchain_provider_prefixes(plan["build_toolchain"])),
         (plan["build_directory"], True),
         (plan["stage_directory"], True),
     ):
