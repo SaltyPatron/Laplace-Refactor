@@ -2,6 +2,12 @@ name: package-product
 
 on:
   workflow_call:
+    inputs:
+      publish_installer:
+        description: Build and upload a downloadable installer; development packages stay local by default
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -268,7 +274,9 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Distribution is an explicit request, not part of every development build.
       - name: Compose and verify the standalone customer installer
+        if: inputs.publish_installer
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
@@ -319,16 +327,6 @@ jobs:
             jq '{schema, bundle_id, package: {id: .package.id}, sources: {unicode: {id: .sources.unicode.id, version: .sources.unicode.version}}}' "$installer_manifest"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Publish the verified standalone customer installer
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: laplace-product-installer-${{ github.sha }}
-          path: |
-            ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE }}
-            ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256 }}
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
       - name: Clean disposable package-product workspace
         if: always()
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
@@ -346,3 +344,15 @@ jobs:
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --name laplace-package-product-proof
+      # Do not keep the job-started database alive during a network transfer.
+      - name: Publish the verified standalone customer installer
+        if: inputs.publish_installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: laplace-product-installer-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE }}
+            ${{ env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256 }}
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 30
