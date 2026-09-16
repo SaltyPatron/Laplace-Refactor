@@ -3,24 +3,77 @@
   "tests": [
     {
       "ctest_name": "source.verified-grammar-loader-contract",
-      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
-      "covered_dimensions": ["two simultaneously open native grammar libraries execute the exact verified objects", "descriptor lifetime prevents dynamic-loader cache substitution"]
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "two simultaneously open native grammar libraries execute the exact verified objects",
+        "descriptor lifetime prevents dynamic-loader cache substitution"
+      ]
     },
     {
       "ctest_name": "source.verified-git-acquisition-contract",
-      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-IDENTITY-NEGATIVE"],
-      "covered_dimensions": ["actual Git objects and checkout bytes agree despite index flags", "locked grammar compiles only frozen tracked compiler inputs", "source acquisition does not claim canonical admission"]
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "actual Git objects and checkout bytes agree despite index flags",
+        "locked grammar compiles only frozen tracked compiler inputs",
+        "source acquisition does not claim canonical admission"
+      ]
     },
     {
       "ctest_name": "source.verified-cpp-native-contract",
-      "evidence_targets": ["LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE", "LP-TEST-AST-ROLE-IDENTITY-SEPARATION", "LP-TEST-IDENTITY-NEGATIVE"],
-      "covered_dimensions": ["actual locked C++ provider enters the shared native source plan", "valid deep non-ASCII syntax and exact reconstruction", "parser ERROR and zero-content MISSING witnesses remain explicit", "observed source has zero semantic testimony"]
+      "evidence_targets": [
+        "LP-TEST-RECIPE-DECOMPOSE-RECOMPOSE",
+        "LP-TEST-AST-ROLE-IDENTITY-SEPARATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "actual locked C++ provider enters the shared native source plan",
+        "valid deep non-ASCII syntax and exact reconstruction",
+        "parser ERROR and zero-content MISSING witnesses remain explicit",
+        "observed source has zero semantic testimony"
+      ]
     },
     {
       "ctest_name": "postgres.verified-cpp-source-contract",
-      "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-IDENTITY-NEGATIVE"],
-      "covered_dimensions": ["native source admission persists actual C++ syntax and exact source roots", "zero semantic claims use absent evidence receipts", "distinct named artifacts share identical canonical content", "exact source readback verifies the complete retained structural receipt", "replay and failed provider or corrupted readback publish no extra state"]
+      "profiles": [
+        "postgres",
+        "custom-stack"
+      ],
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-SOURCE-TOPOLOGY",
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "native source admission persists actual C++ syntax and exact source roots",
+        "zero semantic claims use absent evidence receipts",
+        "distinct named artifacts share identical canonical content",
+        "exact source readback verifies the complete retained structural receipt",
+        "replay and failed provider or corrupted readback publish no extra state"
+      ]
+    },
+    {
+      "ctest_name": "postgres.source-runtime-state-schema",
+      "profiles": [
+        "postgres",
+        "custom-stack"
+      ],
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"
+      ],
+      "covered_dimensions": [
+        "source runtime SQL executes against exact generated authoritative PostgreSQL table/domain definitions and constraints",
+        "active Unicode deposit/root bindings and independent active Highway generation yield one exact context",
+        "inactive missing mismatched or ambiguous bindings refuse and stale generation columns cause actual PostgreSQL errors",
+        "schema/query fixture does not claim native Unicode deposition or installed product activation"
+      ]
     }
   ]
 }
