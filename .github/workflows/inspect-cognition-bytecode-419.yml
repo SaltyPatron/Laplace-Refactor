@@ -1,0 +1,59 @@
+name: Inspect installed cognition bytecode evidence
+on:
+  push:
+    branches: [diag/cognition-bytecode-419-20260916]
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 5
+    steps:
+      - name: Read exact package extras and current user service state
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, pwd, stat, subprocess, time
+          root = pathlib.Path("/opt/laplace/releases/daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64")
+          account = pwd.getpwnam("laplace-runner")
+          assert os.geteuid() == account.pw_uid == 994
+          report = {"schema":"laplace.cognition-bytecode-observation/v1", "time_ns":time.time_ns(),
+              "package_id":root.name, "files":[], "processes":[], "commands":[]}
+          cache = root / "bin/__pycache__"
+          if cache.exists() or cache.is_symlink():
+              assert cache.is_dir() and not cache.is_symlink()
+              entries = sorted(cache.iterdir())
+              assert len(entries) <= 32
+              for path in entries:
+                  info = path.lstat()
+                  assert stat.S_ISREG(info.st_mode) and not path.is_symlink() and info.st_size <= 8*1024*1024
+                  data = path.read_bytes()
+                  report["files"].append({"path":str(path), "bytes":len(data), "uid":info.st_uid, "gid":info.st_gid,
+                      "mode":oct(stat.S_IMODE(info.st_mode)), "mtime_ns":info.st_mtime_ns, "ctime_ns":info.st_ctime_ns,
+                      "sha256":hashlib.sha256(data).hexdigest(), "header_hex":data[:16].hex()})
+          for process in pathlib.Path("/proc").iterdir():
+              if not process.name.isdecimal(): continue
+              try:
+                  if process.stat().st_uid != 994: continue
+                  data = (process / "cmdline").read_bytes()
+                  if len(data)>32768 or not any(term in data for term in
+                      (b"laplace-cognition",b"laplace-openai-api",str(root).encode())): continue
+                  args = [x.decode(errors="replace") for x in data.split(b"\0") if x]
+                  fields = (process / "stat").read_text().rsplit(")",1)[1].split()
+                  report["processes"].append({"pid":int(process.name), "parent_pid":int(fields[1]),
+                      "start_ticks":int(fields[19]), "loaded_image":os.readlink(process/"exe"),
+                      "command_prefix":args[:2], "cgroup":(process/"cgroup").read_text()})
+              except (OSError, ProcessLookupError): pass
+          environment = dict(os.environ, HOME=account.pw_dir, XDG_RUNTIME_DIR="/run/user/994",
+              DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/994/bus")
+          for command in (
+              ["/usr/bin/systemctl","--user","show","laplace-refactor-cognition.service","--no-pager",
+               "--property=LoadState,ActiveState,SubState,MainPID,ActiveEnterTimestamp,ExecMainStartTimestamp,FragmentPath,UnitFileState,NRestarts"],
+              ["/usr/bin/journalctl","--user","--unit=laplace-refactor-cognition.service","--since=2026-09-16 09:42:00 UTC",
+               "--lines=80","--no-pager","--output=short-iso"],
+          ):
+              result = subprocess.run(command,env=environment,text=True,capture_output=True,timeout=15,check=False)
+              report["commands"].append({"argv":command,"exit_code":result.returncode,
+                  "stdout":result.stdout[-16000:],"stderr":result.stderr[-2000:]})
+          print(json.dumps(report,sort_keys=True))
+          PY
