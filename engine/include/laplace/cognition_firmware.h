@@ -65,7 +65,8 @@ typedef struct laplace_cognition_firmware_binding {
  * candidate batch; goal-bound queries bind an already-calculated entity.
  * Ambiguity never silently becomes the first row.
  * Relations and output modalities are selected by this program, never the text.
- * A goal is absent or bound from an earlier result, not supplied by a transport. */
+ * A goal is absent or bound from the admitted observation or an earlier result,
+ * never supplied as a literal entity by a transport. */
 typedef struct laplace_cognition_firmware_step {
     laplace_cognition_firmware_binding anchor;
     laplace_cognition_firmware_binding goal;
