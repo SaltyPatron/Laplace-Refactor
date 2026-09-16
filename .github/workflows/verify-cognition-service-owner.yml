@@ -45,7 +45,7 @@ jobs:
           sys.path.insert(0, str(Path.cwd() / "tools"))
           from sources.stockfish_corpus_acceptance import observe_activation
           import subprocess
-          expected = {".github/workflows/product-activation.yml":"62ca33a9229dc6d6d26adcdb32507a998231f89d","packaging/systemd/laplace-refactor-cognition.service":"3eb6c8d8b97570b68e04035feb9fd089f57b7006","packaging/systemd/user/laplace-refactor-cognition.service":"19b666381862067db5daaeafd1ada92e0bb7a221","scripts/setup-host.sh":"db1ace80a0da7e659d2b21258474db227c0e5702","scripts/setup-product.sh":"2057e727e4e44fd3281199d99454a6dcff69709f","tests/product_activation_runner_tests.py":"ffdac49a91c09c914a02024971e1e18d1a89af7a","tests/product_host_tests.py":"58a9b8957de690f88837765dd528975f924c627b","tools/delivery/product_cognition_live_proof.py":"5d290ca5d3ac99fe36a2f72d3f3213f34233f7b5","tools/delivery/product_cognition_service.py":"e3a19d4f7a9f69a8490d4713ce5035090fdda37b"}
+          expected = {".github/workflows/product-activation.yml":"62ca33a9229dc6d6d26adcdb32507a998231f89d","packaging/systemd/laplace-refactor-cognition.service":"5ad2d319b9f479dedabec20143792591c2dd89e7","packaging/systemd/user/laplace-refactor-cognition.service":"7e1898131e9f227e3a0d9d01b483f809b09bfe87","scripts/setup-host.sh":"db1ace80a0da7e659d2b21258474db227c0e5702","scripts/setup-product.sh":"2057e727e4e44fd3281199d99454a6dcff69709f","tests/product_activation_runner_tests.py":"ffdac49a91c09c914a02024971e1e18d1a89af7a","tests/product_host_tests.py":"f68a3971de114dd55158dfcea1766b086bc5b1a6","tools/delivery/product_cognition_live_proof.py":"5d290ca5d3ac99fe36a2f72d3f3213f34233f7b5","tools/delivery/product_cognition_service.py":"e3a19d4f7a9f69a8490d4713ce5035090fdda37b"}
           changed = set(subprocess.check_output(["git", "diff", "--name-only",
               "419cbcb4fd4c569706ee3c253ab4775f5fcaebad", "HEAD"], text=True).splitlines())
           if changed != set(expected) | {".github/workflows/verify-cognition-service-owner.yml"}:
@@ -54,6 +54,59 @@ jobs:
               actual = subprocess.check_output(["git", "hash-object", path], text=True).strip()
               if actual != digest:
                   raise RuntimeError("reviewed candidate leaf differs: " + path)
+          # Restore only the three generated cache files observed in run35081272631.
+          # Their exact bytes are retained before removal; manifest verification stays strict.
+          import hashlib, stat
+          output_root = Path(os.environ["output"])
+          release = Path("/opt/laplace/releases/daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64")
+          active = Path("/opt/laplace/current")
+          runtime = Path("/opt/laplace/runtime/refactor")
+          if not (active.is_symlink() and active.resolve(strict=True) == release and
+                  runtime.is_symlink() and runtime.resolve(strict=True) == release):
+              raise RuntimeError("current package differs before generated-cache restoration")
+          manifest = Path("/build/laplace/runner/product/build/4c403055443c121f8d4b71bb91fa7cd77ba802a818eb0bb1976304c0e77246be/package-manifest.json")
+          if hashlib.sha256(manifest.read_bytes()).hexdigest() != "747d5cb1e665aed9f6621c328f15c5562488beac54558cc9a3fb24aa3b45e8cb":
+              raise RuntimeError("selected package manifest changed before cache restoration")
+          expected_cache = {
+              "laplace-openai-api-corecpython-310.pyc":(27674,"d54258506bc34d1b2c8ac2a754045d3c4f8f69fa8416963a65db5fcedc227d0e"),
+              "laplace-openai-api-transportcpython-310.pyc":(13292,"2546f038e95b1b27c0b66f2c5c2d926372470f95b8f5da1cdbe8f75c9a9f9d9b"),
+              "laplace-source-productcpython-310.pyc":(20409,"9c3e7692ca926e270f7f79cb3886f2ddf5e735b01a7993e2a85d30bc31ddbf99"),
+          }
+          cache = release / "bin/__pycache__"
+          for directory in (release, release / "bin", cache):
+              if not directory.is_dir() or directory.is_symlink():
+                  raise RuntimeError("generated-cache physical parent differs")
+          if cache.is_symlink() or not cache.is_dir() or cache.stat().st_uid != 994:
+              raise RuntimeError("observed generated-cache directory differs")
+          if {path.name for path in cache.iterdir()} != set(expected_cache):
+              raise RuntimeError("generated cache includes unknown or missing entries")
+          retained = output_root / "retained-generated-bytecode"
+          retained.mkdir(mode=0o700)
+          restoration = {"schema":"laplace.exact-generated-cache-restoration/v1",
+              "package_id":release.name, "observed_run_id":35081272631, "files":[], "status":"retained"}
+          for name,(size,identity) in expected_cache.items():
+              source = cache / name
+              info = source.lstat()
+              if not stat.S_ISREG(info.st_mode) or source.is_symlink() or info.st_uid != 994 or info.st_size != size:
+                  raise RuntimeError("generated-cache metadata differs: " + name)
+              raw = source.read_bytes()
+              if hashlib.sha256(raw).hexdigest() != identity:
+                  raise RuntimeError("generated-cache bytes differ: " + name)
+              with (retained / name).open("xb") as stream:
+                  stream.write(raw); stream.flush(); os.fsync(stream.fileno())
+              restoration["files"].append({"source":str(source),"retained":str(retained/name),
+                  "bytes":size,"sha256":identity,"inode":info.st_ino,"mtime_ns":info.st_mtime_ns})
+          restoration_path = output_root / "generated-cache-restoration.json"
+          restoration_path.write_text(json.dumps(restoration,sort_keys=True,indent=2)+"\n")
+          for record in restoration["files"]:
+              source = Path(record["source"])
+              if source.is_symlink() or source.stat().st_ino != record["inode"] or hashlib.sha256(source.read_bytes()).hexdigest() != record["sha256"]:
+                  raise RuntimeError("generated cache changed after exact retention")
+              source.unlink()
+          cache.rmdir()
+          restoration["status"] = "retained-and-removed"
+          restoration_path.write_text(json.dumps(restoration,sort_keys=True,indent=2)+"\n")
+          print(json.dumps({"phase":"exact-generated-cache-restored","files":3,"package_id":release.name},sort_keys=True))
           snapshot = observe_activation("419cbcb4fd4c569706ee3c253ab4775f5fcaebad",
               Path(os.environ["output"]) / "activation-before.json")
           if snapshot["package_id"] != "daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64":

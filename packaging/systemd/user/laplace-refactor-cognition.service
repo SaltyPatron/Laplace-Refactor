@@ -6,6 +6,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 UMask=0002
+Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=TMPDIR=/build/laplace/work/refactor-scratch
 Environment=TMP=/build/laplace/work/refactor-scratch
 Environment=TEMP=/build/laplace/work/refactor-scratch

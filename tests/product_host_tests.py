@@ -868,6 +868,62 @@ class CognitionOwnerTests(unittest.TestCase):
             child.wait(timeout=5)
 
 
+    def test_actual_installed_api_loaders_preserve_package_bytes_under_unit_environment(self):
+        import hashlib
+        import shlex
+        layout = {
+            "laplace-openai-api": "tools/openai_api_compat.py",
+            "laplace-openai-api-transport": "tools/_openai_api_compat_pre_reconciliation.py",
+            "laplace-openai-api-core": "tools/openai_api_service.py",
+            "laplace-source-product": "tools/source_product.py",
+        }
+        def snapshot(root):
+            return {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in root.rglob("*") if path.is_file()}
+        for scope in ("system", "user"):
+            relative = "packaging/systemd/" + ("user/" if scope == "user" else "") + cognition_owner.UNIT
+            unit_environment = {}
+            for line in (REPOSITORY / relative).read_text().splitlines():
+                if line.startswith("Environment="):
+                    for assignment in shlex.split(line.partition("=")[2]):
+                        key, value = assignment.split("=", 1)
+                        unit_environment[key] = value
+            self.assertEqual(unit_environment.get("PYTHONDONTWRITEBYTECODE"), "1")
+            for omit_policy in (False, True):
+                with self.subTest(scope=scope, omit_policy=omit_policy):
+                    release = self.root / (scope + ("-without-policy" if omit_policy else "-policy"))
+                    binary = release / "bin"
+                    binary.mkdir(parents=True)
+                    for installed, source in layout.items():
+                        (binary / installed).write_bytes((REPOSITORY / source).read_bytes())
+                    before = snapshot(release)
+                    environment = os.environ.copy()
+                    environment.pop("PYTHONDONTWRITEBYTECODE", None)
+                    environment.pop("PYTHONPYCACHEPREFIX", None)
+                    environment.update(unit_environment)
+                    if omit_policy:
+                        environment.pop("PYTHONDONTWRITEBYTECODE")
+                    # The real public entrypoint loads all three installed sibling
+                    # modules before its ordinary argument parser exits for --help.
+                    result = subprocess.run(
+                        [sys.executable, str(binary / "laplace-openai-api"), "--help"],
+                        env=environment, text=True, capture_output=True, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("--cognition-socket", result.stdout)
+                    after = snapshot(release)
+                    if not omit_policy:
+                        self.assertEqual(after, before)
+                    else:
+                        extras = set(after) - set(before)
+                        self.assertEqual(len(extras), 3)
+                        for installed in ("laplace-openai-api-transport",
+                                          "laplace-openai-api-core", "laplace-source-product"):
+                            self.assertTrue(any(
+                                path.startswith("bin/__pycache__/" + installed) and path.endswith(".pyc")
+                                for path in extras), installed)
+                        self.assertEqual({path: after[path] for path in before}, before)
+
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
