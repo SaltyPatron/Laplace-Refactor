@@ -16,10 +16,10 @@ jobs:
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           test "$(id -un)" = laplace-runner
-          git merge-base --is-ancestor 25c2a546e2e49e61ae7c9843d115ba4118025d6f HEAD
+          git merge-base --is-ancestor ce65a8f69f284113a724b9fc37c06aa9c0cee694 HEAD
           test "$(git hash-object tools/sources/stockfish_corpus_acceptance.py)" = ff0c3264a4d9f615d54e827a19e6e0b1066e4b32
           test "$(git hash-object tests/stockfish_corpus_acceptance_tests.py)" = b83e48c918da95df6dfb77bb1512dcd2ff6d2776
-          test "$(git diff --name-only 25c2a546e2e49e61ae7c9843d115ba4118025d6f HEAD)" = "$(printf '%s\n' .github/workflows/inspect-installed-cognition-requests.yml tests/stockfish_corpus_acceptance_tests.py tools/sources/stockfish_corpus_acceptance.py)"
+          test "$(git diff --name-only ce65a8f69f284113a724b9fc37c06aa9c0cee694 HEAD)" = .github/workflows/inspect-installed-cognition-requests.yml
           python3 - <<'PY'
           import hashlib,json,os,subprocess,sys,time
           from pathlib import Path
@@ -30,16 +30,34 @@ jobs:
           expected="419cbcb4fd4c569706ee3c253ab4775f5fcaebad"
           before=observe_activation(expected,output/"activation-before.json")
           assert before["package_id"]=="daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64"
-          convergence = subprocess.run([sys.executable,"tools/delivery/receipt_estate_runner.py",
-              "--cluster-contract","contracts/postgresql-cluster.json","--output",str(output/"convergence.json")],
-              stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=60,check=False)
-          (output/"convergence.stdout").write_bytes(convergence.stdout)
-          (output/"convergence.stderr").write_bytes(convergence.stderr)
-          if convergence.returncode:
-              print(convergence.stderr.decode(errors="replace")); raise RuntimeError("receipt convergence failed")
-          migration = json.loads((output/"convergence.json").read_text())
-          print(json.dumps({"phase":"existing-receipt-estate-converged","migration_count":migration["migration_count"],
-              "receipt_sha256":migration["receipt_sha256"]},sort_keys=True))
+          from delivery import receipt_estate as estate
+          receipt_root=Path("/opt/laplace/receipts/postgresql/refactor")
+          canonical_root=receipt_root/"cluster-activation"
+          historical="b935c2916fea6ac9761f43f9066c13263f3dd959ce251447b1ea8415aac5c919"
+          historical_paths=[receipt_root/"release-capacity"/historical/"capacity.json",
+              canonical_root/historical/"release-capacity.json"]
+          def retained_hash(path):
+              assert path.is_file() and not path.is_symlink() and path.stat().st_size<=1024*1024
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          historical_before={str(path):retained_hash(path) for path in historical_paths}
+          migrated=[]
+          for label,field in (("unicode","unicode_activation"),("highway","highway_activation")):
+              source=Path(before["native_receipt_paths"][label])
+              assert source.name in {"unicode-product-activation.json","highway-product-activation.json","highway-committed-revalidation.json"}
+              assert estate.load_json(source)==before[field]
+              assert before[field]["package_id"]==before["package_id"]
+              if source.parent==receipt_root:
+                  estate.migrate_singleton_product_receipt(source,canonical_root,source.name,
+                      os.geteuid(),os.getegid(),False,migrated)
+              else:
+                  assert source.parent==canonical_root/before["package_id"]
+          historical_after={str(path):retained_hash(path) for path in historical_paths}
+          assert historical_before==historical_after
+          migration={"schema":"laplace.current-native-receipt-convergence/v1",
+              "package_id":before["package_id"],"migration_count":len(migrated),"migrated":migrated,
+              "preserved_historical_conflict":historical_after}
+          (output/"convergence.json").write_text(json.dumps(migration,sort_keys=True,indent=2)+"\n")
+          print(json.dumps(migration,sort_keys=True))
           commands=[
             ("http",[sys.executable,"tools/delivery/product_gateway_live_proof.py","--readiness-only",
               "--package-id",before["package_id"],"--product-receipt",
