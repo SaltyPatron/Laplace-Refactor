@@ -158,6 +158,7 @@ jobs:
       # Packaging does not start, query or stop the shared application database.
       # product-activation.yml and the post-deployment readback own that lifecycle.
       - name: Build and verify local installer
+        if: inputs.publish_installer
         run: |
           set -euo pipefail
           product_receipt=$(jq -er '.product_receipt' "$LAPLACE_PRODUCT_PROOF_RESULT")

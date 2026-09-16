@@ -7,6 +7,11 @@ on:
         description: Base commit for explicit physical acceptance
         required: true
         type: string
+      publish_installer:
+        description: Build and upload a downloadable installer (otherwise keep development packages local)
+        required: false
+        type: boolean
+        default: false
   pull_request:
   push:
     branches:
@@ -33,7 +38,9 @@ jobs:
       hosted_only: ${{ steps.classify.outputs.hosted_only }}
       requires_custom_stack: ${{ steps.classify.outputs.requires_custom_stack }}
       requires_postgresql_product: ${{ steps.classify.outputs.requires_postgresql_product }}
-      requires_package_product: ${{ steps.classify.outputs.requires_package_product }}
+      # Explicit distribution also selects its package prerequisites.
+      requires_package_product: ${{ steps.classify.outputs.requires_package_product == 'true' || (github.event_name == 'workflow_dispatch' && inputs.publish_installer) }}
+      publish_installer: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_installer }}
       blocked: ${{ steps.classify.outputs.blocked }}
       required_evidence: ${{ steps.classify.outputs.required_evidence }}
       unimplemented_evidence: ${{ steps.classify.outputs.unimplemented_evidence }}
@@ -215,6 +222,8 @@ jobs:
       (needs.classify.outputs.requires_postgresql_product != 'true' ||
        needs.postgresql-product-proof.result == 'success')
     uses: ./.github/workflows/package-product.yml
+    with:
+      publish_installer: ${{ needs.classify.outputs.publish_installer == 'true' }}
 
   product-path:
     if: always()
