@@ -153,11 +153,19 @@ class InstalledHttpReadinessTests(unittest.TestCase):
         runtime.parent.mkdir(parents=True, exist_ok=True)
         active.symlink_to("releases/" + package_id)
         runtime.symlink_to("../releases/" + package_id)
-        manifest_path = root / "manifest.json"
+        product = owner.load_json(ROOT / "contracts/product-package.json")["build"]
+        build_root = owner.prefixed(root, product["root"])
+        stage_root = owner.prefixed(root, product["stage_root"])
+        build = build_root / ("1" * 64)
+        build.mkdir(parents=True)
+        physical = stage_root / ("1" * 64) / "root" / manifest["root"].lstrip("/")
+        physical.mkdir(parents=True)
+        manifest_path = build / "package-manifest.json"
         manifest_path.write_bytes(owner.canonical_bytes(manifest))
-        product_receipt = root / "product-receipt.json"
+        product_receipt = build / "package-receipt.json"
         product_receipt.write_text(json.dumps({
             "schema": "laplace.product-package-receipt/v1", "package_id": package_id,
+            "plan_sha256": "2" * 64, "physical_root": str(physical),
             "manifest": str(manifest_path), "manifest_sha256": owner.sha256_file(manifest_path),
             "activation_eligible": True, "build_input_closure_complete": True,
             "product_activated": False,
@@ -251,6 +259,46 @@ class InstalledHttpReadinessTests(unittest.TestCase):
             self.assertEqual(len(receipt["assets"]), 3)
             for asset in receipt["assets"]:
                 self.assertEqual(asset["sha256"], self.owner.sha256_bytes(fixture["responses"][asset["path"]][2]))
+
+
+    def test_http_readiness_uses_exact_retained_metadata_after_actual_reclamation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = self.fixture(Path(directory))
+            metadata = self.proof.metadata_owner()
+            original = fixture["product_receipt"].read_bytes()
+            original_manifest = fixture["manifest"]
+            build_root = original_manifest.parent.parent
+            stage_root = build_root.parent / "stage"
+            result = metadata.reconcile(
+                {"build": {"root": str(build_root), "stage_root": str(stage_root)}},
+                receipt_root=build_root.parent / "retention", preserve=set(),
+                minimum_age_seconds=0,
+            )
+            retained = Path(result["removed"][0]["retained_metadata"])
+            self.assertFalse(original_manifest.exists())
+            # A new incomplete execution of the same plan is disposable state.
+            original_manifest.parent.mkdir()
+            original_manifest.write_bytes(b"partial new build")
+            selected = retained / "package-receipt.json"
+            output = fixture["root"] / "readiness-retained.json"
+            with self.server(fixture):
+                self.proof.prove_readiness(output, fixture["package_id"], selected,
+                                          root=fixture["root"])
+            report = json.loads(output.read_text())
+            self.assertEqual(report["status"], "passed")
+            self.assertEqual(report["package_metadata"]["selection"], "retained")
+            self.assertEqual(report["package_metadata"]["manifest_path"],
+                             str(retained / "package-manifest.json"))
+            self.assertEqual(report["package_metadata"]["original_manifest_path"],
+                             str(original_manifest))
+            self.assertEqual(selected.read_bytes(), original)
+            self.assertEqual(fixture["calls"], ["/health", "/", "/app.js", "/styles.css"])
+            (retained / "package-manifest.json").write_bytes(b'{"changed":true}')
+            fixture["calls"].clear()
+            with self.server(fixture), self.assertRaises(RuntimeError):
+                self.proof.prove_readiness(fixture["root"] / "refused-retained.json",
+                                          fixture["package_id"], selected, root=fixture["root"])
+            self.assertEqual(fixture["calls"], [])
 
     def test_actual_http_failures_cannot_certify_installed_readiness(self) -> None:
         cases = ("wrong-package", "wrong-web-root", "inactive-native", "malformed-health",

@@ -5,14 +5,19 @@ from __future__ import annotations
 
 import importlib.util
 import hashlib
+import io
 import json
 import os
 import stat
+import shutil
 import sys
 import tempfile
+import tarfile
 import unittest
 from pathlib import Path
 from unittest import mock
+
+import toolchain_build_tests as toolchain_fixture
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +28,24 @@ if SPEC is None or SPEC.loader is None:
 BUILD = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = BUILD
 SPEC.loader.exec_module(BUILD)
+
+
+def composed_consumer_fixture(root: Path) -> tuple[Path, dict, dict, dict]:
+    """Use the owner's protocol fixture and real v2 authentication, without building upstream."""
+    root.mkdir(parents=True, exist_ok=True)
+    receipt_path, receipt, manifest, _, _ = toolchain_fixture.ToolchainBuildTests().composed_fixture(root)
+    expected = {
+        "receipt_schema": "laplace.toolchain-package-receipt/v1",
+        "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+        "required_tools": list(manifest["tools"]),
+        "required_perl_modules": {
+            name: record["version"] for name, record in manifest["perl_modules"].items()
+        },
+        "required_bootstrap_inputs": {},
+        "required_linker_map_inputs": {},
+    }
+    selected = BUILD.verify_toolchain_receipt({"build_toolchain": expected}, receipt_path)
+    return receipt_path, receipt, manifest, selected
 
 
 class PostgreSQLBuildTests(unittest.TestCase):
@@ -870,6 +893,97 @@ class PostgreSQLBuildTests(unittest.TestCase):
         self.assertEqual(closure["system_abi"], ["libc.so.6"])
         self.assertEqual(closure["unknown"], [])
 
+    def test_composed_toolchain_selects_original_roots_and_mounts_both(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, _, manifest, selected = composed_consumer_fixture(Path(temporary))
+            roots = manifest["provider_roots"]
+            self.assertEqual(selected["provider_roots"], roots)
+            self.assertEqual(selected["prefix"], roots["base"]["prefix"])
+            self.assertEqual(selected["tools"], manifest["tools"])
+            self.assertEqual(
+                BUILD.toolchain_provider_prefixes(selected),
+                [roots["cmake"]["prefix"], roots["base"]["prefix"]],
+            )
+            plan = {
+                "source_root": "/evidence/source", "build_directory": "/work/build",
+                "stage_directory": "/work/stage", "build_toolchain": selected,
+                "host_build_provider": {"roots": [{"path": "/usr"}], "files": []},
+            }
+            sandbox = BUILD.sandboxed_build_command(self.contract(), plan, ["/bin/true"])
+            mounts = [sandbox[index:index + 3] for index in range(len(sandbox) - 2)]
+            for root in roots.values():
+                self.assertIn(["--ro-bind", root["prefix"], root["prefix"]], mounts)
+                self.assertNotIn(["--bind", root["prefix"], root["prefix"]], mounts)
+
+    def test_composed_postgresql_environment_prefers_cmake_and_keeps_base_linker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, _, manifest, selected = composed_consumer_fixture(root)
+            staged = root / "postgresql-stage"
+            openssl = staged / "bin/openssl"
+            openssl.parent.mkdir(parents=True)
+            openssl.write_bytes(b"protocol-only selected OpenSSL provider")
+            openssl.chmod(0o755)
+            plan = {
+                "build_toolchain": selected,
+                "staged_product_prefix": str(staged),
+                "build_directory": str(root / "pg-build"),
+                "runtime_package": {"selected_build_executables": {"openssl": {
+                    "relative_path": "bin/openssl", "sha256": BUILD.sha256_file(openssl),
+                }}},
+                "stage_directory": str(root / "pg-stage"),
+            }
+            environment = BUILD.build_environment(self.contract(), plan, root / "pg-home")
+            roots = manifest["provider_roots"]
+            self.assertEqual(environment["PATH"].split(":")[:3], [
+                str(openssl.parent), str(Path(roots["cmake"]["prefix"]) / "bin"),
+                str(Path(roots["base"]["prefix"]) / "bin"),
+            ])
+            self.assertIn("-B" + str(Path(roots["base"]["prefix"]) / "bin"), environment["CFLAGS"])
+            self.assertEqual(environment["MAKE"], manifest["tools"]["make"]["path"])
+            self.assertEqual(environment["PERL"], manifest["tools"]["perl"]["path"])
+
+    def test_composed_runtime_environment_prefers_selected_cmake(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            receipt_path, _, manifest, _ = composed_consumer_fixture(root)
+            specification = importlib.util.spec_from_file_location(
+                "composed_runtime_consumer", REPO_ROOT / "tools/dependencies/build-runtime-graph.py"
+            )
+            assert specification is not None and specification.loader is not None
+            runtime = importlib.util.module_from_spec(specification)
+            sys.modules[specification.name] = runtime
+            specification.loader.exec_module(runtime)
+            contract = runtime.read_json(REPO_ROOT / "contracts/postgresql-runtime-build.json")
+            selected = runtime.verify_toolchain_receipt(contract, receipt_path)
+            roots = manifest["provider_roots"]
+            plan = {
+                "tools": selected["tools"], "toolchain_prefix": selected["prefix"],
+                "staged_prefix": str(root / "runtime-stage/root"),
+                "build_directory": str(root / "runtime-build"),
+                "stage_directory": str(root / "runtime-stage"),
+            }
+            environment = runtime.build_environment(contract, plan, root / "runtime-home")
+            self.assertEqual(environment["PATH"].split(":")[:2], [
+                str(Path(roots["cmake"]["prefix"]) / "bin"),
+                str(Path(roots["base"]["prefix"]) / "bin"),
+            ])
+            self.assertEqual(selected["tools"]["cmake"], manifest["tools"]["cmake"])
+            self.assertIn("-B" + str(Path(roots["base"]["prefix"]) / "bin"), environment["CFLAGS"])
+
+    def test_composed_toolchain_never_falls_back_after_provider_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path, _, manifest, _ = composed_consumer_fixture(Path(temporary))
+            tool = Path(manifest["tools"]["cmake"]["path"])
+            tool.write_bytes(tool.read_bytes() + b"\n# changed after qualification\n")
+            expected = {
+                "receipt_schema": "laplace.toolchain-package-receipt/v1",
+                "consumer_manifest_schema": "laplace.toolchain-consumer-manifest/v1",
+                "required_tools": ["cmake"],
+            }
+            with self.assertRaises(BUILD.BuildError):
+                BUILD.verify_toolchain_receipt({"build_toolchain": expected}, path)
+
     def test_toolchain_receipt_selects_every_required_build_tool(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             contract = self.contract()
@@ -1406,6 +1520,170 @@ class PostgreSQLBuildTests(unittest.TestCase):
                     )
             self.assertNotEqual(first["build_input_id"], second["build_input_id"])
             self.assertEqual(first["postgresql_install_prefix"], "/opt/laplace/current/pgsql-18")
+
+
+
+class PostgreSQLSelectedSourceTests(unittest.TestCase):
+    """Real archive/import checks; this fixture does not build upstream PostgreSQL."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.repository = self.root / "repository"
+        verifier_path = self.repository / "tools/dependencies/release-assets.py"
+        verifier_path.parent.mkdir(parents=True)
+        shutil.copyfile(REPO_ROOT / "tools/dependencies/release-assets.py", verifier_path)
+        self.verifier = toolchain_fixture.BUILD.load_release_module(self.repository)
+        self.archives = self.root / "archives"
+        self.archives.mkdir()
+        self.generation = self.root / "original-generation"
+        self.generation.mkdir()
+        self.source = self.generation / "postgresql"
+        archive = self.archives / "postgresql-18.6.tar.gz"
+        top = "postgresql-18.6"
+        with tarfile.open(archive, "w:gz") as output:
+            for name in (top, top + "/src"):
+                member = tarfile.TarInfo(name)
+                member.type = tarfile.DIRTYPE
+                member.mode = 0o755
+                output.addfile(member)
+            for name, body, mode in (
+                ("LICENSE", b"fixture license\n", 0o644),
+                ("configure", b"#!/bin/sh\nexit 0\n", 0o755),
+                ("src/header", b"fixture header\n", 0o644),
+            ):
+                member = tarfile.TarInfo(top + "/" + name)
+                member.size, member.mode = len(body), mode
+                output.addfile(member, io.BytesIO(body))
+            link = tarfile.TarInfo(top + "/source-link")
+            link.type, link.linkname, link.mode = tarfile.SYMTYPE, "src/header", 0o777
+            output.addfile(link)
+            hardlink = tarfile.TarInfo(top + "/header-copy")
+            hardlink.type, hardlink.linkname = tarfile.LNKTYPE, top + "/src/header"
+            output.addfile(hardlink)
+        metrics = self.verifier.inspect_archive(archive, top)
+        self.entry = {
+            "version": "18.6", "filename": archive.name,
+            "url": "https://example.invalid/postgresql-18.6.tar.gz",
+            "sha256": metrics["archive_sha256"],
+            "size_bytes": metrics["archive_size_bytes"], "top_directory": top,
+            **{key: metrics[key] for key in (
+                "member_count", "regular_file_count", "uncompressed_bytes", "tree_sha256"
+            )},
+            "licenses": [{"path": top + "/LICENSE",
+                          "sha256": hashlib.sha256(b"fixture license\n").hexdigest()}],
+        }
+        self.lock = {
+            "schema": "laplace.release-lock/v1",
+            "archives": {
+                "postgresql": self.entry,
+                "cmake": {**self.entry, "filename": "unacquired-cmake.tar.gz",
+                          "version": "4.4.3"},
+            },
+        }
+        self.lock_path = self.repository / "lock.json"
+        self.write_lock()
+        self.contract = {"source": {"entry": "postgresql", "version": "18.6",
+                                    "release_lock": "lock.json"}}
+        self.verifier.import_entry("postgresql", self.entry, self.archives, self.generation)
+
+    def write_lock(self) -> None:
+        self.lock_path.write_text(json.dumps(self.lock), encoding="utf-8")
+
+    def verify(self) -> dict:
+        return BUILD.verify_release_import(
+            self.contract, self.repository, self.archives, self.source
+        )
+
+    def test_unchanged_selected_source_does_not_require_unselected_generation(self) -> None:
+        before = BUILD.exact_tree_receipt(self.generation)
+        first = self.verify()
+        self.assertEqual(first["scope"], "selected-postgresql-source")
+        self.assertEqual(first["command"], "verify-selected-import")
+        self.assertEqual([item["name"] for item in first["archives"]], ["postgresql"])
+        self.assertEqual(first["lock_sha256"], BUILD.sha256_file(self.lock_path))
+        self.assertEqual(first["source_root"], str(self.source))
+        self.assertEqual(first["archives"][0]["archive_sha256"], self.entry["sha256"])
+        self.assertEqual(first, self.verify())
+        self.assertEqual(BUILD.exact_tree_receipt(self.generation), before)
+        # The whole-generation API still refuses; its completeness law is unchanged.
+        with self.assertRaisesRegex(self.verifier.ReleaseError, "release archive is missing"):
+            self.verifier.verify_imported_lock(
+                self.lock_path, self.archives, self.generation
+            )
+        self.lock["archives"]["cmake"]["version"] = "4.4.4"
+        self.write_lock()
+        second = self.verify()
+        self.assertEqual(first["archives"], second["archives"])
+        self.assertNotEqual(first["lock_sha256"], second["lock_sha256"])
+
+    def test_selected_archive_bytes_remain_required(self) -> None:
+        archive = self.archives / self.entry["filename"]
+        with archive.open("ab") as stream:
+            stream.write(b"tampered archive")
+        with self.assertRaisesRegex(BUILD.BuildError, "mismatch"):
+            self.verify()
+
+    def test_selected_source_content_modes_links_and_extra_paths_remain_exact(self) -> None:
+        cases = ("content", "mode", "symlink", "hardlink", "extra", "missing")
+        for case in cases:
+            with self.subTest(case=case):
+                if case != cases[0]:
+                    shutil.rmtree(self.source)
+                    self.verifier.import_entry(
+                        "postgresql", self.entry, self.archives, self.generation
+                    )
+                if case == "content":
+                    (self.source / "configure").write_bytes(b"changed\n")
+                elif case == "mode":
+                    (self.source / "configure").chmod(0o644)
+                elif case == "symlink":
+                    (self.source / "source-link").unlink()
+                    (self.source / "source-link").symlink_to("configure")
+                elif case == "hardlink":
+                    body = (self.source / "header-copy").read_bytes()
+                    (self.source / "header-copy").unlink()
+                    (self.source / "header-copy").write_bytes(body)
+                elif case == "extra":
+                    (self.source / "unexpected").write_bytes(b"extra")
+                else:
+                    (self.source / "configure").unlink()
+                with self.assertRaises(BUILD.BuildError):
+                    self.verify()
+
+    def test_selected_lock_digest_version_and_license_remain_required(self) -> None:
+        original = json.loads(json.dumps(self.entry))
+        for field in ("version", "sha256", "license"):
+            with self.subTest(field=field):
+                self.lock["archives"]["postgresql"] = json.loads(json.dumps(original))
+                selected = self.lock["archives"]["postgresql"]
+                if field == "license":
+                    selected["licenses"][0]["sha256"] = "0" * 64
+                else:
+                    selected[field] = "0" * 64 if field == "sha256" else "18.5"
+                self.write_lock()
+                with self.assertRaises(BUILD.BuildError):
+                    self.verify()
+
+    def test_selected_root_cannot_be_a_symlink(self) -> None:
+        moved = self.generation / "physical-postgresql"
+        self.source.rename(moved)
+        self.source.symlink_to(moved, target_is_directory=True)
+        with self.assertRaisesRegex(BUILD.BuildError, "imported source root is missing"):
+            self.verify()
+
+    def test_selected_lock_rejects_duplicate_keys_and_missing_entry(self) -> None:
+        self.lock_path.write_text(
+            '{"schema":"laplace.release-lock/v1","schema":"duplicate","archives":{}}',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(BUILD.BuildError, "duplicate"):
+            self.verify()
+        del self.lock["archives"]["postgresql"]
+        self.write_lock()
+        with self.assertRaisesRegex(BUILD.BuildError, "does not contain postgresql"):
+            self.verify()
 
 
 if __name__ == "__main__":

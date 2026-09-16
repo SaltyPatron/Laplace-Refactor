@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -24,6 +25,7 @@ from package_receipts import (  # noqa: E402
     verify_recorded_package_tree,
     verify_installed_provider_selection,
     verify_toolchain_package_receipt,
+    toolchain_provider_prefixes,
 )
 
 CONTRACT_SCHEMA = "laplace.postgresql-build-contract/v2"
@@ -815,38 +817,45 @@ def selected_release(contract: dict[str, Any], repository: Path) -> dict[str, An
 def verify_release_import(
     contract: dict[str, Any], repository: Path, archive_root: Path, source_root: Path
 ) -> dict[str, Any]:
+    """Verify the selected PostgreSQL source, not unrelated release components.
+
+    Runtime libraries and build tools have their own independently authenticated
+    receipts in create_plan. A change to their release-lock siblings does not
+    require copying the unchanged PostgreSQL source into another generation.
+    """
     entry_name = contract["source"]["entry"]
     if source_root.name != entry_name:
         raise BuildError(f"source root must be the {entry_name} member of a verified release import")
     release_tool = repository / "tools/dependencies/release-assets.py"
+    spec = importlib.util.spec_from_file_location("laplace_postgresql_release_assets", release_tool)
+    if spec is None or spec.loader is None:
+        raise BuildError(f"cannot load release verifier: {release_tool}")
+    verifier = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = verifier
+    spec.loader.exec_module(verifier)
     lock_path = repository / contract["source"]["release_lock"]
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(release_tool),
-            "verify-import",
-            "--lock",
-            str(lock_path),
-            "--archive-root",
-            str(archive_root.resolve()),
-            "--destination",
-            str(source_root.parent.resolve()),
-        ],
-        check=True,
-        text=True,
-        capture_output=True,
-    )
-    receipt = json.loads(result.stdout)
-    archives = receipt.get("archives")
-    if not isinstance(archives, list) or not any(
-        isinstance(item, dict)
-        and item.get("name") == entry_name
-        and item.get("version") == contract["source"]["version"]
-        for item in archives
-    ):
-        raise BuildError("release verification receipt omits the selected PostgreSQL source")
-    return receipt
-
+    try:
+        lock = verifier.load_lock(lock_path)
+        entry = lock["archives"].get(entry_name)
+        if not isinstance(entry, dict):
+            raise BuildError(f"release lock does not contain {entry_name}")
+        if entry.get("version") != contract["source"]["version"]:
+            raise BuildError("PostgreSQL release lock version differs from the build contract")
+        archive = verifier.verify_entry(entry_name, entry, archive_root.resolve())
+        verifier.verify_imported_entry(
+            entry_name, entry, archive_root.resolve(), source_root.parent.resolve()
+        )
+    except verifier.ReleaseError as error:
+        raise BuildError(str(error)) from error
+    return {
+        "schema": verifier.RECEIPT_SCHEMA,
+        "command": "verify-selected-import",
+        "scope": "selected-postgresql-source",
+        "lock_sha256": sha256_file(lock_path),
+        "archive_root": str(archive_root.resolve()),
+        "source_root": str(source_root.resolve()),
+        "archives": [archive],
+    }
 
 def create_plan(
     contract: dict[str, Any],
@@ -953,6 +962,9 @@ def build_environment(
         directory = str(Path(tool["path"]).parent)
         if directory not in tool_directories:
             tool_directories.append(directory)
+    if "provider_roots" in plan["build_toolchain"]:
+        tool_directories = [str(Path(root) / "bin") for root in
+                            toolchain_provider_prefixes(plan["build_toolchain"])]
     staged_product = Path(plan["staged_product_prefix"])
     openssl_receipt = plan["runtime_package"]["selected_build_executables"]["openssl"]
     openssl = staged_product / openssl_receipt["relative_path"]
@@ -1338,7 +1350,7 @@ def sandboxed_build_command(
         arguments.extend(("--ro-bind", str(path), str(path)))
     for path_value, writable in (
         (plan["source_root"], False),
-        (plan["build_toolchain"]["prefix"], False),
+        *((root, False) for root in toolchain_provider_prefixes(plan["build_toolchain"])),
         (plan["build_directory"], True),
         (plan["stage_directory"], True),
     ):

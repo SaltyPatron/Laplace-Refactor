@@ -12,6 +12,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from postgresql_build_tests import composed_consumer_fixture
+
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPOSITORY / "tools/delivery/postgresql_package_publication.py"
@@ -96,6 +98,60 @@ class PostgreSQLPackagePublicationTests(unittest.TestCase):
         source_receipt = self.root / "private/evidence/postgresql.json"
         self.write_json(source_receipt, receipt)
         return source_receipt
+
+    def composed_source(self) -> tuple[dict, dict]:
+        _, _, manifest, selected = composed_consumer_fixture(self.root / "composition")
+        source = PUBLICATION.load_json(self.source_receipt)
+        source["build_toolchain"] = selected
+        self.write_json(self.source_receipt, source)
+        return manifest, selected
+
+    def test_composed_publication_preserves_provider_roots_and_replays(self) -> None:
+        manifest, _ = self.composed_source()
+        roots = manifest["provider_roots"]
+        before = {name: PUBLICATION.tree_receipt(Path(record["prefix"]))
+                  for name, record in roots.items()}
+        receipt = PUBLICATION.publish(self.contract, self.source_receipt)
+        self.assertEqual(receipt["toolchain"]["provider_roots"], roots)
+        self.assertEqual(receipt["toolchain"]["schema"],
+                         PUBLICATION.toolchain_receipts.RETAINED_TOOLCHAIN_SCHEMA)
+        self.assertNotIn("prefix", receipt["toolchain"])
+        self.assertNotIn("source_prefix", receipt["toolchain"])
+        self.assertNotIn("toolchain_tree_sha256", receipt)
+        self.assertFalse((Path(receipt["publication_root"]) / "toolchain").exists())
+        self.assertEqual(PUBLICATION.publish(self.contract, self.source_receipt), receipt)
+        after = {name: PUBLICATION.tree_receipt(Path(record["prefix"]))
+                 for name, record in roots.items()}
+        self.assertEqual(before, after)
+        specification = importlib.util.spec_from_file_location(
+            "composed_product_consumer", REPOSITORY / "tools/product/build-package.py"
+        )
+        assert specification is not None and specification.loader is not None
+        product = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(product)
+        product_contract = product.load_json(REPOSITORY / "contracts/product-package.json")
+        observed_publication, observed_source = product.verify_postgresql_publication(
+            product_contract, Path(receipt["receipt_path"])
+        )
+        selected_product = product.verify_product_toolchain(observed_source, observed_publication)
+        self.assertEqual(selected_product["provider_roots"], roots)
+        self.assertEqual(selected_product["tools"]["cmake"], manifest["tools"]["cmake"])
+
+    def test_composed_publication_rechecks_original_provider_on_replay(self) -> None:
+        manifest, _ = self.composed_source()
+        receipt = PUBLICATION.publish(self.contract, self.source_receipt)
+        binary = Path(manifest["tools"]["cmake"]["path"])
+        binary.write_bytes(binary.read_bytes() + b"\n# mutation\n")
+        with self.assertRaises(PUBLICATION.PublicationError):
+            PUBLICATION.verify_publication(Path(receipt["receipt_path"]))
+
+    def test_composed_publication_rejects_relabelled_provider_selection(self) -> None:
+        self.composed_source()
+        source = PUBLICATION.load_json(self.source_receipt)
+        source["build_toolchain"]["tools"]["cmake"]["provider_root"] = "base"
+        self.write_json(self.source_receipt, source)
+        with self.assertRaisesRegex(PUBLICATION.PublicationError, "selected tool differs"):
+            PUBLICATION.publication_plan(self.contract, self.source_receipt)
 
     def test_exact_publication_is_runner_readable_and_replayable(self) -> None:
         first = PUBLICATION.publish(self.contract, self.source_receipt)
