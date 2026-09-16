@@ -222,9 +222,10 @@ END
 $replay$;
 
 DO $physicality_binding_controls$
-DECLARE rejected integer:=0; expected text;
+DECLARE rejected integer:=0; expected text; expected_state text;
 BEGIN
  FOR control IN 1..4 LOOP
+   expected_state:='XX001';
    BEGIN
      IF control=1 THEN
        expected:='Laplace retained structural witnesses no longer match their receipt';
@@ -236,7 +237,8 @@ BEGIN
        UPDATE laplace.source_structural_witness SET canonical_physicality_id=NULL
        WHERE source_profile_id=(SELECT profile_id FROM cpp_first) AND artifact_index=1 AND span_index=0;
      ELSIF control=3 THEN
-       expected:='Laplace materialization physicality id cannot be null';
+       expected_state:='P0002';
+       expected:='Laplace materialization composition is absent in the pinned geometry epoch';
        UPDATE laplace.physicality SET geometry_epoch=decode(repeat('ff',32),'hex')
        WHERE physicality_id=(SELECT canonical_physicality_id FROM cpp_physicality_choice LIMIT 1);
      ELSE
@@ -254,8 +256,10 @@ BEGIN
      END IF;
      PERFORM pg_temp.cpp_read(1);
      RAISE EXCEPTION USING ERRCODE='LP001',MESSAGE='source physicality binding control unexpectedly succeeded';
-   EXCEPTION WHEN SQLSTATE 'XX001' THEN
-     IF SQLERRM IS DISTINCT FROM expected THEN RAISE; END IF;
+   EXCEPTION WHEN SQLSTATE 'XX001' OR SQLSTATE 'P0002' THEN
+     IF SQLSTATE IS DISTINCT FROM expected_state OR SQLERRM IS DISTINCT FROM expected THEN
+       RAISE;
+     END IF;
      rejected:=rejected+1;
    END;
  END LOOP;
