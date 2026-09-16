@@ -55,9 +55,11 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Terminate stale database workers from interrupted jobs
+        id: prepare_custom_stack
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
+          printf 'started=true\n' >> "$GITHUB_OUTPUT"
           python3 tools/delivery/runner_orphan_cleanup.py \
             --minimum-age-seconds 300 \
             --grace-seconds 5 \
@@ -381,7 +383,8 @@ jobs:
           find "$RUNNER_TEMP" -type f -path '*/laplace-postgres-test.*/postgres.log' \
             -print -exec sed -n '1,240p' {} \;
       - name: Clean disposable custom-stack workspaces
-        if: always()
+        # The preparation shell records ownership only after acquiring the host lock.
+        if: always() && steps.prepare_custom_stack.outputs.started == 'true'
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
