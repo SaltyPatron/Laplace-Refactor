@@ -53,6 +53,8 @@ typedef struct persistence_sink_state {
     SPIPlanPtr verify_plans[5];
     MemoryContext batch_context;
     int spi_connected;
+    const laplace_pg_persistence_options* options;
+    uint64_t database_operations;
 } persistence_sink_state;
 
 static SPIPlanPtr deposit_receipt_insert_plan = NULL;
@@ -66,6 +68,50 @@ static const char* const record_type_names[5] = {
     NULL,
     "attestation_record",
     "consensus_record"};
+
+int LAPLACE_PG_PERSISTENCE_BATCH_MEMORY_SYMBOL(
+    uint64_t byte_count, uint64_t record_count, uint64_t* required_bytes) {
+    uint64_t stream_bytes;
+    uint64_t record_bytes;
+    if (required_bytes == NULL) return 0;
+    *required_bytes = 0u;
+    if (byte_count == 0u || record_count == 0u || byte_count > SIZE_MAX ||
+        record_count > SIZE_MAX / sizeof(staged_record) ||
+        byte_count > UINT64_MAX / LAPLACE_PERSISTENCE_PG_STREAM_BYTE_MULTIPLIER ||
+        record_count > UINT64_MAX /
+            (sizeof(staged_record) + LAPLACE_PERSISTENCE_PG_PER_RECORD_OVERHEAD_BYTES))
+        return 0;
+    stream_bytes = byte_count * LAPLACE_PERSISTENCE_PG_STREAM_BYTE_MULTIPLIER;
+    record_bytes = record_count *
+        (sizeof(staged_record) + LAPLACE_PERSISTENCE_PG_PER_RECORD_OVERHEAD_BYTES);
+    if (stream_bytes > UINT64_MAX - record_bytes) return 0;
+    *required_bytes = stream_bytes + record_bytes;
+    return 1;
+}
+
+static void persistence_query(persistence_sink_state* state) {
+    if (state->database_operations == UINT64_MAX ||
+        (state->options != NULL &&
+         state->database_operations >= state->options->maximum_database_operations)) {
+        ereport(ERROR,
+                (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+                 errmsg("Laplace persistence database operation grant is exhausted")));
+    }
+    ++state->database_operations;
+}
+
+static SPIPlanPtr persistence_prepare(
+    persistence_sink_state* state, const char* sql, int count, Oid* types) {
+    persistence_query(state);
+    return SPI_prepare(sql, count, types);
+}
+
+static void persistence_keep_plan(
+    persistence_sink_state* state, SPIPlanPtr* target,
+    const char* sql, int count, Oid* types) {
+    if (*target == NULL) persistence_query(state);
+    laplace_pg_keep_plan(target, sql, count, types);
+}
 
 static void note_plan(persistence_sink_state* state, uint32_t plan_id) {
     uint32_t index;
@@ -421,6 +467,7 @@ static void execute_reference_check(
     int64 missing_entity_count;
     int64 missing_physicality_count;
     int result;
+    persistence_query(state);
     result = SPI_execute_plan(state->reference_plan, NULL, NULL, false, 1);
     note_plan(state, LAPLACE_PERSISTENCE_PG_PLAN_REFERENCE_PREFLIGHT);
     if (result != SPI_OK_SELECT || SPI_processed != 1) {
@@ -450,7 +497,9 @@ static void execute_reference_check(
 }
 
 static void acquire_write_partitions(persistence_sink_state* state) {
-    const int result = SPI_execute_plan(
+    int result;
+    persistence_query(state);
+    result = SPI_execute_plan(
         state->write_partition_lock_plan, NULL, NULL, false, 0);
     if (result != SPI_OK_SELECT || SPI_processed > 64u) {
         ereport(ERROR,
@@ -468,6 +517,7 @@ static void stage_record_family(
     uint64_t count) {
     Datum values[1] = {PointerGetDatum(records)};
     int result;
+    persistence_query(state);
     result = SPI_execute_plan(state->stage_plans[kind], values, NULL, false, 0);
     if (result != SPI_OK_INSERT || SPI_processed != count) {
         ereport(ERROR,
@@ -479,7 +529,7 @@ static void stage_record_family(
     }
 }
 
-static void initialize_staging_tables(void) {
+static void initialize_staging_tables(persistence_sink_state* state) {
     static const char* const create_statements[5] = {
         "CREATE TEMP TABLE IF NOT EXISTS laplace_persistence_stage_entity "
         "(LIKE " LAPLACE_PG_SCHEMA ".entity) "
@@ -511,6 +561,7 @@ static void initialize_staging_tables(void) {
     size_t kind;
     int result;
     for (kind = 0; kind < 5; ++kind) {
+        persistence_query(state);
         result = SPI_execute(create_statements[kind], false, 0);
         if (result != SPI_OK_UTILITY) {
             ereport(ERROR,
@@ -519,6 +570,7 @@ static void initialize_staging_tables(void) {
                      errdetail("record_family=%zu spi_result=%d", kind, result)));
         }
     }
+    persistence_query(state);
     result = SPI_execute(drop_indexes_statement, false, 0);
     if (result != SPI_OK_UTILITY) {
         ereport(ERROR,
@@ -526,6 +578,7 @@ static void initialize_staging_tables(void) {
                  errmsg("Laplace persistence staging index reset failed"),
                  errdetail("spi_result=%d", result)));
     }
+    persistence_query(state);
     result = SPI_execute(truncate_statement, false, 0);
     if (result != SPI_OK_UTILITY) {
         ereport(ERROR,
@@ -535,7 +588,7 @@ static void initialize_staging_tables(void) {
     }
 }
 
-static void index_staging_tables(void) {
+static void index_staging_tables(persistence_sink_state* state) {
     static const char* const statements[5] = {
         "CREATE INDEX laplace_persistence_stage_entity_id_idx "
         "ON pg_temp.laplace_persistence_stage_entity(entity_id)",
@@ -550,7 +603,9 @@ static void index_staging_tables(void) {
     };
     size_t kind;
     for (kind = 0; kind < 5; ++kind) {
-        const int result = SPI_execute(statements[kind], false, 0);
+        int result;
+        persistence_query(state);
+        result = SPI_execute(statements[kind], false, 0);
         if (result != SPI_OK_UTILITY) {
             ereport(ERROR,
                     (errcode(ERRCODE_INTERNAL_ERROR),
@@ -560,14 +615,16 @@ static void index_staging_tables(void) {
     }
 }
 
-static void analyze_staging_tables(void) {
+static void analyze_staging_tables(persistence_sink_state* state) {
     static const char statement[] =
         "ANALYZE pg_temp.laplace_persistence_stage_entity, "
         "pg_temp.laplace_persistence_stage_physicality, "
         "pg_temp.laplace_persistence_stage_trajectory_reference, "
         "pg_temp.laplace_persistence_stage_attestation, "
         "pg_temp.laplace_persistence_stage_consensus";
-    const int result = SPI_execute(statement, false, 0);
+    int result;
+    persistence_query(state);
+    result = SPI_execute(statement, false, 0);
     if (result != SPI_OK_UTILITY) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
@@ -578,9 +635,9 @@ static void analyze_staging_tables(void) {
 
 static void prepare_staging_plans(persistence_sink_state* state) {
     size_t kind;
-    state->write_partition_lock_plan = SPI_prepare(
-        write_partition_lock_sql(), 0, NULL);
-    state->reference_plan = SPI_prepare(reference_sql(), 0, NULL);
+    state->write_partition_lock_plan = persistence_prepare(
+        state, write_partition_lock_sql(), 0, NULL);
+    state->reference_plan = persistence_prepare(state, reference_sql(), 0, NULL);
     if (state->write_partition_lock_plan == NULL ||
         state->reference_plan == NULL) {
         ereport(ERROR,
@@ -591,10 +648,13 @@ static void prepare_staging_plans(persistence_sink_state* state) {
         Oid types[1] = {
             kind == 2 ? BYTEAARRAYOID :
                 laplace_pg_composite_array_oid(record_type_names[kind])};
-        state->stage_plans[kind] = SPI_prepare(stage_sql(kind), 1, types);
+        state->stage_plans[kind] = persistence_prepare(state, stage_sql(kind), 1, types);
         if (kind != 2) {
-            state->insert_plans[kind] = SPI_prepare(insert_sql(kind), 0, NULL);
-            state->verify_plans[kind] = SPI_prepare(verify_sql(kind), 0, NULL);
+            const char* statement = insert_sql(kind);
+            if (kind == 0 && state->options != NULL && state->options->inserted_entities != NULL)
+                statement = psprintf("%s RETURNING entity_id", statement);
+            state->insert_plans[kind] = persistence_prepare(state, statement, 0, NULL);
+            state->verify_plans[kind] = persistence_prepare(state, verify_sql(kind), 0, NULL);
         }
         if (state->stage_plans[kind] == NULL ||
             (kind != 2 && (state->insert_plans[kind] == NULL ||
@@ -614,19 +674,44 @@ static void execute_record_family(
     int result;
     uint64_t verified;
     uint64_t inserted;
+    laplace_pg_persistence_inserted_entities* entity_output =
+        state->options == NULL ? NULL : state->options->inserted_entities;
+    const bool returns_rows = kind == 1 || (kind == 0 && entity_output != NULL);
+    persistence_query(state);
     result = SPI_execute_plan(state->insert_plans[kind], NULL, NULL, false, 0);
     note_plan(state,
         kind == 0 ? LAPLACE_PERSISTENCE_PG_PLAN_ENTITY_INSERT :
         kind == 1 ? LAPLACE_PERSISTENCE_PG_PLAN_PHYSICALITY_INSERT :
         kind == 3 ? LAPLACE_PERSISTENCE_PG_PLAN_ATTESTATION_INSERT :
                     LAPLACE_PERSISTENCE_PG_PLAN_CONSENSUS_INSERT);
-    if ((kind == 1 ? result != SPI_OK_INSERT_RETURNING : result != SPI_OK_INSERT) ||
+    if ((returns_rows ? result != SPI_OK_INSERT_RETURNING : result != SPI_OK_INSERT) ||
         SPI_processed > count) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
                  errmsg("Laplace persistence insert was not set-bounded")));
     }
     inserted = (uint64_t)SPI_processed;
+    if (kind == 0 && entity_output != NULL) {
+        uint64_t row;
+        if (inserted > entity_output->capacity - entity_output->count ||
+            (inserted != 0u && (SPI_tuptable == NULL || SPI_tuptable->tupdesc->natts != 1))) {
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace persistence inserted entity output is not bounded")));
+        }
+        for (row = 0u; row < inserted; ++row) {
+            bool is_null;
+            Datum value = SPI_getbinval(SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 1, &is_null);
+            bytea* bytes;
+            if (is_null) ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace persistence inserted entity identity is null")));
+            bytes = DatumGetByteaPP(value);
+            if (VARSIZE_ANY_EXHDR(bytes) != sizeof(laplace_id128))
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace persistence inserted entity identity has invalid width")));
+            memcpy(entity_output->ids[entity_output->count++].bytes,
+                   VARDATA_ANY(bytes), sizeof(laplace_id128));
+        }
+    }
     if (kind == 1) {
         uint64_t row;
         for (row = 0; row < inserted; ++row) {
@@ -664,6 +749,7 @@ static void execute_record_family(
     if (inserted == count) {
         return;
     }
+    persistence_query(state);
     result = SPI_execute_plan(state->verify_plans[kind], NULL, NULL, false, 1);
     if (result != SPI_OK_SELECT) {
         ereport(ERROR,
@@ -702,11 +788,12 @@ static laplace_framework_status sink_begin(
         return LAPLACE_FRAMEWORK_SINK_BEGIN_FAILED;
     }
     state->spi_connected = 1;
-    initialize_staging_tables();
+    initialize_staging_tables(state);
     prepare_staging_plans(state);
     state->expected_records = total_records;
     state->expected_bytes = total_bytes;
-    state->memory_grant_bytes = context->resource_grant.memory_bytes;
+    state->memory_grant_bytes = context->resource_grant.memory_bytes -
+        (state->options == NULL ? 0u : state->options->reserved_memory_bytes);
     state->batch_context = AllocSetContextCreate(
         CurrentMemoryContext, "Laplace persistence canonical batch",
         ALLOCSET_DEFAULT_SIZES);
@@ -733,32 +820,15 @@ static laplace_framework_status sink_stage(
     MemoryContext prior_context;
     ArrayType* arrays[5];
     uint64_t counts[5];
-    uint64_t record_bytes;
-    uint64_t stream_bytes;
     uint64_t allocation_bytes;
     size_t offset = 0;
     size_t kind;
     if (!state->spi_connected || state->batch_context == NULL ||
         batch == NULL || batch->canonical_bytes == NULL ||
-        batch->record_count == 0 || batch->byte_count == 0 ||
-        batch->record_count > SIZE_MAX / sizeof(staged_record) ||
-        batch->byte_count > SIZE_MAX ||
-        batch->byte_count > UINT64_MAX /
-            LAPLACE_PERSISTENCE_PG_STREAM_BYTE_MULTIPLIER ||
-        batch->record_count > UINT64_MAX /
-            (sizeof(staged_record) +
-             LAPLACE_PERSISTENCE_PG_PER_RECORD_OVERHEAD_BYTES)) {
+        !LAPLACE_PG_PERSISTENCE_BATCH_MEMORY_SYMBOL(
+            batch->byte_count, batch->record_count, &allocation_bytes)) {
         return LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
     }
-    stream_bytes = batch->byte_count *
-        LAPLACE_PERSISTENCE_PG_STREAM_BYTE_MULTIPLIER;
-    record_bytes = batch->record_count *
-        (sizeof(staged_record) +
-         LAPLACE_PERSISTENCE_PG_PER_RECORD_OVERHEAD_BYTES);
-    if (stream_bytes > UINT64_MAX - record_bytes) {
-        return LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
-    }
-    allocation_bytes = stream_bytes + record_bytes;
     if (allocation_bytes > state->memory_grant_bytes) {
         return LAPLACE_FRAMEWORK_SINK_STAGE_FAILED;
     }
@@ -908,8 +978,13 @@ static laplace_framework_status sink_seal(
     counts[2] = state->summary.trajectory_segment_count;
     counts[3] = state->summary.attestation_count;
     counts[4] = state->summary.consensus_count;
-    index_staging_tables();
-    analyze_staging_tables();
+    if (state->options != NULL && state->options->inserted_entities != NULL &&
+        state->options->inserted_entities->capacity < state->summary.entity_count) {
+        ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+            errmsg("Laplace persistence inserted entity output capacity is below the staged entity count")));
+    }
+    index_staging_tables(state);
+    analyze_staging_tables(state);
     acquire_write_partitions(state);
     execute_reference_check(state);
     for (kind = 0; kind < 5; ++kind) {
@@ -1003,8 +1078,9 @@ static void persist_deposit_receipt(
         state->plan_sequence_fingerprint.bytes,
         sizeof(state->plan_sequence_fingerprint.bytes)));
     values[19] = Int32GetDatum((int32)state->plan_count);
-    laplace_pg_keep_plan(
-        &deposit_receipt_insert_plan, insert_sql_text, 20, types);
+    persistence_keep_plan(
+        state, &deposit_receipt_insert_plan, insert_sql_text, 20, types);
+    persistence_query(state);
     result = SPI_execute_plan(deposit_receipt_insert_plan, values, NULL, false, 0);
     if (result != SPI_OK_INSERT || SPI_processed > 1) {
         ereport(ERROR,
@@ -1012,8 +1088,9 @@ static void persist_deposit_receipt(
                  errmsg("Laplace deposit receipt insert was not bounded")));
     }
 #if !defined(LAPLACE_TEST_COMPOSITION_REPLAY_RECEIPT_VERIFY_BYPASS)
-    laplace_pg_keep_plan(
-        &deposit_receipt_verify_plan, verify_sql_text, 20, types);
+    persistence_keep_plan(
+        state, &deposit_receipt_verify_plan, verify_sql_text, 20, types);
+    persistence_query(state);
     result = SPI_execute_plan(deposit_receipt_verify_plan, values, NULL, false, 1);
     if (result != SPI_OK_SELECT ||
         laplace_pg_scalar_count("persistence receipt verification") != 1u) {
@@ -1042,6 +1119,17 @@ void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
     const laplace_digest256* recipe_fingerprint,
     const laplace_framework_producer_v1* producer,
     laplace_pg_persistence_producer_result* result) {
+    LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_BOUNDED_SYMBOL(
+        context, source_fingerprint, recipe_fingerprint, producer, NULL, result);
+}
+
+void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_BOUNDED_SYMBOL(
+    const laplace_framework_context* context,
+    const laplace_digest256* source_fingerprint,
+    const laplace_digest256* recipe_fingerprint,
+    const laplace_framework_producer_v1* producer,
+    const laplace_pg_persistence_options* options,
+    laplace_pg_persistence_producer_result* result) {
     laplace_framework_sink_v1 sink;
     laplace_framework_producer_control_v1 control;
     persistence_sink_state state;
@@ -1057,12 +1145,22 @@ void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
                  errmsg("Laplace persistence producer arguments are invalid")));
     }
     memset(result, 0, sizeof(*result));
+    if (options != NULL) {
+        if (options->maximum_database_operations == 0u ||
+            options->reserved_memory_bytes >= context->resource_grant.memory_bytes ||
+            (options->inserted_entities != NULL &&
+             (options->inserted_entities->ids == NULL || options->inserted_entities->capacity == 0u)))
+            ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                errmsg("Laplace persistence bounded options are invalid")));
+        if (options->inserted_entities != NULL) options->inserted_entities->count = 0u;
+    }
     if ((context->flags & LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY) != 0u) {
         ereport(ERROR,
                 (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
                  errmsg("read-only Laplace execution context cannot deposit canonical state")));
     }
     memset(&state, 0, sizeof(state));
+    state.options = options;
     memset(&sink, 0, sizeof(sink));
     sink.state = &state;
     sink.begin = sink_begin;
@@ -1101,6 +1199,7 @@ void LAPLACE_PG_PERSISTENCE_RUN_PRODUCER_SYMBOL(
     memcpy(result->inserted, state.inserted, sizeof(result->inserted));
     result->plan_sequence_fingerprint = state.plan_sequence_fingerprint;
     result->plan_count = state.plan_count;
+    result->database_operations = state.database_operations;
 }
 
 Datum LAPLACE_PG_PERSISTENCE_DEPOSIT_SYMBOL(PG_FUNCTION_ARGS) {

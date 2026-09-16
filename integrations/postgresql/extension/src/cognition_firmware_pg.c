@@ -169,6 +169,7 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     if (need_physical) {
         scope.relation_mask = physical_relation_mask;
         laplace_pg_cognition_provider_create(
+            context,
             &scope,
             provider_workspace_bytes,
             &physical_owner,

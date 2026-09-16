@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "blake3.h"
+#include "canonical_composition_plan.hpp"
 
 namespace {
 
@@ -33,10 +34,6 @@ enum class Role : std::uint64_t {
     Disposition = 8U,
     Alias = 9U,
 };
-
-std::uint64_t Metadata(const Role role) {
-    return static_cast<std::uint64_t>(role) << RoleShift;
-}
 
 bool DigestZero(const laplace_digest256& value) {
     for (const std::uint8_t byte : value.bytes) {
@@ -94,62 +91,6 @@ laplace_digest256 RecipeFingerprint(
     return result;
 }
 
-bool DecodeUtf8(const std::string_view input, std::vector<std::uint32_t>& output) {
-    std::size_t offset = 0U;
-    while (offset < input.size()) {
-        const auto first = static_cast<std::uint8_t>(input[offset]);
-        std::uint32_t value{};
-        std::size_t length{};
-        std::uint32_t minimum{};
-        if (first <= 0x7fU) {
-            value = first;
-            length = 1U;
-            minimum = 0U;
-        } else if ((first & 0xe0U) == 0xc0U) {
-            value = first & 0x1fU;
-            length = 2U;
-            minimum = 0x80U;
-        } else if ((first & 0xf0U) == 0xe0U) {
-            value = first & 0x0fU;
-            length = 3U;
-            minimum = 0x800U;
-        } else if ((first & 0xf8U) == 0xf0U) {
-            value = first & 0x07U;
-            length = 4U;
-            minimum = 0x10000U;
-        } else {
-            return false;
-        }
-        if (offset + length > input.size()) {
-            return false;
-        }
-        for (std::size_t index = 1U; index < length; ++index) {
-            const auto continuation =
-                static_cast<std::uint8_t>(input[offset + index]);
-            if ((continuation & 0xc0U) != 0x80U) {
-                return false;
-            }
-            value = (value << 6U) | (continuation & 0x3fU);
-        }
-        if (value < minimum || value > 0x10ffffU ||
-            (value >= 0xd800U && value <= 0xdfffU)) {
-            return false;
-        }
-        output.push_back(value);
-        offset += length;
-    }
-    return !output.empty();
-}
-
-std::string Decimal(const std::uint64_t value) {
-    std::array<char, 32> buffer{};
-    const auto converted = std::to_chars(
-        buffer.data(), buffer.data() + buffer.size(), value);
-    if (converted.ec != std::errc{}) {
-        return {};
-    }
-    return std::string(buffer.data(), converted.ptr);
-}
 
 }  // namespace
 
@@ -165,14 +106,22 @@ struct laplace_highway_registry_ast_plan {
 
 namespace {
 
-class PlanBuilder final {
+class PlanBuilder final : public laplace::detail::CanonicalCompositionPlanBuilder<Role> {
 public:
     PlanBuilder(
         laplace_highway_registry_ast_plan& plan,
         const laplace_digest256& geometry_epoch,
         const laplace_digest256& occurrence_context)
-        : plan_(plan), geometry_epoch_(geometry_epoch),
-          occurrence_context_(occurrence_context) {}
+        : CanonicalCompositionPlanBuilder<Role>(
+              plan.atom_positions, plan.operands, plan.requests,
+              plan.view.recipe_fingerprint, geometry_epoch, occurrence_context,
+              RecipeVersion,
+#if defined(LAPLACE_TEST_HIGHWAY_AST_OMIT_OCCURRENCE)
+              0U,
+#else
+              LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE,
+#endif
+              RoleShift), plan_(plan) {}
 
     bool Build() {
         if (!DecodeRegistryFingerprint(plan_.view.source_fingerprint)) {
@@ -181,7 +130,7 @@ public:
         plan_.view.recipe_fingerprint =
             RecipeFingerprint(plan_.view.source_fingerprint);
         const auto registry_tag = String("highway-registry");
-        const auto number_tag = String("number");
+        const auto number_tag = String(laplace::detail::CanonicalNumberTag);
         const auto kind_tag = String("kind");
         const auto alias_tag = String("alias");
         const auto disposition_tag = String("disposition");
@@ -310,119 +259,7 @@ public:
     }
 
 private:
-    struct StringResult {
-        std::uint64_t index{};
-        bool has_value{};
-    };
-
-    static constexpr std::uint64_t InvalidIndex =
-        std::numeric_limits<std::uint64_t>::max();
-
-    std::uint64_t AtomIndex(const std::uint32_t position) {
-        const auto prior = atom_indexes_.find(position);
-        if (prior != atom_indexes_.end()) {
-            return prior->second;
-        }
-        const auto index =
-            static_cast<std::uint64_t>(plan_.atom_positions.size());
-        plan_.atom_positions.push_back(position);
-        atom_indexes_.emplace(position, index);
-        return index;
-    }
-
-    StringResult String(const std::string_view value) {
-        const auto prior = string_indexes_.find(std::string(value));
-        if (prior != string_indexes_.end()) {
-            return {prior->second, true};
-        }
-        std::vector<std::uint32_t> positions;
-        if (!DecodeUtf8(value, positions)) {
-            return {};
-        }
-        const std::uint64_t first =
-            static_cast<std::uint64_t>(plan_.operands.size());
-        for (const auto position : positions) {
-            plan_.operands.push_back(laplace_composition_operand{
-                AtomIndex(position), 1U, 0U,
-                LAPLACE_COMPOSITION_REFERENCE_KNOWN_ENTITY, 0U});
-        }
-        const std::uint64_t request = AddRequest(first, positions.size());
-        if (request == InvalidIndex) {
-            return {};
-        }
-        string_indexes_.emplace(std::string(value), request);
-        return {request, true};
-    }
-
-    std::uint64_t Number(
-        const std::uint64_t value,
-        const std::uint64_t number_tag) {
-        const auto prior = number_indexes_.find(value);
-        if (prior != number_indexes_.end()) {
-            return prior->second;
-        }
-        const std::string digits = Decimal(value);
-        const auto surface = String(digits);
-        if (digits.empty() || !surface.has_value) {
-            return InvalidIndex;
-        }
-        const auto result = Node({
-            {number_tag, Role::Tag},
-            {surface.index, Role::Identifier}});
-        if (result != InvalidIndex) {
-            number_indexes_.emplace(value, result);
-        }
-        return result;
-    }
-
-    std::uint64_t Node(
-        const std::vector<std::pair<std::uint64_t, Role>>& children) {
-        if (children.size() < 2U) {
-            return InvalidIndex;
-        }
-        const std::uint64_t first =
-            static_cast<std::uint64_t>(plan_.operands.size());
-        for (const auto& [index, role] : children) {
-            if (index >= plan_.requests.size()) {
-                return InvalidIndex;
-            }
-            plan_.operands.push_back(laplace_composition_operand{
-                index, 1U, Metadata(role),
-                LAPLACE_COMPOSITION_REFERENCE_PRIOR_RESULT, 0U});
-        }
-        return AddRequest(first, children.size());
-    }
-
-    std::uint64_t AddRequest(
-        const std::uint64_t first_operand,
-        const std::size_t operand_count) {
-        if (operand_count == 0U) {
-            return InvalidIndex;
-        }
-        const auto index =
-            static_cast<std::uint64_t>(plan_.requests.size());
-        plan_.requests.push_back(laplace_composition_request{
-            first_operand,
-            static_cast<std::uint64_t>(operand_count),
-            index + 1U,
-            RecipeVersion,
-#if defined(LAPLACE_TEST_HIGHWAY_AST_OMIT_OCCURRENCE)
-            0U,
-#else
-            LAPLACE_COMPOSITION_REQUEST_EMIT_OCCURRENCE,
-#endif
-            plan_.view.recipe_fingerprint,
-            geometry_epoch_,
-            occurrence_context_});
-        return index;
-    }
-
     laplace_highway_registry_ast_plan& plan_;
-    const laplace_digest256& geometry_epoch_;
-    const laplace_digest256& occurrence_context_;
-    std::map<std::uint32_t, std::uint64_t> atom_indexes_;
-    std::map<std::string, std::uint64_t> string_indexes_;
-    std::map<std::uint64_t, std::uint64_t> number_indexes_;
 };
 
 void BindView(laplace_highway_registry_ast_plan& plan) {

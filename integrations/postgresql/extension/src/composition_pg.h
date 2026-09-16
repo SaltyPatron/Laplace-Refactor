@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "utils/array.h"
 
 #include "laplace/composition.h"
 #include "persistence_pg.h"
@@ -47,6 +48,11 @@ typedef struct laplace_pg_composition_execution {
  * conflict check; prompt admission does not own a second SQL presence engine. */
 void laplace_pg_composition_presence_provider(
     laplace_composition_presence_provider_v1* provider);
+
+/* Shared exact SQL transport decoder; callers must independently authenticate
+ * the selected durable physicality inputs before deriving another view. */
+laplace_composition_known_entity* laplace_pg_composition_read_known_entities(
+    ArrayType* array, uint64_t* count);
 
 void LAPLACE_PG_COMPOSITION_EXECUTE_SYMBOL(
     const laplace_composition_working_set_input* input,

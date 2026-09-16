@@ -132,7 +132,9 @@
       "pgsql-18/share/extension/laplace--1.0.2.sql",
       "pgsql-18/share/extension/laplace--1.0.1--1.0.2.sql",
       "pgsql-18/share/extension/laplace--1.0.3.sql",
-      "pgsql-18/share/extension/laplace--1.0.2--1.0.3.sql"
+      "pgsql-18/share/extension/laplace--1.0.2--1.0.3.sql",
+      "pgsql-18/share/extension/laplace--1.0.4.sql",
+      "pgsql-18/share/extension/laplace--1.0.3--1.0.4.sql"
     ]
   },
   "runtime_closure": {

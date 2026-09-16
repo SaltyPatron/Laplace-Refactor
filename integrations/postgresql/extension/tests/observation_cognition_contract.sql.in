@@ -464,3 +464,61 @@ BEGIN
     RAISE NOTICE 'firmware concrete-provider checks passed: result=%, steps=%, batches=%, database_operations=%; restored_steps=%',
         first->>'output_hex',first->>'completed_steps',first->>'batch_count',first->>'database_operations',resumed->>'completed_steps';
 END $firmware$;
+
+-- All predecessor assertions above execute against genuine 1.0.1. Now exercise
+-- the installed recurring reconciliation program, including its upgrade chain,
+-- repeated current-version verification, and empty derived index with the same request.
+\ir @CMAKE_BINARY_DIR@/integrations/postgresql/extension/share/extension/laplace-public-readback.sql
+\ir @CMAKE_BINARY_DIR@/integrations/postgresql/extension/share/extension/laplace-public-readback.sql
+DO $descriptor_upgrade$
+DECLARE upgraded laplace.cognition_observation_persisted_result;
+    before observation_cognition_persisted_actual%ROWTYPE;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname='laplace' AND extversion='1.0.4')
+       OR EXISTS (SELECT 1 FROM laplace.physicality_entity_view)
+       OR EXISTS (SELECT 1 FROM laplace.physicality_entity_node)
+       OR EXISTS (SELECT 1 FROM laplace.physicality_occurrence_binding_set)
+       OR EXISTS (SELECT 1 FROM laplace.physicality_occurrence_binding)
+       OR EXISTS (SELECT 1 FROM laplace.physicality_occurrence_parent)
+       OR EXISTS (SELECT 1 FROM laplace.physicality_occurrence_binding_member)
+       OR EXISTS (SELECT 1 FROM laplace.physicality_entity_deposition)
+       OR to_regprocedure('laplace.physicality_entity_admit_batch(laplace.execution_context,bytea[],laplace.composition_known_entity_record[],bigint,bigint,bigint,numeric,bigint,bigint,laplace.physicality_occurrence_selection[])') IS NULL
+       OR to_regprocedure('laplace.content_materialize_utf8(laplace.execution_context,bytea,bytea,bytea,laplace.cognition_materialization_request)') IS NULL
+       OR to_regprocedure('laplace.content_materialize_utf8(laplace.execution_context,bytea,bytea,bytea,laplace.cognition_materialization_request,bytea)') IS NULL
+       OR to_regprocedure('laplace.physicality_entity_varlena_bytes(anyelement)') IS NULL
+       OR (SELECT count(*) FROM pg_depend dependency JOIN pg_extension extension ON extension.oid=dependency.refobjid
+           WHERE dependency.classid='pg_proc'::regclass AND dependency.refclassid='pg_extension'::regclass
+             AND dependency.deptype='e' AND extension.extname='laplace' AND dependency.objid IN (
+               'laplace.physicality_entity_admit_batch(laplace.execution_context,bytea[],laplace.composition_known_entity_record[],bigint,bigint,bigint,numeric,bigint,bigint,laplace.physicality_occurrence_selection[])'::regprocedure,
+               'laplace.content_materialize_utf8(laplace.execution_context,bytea,bytea,bytea,laplace.cognition_materialization_request)'::regprocedure,
+               'laplace.content_materialize_utf8(laplace.execution_context,bytea,bytea,bytea,laplace.cognition_materialization_request,bytea)'::regprocedure,
+               'laplace.physicality_entity_varlena_bytes(anyelement)'::regprocedure))<>4
+       OR (SELECT count(*) FROM pg_index WHERE indisvalid AND indisready AND indexrelid IN (
+           'laplace.physicality_entity_view_source_idx'::regclass,
+           'laplace.physicality_entity_view_root_idx'::regclass,
+           'laplace.physicality_entity_node_entity_idx'::regclass,
+           'laplace.physicality_entity_node_physicality_idx'::regclass,
+           'laplace.physicality_entity_node_children_idx'::regclass,
+           'laplace.physicality_occurrence_binding_selected_idx'::regclass,
+           'laplace.physicality_occurrence_parent_physicality_idx'::regclass,
+           'laplace.physicality_occurrence_binding_member_parent_idx'::regclass,
+           'laplace.physicality_entity_deposition_view_idx'::regclass))<>9 THEN
+        RAISE EXCEPTION 'physicality descriptor successor schema was not installed completely';
+    END IF;
+    SELECT * INTO STRICT before FROM observation_cognition_persisted_actual;
+    SELECT result.* INTO STRICT upgraded
+    FROM observation_cognition_fixture fixture
+    CROSS JOIN LATERAL laplace.cognition_observation_execute_persisted(
+        pg_temp.execution_context(),fixture.request) AS result;
+    IF cardinality(upgraded.answers)<>1
+       OR (upgraded.answers[1]).entity_id IS DISTINCT FROM (before.answers[1]).entity_id
+       OR (upgraded.answers[1]).transition_count<>2
+       OR (upgraded.execution).final_remaining_required_count<>0
+       OR upgraded.provider_rows_fetched<>2 OR upgraded.provider_trajectory_bytes<>192
+       OR upgraded.provider_batch_count<>2 OR (upgraded.execution).database_operations<>6
+       OR EXISTS (SELECT 1 FROM laplace.physicality_entity_view)
+       OR EXISTS (SELECT 1 FROM laplace.physicality_entity_node) THEN
+        RAISE EXCEPTION 'empty descriptor index changed the exact stored route or its operation accounting: %',upgraded;
+    END IF;
+END $descriptor_upgrade$;
+\echo LAPLACE_PHYSICALITY_ENTITY_UPGRADE_PARITY_OK

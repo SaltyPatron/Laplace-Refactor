@@ -3,6 +3,7 @@
 
 #include "postgres.h"
 #include "laplace/cognition_observation_request.h"
+#include "laplace/framework.h"
 
 /* PostgreSQL's physical provider, shared by standalone search and firmware.
  * It selects indexed persisted physicalities; the native engine alone decodes,
@@ -40,6 +41,7 @@ typedef struct laplace_pg_cognition_provider_report {
 } laplace_pg_cognition_provider_report;
 
 void laplace_pg_cognition_provider_create(
+    const laplace_framework_context* context,
     const laplace_cognition_observation_request* request,
     uint64_t provider_memory_bytes,
     laplace_pg_cognition_provider** owner,

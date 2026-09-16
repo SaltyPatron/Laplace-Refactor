@@ -777,6 +777,7 @@ Datum laplace_pg_cognition_conversation_product_execute(PG_FUNCTION_ARGS) {
     }
     memset(&physical_report, 0, sizeof(physical_report));
     laplace_pg_cognition_provider_create(
+        &context,
         &provider_scope,
         provider_workspace,
         &owners->physical,

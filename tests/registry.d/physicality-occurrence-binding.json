@@ -1,0 +1,117 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.OneStoredRunRetainsTwoActualSelectedPhysicalities",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "actual common composition coalesces two same-entity operands with distinct physicalities into one stored run; interval selections remain distinct in provenance"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.ScalarAndBatchUseOneReceiptLaw",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "one-parent public wrapper and primary batch share the same exact fingerprint law"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.ExplicitRunSplitsRemainInProvenance",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "explicit interval splits remain witnessed even when selected physicality and canonical content repeat"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.IntervalsCrossCarrierSplitsAndCheckEveryMetadataWord",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "an interval crossing physical carrier boundaries verifies every intersected entity and metadata word"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.GapsOverlapReorderMetadataAndOwnershipReject",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "gap, overlap, reordering, zero run, overflow, wrong metadata, wrong entity, wrong parent, version and reserved controls reject"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.ParentNativeIdentityAndCarrierCorruptionReject",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "shared native parent identity, actual carrier fingerprint and realized content identity remain mandatory"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.BatchOrderingCoverageAndFailurePublicationAreExact",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "canonical parent ordering and grouped interval coverage yield complete batch receipts; later failure clears earlier output slots"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.AggregateLimitsPrecedeAnyParentHash",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "aggregate parent, carrier, binding and logical limits reject before any parent validation hash including total overflow"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.EmptySetAndFiniteMemoryBoundsAreExplicit",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "empty sets have stable typed fingerprints and workspace bounds delegate the existing native validation owner"
+      ]
+    },
+    {
+      "ctest_name": "PhysicalityOccurrenceBinding.IncompleteParentSetsAndOutputCapacityReject",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "missing or foreign parent coverage, output capacity and absent pointers have explicit refusal statuses"
+      ]
+    },
+    {
+      "ctest_name": "physicality-occurrence.mutation-selection-loss-detected",
+      "evidence_targets": [
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "deliberately omitting selected child physicality bytes from native provenance is detected by real same-parent RLE fixture"
+      ],
+      "kind": "mutation",
+      "controls": "PhysicalityOccurrenceBinding.OneStoredRunRetainsTwoActualSelectedPhysicalities"
+    }
+  ]
+}

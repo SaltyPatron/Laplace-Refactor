@@ -28,6 +28,9 @@ add_library(laplace_engine SHARED
     src/machine_exception.c
     src/highway.c
     src/highway_ast.cpp
+    src/physicality_entity.cpp
+    src/content_reference_view.cpp
+    src/physicality_occurrence_binding.cpp
     src/spool.cpp
     src/isa.c
     src/persistence.c

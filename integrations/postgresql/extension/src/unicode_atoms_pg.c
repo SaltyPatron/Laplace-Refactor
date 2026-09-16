@@ -15,6 +15,7 @@
 #include "laplace/perfcache_modules.h"
 #include "laplace_pg_internal.h"
 #include "perfcache_pg.h"
+#include "utils/memutils.h"
 #include "unicode_atoms_pg.h"
 
 static Datum required_tuple_value(
@@ -74,7 +75,8 @@ static void require_pinned_unicode_epoch(
 
 static void read_root_receipt_for_epoch(
     const laplace_pg_perfcache_epoch* epoch,
-    laplace_digest256* root_receipt) {
+    laplace_digest256* root_receipt,
+    laplace_pg_spi_budget* budget) {
     static const char root_sql[] =
         "SELECT root_receipt FROM " LAPLACE_PG_SCHEMA
         ".unicode_root_deposit_receipt WHERE activation_epoch_id=$1::"
@@ -83,6 +85,7 @@ static void read_root_receipt_for_epoch(
     Oid types[2] = {BYTEAOID, BYTEAOID};
     Datum values[2];
     int result;
+    MemoryContext const caller_context = CurrentMemoryContext;
 
     values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         epoch->activation_epoch_id.bytes,
@@ -94,19 +97,30 @@ static void read_root_receipt_for_epoch(
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace could not connect to Unicode activation metadata")));
     }
-    result = SPI_execute_with_args(
-        root_sql, 2, types, values, NULL, true, 0);
-    if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL) {
-        ereport(ERROR,
-                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                 errmsg("Laplace active mapped Unicode epoch has no unique durable root binding"),
-                 errdetail("matching roots=%llu",
-                           (unsigned long long)SPI_processed)));
+    PG_TRY();
+    {
+        laplace_pg_spi_budget_charge(budget);
+        result = SPI_execute_with_args(
+            root_sql, 2, types, values, NULL, true, 0);
+        if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                     errmsg("Laplace active mapped Unicode epoch has no unique durable root binding"),
+                     errdetail("matching roots=%llu",
+                               (unsigned long long)SPI_processed)));
+        }
+        read_exact_bytes(
+            required_tuple_value(
+                SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, "root receipt"),
+            root_receipt->bytes, sizeof(root_receipt->bytes), "root receipt");
     }
-    read_exact_bytes(
-        required_tuple_value(
-            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, "root receipt"),
-        root_receipt->bytes, sizeof(root_receipt->bytes), "root receipt");
+    PG_CATCH();
+    {
+        MemoryContextSwitchTo(caller_context);
+        SPI_finish();
+        PG_RE_THROW();
+    }
+    PG_END_TRY();
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
@@ -119,7 +133,8 @@ static void resolve_active_unicode_atoms_mapped(
     const uint32_t* positions,
     size_t count,
     laplace_composition_known_entity* known,
-    laplace_pg_active_unicode_root* active) {
+    laplace_pg_active_unicode_root* active,
+    laplace_pg_spi_budget* budget) {
     laplace_pg_perfcache_pin* pin = NULL;
     laplace_unicode_atom_record_view* atoms;
     uint8_t* found;
@@ -144,7 +159,7 @@ static void resolve_active_unicode_atoms_mapped(
     found = (uint8_t*)palloc0(count);
     memset(active, 0, sizeof(*active));
 
-    pin_status = laplace_pg_perfcache_pin_active(0u, NULL, &pin);
+    pin_status = laplace_pg_perfcache_pin_active_metered(0u, NULL, &pin, budget);
     if (pin_status != LAPLACE_PG_PERFCACHE_OK || pin == NULL) {
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -186,7 +201,7 @@ static void resolve_active_unicode_atoms_mapped(
         }
         active->activation_epoch_id = pin->epoch.activation_epoch_id;
         active->activation_epoch_fingerprint = pin->epoch.epoch_fingerprint;
-        read_root_receipt_for_epoch(&pin->epoch, &active->root_receipt);
+        read_root_receipt_for_epoch(&pin->epoch, &active->root_receipt, budget);
         laplace_pg_perfcache_pin_release(&pin);
     }
     PG_CATCH();
@@ -224,7 +239,8 @@ static void resolve_active_unicode_atoms_relational(
     const uint32_t* positions,
     size_t count,
     laplace_composition_known_entity* known,
-    laplace_pg_active_unicode_root* active) {
+    laplace_pg_active_unicode_root* active,
+    laplace_pg_spi_budget* budget) {
     static const char active_sql[] =
         "SELECT a.activation_epoch_id,a.epoch_fingerprint,d.root_receipt "
         "FROM " LAPLACE_PG_SCHEMA ".perfcache_active_control a JOIN "
@@ -250,6 +266,7 @@ static void resolve_active_unicode_atoms_relational(
     Oid atom_types[3] = {INT4ARRAYOID, BYTEAOID, INT4OID};
     Datum atom_values[3];
     int result;
+    MemoryContext const caller_context = CurrentMemoryContext;
     size_t index;
     HeapTuple tuple;
     TupleDesc descriptor;
@@ -272,92 +289,104 @@ static void resolve_active_unicode_atoms_relational(
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace could not connect to active Unicode state")));
     }
-    result = SPI_execute(active_sql, true, 0);
-    if (result != SPI_OK_SELECT || SPI_processed != 1u ||
-        SPI_tuptable == NULL) {
-        ereport(ERROR,
-                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                 errmsg("Laplace requires exactly one active deposited Unicode root"),
-                 errdetail("matching roots=%llu",
-                           (unsigned long long)SPI_processed)));
-    }
-    tuple = SPI_tuptable->vals[0];
-    descriptor = SPI_tuptable->tupdesc;
-    read_exact_bytes(
-        required_tuple_value(tuple, descriptor, 1, "activation epoch id"),
-        active->activation_epoch_id.bytes,
-        sizeof(active->activation_epoch_id.bytes), "activation epoch id");
-    read_exact_bytes(
-        required_tuple_value(tuple, descriptor, 2, "activation epoch fingerprint"),
-        active->activation_epoch_fingerprint.bytes,
-        sizeof(active->activation_epoch_fingerprint.bytes),
-        "activation epoch fingerprint");
-    read_exact_bytes(
-        required_tuple_value(tuple, descriptor, 3, "root receipt"),
-        active->root_receipt.bytes, sizeof(active->root_receipt.bytes),
-        "root receipt");
-    if (!digest_equal(
-            &context->epochs[LAPLACE_FRAMEWORK_EPOCH_PERFCACHE],
-            &active->activation_epoch_fingerprint)) {
-        ereport(ERROR,
-                (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-                 errmsg("Laplace context does not pin the active Unicode epoch")));
-    }
+    PG_TRY();
+    {
+        laplace_pg_spi_budget_charge(budget);
+        result = SPI_execute(active_sql, true, 0);
+        if (result != SPI_OK_SELECT || SPI_processed != 1u ||
+            SPI_tuptable == NULL) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                     errmsg("Laplace requires exactly one active deposited Unicode root"),
+                     errdetail("matching roots=%llu",
+                               (unsigned long long)SPI_processed)));
+        }
+        tuple = SPI_tuptable->vals[0];
+        descriptor = SPI_tuptable->tupdesc;
+        read_exact_bytes(
+            required_tuple_value(tuple, descriptor, 1, "activation epoch id"),
+            active->activation_epoch_id.bytes,
+            sizeof(active->activation_epoch_id.bytes), "activation epoch id");
+        read_exact_bytes(
+            required_tuple_value(tuple, descriptor, 2, "activation epoch fingerprint"),
+            active->activation_epoch_fingerprint.bytes,
+            sizeof(active->activation_epoch_fingerprint.bytes),
+            "activation epoch fingerprint");
+        read_exact_bytes(
+            required_tuple_value(tuple, descriptor, 3, "root receipt"),
+            active->root_receipt.bytes, sizeof(active->root_receipt.bytes),
+            "root receipt");
+        if (!digest_equal(
+                &context->epochs[LAPLACE_FRAMEWORK_EPOCH_PERFCACHE],
+                &active->activation_epoch_fingerprint)) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+                     errmsg("Laplace context does not pin the active Unicode epoch")));
+        }
 
-    atom_values[0] = PointerGetDatum(position_array(positions, count));
-    atom_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
-        active->root_receipt.bytes, sizeof(active->root_receipt.bytes)));
-    atom_values[2] = Int32GetDatum(
-        (int32)LAPLACE_PERSISTENCE_ATTESTATION_SOURCE_TESTIMONY);
-    result = SPI_execute_with_args(
-        atoms_sql, 3, atom_types, atom_values, NULL, true, 0);
-    if (result != SPI_OK_SELECT || SPI_processed != (uint64)count ||
-        SPI_tuptable == NULL) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Active Unicode root did not resolve the complete atom set"),
-                 errdetail("requested=%zu resolved=%llu", count,
-                           (unsigned long long)SPI_processed)));
-    }
-    for (index = 0u; index < count; ++index) {
-        const uint64 ordinal = (uint64)DatumGetInt64(required_tuple_value(
-            SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 1, "ordinal"));
-        const int32 position = DatumGetInt32(required_tuple_value(
-            SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 2, "position"));
-        if (ordinal != (uint64)(index + 1u) || position < 0 ||
-            (uint32_t)position != positions[index]) {
+        atom_values[0] = PointerGetDatum(position_array(positions, count));
+        atom_values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(
+            active->root_receipt.bytes, sizeof(active->root_receipt.bytes)));
+        atom_values[2] = Int32GetDatum(
+            (int32)LAPLACE_PERSISTENCE_ATTESTATION_SOURCE_TESTIMONY);
+        laplace_pg_spi_budget_charge(budget);
+        result = SPI_execute_with_args(
+            atoms_sql, 3, atom_types, atom_values, NULL, true, 0);
+        if (result != SPI_OK_SELECT || SPI_processed != (uint64)count ||
+            SPI_tuptable == NULL) {
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_CORRUPTED),
-                     errmsg("Active Unicode atom resolution changed order or identity")));
+                     errmsg("Active Unicode root did not resolve the complete atom set"),
+                     errdetail("requested=%zu resolved=%llu", count,
+                               (unsigned long long)SPI_processed)));
         }
-        memset(&known[index], 0, sizeof(known[index]));
-        read_exact_bytes(
-            required_tuple_value(SPI_tuptable->vals[index],
-                                 SPI_tuptable->tupdesc, 3, "entity id"),
-            known[index].entity_id.bytes, sizeof(known[index].entity_id.bytes),
-            "entity id");
-        read_exact_bytes(
-            required_tuple_value(SPI_tuptable->vals[index],
-                                 SPI_tuptable->tupdesc, 4, "identity witness"),
-            known[index].identity_witness.bytes,
-            sizeof(known[index].identity_witness.bytes), "identity witness");
-        read_exact_bytes(
-            required_tuple_value(SPI_tuptable->vals[index],
-                                 SPI_tuptable->tupdesc, 5, "physicality id"),
-            known[index].physicality_id.bytes,
-            sizeof(known[index].physicality_id.bytes), "physicality id");
-        known[index].centroid.component[0] = DatumGetFloat8(required_tuple_value(
-            SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 6, "coordinate x"));
-        known[index].centroid.component[1] = DatumGetFloat8(required_tuple_value(
-            SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 7, "coordinate y"));
-        known[index].centroid.component[2] = DatumGetFloat8(required_tuple_value(
-            SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 8, "coordinate z"));
-        known[index].centroid.component[3] = DatumGetFloat8(required_tuple_value(
-            SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 9, "coordinate m"));
-        known[index].atom = (uint32_t)position;
-        known[index].has_atom = 1u;
-        known[index].tier_floor = 0u;
+        for (index = 0u; index < count; ++index) {
+            const uint64 ordinal = (uint64)DatumGetInt64(required_tuple_value(
+                SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 1, "ordinal"));
+            const int32 position = DatumGetInt32(required_tuple_value(
+                SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 2, "position"));
+            if (ordinal != (uint64)(index + 1u) || position < 0 ||
+                (uint32_t)position != positions[index]) {
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_CORRUPTED),
+                         errmsg("Active Unicode atom resolution changed order or identity")));
+            }
+            memset(&known[index], 0, sizeof(known[index]));
+            read_exact_bytes(
+                required_tuple_value(SPI_tuptable->vals[index],
+                                     SPI_tuptable->tupdesc, 3, "entity id"),
+                known[index].entity_id.bytes, sizeof(known[index].entity_id.bytes),
+                "entity id");
+            read_exact_bytes(
+                required_tuple_value(SPI_tuptable->vals[index],
+                                     SPI_tuptable->tupdesc, 4, "identity witness"),
+                known[index].identity_witness.bytes,
+                sizeof(known[index].identity_witness.bytes), "identity witness");
+            read_exact_bytes(
+                required_tuple_value(SPI_tuptable->vals[index],
+                                     SPI_tuptable->tupdesc, 5, "physicality id"),
+                known[index].physicality_id.bytes,
+                sizeof(known[index].physicality_id.bytes), "physicality id");
+            known[index].centroid.component[0] = DatumGetFloat8(required_tuple_value(
+                SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 6, "coordinate x"));
+            known[index].centroid.component[1] = DatumGetFloat8(required_tuple_value(
+                SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 7, "coordinate y"));
+            known[index].centroid.component[2] = DatumGetFloat8(required_tuple_value(
+                SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 8, "coordinate z"));
+            known[index].centroid.component[3] = DatumGetFloat8(required_tuple_value(
+                SPI_tuptable->vals[index], SPI_tuptable->tupdesc, 9, "coordinate m"));
+            known[index].atom = (uint32_t)position;
+            known[index].has_atom = 1u;
+            known[index].tier_floor = 0u;
+        }
     }
+    PG_CATCH();
+    {
+        MemoryContextSwitchTo(caller_context);
+        SPI_finish();
+        PG_RE_THROW();
+    }
+    PG_END_TRY();
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
@@ -366,15 +395,26 @@ static void resolve_active_unicode_atoms_relational(
 }
 #endif
 
+void laplace_pg_resolve_active_unicode_atoms_metered(
+    const laplace_framework_context* context,
+    const uint32_t* positions,
+    size_t count,
+    laplace_composition_known_entity* known,
+    laplace_pg_active_unicode_root* active,
+    laplace_pg_spi_budget* budget) {
+#if defined(LAPLACE_TEST_UNICODE_ATOM_RELATIONAL_LOOKUP)
+    resolve_active_unicode_atoms_relational(context, positions, count, known, active, budget);
+#else
+    resolve_active_unicode_atoms_mapped(context, positions, count, known, active, budget);
+#endif
+}
+
 void laplace_pg_resolve_active_unicode_atoms(
     const laplace_framework_context* context,
     const uint32_t* positions,
     size_t count,
     laplace_composition_known_entity* known,
     laplace_pg_active_unicode_root* active) {
-#if defined(LAPLACE_TEST_UNICODE_ATOM_RELATIONAL_LOOKUP)
-    resolve_active_unicode_atoms_relational(context, positions, count, known, active);
-#else
-    resolve_active_unicode_atoms_mapped(context, positions, count, known, active);
-#endif
+    laplace_pg_resolve_active_unicode_atoms_metered(
+        context, positions, count, known, active, NULL);
 }
