@@ -1,0 +1,75 @@
+name: Pause exact candidate proof for recorded baseline
+on:
+  push:
+    branches: [diag/pause-refactor-385-for-pilot-20260916]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  pause:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Guard and normally cancel only the exact pending candidate chain
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request
+          from pathlib import Path
+          repo="SaltyPatron/Laplace-Refactor"
+          run_id=35102418540
+          head="7a9ba3a6827e79785735770cabf04bd5997d7526"
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def request(path,method="GET"):
+              req=urllib.request.Request("https://api.github.com/repos/"+repo+"/"+path,method=method,
+                  headers={"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+              req.add_unredirected_header("Authorization","Bearer "+os.environ["GH_TOKEN"])
+              with opener.open(req,timeout=30) as response:
+                  data=response.read(2*1024*1024+1)
+                  assert len(data)<=2*1024*1024
+                  return response.status,json.loads(data) if data else None
+          _,pr=request("pulls/385")
+          assert pr["state"]=="open" and not pr["merged"] and pr["head"]["sha"]==head
+          _,run=request("actions/runs/"+str(run_id))
+          assert run["head_sha"]==head and run["path"]==".github/workflows/product-path.yml" and run["run_attempt"]==1
+          assert run["event"]=="pull_request" and run["head_branch"]=="fix/immutable-package-source-and-workflow-recovery"
+          _,rules=request("actions/runs/35102417906")
+          assert rules["head_sha"]==head and rules["status"]=="completed" and rules["conclusion"]=="success"
+          _,listing=request("actions/runs/"+str(run_id)+"/jobs?per_page=100")
+          jobs=listing["jobs"]
+          assert listing["total_count"]==len(jobs)
+          required={"classify","hosted-proof / native (linux-dev)","hosted-proof / requirements","hosted-proof / native (linux-sanitize)"}
+          allowed=required|{"publication-recovery","Candidate chess dependency calibration on hart-server / Candidate dependency calibration"}
+          assert {j["name"] for j in jobs}==allowed
+          assert all(j["status"]=="completed" and j["conclusion"]=="success" for j in jobs if j["name"] in required)
+          publication=next(j for j in jobs if j["name"]=="publication-recovery")
+          assert publication["status"] in ("queued","waiting","pending") and not publication.get("steps")
+          calibration=next(j for j in jobs if j["id"]==104816250395)
+          assert calibration["status"] in ("queued","in_progress","completed")
+          assert all("custom-stack" not in j["name"].lower() and "activation" not in j["name"].lower() for j in jobs)
+          report={"schema":"laplace.exact-candidate-pause/v1","repository":repo,"pr":385,
+              "run_id":run_id,"head_sha":head,"request_kind":"normal-cancel","completed_hosted_checks_preserved":True,
+              "independent_rules_run":35102417906,"calibration_job":104816250395,
+              "calibration_status_before":calibration["status"],
+              "calibration_active_steps":[{"number":s["number"],"name":s["name"]} for s in calibration.get("steps",[]) if s["status"]=="in_progress"],
+              "custom_qa_or_product_activation_started":False,"worker_release_proven":False}
+          if run["status"] in ("in_progress","queued"):
+              status,_=request("actions/runs/"+str(run_id)+"/cancel","POST")
+              assert status==202
+              report["cancel_accepted"]=True
+          else:
+              report["cancel_accepted"]=False
+              report["already_terminal_status"]=run["status"]
+          Path("pause-result.json").write_text(json.dumps(report,sort_keys=True,indent=2)+"\n")
+          print(json.dumps(report,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: exact-385-normal-pause-${{ github.run_id }}
+          path: pause-result.json
+          if-no-files-found: error
+          retention-days: 30
