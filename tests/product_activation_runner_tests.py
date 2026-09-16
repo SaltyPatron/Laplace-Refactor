@@ -778,23 +778,52 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertEqual(instance["app_role"], "laplace_app")
         self.assertTrue(instance["socket_directory"].startswith("/opt/laplace/runtime/"))
 
-    def test_runner_provider_declares_pg_ctl_and_no_root_product_executor(self) -> None:
+    def test_runner_declares_selected_lifecycle_and_only_fixed_service_authority(self) -> None:
         provider = RUNNER.read_text(encoding="utf-8")
         controller = CLUSTERCTL.read_text(encoding="utf-8")
         self.assertIn('"execution_owner": RUNNER_USER', provider)
         self.assertIn('"root_product_executor": False', provider)
         self.assertIn('"postgresql_lifecycle_provider": clusterctl.selected_lifecycle_provider(plan)', provider)
-        self.assertIn('LIFECYCLE_PROVIDER = "pg_ctl"', controller)
-        self.assertIn("RUNNER_USER = \"laplace-runner\"", controller)
-        self.assertIn("RUNTIME_LINK = \"/opt/laplace/runtime/refactor\"", controller)
+        self.assertIn('RUNNER_USER = "laplace-runner"', controller)
+        self.assertIn('RUNTIME_LINK = "/opt/laplace/runtime/refactor"', controller)
         self.assertIn("postmaster.pid", controller)
         self.assertNotIn("laplace-product-activate", provider)
         self.assertNotIn("execute-request", provider)
         self.assertNotIn("runuser", provider)
-        self.assertNotIn("sudo", controller)
-        self.assertNotIn("systemctl", controller)
         self.assertNotIn('["/usr/sbin/runuser"', controller)
         self.assertNotIn('["runuser"', controller)
+
+        clusterctl = load_module("tools/postgresql/clusterctl.py")
+        service = clusterctl.service_lifecycle()
+        self.assertEqual(clusterctl.LIFECYCLE_PROVIDER, "pg_ctl")
+        self.assertEqual(clusterctl.LIFECYCLE_PROVIDERS, {"pg_ctl", "systemd-system"})
+        self.assertEqual(service.UNIT, "laplace-refactor-postgresql.service")
+
+        # Command protocol only: unit/grant/process authentication is independently
+        # exercised by the existing cluster suite. This proves that the mutation
+        # adapter cannot turn a selected lifecycle action into a general root command.
+        execute = mock.Mock(return_value={"exit_code": 0})
+        owner = service.Owner(clusterctl, execute=execute)
+        state = {"unit_sha256": "a" * 64,
+                 "properties": {"MainPID": "0", "ActiveState": "inactive"}}
+        with mock.patch.object(owner, "selection"), \
+             mock.patch.object(owner, "verify", return_value=state), \
+             mock.patch.object(owner, "command",
+                               return_value=subprocess.CompletedProcess([], 3, "", "")), \
+             mock.patch.object(clusterctl, "_pg_ctl_command", return_value=["fixture-pg_ctl", "status"]), \
+             mock.patch.object(clusterctl, "_stopped_live"):
+            for action in ("start", "stop"):
+                execute.reset_mock()
+                result = owner.action({}, "fixture-" + action, action, 900)
+                execute.assert_called_once_with("fixture-" + action,
+                    ["/usr/bin/sudo", "-n", "/usr/bin/systemctl", action,
+                     "laplace-refactor-postgresql.service"], 300)
+                self.assertEqual(result["provider"], "systemd-system")
+            for unsupported in ("restart", "daemon-reload", "enable", "shell", "/bin/sh"):
+                execute.reset_mock()
+                with self.assertRaisesRegex(service.ServiceError, "unsupported recurring"):
+                    owner.action({}, "fixture-refusal", unsupported, 900)
+                execute.assert_not_called()
 
     def test_runner_loaded_object_probe_ignores_deleted_pseudo_maps_fail_closed(self) -> None:
         controller = CLUSTERCTL.read_text(encoding="utf-8")
@@ -821,6 +850,87 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertNotIn("runuser", source)
         self.assertNotIn("sudo", source)
         self.assertNotIn("systemctl", source)
+
+
+    def test_workflow_lifecycle_predicate_uses_shared_receipt_and_actual_owner_checks(self) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        match = re.search(
+            r'python3 - "\$cluster_result" "\$package_id" <<\'PY_POSTGRESQL_OWNER\'\n(.*?)\n          PY_POSTGRESQL_OWNER',
+            workflow, re.S)
+        self.assertIsNotNone(match)
+        predicate = compile(textwrap.dedent(match.group(1)), str(WORKFLOW) + ":postgresql-owner", "exec")
+        with mock.patch.object(sys, "path", [str(ROOT / "tools"), *sys.path]):
+            from delivery import product_activation_runner as owner
+        cluster = owner.clusterctl
+        service = cluster.service_lifecycle()
+        package = "a" * 64
+        with tempfile.TemporaryDirectory(prefix="laplace-workflow-owner-") as temporary:
+            directory = Path(temporary)
+            plan_path = directory / "plan.json"
+            receipt_path = directory / "activation.json"
+            plan = {"plan_sha256": "b" * 64, "instance": dict(service.CANONICAL),
+                    "package_id": package, "package_root": "/opt/laplace/releases/" + package,
+                    "active_link": "/opt/laplace/current", "runtime_link": "/opt/laplace/runtime/refactor",
+                    "collision_observation_source": "laplace_clusterctl_live_probe",
+                    "collision_observation_root": "/"}
+            plan_path.write_text(json.dumps(plan))
+            historical = {"schema": cluster.ACTIVATION_SCHEMA, "phase": "activated",
+                "package_id": package, "restart_proven": True, "lifecycle_provider": "pg_ctl",
+                "service_integration_required": False, "boot_enabled": False,
+                "active_target": "releases/" + package, "runtime_target": "../releases/" + package,
+                "cluster_plan_path": str(plan_path), "plan_sha256": plan["plan_sha256"],
+                "system_identifier": "123"}
+            witness = {"provider": "systemd-system", "unit": service.UNIT,
+                       "boot_enabled": True, "cold_boot_proven": False, "postmaster_pid": 456}
+            modern = {**historical, "lifecycle_provider": "systemd-system",
+                      "service_integration_required": True, "boot_enabled": True,
+                      "cold_boot_proven": False, "postgresql_service": witness}
+            loaded = {"system_identifier": "123", "postmaster_pid": 456}
+            # Exact extracted caller plus real shared receipt validation. Only
+            # live PostgreSQL/systemd observations are explicit protocol stand-ins.
+            def execute(value, *, stale_digest=False, owner_error=None):
+                value = copy.deepcopy(value)
+                value["activation_receipt_sha256"] = owner.document_identity(value, "activation_receipt_sha256")
+                if stale_digest:
+                    value["untrusted_after_identity"] = True
+                receipt_path.write_text(json.dumps(value))
+                with mock.patch.object(sys, "argv", ["-", str(receipt_path), package]), \
+                     mock.patch.object(sys, "path", list(sys.path)), \
+                     mock.patch("builtins.print"), \
+                     mock.patch.object(cluster, "validate_plan") as validate, \
+                     mock.patch.object(cluster, "observe_loaded_live", return_value=loaded) as observe, \
+                     mock.patch.object(cluster, "verify_loaded") as verify, \
+                     mock.patch.object(service.Owner, "observe", return_value=witness,
+                                       side_effect=owner_error) as process:
+                    exec(predicate, {"__name__": "__main__"})
+                    validate.assert_called_once()
+                    observe.assert_called_once()
+                    verify.assert_called_once_with(plan, mock.ANY, loaded)
+                    process.assert_called_once_with(plan, loaded)
+
+            execute(historical)
+            execute(modern)
+            plan_path.write_text(json.dumps({**plan,
+                "collision_observation_source": "laplace_typed_fixture",
+                "collision_observation_root": str(directory)}))
+            with self.assertRaisesRegex(owner.RunnerActivationError, "canonical instance"):
+                execute(modern)
+            plan_path.write_text(json.dumps(plan))
+            mutations = [
+                {**modern, "lifecycle_provider": "unknown"},
+                {**modern, "boot_enabled": False},
+                {**modern, "cold_boot_proven": True},
+                {**modern, "service_integration_required": False},
+                {**historical, "service_integration_required": True},
+                {**modern, "plan_sha256": "c" * 64},
+                {**modern, "system_identifier": "789"}]
+            for value in mutations:
+                with self.subTest(value=value), self.assertRaises(owner.RunnerActivationError):
+                    execute(value)
+            with self.assertRaises(owner.RunnerActivationError):
+                execute(modern, stale_digest=True)
+            with self.assertRaisesRegex(service.ServiceError, "controlled MainPID mismatch"):
+                execute(modern, owner_error=service.ServiceError("controlled MainPID mismatch"))
 
     def test_unicode_and_highway_restart_requests_are_intercepted_by_provider(self) -> None:
         provider = RUNNER.read_text(encoding="utf-8")
