@@ -307,6 +307,94 @@ class ProductActivationRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "different canonical root"):
             proof.require_same_prompt_root(first, replay)
 
+
+    def successful_frontier_result(self):
+        result = {name: "\\x" + "ab" * 32 for name in (
+            "program_id", "execution_receipt_id", "output_fingerprint",
+            "prompt_admission_receipt_id")}
+        result.update({"status": 0, "native_status": 0, "failed_step": -1,
+            "prompt_persistence_receipt_id": None,
+            "trunk_entity_id": "\\x" + "cd" * 16, "output": "\\x4141",
+            "completed_steps": 3, "emitted_parts": 1, "provider_call_count": 4,
+            "materialization_resolved_nodes": 1, "materialization_trajectory_reads": 1,
+            "materialization_trajectory_bytes": 32, "materialization_database_operations": 4})
+        return result
+
+    def test_frontier_accepts_inline_atom_run_with_one_provider_root(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        result = self.successful_frontier_result()
+        first = proof.require_identity_widths(result)
+        proof.require_frontier_result(result, first)
+        # The independently checked constituent route resolves A itself.
+        constituent = {**result, "output": "\\x41", "completed_steps": 2,
+                       "materialization_trajectory_reads": 0,
+                       "materialization_trajectory_bytes": 0,
+                       "materialization_database_operations": 2}
+        proof.require_constituent_result(constituent)
+
+    def test_frontier_refuses_duplicate_child_work_and_changed_content(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        result = self.successful_frontier_result()
+        first = proof.require_identity_widths(result)
+        mutations = (
+            ("materialization_resolved_nodes", 0), ("materialization_resolved_nodes", 2),
+            ("materialization_resolved_nodes", 3), ("materialization_database_operations", 3),
+            ("materialization_database_operations", 5), ("materialization_trajectory_reads", 2),
+            ("materialization_trajectory_bytes", 64), ("materialization_trajectory_bytes", 0),
+            ("output", "\\x41"), ("completed_steps", 2), ("emitted_parts", 2),
+            ("trunk_entity_id", "\\x" + "ef" * 16), ("execution_receipt_id", "\\x12"),
+            ("materialization_resolved_nodes", True), ("materialization_database_operations", "4"),
+            ("materialization_trajectory_reads", None), ("emitted_parts", True),
+        )
+        for field, value in mutations:
+            with self.subTest(field=field, value=value), self.assertRaises(RuntimeError):
+                proof.require_frontier_result({**result, field:value}, first)
+
+    def test_postexecution_validation_retains_actual_result_and_transport(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        identities, runtime, firmware, _, _ = self.cognition_failure_inputs()
+        valid = self.successful_frontier_result()
+        valid["program_id"] = "\\x" + firmware["program_id"]
+        first = proof.require_identity_widths(valid)
+        cases = (
+            ("frontier-count", {**valid, "materialization_resolved_nodes": 2},
+             lambda result: proof.require_frontier_result(result, first)),
+            ("frontier-root", {**valid, "trunk_entity_id": "\\x" + "ef" * 16},
+             lambda result: proof.require_frontier_result(result, first)),
+            ("constituent-output", {**valid, "completed_steps": 2},
+             proof.require_constituent_result),
+        )
+        for label, result, validator in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory(dir=ROOT) as directory:
+                root = Path(directory)
+                output, artifact = root / "proof.json", root / "failure.json"
+                stdout = json.dumps(result) + "\n"
+                stderr = "NOTICE: actual successful execution fixture\n"
+                captured_sql = []
+                def execute(*args, completed_observer):
+                    sql = args[2]
+                    captured_sql.append(sql)
+                    command = {"exit_code": 0, "stdin_sha256": proof.u.sha256_bytes(sql.encode())}
+                    completed_observer(subprocess.CompletedProcess(["psql"], 0, stdout, stderr), command)
+                    return result, command
+                with mock.patch.object(proof.r, "runner_sql", side_effect=execute), \
+                     mock.patch("builtins.print"), self.assertRaises(RuntimeError):
+                    proof.execute_product({}, {"instance":{"admin_role":"laplace_admin"}},
+                        identities, runtime, firmware, "AA", label, failure_output=output,
+                        failure_artifact=artifact, validate_result=validator)
+                retained = json.loads(artifact.read_text())
+                self.assertEqual(artifact.read_bytes(), output.read_bytes())
+                self.assertEqual(retained["execution"], result)
+                self.assertEqual(retained["execution"]["status"], 0)
+                self.assertEqual(retained["request_sql_utf8"], captured_sql[-1])
+                self.assertEqual(retained["native_failure"]["state"], "unavailable")
+                self.assertIs(retained["success_receipt_issued"], False)
+                self.assertNotIn("proof_sha256", retained)
+                self.assertEqual(bytes.fromhex(retained["outputs"]["stdout"]["retained_hex"]).decode(), stdout)
+                self.assertEqual(bytes.fromhex(retained["outputs"]["stderr"]["retained_hex"]).decode(), stderr)
+                digest = retained.pop("failure_sha256")
+                self.assertEqual(digest, proof.u.sha256_bytes(proof.u.canonical_bytes(retained)))
+
     def test_installed_cognition_request_declares_its_complete_structural_boundary(self) -> None:
         proof = load_module("tools/delivery/product_cognition_live_proof.py")
         multiturn = load_module("tools/delivery/product_cognition_multiturn_live_proof.py")

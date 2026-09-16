@@ -9,9 +9,9 @@ production materialization.
 Two independent physical obligations are proven. The repeated-CONSTITUENT program
 uses ``AA`` to converge on canonical ``A`` without an expected-answer field. The
 CONSTITUENT->CONTAINER program returns the exact ``AA`` composition and proves that
-materialization resolves the root plus its repeated child through one frontier cache:
-three set-wise PostgreSQL reads total, one cached trajectory read, and no per-child
-SPI reread.
+materialization resolves one provider node for the root and validates the embedded
+Unicode atom run directly. Its ordinary stored-root path uses four metered database
+operations, one cached 32-byte trajectory read, and no per-child provider resolution.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
@@ -387,6 +387,7 @@ def execute_product(
     failure_output: Path | None = None,
     failure_artifact: Path | None = None,
     failure_provenance: dict[str, Any] | None = None,
+    validate_result: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     program_id = firmware["program_id"]
     prompt_hex = prompt.encode("utf-8").hex()
@@ -434,6 +435,8 @@ FROM laplace.cognition_firmware_execute_product(
         returned_program = bytea_hex(result.get("program_id"), "program_id")
         if returned_program != program_id:
             raise RuntimeError(f"{label} executed a different firmware program")
+        if validate_result is not None:
+            validate_result(result)
     except (RuntimeError, ValueError) as error:
         retain_execution_failure(
             failure_output,
@@ -490,6 +493,72 @@ def require_same_prompt_root(first: dict[str, str | None], replay: dict[str, str
         raise RuntimeError("installed prompt replay selected a different canonical root")
 
 
+def execution_counter(result: dict[str, Any], field: str) -> int:
+    value = result.get(field)
+    if type(value) is not int or not 0 <= value < (1 << 64):
+        raise RuntimeError(f"{field} is not a native unsigned counter")
+    return value
+
+
+def require_constituent_result(result: dict[str, Any]) -> None:
+    observed_output = bytes.fromhex(
+        bytea_hex(result.get("output"), "output")
+    )
+    require_identity_widths(result)
+    if observed_output != b"A":
+        raise RuntimeError(
+            f"repeated-constituent proof returned {observed_output!r}, expected canonical A"
+        )
+    if (
+        execution_counter(result, "completed_steps") != 2
+        or execution_counter(result, "emitted_parts") != 1
+    ):
+        raise RuntimeError("firmware did not execute the complete interpret/emit program")
+    if execution_counter(result, "provider_call_count") <= 0:
+        raise RuntimeError("firmware reported no provider execution")
+    if execution_counter(result, "materialization_resolved_nodes") <= 0:
+        raise RuntimeError("product materialization resolved no canonical nodes")
+    if execution_counter(result, "materialization_database_operations") <= 0:
+        raise RuntimeError("product materialization did not execute PostgreSQL readback")
+
+def require_frontier_result(
+    result: dict[str, Any], first_identities: dict[str, str | None],
+) -> None:
+    observed_output = bytes.fromhex(bytea_hex(result.get("output"), "output"))
+    identities = require_identity_widths(result)
+    require_same_prompt_root(first_identities, identities)
+    if observed_output != b"AA":
+        raise RuntimeError(
+            f"materialization frontier proof returned {observed_output!r}, expected exact AA"
+        )
+    if execution_counter(result, "completed_steps") != 3 or execution_counter(result, "emitted_parts") != 1:
+        raise RuntimeError("materialization frontier firmware did not execute both relation steps and emit")
+    resolved_nodes = execution_counter(result, "materialization_resolved_nodes")
+    trajectory_reads = execution_counter(result, "materialization_trajectory_reads")
+    database_operations = execution_counter(result, "materialization_database_operations")
+    trajectory_bytes = execution_counter(result, "materialization_trajectory_bytes")
+    # resolved_nodes counts provider resolve calls, not all content entities.
+    # Native materialization authenticates embedded Unicode atom identities and
+    # appends their packed run directly; A is not resolved a second time.
+    if resolved_nodes != 1:
+        raise RuntimeError(
+            f"materialization frontier resolved {resolved_nodes} nodes, expected one provider-resolved root and inline atom run"
+        )
+    if trajectory_reads != 1 or trajectory_bytes != 32:
+        raise RuntimeError(
+            f"materialization frontier trajectory work drifted: reads={trajectory_reads} bytes={trajectory_bytes}"
+        )
+    # The existing product route pins Unicode before creating this provider:
+    # no cold pin work belongs here. The ordinary stored root costs exactly
+    # one empty derived-owner inventory, one entity frontier, one physicality
+    # frontier and one empty derived-alternative inventory (materialization_pg.c
+    # and physicality_entity_pg.c). Extra child work must still fail this proof.
+    if database_operations != 4:
+        raise RuntimeError(
+            "materialization frontier regressed from set-wise persistence: "
+            f"database_operations={database_operations}, expected 4"
+        )
+
 def prove(output: Path, failure_artifact: Path | None = None) -> None:
     r.require_runner()
     cluster = u.load_json(ROOT / "contracts/postgresql-cluster.json")
@@ -540,32 +609,14 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
         failure_output=output,
         failure_artifact=failure_artifact,
         failure_provenance=failure_provenance,
+        validate_result=require_constituent_result,
     )
-    constituent_output = bytes.fromhex(
-        bytea_hex(constituent_result.get("output"), "output")
-    )
+    constituent_output = bytes.fromhex(bytea_hex(constituent_result["output"], "output"))
     constituent_identities = require_identity_widths(constituent_result)
-    if constituent_output != b"A":
-        raise RuntimeError(
-            f"repeated-constituent proof returned {constituent_output!r}, expected canonical A"
-        )
-    if (
-        constituent_result.get("completed_steps") != 2
-        or constituent_result.get("emitted_parts") != 1
-    ):
-        raise RuntimeError("firmware did not execute the complete interpret/emit program")
-    if int(constituent_result.get("provider_call_count", 0)) <= 0:
-        raise RuntimeError("firmware reported no provider execution")
-    if int(constituent_result.get("materialization_resolved_nodes", 0)) <= 0:
-        raise RuntimeError("product materialization resolved no canonical nodes")
-    if int(constituent_result.get("materialization_database_operations", 0)) <= 0:
-        raise RuntimeError("product materialization did not execute PostgreSQL readback")
 
-    # Deliberate physical-plan proof. AA -> A -> AA forces one composition
-    # materialization containing a repeated atom. The frontier-caching provider must
-    # read the composition identity+physicality set-wise, read its cached trajectory
-    # once, then resolve unique child A through one entity frontier plus Tier-0 batch.
-    # Any return to scalar entity/physicality/trajectory SPI changes these counters.
+    # AA -> A -> AA proves the stored root and its embedded, identity-checked
+    # atom run through the production materialization route. Validation executes
+    # inside execute_product so every failed obligation retains actual evidence.
     batch_firmware, batch_compiler_receipt = compile_firmware(
         compiler, ("constituent", "container")
     )
@@ -580,33 +631,10 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
         failure_output=output,
         failure_artifact=failure_artifact,
         failure_provenance=failure_provenance,
+        validate_result=lambda result: require_frontier_result(result, constituent_identities),
     )
-    batch_output = bytes.fromhex(bytea_hex(batch_result.get("output"), "output"))
+    batch_output = bytes.fromhex(bytea_hex(batch_result["output"], "output"))
     batch_identities = require_identity_widths(batch_result)
-    require_same_prompt_root(constituent_identities, batch_identities)
-    if batch_output != b"AA":
-        raise RuntimeError(
-            f"materialization frontier proof returned {batch_output!r}, expected exact AA"
-        )
-    if batch_result.get("completed_steps") != 3 or batch_result.get("emitted_parts") != 1:
-        raise RuntimeError("materialization frontier firmware did not execute both relation steps and emit")
-    resolved_nodes = int(batch_result.get("materialization_resolved_nodes", 0))
-    trajectory_reads = int(batch_result.get("materialization_trajectory_reads", 0))
-    database_operations = int(batch_result.get("materialization_database_operations", 0))
-    trajectory_bytes = int(batch_result.get("materialization_trajectory_bytes", 0))
-    if resolved_nodes != 2:
-        raise RuntimeError(
-            f"materialization frontier resolved {resolved_nodes} nodes, expected root plus one unique child"
-        )
-    if trajectory_reads != 1 or trajectory_bytes <= 0:
-        raise RuntimeError(
-            f"materialization frontier trajectory work drifted: reads={trajectory_reads} bytes={trajectory_bytes}"
-        )
-    if database_operations != 3:
-        raise RuntimeError(
-            "materialization frontier regressed from set-wise persistence: "
-            f"database_operations={database_operations}, expected 3"
-        )
 
     proof = {
         "schema": "laplace.installed-product-cognition-proof/v1",
@@ -633,9 +661,11 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
             "execution": batch_result,
             "execution_identities": batch_identities,
             "command_receipt": batch_command_receipt,
-            "expected_resolved_nodes": 2,
+            "expected_resolved_nodes": 1,
             "expected_trajectory_reads": 1,
-            "expected_database_operations": 3,
+            "expected_trajectory_bytes": 32,
+            "resolved_nodes_scope": "provider resolution calls; embedded Unicode atom runs are identity-checked inline",
+            "expected_database_operations": 4,
         },
     }
     proof["proof_sha256"] = u.sha256_bytes(u.canonical_bytes(proof))

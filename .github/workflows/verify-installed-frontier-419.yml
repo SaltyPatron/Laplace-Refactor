@@ -1,0 +1,114 @@
+name: Qualify corrected installed frontier proof
+on:
+  push:
+    branches: [verify/installed-frontier-419-20260916]
+permissions:
+  contents: read
+jobs:
+  hosted-controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Execute actual installed-proof regression controls
+        run: python3 tests/product_activation_runner_tests.py
+  installed-frontier:
+    needs: hosted-controls
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Execute corrected proof against the exact activated package
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$(git rev-parse HEAD^)" = 419cbcb4fd4c569706ee3c253ab4775f5fcaebad
+          test "$(git hash-object tools/delivery/product_cognition_live_proof.py)" = 5d290ca5d3ac99fe36a2f72d3f3213f34233f7b5
+          test "$(git hash-object tests/product_activation_runner_tests.py)" = 4fc36414b30ec768ee851bc92af47e3b26708e52
+          git diff --exit-code --quiet
+          git diff --cached --exit-code --quiet
+          export output="$RUNNER_TEMP/installed-frontier-419-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -m 0700 "$output"
+          python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / "tools"))
+          from sources.stockfish_corpus_acceptance import observe_activation
+          expected = {".github/workflows/verify-installed-frontier-419.yml",
+              "tools/delivery/product_cognition_live_proof.py", "tests/product_activation_runner_tests.py"}
+          import subprocess
+          changed = set(subprocess.check_output(["git","diff","--name-only","HEAD^","HEAD"], text=True).splitlines())
+          if changed != expected:
+              raise RuntimeError("candidate includes changes beyond the reviewed proof, controls and qualifier")
+          snapshot = observe_activation("419cbcb4fd4c569706ee3c253ab4775f5fcaebad",
+              Path(os.environ["output"]) / "activation-before.json")
+          if snapshot["package_id"] != "daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64":
+              raise RuntimeError("installed package changed before frontier proof")
+          print(json.dumps({"phase":"exact-installed-package-verified","package_id":snapshot["package_id"],
+              "manifest_sha256":snapshot["manifest_sha256"]}, sort_keys=True))
+          PY
+          set +e
+          timeout --signal=TERM --kill-after=10s 300s python3 tools/delivery/product_cognition_live_proof.py \
+            --output "$output/installed-cognition-proof.json" \
+            --failure-artifact "$output/installed-cognition-failure.json" > "$output/proof.log" 2>&1
+          export proof_status=$?
+          python3 - <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / "tools"))
+          from sources.stockfish_corpus_acceptance import load, observe_activation, stable_activation
+          root = Path(os.environ["output"])
+          report = {"schema":"laplace.installed-frontier-qualification/v1",
+              "repository_commit":"419cbcb4fd4c569706ee3c253ab4775f5fcaebad",
+              "candidate_commit":os.environ["GITHUB_SHA"],
+              "package_id":"daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64",
+              "proof_source_git_blob":"5d290ca5d3ac99fe36a2f72d3f3213f34233f7b5",
+              "previous_main_workflow_passed":False, "command_exit_code":int(os.environ["proof_status"]),
+              "activation_unchanged":False, "status":"failed"}
+          try:
+              before = load(root / "activation-before.json")
+              after = observe_activation(report["repository_commit"], root / "activation-after.json")
+              if stable_activation(before) != stable_activation(after):
+                  raise RuntimeError("installed package or native activation changed during frontier proof")
+              report["activation_unchanged"] = True
+              if report["command_exit_code"] != 0:
+                  raise RuntimeError("installed frontier proof failed; retained actual failure evidence")
+              proof = load(root / "installed-cognition-proof.json")
+              from delivery import product_cognition_live_proof as owner
+              identity = proof.pop("proof_sha256")
+              if identity != owner.u.sha256_bytes(owner.u.canonical_bytes(proof)):
+                  raise RuntimeError("installed proof canonical identity differs")
+              if proof.get("schema") != "laplace.installed-product-cognition-proof/v1" or proof.get("package_id") != report["package_id"]:
+                  raise RuntimeError("installed proof package or schema differs")
+              owner.require_constituent_result(proof["execution"])
+              owner.require_frontier_result(proof["materialization_frontier"]["execution"], proof["execution_identities"])
+              report["proof_sha256"] = identity
+              report["execution"] = {key:proof["execution"][key] for key in ("status","native_status","completed_steps","output")}
+              report["frontier"] = {key:proof["materialization_frontier"]["execution"][key] for key in (
+                  "status","native_status","completed_steps","output","materialization_resolved_nodes",
+                  "materialization_trajectory_reads","materialization_trajectory_bytes","materialization_database_operations")}
+              report["status"] = "passed"
+          except Exception as error:
+              report["failure"] = str(error)[:1000]
+          finally:
+              report["files"] = [{"path":str(path.relative_to(root)), "bytes":path.stat().st_size,
+                  "sha256":hashlib.sha256(path.read_bytes()).hexdigest()}
+                  for path in sorted(root.rglob("*")) if path.is_file() and not path.is_symlink()]
+              report["receipt_sha256"] = hashlib.sha256(
+                  json.dumps(report, sort_keys=True, separators=(",",":"), ensure_ascii=True).encode()).hexdigest()
+              (root / "frontier-qualification.json").write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
+              print(json.dumps({key:value for key,value in report.items() if key != "files"}, sort_keys=True))
+          if report["status"] != "passed":
+              raise SystemExit(1)
+          PY
+          
+      - name: Retain exact installed frontier evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installed-frontier-419-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/installed-frontier-419-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
