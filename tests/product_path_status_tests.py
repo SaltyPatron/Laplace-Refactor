@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -508,6 +509,60 @@ class ProductPathGitStatusTests(unittest.TestCase):
                         else:
                             self.assertEqual(summary.read_text(),
                                              f"Native profile {preset}: {expected}\n")
+
+
+    def test_installed_substrate_predicate_preserves_typed_identity_widths_and_readback(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        start, end = self.job_boundary(workflow, "dev-bat-live-substrate")
+        block = workflow[start:end]
+        opening = '--arg package_id "$package_id" \''
+        self.assertEqual(block.count(opening), 1)
+        predicate = block.split(opening, 1)[1].split('\' "$result" >/dev/null', 1)[0]
+        package = "a" * 64
+        result = {
+            "schema": "laplace.live-substrate-unicode/v1",
+            "package_id": package, "database": "laplace_refactor", "role": "laplace_app",
+            "activation_epoch_id": "b" * 32,
+            "activation_epoch_fingerprint": "c" * 64,
+            "rows": [
+                {"character": character, "codepoint": ord(character), "found": True,
+                 "entity_id": format(index + 1, "032x"),
+                 "physicality_id": format(index + 1, "064x"),
+                 "hilbert_key": format(index + 1, "x"), "s3": [0.0, 0.0, 0.0, 1.0]}
+                for index, character in enumerate("Aé中Ω")
+            ],
+        }
+
+        def accepted(document: dict) -> bool:
+            execution = subprocess.run(
+                ["jq", "-e", "--arg", "package_id", package, predicate],
+                input=json.dumps(document), capture_output=True, text=True, timeout=5,
+            )
+            self.assertIn(execution.returncode, (0, 1, 5), execution.stderr)
+            return execution.returncode == 0
+
+        self.assertTrue(accepted(result))
+        for field, value in (
+            ("entity_id", "d" * 64), ("entity_id", "d" * 31),
+            ("entity_id", "g" * 32), ("entity_id", None),
+            ("physicality_id", "d" * 32), ("physicality_id", "g" * 64),
+            ("found", False), ("codepoint", 66), ("character", "B"),
+            ("hilbert_key", "not-hex"), ("s3", [0.0, None, 0.0, 1.0]),
+        ):
+            changed = json.loads(json.dumps(result))
+            changed["rows"][0][field] = value
+            with self.subTest(field=field, value=value):
+                self.assertFalse(accepted(changed))
+        for field, value in (
+            ("package_id", "f" * 64), ("database", "other"), ("role", "other"),
+            ("activation_epoch_id", "b" * 64),
+            ("activation_epoch_fingerprint", "c" * 32),
+            ("rows", list(reversed(result["rows"]))),
+            ("rows", result["rows"][:3]),
+        ):
+            changed = {**result, field: value}
+            with self.subTest(field=field):
+                self.assertFalse(accepted(changed))
 
 
 if __name__ == "__main__":

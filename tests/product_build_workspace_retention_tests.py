@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -304,6 +305,137 @@ class ProductBuildWorkspaceRetentionTests(unittest.TestCase):
         self.assertTrue(stage.is_dir())
         self.assertEqual(marker.read_bytes(), b"preserve\n")
         self.assertEqual(list(outside.iterdir()), [marker])
+
+
+    def selected_metadata(self, plan_id: str, package_id: str, digest: str, **kwargs) -> dict:
+        return RETENTION.resolve_package_metadata(
+            self.build_root, self.stage_root, plan_id, package_id, digest, **kwargs)
+
+    def test_reader_survives_actual_reclamation_without_rewriting_provenance(self) -> None:
+        plan, build, stage = self.make_complete("1", "a")
+        original = (build / "package-receipt.json").read_bytes()
+        digest = RETENTION.sha256_file(build / "package-manifest.json")
+        live = self.selected_metadata(plan, "a" * 64, digest)
+        self.assertEqual(live["selection"], "build")
+        self.reclaim()
+        retained = self.selected_metadata(plan, "a" * 64, digest)
+        self.assertEqual(retained["selection"], "retained")
+        self.assertEqual(retained["manifest"], live["manifest"])
+        self.assertEqual(retained["receipt"], live["receipt"])
+        self.assertEqual(Path(retained["receipt_path"]).read_bytes(), original)
+        self.assertEqual(retained["original_manifest_path"], str(build / "package-manifest.json"))
+        explicit = RETENTION.resolve_product_receipt(
+            Path(retained["receipt_path"]), self.build_root, self.stage_root, "a" * 64)
+        self.assertEqual(explicit["receipt_sha256"], retained["receipt_sha256"])
+        self.assertEqual(explicit["build_metadata"], {"status": "not-observed"})
+        self.assertFalse(build.exists())
+        self.assertFalse(stage.exists())
+
+    def test_reader_supports_legacy_and_deterministic_distinct_execution_receipts(self) -> None:
+        plan, build, stage = self.make_complete("2", "b")
+        legacy = self.legacy_metadata(plan, build, stage)
+        digest = RETENTION.sha256_file(build / "package-manifest.json")
+        self.reclaim()
+        self.assertEqual(Path(self.selected_metadata(plan, "b" * 64, digest)["receipt_path"]).parent, legacy)
+        self.make_complete("2", "b")
+        self.change_execution_log(build)
+        later = Path(self.reclaim()["removed"][0]["retained_metadata"])
+        chosen = self.selected_metadata(plan, "b" * 64, digest)
+        self.assertEqual(Path(chosen["receipt_path"]).parent, legacy)
+        explicit = self.selected_metadata(plan, "b" * 64, digest,
+                                         selected_receipt=later / "package-receipt.json")
+        self.assertEqual(Path(explicit["receipt_path"]).parent, later)
+        self.assertEqual(explicit["manifest"], chosen["manifest"])
+        self.assertNotEqual(explicit["receipt_sha256"], chosen["receipt_sha256"])
+        # Removing the legacy layout leaves the version-addressed record usable.
+        for name in RETENTION._METADATA_NAMES:
+            (legacy / name).unlink()
+        self.assertEqual(self.selected_metadata(plan, "b" * 64, digest)["receipt_sha256"],
+                         explicit["receipt_sha256"])
+
+    def test_reader_refuses_changed_retained_documents_links_and_addresses(self) -> None:
+        cases = ("manifest", "receipt", "retention", "manifest-link", "directory-link",
+                 "wrong-version", "partial", "oversize", "plan")
+        for index, case in enumerate(cases):
+            with self.subTest(case=case):
+                digit = format(index + 3, "x")
+                plan, build, _ = self.make_complete(digit, "c")
+                digest = RETENTION.sha256_file(build / "package-manifest.json")
+                retained = Path(self.reclaim()["removed"][0]["retained_metadata"])
+                if case in ("manifest", "receipt", "retention"):
+                    name = {"manifest": "package-manifest.json", "receipt": "package-receipt.json",
+                            "retention": "retention.json"}[case]
+                    path = retained / name
+                    document = RETENTION.load_json(path)
+                    document["altered"] = True
+                    path.write_bytes(RETENTION.canonical_bytes(document))
+                elif case == "manifest-link":
+                    path = retained / "package-manifest.json"
+                    other = self.root / ("copied-" + digit)
+                    path.rename(other)
+                    path.symlink_to(other)
+                elif case == "directory-link":
+                    other = self.root / ("copied-" + digit)
+                    retained.rename(other)
+                    retained.symlink_to(other, target_is_directory=True)
+                elif case == "wrong-version":
+                    retained.rename(retained.with_name("f" * 64))
+                elif case == "partial":
+                    (retained / "package-receipt.json").unlink()
+                elif case == "oversize":
+                    with mock.patch.object(RETENTION, "MAXIMUM_METADATA_BYTES", 16):
+                        with self.assertRaises(RETENTION.RetentionError):
+                            self.selected_metadata(plan, "c" * 64, digest)
+                    continue
+                else:
+                    record = RETENTION.load_json(retained / "retention.json")
+                    record["original_build_directory"] = str(self.build_root / ("f" * 64))
+                    (retained / "retention.json").write_bytes(RETENTION.canonical_bytes(record))
+                with self.assertRaises(RETENTION.RetentionError):
+                    self.selected_metadata(plan, "c" * 64, digest)
+
+    def test_reader_uses_retained_generation_during_unrelated_partial_rebuild(self) -> None:
+        for digit, defect in (("c", "partial"), ("d", "invalid"), ("e", "different"), ("f", "link")):
+            with self.subTest(defect=defect):
+                plan, build, _ = self.make_complete(digit, "d")
+                digest = RETENTION.sha256_file(build / "package-manifest.json")
+                retained = Path(self.reclaim()["removed"][0]["retained_metadata"])
+                self.make_complete(digit, "e" if defect == "different" else "d")
+                if defect == "partial":
+                    (build / "package-receipt.json").unlink()
+                elif defect == "invalid":
+                    (build / "package-manifest.json").write_bytes(b"corrupt")
+                elif defect == "link":
+                    (build / "package-manifest.json").unlink()
+                    (build / "package-manifest.json").symlink_to(retained / "package-manifest.json")
+                with mock.patch.object(RETENTION, "_metadata_at", wraps=RETENTION._metadata_at) as reads:
+                    explicit = self.selected_metadata(plan, "d" * 64, digest,
+                        selected_receipt=retained / "package-receipt.json")
+                self.assertEqual([call.args[0] for call in reads.call_args_list], [retained])
+                self.assertEqual(explicit["build_metadata"], {"status": "not-observed"})
+                implicit = self.selected_metadata(plan, "d" * 64, digest)
+                self.assertEqual(implicit["receipt_sha256"], explicit["receipt_sha256"])
+                self.assertEqual(implicit["build_metadata"]["status"], "rejected")
+                self.assertTrue(implicit["build_metadata"]["failure"])
+                # A rejected live execution never licenses corrupt retained bytes.
+                (retained / "package-manifest.json").write_bytes(b"corrupt retained")
+                with self.assertRaises(RETENTION.RetentionError):
+                    self.selected_metadata(plan, "d" * 64, digest)
+                # Leave no new live generation for the next reclaim invocation.
+                shutil.rmtree(build)
+                shutil.rmtree(self.stage_root / plan)
+
+    def test_reader_requires_exact_expected_manifest_package_and_bounded_inventory(self) -> None:
+        plan, build, _ = self.make_complete("d", "e")
+        digest = RETENTION.sha256_file(build / "package-manifest.json")
+        self.reclaim()
+        for package, manifest in (("f" * 64, digest), ("e" * 64, "0" * 64)):
+            with self.subTest(package=package, manifest=manifest), \
+                    self.assertRaisesRegex(RETENTION.RetentionError, "no retained metadata"):
+                self.selected_metadata(plan, package, manifest)
+        with mock.patch.object(RETENTION, "MAXIMUM_RETAINED_VERSIONS", 0), \
+                self.assertRaisesRegex(RETENTION.RetentionError, "version boundary"):
+            self.selected_metadata(plan, "e" * 64, digest)
 
 
 if __name__ == "__main__":

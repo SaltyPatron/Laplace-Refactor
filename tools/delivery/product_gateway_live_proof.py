@@ -49,6 +49,18 @@ def package_owner() -> Any:
     return sys.modules[name]
 
 
+def metadata_owner() -> Any:
+    name = "laplace_gateway_build_metadata_owner"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, ROOT / "tools/product/build_workspace_retention.py")
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load the product build metadata owner")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
 def readiness_timeout(deadline: float) -> float:
     remaining = deadline - time.monotonic()
     if remaining <= 0:
@@ -159,23 +171,14 @@ def prove_readiness(output: Path, package_id: str, product_receipt: Path,
             if HEX256.fullmatch(package_id) is None or not root.is_absolute():
                 raise RuntimeError("invalid selected package identity or physical root")
             contract = owner.load_json(ROOT / "contracts/postgresql-cluster.json")
-            if product_receipt.is_symlink() or not product_receipt.is_file():
-                raise RuntimeError("selected product receipt is not a physical file")
-            selected_sha = owner.sha256_file(product_receipt)
-            selected = owner.load_json(product_receipt)
-            if (selected.get("schema") != "laplace.product-package-receipt/v1"
-                    or selected.get("package_id") != package_id
-                    or selected.get("activation_eligible") is not True
-                    or selected.get("build_input_closure_complete") is not True
-                    or selected.get("product_activated") is not False):
-                raise RuntimeError("product receipt differs from the selected eligible package")
-            manifest_path = Path(owner.require_absolute_path(selected.get("manifest"), "manifest"))
-            if manifest_path.is_symlink() or not manifest_path.is_file():
-                raise RuntimeError("selected package manifest is not a physical file")
-            manifest_sha = owner.sha256_file(manifest_path)
-            if manifest_sha != selected.get("manifest_sha256"):
-                raise RuntimeError("selected package manifest bytes differ from its receipt")
-            manifest = owner.load_json(manifest_path)
+            product = owner.load_json(ROOT / "contracts/product-package.json")["build"]
+            documents = metadata_owner().resolve_product_receipt(
+                product_receipt, owner.prefixed(root, product["root"]),
+                owner.prefixed(root, product["stage_root"]), package_id)
+            selected_sha = documents["receipt_sha256"]
+            manifest_path = Path(documents["manifest_path"])
+            manifest_sha = documents["manifest_sha256"]
+            manifest = documents["manifest"]
             metadata = owner.verify_package(manifest, contract, None)
             if manifest["package_id"] != package_id:
                 raise RuntimeError("canonical manifest identity differs from the selected package")
@@ -214,6 +217,9 @@ def prove_readiness(output: Path, package_id: str, product_receipt: Path,
             expected = {name: asset_bytes(name) for _, name, _ in WEB_ASSETS}
             report["product_receipt_sha256"] = selected_sha
             report["package_manifest_sha256"] = manifest_sha
+            report["package_metadata"] = {key: documents[key] for key in (
+                "selection", "plan_id", "receipt_path", "manifest_path", "original_manifest_path",
+                "build_metadata")}
             report["installed_release"] = str(release)
             report["selection"] = {label: str(link) for label, link in links.items()}
             started = time.monotonic()
