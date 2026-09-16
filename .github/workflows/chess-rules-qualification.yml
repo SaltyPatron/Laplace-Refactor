@@ -14,6 +14,14 @@ on:
       - 'tools/dependencies/git_checkout.py'
       - 'tools/chess/**'
       - 'tests/cutechess_rules_provider_tests.py'
+      - 'tests/cutechess_trace_adapter_tests.cpp'
+      - 'tests/chess_line_tests.cpp'
+      - 'tests/registry.d/chess-line.json'
+      - 'tests/CMakeLists.txt'
+      - 'engine/**'
+      - 'contracts/chess-line.json'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
       - 'tests/fixtures/cutechess-rules/**'
       - 'tests/fixtures/pgn-provider/upstream-117-ply.pgn'
       - 'tests/registry.d/cutechess-rules-provider.json'
@@ -28,6 +36,14 @@ on:
       - 'tools/dependencies/git_checkout.py'
       - 'tools/chess/**'
       - 'tests/cutechess_rules_provider_tests.py'
+      - 'tests/cutechess_trace_adapter_tests.cpp'
+      - 'tests/chess_line_tests.cpp'
+      - 'tests/registry.d/chess-line.json'
+      - 'tests/CMakeLists.txt'
+      - 'engine/**'
+      - 'contracts/chess-line.json'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
       - 'tests/fixtures/cutechess-rules/**'
       - 'tests/fixtures/pgn-provider/upstream-117-ply.pgn'
       - 'tests/registry.d/cutechess-rules-provider.json'
@@ -67,20 +83,39 @@ jobs:
             --build-root "$root/build" --cache "$root/downloads" --jobs 2 \
             | tee "$root/output/tool-install.json"
           cp "$root/tools/current.json" "$root/output/tool-source-build.json"
+      - name: Build common native LINE planner and execute canonical identity controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          dependencies="$LAPLACE_RULES_ROOT/native-dependencies"
+          native="$LAPLACE_RULES_ROOT/native-build"
+          ./tools/dependencies/acquire-locked-git.sh dependencies/lock.json "$dependencies" blake3 eigen googletest spectra tree-sitter
+          printf 'LAPLACE_NATIVE_BUILD=%s\n' "$native" >> "$GITHUB_ENV"
+          cmake --preset linux-dev -B "$native" \
+            -DLAPLACE_BLAKE3_SOURCE="$dependencies/blake3/c" \
+            -DLAPLACE_GTEST_SOURCE="$dependencies/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$dependencies/eigen" \
+            -DLAPLACE_SPECTRA_SOURCE="$dependencies/spectra" \
+            -DLAPLACE_TREE_SITTER_SOURCE="$dependencies/tree-sitter" \
+            2>&1 | tee "$LAPLACE_RULES_ROOT/output/native-configure.log"
+          cmake --build "$native" --target laplace_chess_line_tests --parallel 2 \
+            2>&1 | tee "$LAPLACE_RULES_ROOT/output/native-build.log"
+          ctest --test-dir "$native" --no-tests=error --output-on-failure -V \
+            -R '^ChessLine[.]' 2>&1 | tee "$LAPLACE_RULES_ROOT/output/native-planner-test.log"
       - name: Build exact native mechanism and deliberate noncanonical-SAN defect
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/chess/qualify_rules_provider.py \
             --chess-prefix "$LAPLACE_RULES_ROOT/tools" \
-            --output "$LAPLACE_RULES_ROOT/output/rules" --jobs 2
+            --output "$LAPLACE_RULES_ROOT/output/rules" --native-build "$LAPLACE_NATIVE_BUILD" --jobs 2
       - name: Execute registered native rules and history conformance
         shell: bash
         run: |
           set -euo pipefail
           ctest --test-dir "$LAPLACE_RULES_ROOT/output/rules/build" \
             --no-tests=error --output-on-failure -V \
-            -R '^chess[.]native-rules-provider-contract$'
+            -R '^chess[.]native-(rules-provider|trace-adapter)-contract$'
       - name: Retain partial build and native qualification diagnostics
         if: always()
         shell: bash
@@ -91,7 +126,7 @@ jobs:
           for log in "$root/build/cutechess/"*/build.log; do
             if [[ -f "$log" ]]; then cp "$log" "$root/output/cutechess-source-build.log"; fi
           done
-          for receipt in "$root/output/rules/build-receipt.json" "$root/output/rules/native-qualification.json"; do
+          for receipt in "$root/output/rules/build-receipt.json" "$root/output/rules/native-qualification.json" "$root/output/rules/native-adapter-qualification.json"; do
             if [[ -f "$receipt" ]]; then cat "$receipt"; fi
           done
           if [[ -f "$root/output/rules/build.log" ]]; then tail -n 100 "$root/output/rules/build.log"; fi

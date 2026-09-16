@@ -8,7 +8,8 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     message(FATAL_ERROR "This qualification carrier currently observes the Linux loader")
 endif()
 foreach(required LAPLACE_CUTECHESS_SOURCE LAPLACE_CUTECHESS_LIBRARY
-                 LAPLACE_QT_PREFIX LAPLACE_QT_VERSION LAPLACE_RULES_OUTPUT_ROOT)
+                 LAPLACE_QT_PREFIX LAPLACE_QT_VERSION LAPLACE_RULES_OUTPUT_ROOT
+                 LAPLACE_NATIVE_BUILD_ROOT LAPLACE_NATIVE_ENGINE)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
         message(FATAL_ERROR "${required} must name an exact selected provider input")
     endif()
@@ -52,3 +53,28 @@ add_test(NAME chess.native-rules-provider-contract
 set_tests_properties(chess.native-rules-provider-contract PROPERTIES
     LABELS "implementation;chess;physical-provider;legality;mutation"
     TIMEOUT 180)
+
+if(NOT EXISTS "${LAPLACE_NATIVE_BUILD_ROOT}/generated/laplace/contract/composition.h"
+   OR NOT EXISTS "${LAPLACE_NATIVE_ENGINE}")
+    message(FATAL_ERROR "An actual common native build and generated public contracts are required")
+endif()
+add_library(laplace_native_engine SHARED IMPORTED)
+set_target_properties(laplace_native_engine PROPERTIES
+    IMPORTED_LOCATION "${LAPLACE_NATIVE_ENGINE}"
+    INTERFACE_INCLUDE_DIRECTORIES "${LAPLACE_REPOSITORY_ROOT}/engine/include;${LAPLACE_NATIVE_BUILD_ROOT}/generated")
+add_library(laplace_cutechess_trace_adapter STATIC cutechess_trace_adapter.cpp)
+target_link_libraries(laplace_cutechess_trace_adapter PUBLIC laplace_cutechess_upstream laplace_native_engine)
+target_include_directories(laplace_cutechess_trace_adapter PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_options(laplace_cutechess_trace_adapter PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_executable(laplace_cutechess_trace_adapter_tests
+    "${LAPLACE_REPOSITORY_ROOT}/tests/cutechess_trace_adapter_tests.cpp")
+target_link_libraries(laplace_cutechess_trace_adapter_tests PRIVATE laplace_cutechess_trace_adapter)
+target_compile_options(laplace_cutechess_trace_adapter_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+add_test(NAME chess.native-trace-adapter-contract
+    COMMAND laplace_cutechess_trace_adapter_tests
+        "${LAPLACE_RULES_OUTPUT_ROOT}/native-adapter-qualification.json"
+        "${LAPLACE_NATIVE_ENGINE}" "${LAPLACE_QT_PREFIX}" "${LAPLACE_QT_VERSION}")
+set_tests_properties(chess.native-trace-adapter-contract PROPERTIES
+    LABELS "implementation;chess;physical-provider;composition" TIMEOUT 60)

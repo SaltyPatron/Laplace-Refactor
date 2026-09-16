@@ -17,8 +17,22 @@ public:
     Chess::Square providerEnPassantSquare() const {
         return hasProviderEnPassant() ? chessSquare(enpassantSquare()) : Chess::Square();
     }
+    // Structural consistency of a declared EP setup is checked separately from
+    // legal capture availability; no alternate move generator lives here.
+    bool consistentEnPassantSquare(const Chess::Square& target) const {
+        if (!target.isValid()) return false;
+        const auto side = sideToMove();
+        const int direction = side == Chess::Side::White ? 1 : -1;
+        const int rank = side == Chess::Side::White ? 5 : 2;
+        return target.rank() == rank && pieceAt(target).isEmpty() &&
+            pieceAt(Chess::Square(target.file(), rank - direction)) ==
+                Chess::Piece(side.opposite(), Chess::WesternBoard::Pawn) &&
+            pieceAt(Chess::Square(target.file(), rank + direction)).isEmpty() &&
+            reversibleMoveCount() == 0;
+    }
     Chess::Square legalEnPassantSquare() {
-        if (!hasProviderEnPassant()) return Chess::Square();
+        if (!hasProviderEnPassant() ||
+            !consistentEnPassantSquare(providerEnPassantSquare())) return Chess::Square();
         const auto target = providerEnPassantSquare();
         for (const auto& move : legalMoves()) {
             const auto generic = genericMove(move);

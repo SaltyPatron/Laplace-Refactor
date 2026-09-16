@@ -3731,3 +3731,10 @@ if(UNIX)
         LABELS "implementation;package;dependencies"
         RUN_SERIAL TRUE)
 endif()
+
+add_executable(laplace_chess_line_tests chess_line_tests.cpp)
+target_link_libraries(laplace_chess_line_tests PRIVATE Laplace::Composition GTest::gtest_main)
+target_compile_options(laplace_chess_line_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_chess_line_tests PROPERTIES
+    LABELS "implementation;chess;composition;identity" TIMEOUT 30)
