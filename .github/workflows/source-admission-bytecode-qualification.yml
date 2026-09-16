@@ -1,0 +1,419 @@
+name: Installed native candidate compiler qualification
+on:
+  push:
+    branches: [verify/source-admission-bytecode-20260916]
+permissions:
+  contents: read
+concurrency:
+  group: installed-native-candidate-compiler
+  cancel-in-progress: false
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  GIT_OPTIONAL_LOCKS: "0"
+  THIN_EVIDENCE: /build/laplace/work/installed-native-candidate-compiler/${{ github.run_id }}-${{ github.run_attempt }}
+jobs:
+  qualify:
+    if: github.repository == 'SaltyPatron/Laplace-Refactor'
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 15
+    steps:
+      - name: Check out the exact separately identified compiler candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 614bef1f08963e3d935921dd08bc0c39e6ce5331
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind operational-only workflow and retain candidate sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$GITHUB_REF" = refs/heads/verify/source-admission-bytecode-20260916
+          test "$(git rev-parse HEAD)" = 614bef1f08963e3d935921dd08bc0c39e6ce5331
+          test "$(git rev-parse HEAD^{tree})" = a1f60377474c1bfcd622b06e8fad2791a0f5057d
+          test "$(git diff --name-only --no-renames b8c023b950e4523f88ec8f57b37e79bcffe3e822 "$GITHUB_SHA")" = .github/workflows/source-admission-bytecode-qualification.yml
+          test -z "$(git status --porcelain --untracked-files=all)"
+          python3 -B - <<'PY'
+          import os, stat
+          from pathlib import Path
+          target = Path(os.environ["THIN_EVIDENCE"])
+          target.parent.mkdir(mode=0o700, exist_ok=True)
+          info = target.parent.lstat()
+          if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
+              raise SystemExit("candidate evidence parent is not a private owned directory")
+          target.mkdir(mode=0o700)
+          PY
+          git show "$GITHUB_SHA:.github/workflows/source-admission-bytecode-qualification.yml" > "$THIN_EVIDENCE/executed-workflow.yml"
+          git archive --format=tar HEAD tools/cognition_firmware_compile.cpp engine/include/laplace/cognition_firmware.h tools/delivery/product_cognition_live_proof.py tests/cognition_firmware_tests.cpp tests/registry.d/cognition-firmware.json tools/CMakeLists.txt tests/cognition_firmware_compile_tests.py > "$THIN_EVIDENCE/candidate-source.tar"
+          cat > "$THIN_EVIDENCE/qualify.py" <<'PY'
+          #!/usr/bin/env python3
+          """Qualify a candidate compiler; do not replace the installed compiler or engine."""
+          import hashlib, importlib.util, json, os, re, stat, subprocess, sys, time
+          from pathlib import Path
+          os.umask(0o077)
+          ROOT = Path.cwd().resolve()
+          OUT = Path(os.environ["THIN_EVIDENCE"])
+          BASE = "b8c023b950e4523f88ec8f57b37e79bcffe3e822"
+          CANDIDATE = "614bef1f08963e3d935921dd08bc0c39e6ce5331"
+          PACKAGE = "48a00562c1900089593a3333f8a5b0ad90b6f95aafa524a97740d21e490a3198"
+          AGGREGATE = "602dd232d786b000356dcb38796b781200a19fea557726212b2d7eca1b867291"
+          SOURCES = {
+           "tools/cognition_firmware_compile.cpp": "dc4d7fbd27a741fab32dd93b4fd7553438faf746",
+           "engine/include/laplace/cognition_firmware.h": "768a112c71375fa3c32e59d9e53c93281d021497",
+           "tools/delivery/product_cognition_live_proof.py": "e84d2a18f46e30016bac581845cf3f329989da63",
+           "tests/cognition_firmware_tests.cpp": "32cbb28726486533de09d35ea60abc4dcae0f8b8",
+           "tests/registry.d/cognition-firmware.json": "d30f83c8dd2f3c113c9c19eb716408cc8a6f3154",
+           "tools/CMakeLists.txt": "e642d65b4305098a53ad7536590174974a09990c",
+           "tests/cognition_firmware_compile_tests.py": "64cbb4d05e261a626dae330820e3e3b9dc98d105",
+          }
+          sys.path.insert(0, str(ROOT / "tools"))
+          from sources import stockfish_corpus_acceptance as acceptance
+          from delivery import product_cognition_live_proof as proof_owner
+          spec = importlib.util.spec_from_file_location("thin_product_build_owner", ROOT / "tools/product/build-package.py")
+          assert spec is not None and spec.loader is not None
+          build_owner = importlib.util.module_from_spec(spec)
+          sys.modules[spec.name] = build_owner
+          spec.loader.exec_module(build_owner)
+          
+          def require(value, message):
+              if not value:
+                  raise RuntimeError(message)
+          
+          def sha(path):
+              value = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1048576), b""):
+                      value.update(block)
+              return value.hexdigest()
+          
+          def strict_pairs(pairs):
+              result = {}
+              for key, value in pairs:
+                  require(key not in result, "duplicate JSON key")
+                  result[key] = value
+              return result
+          
+          def read_json(path):
+              require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 33554432,
+                      "JSON evidence is unavailable or too large: " + str(path))
+              return json.loads(path.read_text(), object_pairs_hook=strict_pairs)
+          
+          def identity(path):
+              require(path.is_absolute() and path.is_file(), "selected executable is absent")
+              physical = path.resolve(strict=True)
+              info = physical.stat()
+              return {"path": str(path), "physical_path": str(physical), "sha256": sha(physical),
+                      "bytes": info.st_size, "device": info.st_dev, "inode": info.st_ino,
+                      "mode": stat.S_IMODE(info.st_mode)}
+          
+          started = time.monotonic()
+          deadline = started + 535
+          report = {
+           "schema": "laplace.installed-native-candidate-compiler-qualification/v1",
+           "status": "running", "candidate_scope": "explicit-candidate-compiler-not-installed",
+           "candidate_commit": CANDIDATE, "installed_repository_commit": BASE,
+           "installed_package_id": PACKAGE, "expected_activation_aggregate_sha256": AGGREGATE,
+           "source_blobs": SOURCES, "completed_phases": [], "commands": [],
+           "native_engine_rebuilt": False, "candidate_installed": False,
+           "native_unit_suite_executed": False, "source_ingestion_requested": False,
+           "before_verified": False, "after_verified": False, "activation_unchanged": False,
+          }
+          errors = []
+          environment = dict(os.environ)
+          for key in ("LD_PRELOAD", "LD_LIBRARY_PATH", "CMAKE_PREFIX_PATH", "CMAKE_TOOLCHAIN_FILE",
+                      "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS"):
+              environment.pop(key, None)
+          environment.update(PYTHONDONTWRITEBYTECODE="1", GIT_OPTIONAL_LOCKS="0")
+          
+          def save():
+              report["elapsed_seconds"] = time.monotonic() - started
+              acceptance.save(OUT / "result.json", report)
+          
+          def phase(name):
+              report["active_phase"] = name
+              save()
+          
+          def completed(name):
+              report["completed_phases"].append(name)
+              save()
+          
+          def command(name, argv, seconds):
+              phase(name)
+              available = int(deadline - time.monotonic())
+              require(available > 0, "qualification phase deadline exhausted")
+              budget = min(seconds, available)
+              record = {"phase": name, "argv": list(map(str, argv)), "timeout_seconds": budget}
+              report["commands"].append(record)
+              save()
+              began = time.monotonic()
+              stdout, stderr = OUT / (name + ".stdout"), OUT / (name + ".stderr")
+              try:
+                  with stdout.open("xb") as out, stderr.open("xb") as err:
+                      result = subprocess.run(
+                          ["/usr/bin/timeout", "--signal=TERM", "--kill-after=5s", str(budget) + "s",
+                           *map(str, argv)], cwd=ROOT, env=environment, stdout=out, stderr=err,
+                          timeout=budget + 10, check=False)
+                  record["returncode"] = result.returncode
+                  require(result.returncode == 0, name + " failed with exit " + str(result.returncode))
+              finally:
+                  record["elapsed_seconds"] = time.monotonic() - began
+                  record["outputs"] = {label: {"path": str(path), "bytes": path.stat().st_size,
+                                               "sha256": sha(path)}
+                      for label, path in (("stdout", stdout), ("stderr", stderr)) if path.is_file()}
+                  save()
+              completed(name)
+              return stdout
+          
+          def verify_activation(value):
+              require(value["package_id"] == PACKAGE and value["repository_commit"] == BASE,
+                      "activated package or repository differs")
+              require(any(item["document"].get("result_sha256") == AGGREGATE
+                          for item in value["runner_receipts"]), "activation aggregate differs")
+          
+          def verify_source():
+              records = {}
+              for relative, expected in SOURCES.items():
+                  path = ROOT / relative
+                  raw = path.read_bytes()
+                  blob = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+                  require(blob == expected and not path.is_symlink(), "candidate source differs: " + relative)
+                  records[relative] = {"git_blob": blob, "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
+              acceptance.save(OUT / "candidate-source-manifest.json", {
+                  "commit": CANDIDATE, "tree": "a1f60377474c1bfcd622b06e8fad2791a0f5057d",
+                  "scope": "seven candidate leaves; native implementation remains installed package",
+                  "files": records})
+          
+          def loader(name):
+              log = command(name + "-ldd", ["/usr/bin/ldd", compiler], 15)
+              text = log.read_text()
+              require("not found" not in text, "candidate has unresolved loader dependencies")
+              paths = re.findall(r"^\s*liblaplace_engine\.so(?:\.[^\s]+)?\s+=>\s+(\S+)\s+\(", text, re.M)
+              require(len(paths) == 1 and Path(paths[0]).resolve(strict=True) == engine,
+                      "candidate resolves another native engine")
+              require(sha(engine) == engine_record["sha256"], "installed native engine bytes changed")
+              command(name + "-readelf", [tools["readelf"]["path"], "-d", compiler], 15)
+              return {"compiler": identity(compiler), "engine": identity(engine),
+                      "ldd_sha256": sha(log), "selected_engine_path": str(engine)}
+          
+          before = input_root = input_before = selected_identities = compiler = None
+          try:
+              acceptance.runner.require_runner()
+              verify_source()
+              completed("source-identity")
+              phase("activation-before")
+              before = acceptance.observe_activation(BASE, OUT / "activation-before.json")
+              verify_activation(before)
+              report["before_verified"] = True
+              completed("activation-before")
+              manifest, release = before["manifest"], Path(before["release"])
+              configs = [item["path"] for item in manifest["files"]
+                         if item.get("kind") == "file" and Path(item["path"]).name == "LaplaceConfig.cmake"]
+              require(len(configs) == 1, "selected package does not expose one installed Laplace config")
+              config = release / configs[0]
+              engines = [item for item in before["cluster_plan"]["required_loaded_objects"]
+                         if Path(item["path"]).name == "liblaplace_engine.so.2.0.0"]
+              require(len(engines) == 1, "selected package native engine identity is ambiguous")
+              engine_record = engines[0]
+              engine = Path(engine_record["path"]).resolve(strict=True)
+              require(engine.is_relative_to(release) and sha(engine) == engine_record["sha256"],
+                      "installed engine bytes differ")
+              closure = manifest["provenance"]["build_input_closure"]
+              require(closure["schema"] == "laplace.product-build-input-closure-receipt/v1"
+                      and closure["complete"] is True, "package input closure is incomplete")
+              retained_root = closure["build_input_roots"]["blake3"]
+              input_root = Path(retained_root["path"])
+              require(input_root.is_absolute(), "BLAKE3 input is not absolute")
+              phase("blake3-receipt-before")
+              input_before = build_owner.exact_tree_receipt(input_root)
+              require(input_before == retained_root, "BLAKE3 source differs from installed package receipt")
+              acceptance.save(OUT / "blake3-before.json", input_before)
+              completed("blake3-receipt-before")
+              tools = closure["toolchain"]["tools"]
+              for name in ("cmake", "ninja", "ar", "ranlib", "ld", "readelf"):
+                  selected = Path(tools[name]["path"])
+                  require(selected.is_absolute() and sha(selected) == tools[name]["sha256"],
+                          "selected build tool bytes differ: " + name)
+              contract = acceptance.load(ROOT / "contracts/product-package.json")
+              compilers = {name: Path(contract["build"][name]) for name in ("c_compiler", "cxx_compiler")}
+              selected_identities = {name: identity(Path(record["path"])) for name, record in tools.items()}
+              selected_identities.update({name: identity(path) for name, path in compilers.items()})
+              acceptance.save(OUT / "selected-build-inputs.json", {
+                  "scope": "fresh candidate build tool observations; installed product is unchanged",
+                  "toolchain": closure["toolchain"], "executables": selected_identities,
+                  "blake3": input_before, "dependency_lock_sha256": sha(ROOT / "dependencies/lock.json"),
+                  "installed_laplace_config": str(config), "installed_engine": engine_record})
+              for name, path in compilers.items():
+                  command(name + "-version", [path, "--version"], 10)
+              command("blake3-lock-before",
+                  ["bash", ROOT / "tools/dependencies/verify-lock.sh", input_root.parent, "blake3"], 30)
+              project = OUT / "project"
+              project.mkdir()
+              build = OUT / "build"
+              cmake = """cmake_minimum_required(VERSION 3.25)
+          project(InstalledNativeCandidateCompiler LANGUAGES C CXX ASM)
+          set(CMAKE_CXX_STANDARD 20)
+          set(CMAKE_CXX_STANDARD_REQUIRED ON)
+          set(CMAKE_CXX_EXTENSIONS OFF)
+          find_package(Laplace CONFIG REQUIRED PATHS "${SELECTED_LAPLACE_CONFIG}" NO_DEFAULT_PATH)
+          include("${CANDIDATE_ROOT}/cmake/LaplaceDependencyLock.cmake")
+          laplace_verify_git_dependency(blake3 "${SELECTED_BLAKE3}" "${CANDIDATE_ROOT}/dependencies/lock.json")
+          set(BUILD_SHARED_LIBS OFF)
+          set(BLAKE3_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+          add_subdirectory("${SELECTED_BLAKE3}/c" "${CMAKE_BINARY_DIR}/dependencies/blake3" EXCLUDE_FROM_ALL)
+          add_executable(candidate_cognition_firmware_compile "${CANDIDATE_ROOT}/tools/cognition_firmware_compile.cpp")
+          target_link_libraries(candidate_cognition_firmware_compile PRIVATE Laplace::Engine BLAKE3::blake3)
+          target_compile_options(candidate_cognition_firmware_compile PRIVATE
+              -Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow)
+          set_target_properties(candidate_cognition_firmware_compile PROPERTIES
+              BUILD_RPATH "${SELECTED_ENGINE_DIRECTORY}" INSTALL_RPATH_USE_LINK_PATH FALSE)
+          file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/imported-engine.txt" CONTENT "$<TARGET_FILE:Laplace::Engine>\\n")
+          """
+              (project / "CMakeLists.txt").write_text(cmake)
+              command("configure", [tools["cmake"]["path"], "-S", project, "-B", build, "-G", "Ninja",
+                  "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_MAKE_PROGRAM=" + tools["ninja"]["path"],
+                  "-DCMAKE_C_COMPILER=" + str(compilers["c_compiler"]),
+                  "-DCMAKE_CXX_COMPILER=" + str(compilers["cxx_compiler"]),
+                  "-DCMAKE_ASM_COMPILER=" + str(compilers["c_compiler"]),
+                  "-DCMAKE_AR=" + tools["ar"]["path"], "-DCMAKE_RANLIB=" + tools["ranlib"]["path"],
+                  "-DCMAKE_LINKER=" + tools["ld"]["path"],
+                  "-DCANDIDATE_ROOT=" + str(ROOT), "-DSELECTED_LAPLACE_CONFIG=" + str(config.parent),
+                  "-DSELECTED_BLAKE3=" + str(input_root), "-DSELECTED_ENGINE_DIRECTORY=" + str(engine.parent)], 90)
+              require(Path((build / "imported-engine.txt").read_text().strip()).resolve(strict=True) == engine,
+                      "imported Laplace target differs from installed selected engine")
+              command("build", [tools["cmake"]["path"], "--build", build, "--target",
+                               "candidate_cognition_firmware_compile", "--parallel", "2"], 120)
+              compiler = build / "candidate_cognition_firmware_compile"
+              report["loader_before"] = loader("candidate-before")
+              command("compiler-controls", [sys.executable, "-B", ROOT / "tests/cognition_firmware_compile_tests.py",
+                                           compiler], 90)
+              command("cognition-proof", [sys.executable, "-B", ROOT / "tools/delivery/product_cognition_live_proof.py",
+                  "--output", OUT / "cognition.json", "--failure-artifact", OUT / "cognition-failure.json",
+                  "--compiler", compiler], 180)
+              proof = read_json(OUT / "cognition.json")
+              digest = proof.pop("proof_sha256")
+              require(digest == proof_owner.u.sha256_bytes(proof_owner.u.canonical_bytes(proof)),
+                      "candidate cognition proof digest differs")
+              require(proof["package_id"] == PACKAGE and proof["compiler_selection"]["scope"] == "explicit-candidate"
+                      and proof["compiler_selection"]["identity"] == proof_owner.compiler_identity(compiler)
+                      and proof["observed_output_utf8"] == "A"
+                      and proof["materialization_frontier"]["observed_output_utf8"] == "AA",
+                      "candidate cognition proof identity or result differs")
+              report["cognition_proof_sha256"] = digest
+              completed("cognition-proof-validated")
+              command("service-restart", [sys.executable, "-B", ROOT / "tools/delivery/product_cognition_service.py",
+                  "restart", "--expected-uid", str(os.geteuid()), "--expected-sha", BASE, "--output", OUT / "service"], 100)
+              service = read_json(OUT / "service/result.json")
+              require(service["status"] == "passed" and service["uid"] == os.geteuid()
+                      and service["observation"]["package_id"] == PACKAGE, "service restart receipt differs")
+              report["service"] = {"scope": service["observation"]["scope"], "uid": service["uid"],
+                  "timings_seconds": service["observation"]["timings_seconds"], "cold_boot_proven": service["cold_boot_proven"]}
+              receipt = Path(before["manifest_path"]).parent / "package-receipt.json"
+              command("http-readiness", [sys.executable, "-B", ROOT / "tools/delivery/product_gateway_live_proof.py",
+                  "--readiness-only", "--package-id", PACKAGE, "--product-receipt", receipt,
+                  "--output", OUT / "readiness.json"], 60)
+              require(read_json(OUT / "readiness.json")["status"] == "passed", "HTTP readiness did not pass")
+              command("gateway", [sys.executable, "-B", ROOT / "tools/delivery/product_gateway_live_proof.py",
+                  "--package-id", PACKAGE, "--output", OUT / "gateway.json"], 120)
+              gateway = read_json(OUT / "gateway.json")
+              require(gateway["status"] == "passed" and gateway["package_id"] == PACKAGE, "full gateway proof did not pass")
+              report["gateway"] = {"completed_phases": gateway["completed_phases"],
+                  "elapsed_seconds": gateway["elapsed_seconds"], "source_ingestion": gateway["source_ingestion"]}
+              report["loader_after"] = loader("candidate-after")
+              require(report["loader_before"]["compiler"] == report["loader_after"]["compiler"]
+                      and report["loader_before"]["engine"] == report["loader_after"]["engine"],
+                      "candidate or engine changed during qualification")
+              completed("loader-unchanged")
+          except BaseException as error:
+              errors.append({"phase": report.get("active_phase"), "type": type(error).__name__, "message": str(error)[:4096]})
+          finally:
+              # Attempt exact after-observation even when a command/test/proof failed.
+              if before is not None:
+                  try:
+                      phase("activation-after")
+                      after = acceptance.observe_activation(BASE, OUT / "activation-after.json")
+                      verify_activation(after)
+                      report["after_verified"] = True
+                      require(acceptance.stable_activation(before) == acceptance.stable_activation(after)
+                              and before["cluster_plan"] == after["cluster_plan"],
+                              "installed activation changed during candidate qualification")
+                      report["activation_unchanged"] = True
+                      if input_root is not None and input_before is not None:
+                          value = build_owner.exact_tree_receipt(input_root)
+                          acceptance.save(OUT / "blake3-after.json", value)
+                          require(value == input_before, "BLAKE3 source changed during qualification")
+                      if selected_identities is not None:
+                          for name, selected in selected_identities.items():
+                              require(identity(Path(selected["path"])) == selected, "selected build executable changed: " + name)
+                      verify_source()
+                      completed("activation-and-inputs-after")
+                  except BaseException as error:
+                      errors.append({"phase": "after", "type": type(error).__name__, "message": str(error)[:4096]})
+              required = {"source-identity", "activation-before", "compiler-controls", "cognition-proof-validated",
+                          "service-restart", "http-readiness", "gateway", "loader-unchanged", "activation-and-inputs-after"}
+              report["status"] = "passed" if (not errors and required.issubset(report["completed_phases"])
+                  and report["before_verified"] and report["after_verified"] and report["activation_unchanged"]) else "failed"
+              report["failure_phases"] = [error["phase"] for error in errors]
+              acceptance.save(OUT / "errors.json", {"errors": errors})
+              save()
+          raise SystemExit(0 if report["status"] == "passed" else 1)
+          PY
+          python3 -B - "$THIN_EVIDENCE/qualify.py" <<'PY'
+          import ast, sys
+          from pathlib import Path
+          ast.parse(Path(sys.argv[1]).read_text())
+          PY
+      - name: Qualify the candidate and restore the existing permanent service
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          timeout --signal=TERM --kill-after=10s 600s \
+            bash tools/host/run-exclusive.sh \
+            python3 -B "$THIN_EVIDENCE/qualify.py" \
+            > "$THIN_EVIDENCE/operation.stdout" \
+            2> "$THIN_EVIDENCE/operation.stderr"
+          status=$?
+          set -e
+          printf '%s\n' "OPERATION_EXIT=$status" >> "$GITHUB_ENV"
+          exit "$status"
+      - name: Print bounded identity and phase metadata
+        if: always()
+        shell: bash
+        run: |
+          python3 -B - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ["THIN_EVIDENCE"])
+          path = root / "result.json"
+          visible = {"schema": "laplace.candidate-compiler-console/v1", "result_present": path.is_file(),
+                     "operation_exit": os.environ.get("OPERATION_EXIT"), "cold_boot_proven": False}
+          if path.is_file():
+              if path.is_symlink() or path.stat().st_size > 262144:
+                  raise SystemExit("qualification result invalid")
+              value = json.loads(path.read_text())
+              for field in ("status", "candidate_scope", "candidate_commit", "installed_repository_commit",
+                            "installed_package_id", "expected_activation_aggregate_sha256",
+                            "before_verified", "after_verified", "activation_unchanged",
+                            "native_engine_rebuilt", "candidate_installed", "native_unit_suite_executed",
+                            "source_ingestion_requested", "completed_phases", "active_phase",
+                            "failure_phases", "elapsed_seconds", "cognition_proof_sha256", "service", "gateway"):
+                  if field in value:
+                      visible[field] = value[field]
+              for name in ("loader_before", "loader_after"):
+                  if name in value:
+                      visible[name] = value[name]
+              visible["result_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+          print(json.dumps(visible, sort_keys=True))
+          PY
+      - name: Retain candidate bytes and all partial or successful evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installed-native-candidate-compiler-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.THIN_EVIDENCE }}/
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
