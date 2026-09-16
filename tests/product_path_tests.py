@@ -120,8 +120,8 @@ class ProductPathTests(unittest.TestCase):
         self.assertTrue(delivery["requires_package_product"])
         self.assertFalse(delivery["blocked"])
         control = self.classify("tools/delivery/product_path.py")
-        self.assertEqual(control["classes"], ["product-semantic"])
-        self.assertTrue(control["requires_custom_stack"])
+        self.assertEqual(control["classes"], [])
+        self.assertFalse(control["requires_custom_stack"])
         self.assertFalse(control["requires_package_product"])
         self.assertFalse(control["blocked"])
 
@@ -166,13 +166,63 @@ class ProductPathTests(unittest.TestCase):
         self.assertIn("managed", result["classes"])
         self.assertTrue(result["requires_custom_stack"])
 
-    def test_contract_and_workflow_changes_require_custom_stack(self) -> None:
+    def test_orchestration_contract_and_workflow_are_source_checks(self) -> None:
         result = self.classify(
             "contracts/product-path.json", ".github/workflows/product-path.yml"
         )
-        self.assertEqual(result["classes"], ["ci-test", "contract"])
-        self.assertTrue(result["requires_custom_stack"])
+        self.assertEqual(result["classes"], [])
+        self.assertFalse(result["requires_custom_stack"])
+        self.assertFalse(result["requires_deployment"])
         self.assertFalse(result["blocked"])
+
+    def test_housekeeping_never_rebuilds_deploys_or_reingests(self) -> None:
+        for path in ("docs/product/ROADMAP.md", ".github/workflows/final-convergence-audit.yml",
+                     ".github/workflows/product-path.yml", "tools/delivery/product_path.py",
+                     "tests/product_path_tests.py", "contracts/product-path.json",
+                     ".github/scripts/consolidate-branches.py", ".github/branch-resolutions.json"):
+            with self.subTest(path=path):
+                result = self.classify(path)
+                self.assertTrue(result["hosted_only"])
+                self.assertEqual(result["required_evidence"], ["hosted"])
+                for field in ("requires_hosted_native", "requires_deployment",
+                              "requires_custom_stack", "requires_stockfish_corpus"):
+                    self.assertFalse(result[field], (path, field))
+
+
+    def test_housekeeping_allowlist_does_not_cover_other_scripts_or_mixed_runtime(self) -> None:
+        for paths in (
+            (".github/scripts/install-product.py",),
+            (".github/branch-resolutions-other.json",),
+            (".github/scripts/consolidate-branches.py", "engine/src/composition.cpp"),
+            (".github/branch-resolutions.json", "tools/admit_source.py"),
+        ):
+            with self.subTest(paths=paths):
+                result = self.classify(*paths)
+                for field in ("requires_hosted_native", "requires_deployment",
+                              "requires_custom_stack", "requires_stockfish_corpus"):
+                    self.assertTrue(result[field], (paths, field))
+                self.assertFalse(result["hosted_only"])
+
+    def test_hosted_build_workflow_still_executes_its_native_profiles(self) -> None:
+        result = self.classify(".github/workflows/ci.yml")
+        self.assertTrue(result["requires_hosted_native"])
+        self.assertFalse(result["requires_custom_stack"])
+        self.assertFalse(result["requires_deployment"])
+
+    def test_installed_corpus_tracks_admission_inputs_not_every_product_edit(self) -> None:
+        for path in ("engine/src/composition.cpp", "integrations/postgresql/extension/src/admission_pg.cpp",
+                     "dependencies/lock.json", "tools/admit_source.py", "tools/sources/qualify_grammar.py",
+                     ".github/workflows/stockfish-corpus-acceptance.yml", "new-runtime-surface.bin"):
+            with self.subTest(path=path):
+                result = self.classify(path)
+                self.assertTrue(result["requires_hosted_native"])
+                self.assertTrue(result["requires_deployment"])
+                self.assertTrue(result["requires_stockfish_corpus"])
+        result = self.classify("managed/Laplace.Client/Controls/StatusPane.cs")
+        self.assertTrue(result["requires_deployment"])
+        self.assertFalse(result["requires_stockfish_corpus"])
+        result = self.classify("docs/product/ROADMAP.md", "engine/src/composition.cpp")
+        self.assertTrue(result["requires_stockfish_corpus"])
 
     def test_unknown_path_fails_closed_into_product_semantics(self) -> None:
         result = self.classify("new-runtime-surface.bin")

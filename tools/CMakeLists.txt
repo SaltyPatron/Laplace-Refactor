@@ -168,6 +168,14 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/product/web/"
 if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(
+        NAME cognition.firmware-compiler-goal-bindings
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/cognition_firmware_compile_tests.py"
+            "$<TARGET_FILE:laplace_cognition_firmware_compile>")
+    set_tests_properties(cognition.firmware-compiler-goal-bindings PROPERTIES
+        LABELS "implementation;cognition;firmware;goal;mutation"
+        TIMEOUT 120)
+    add_test(
         NAME delivery.receipt-store-contract
         COMMAND "${CMAKE_COMMAND}"
             "-DSTORE=$<TARGET_FILE:laplace_receipt_store>"

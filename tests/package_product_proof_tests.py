@@ -261,6 +261,44 @@ class PackageProductProofTests(unittest.TestCase):
         self.assertNotIn('-DLAPLACE_PG_CONFIG=/opt/laplace/pgsql-18/bin/pg_config', workflow)
 
 
+    def test_installer_publication_requires_explicit_opt_in(self) -> None:
+        workflow = (REPOSITORY / ".github/workflows/package-product.yml").read_text(
+            encoding="utf-8"
+        )
+        for event in ("workflow_call", "workflow_dispatch"):
+            self.assertRegex(workflow,
+                rf"  {event}:\n    inputs:\n      publish_installer:\n"
+                r"        description: [^\n]+\n        type: boolean\n        default: false")
+        uploads = [step for step in workflow.split("\n      - ")
+                   if "uses: actions/upload-artifact@" in step]
+        self.assertEqual(len(uploads), 1)
+        self.assertIn("        if: inputs.publish_installer\n", uploads[0])
+        self.assertIn("if-no-files-found: error", uploads[0])
+        self.assertIn("env.LAPLACE_PRODUCT_INSTALLER_ARCHIVE", uploads[0])
+        self.assertNotIn("actions/download-artifact@", workflow)
+        self.assertLess(workflow.index("--target laplace_product_installer"),
+                        workflow.index("uses: actions/upload-artifact@"))
+        self.assertIn('"$(sha256sum "$installer_archive"', workflow)
+
+    def test_packaging_verifies_isolated_installation_without_shared_database_control(self) -> None:
+        workflow = (REPOSITORY / ".github/workflows/package-product.yml").read_text(
+            encoding="utf-8"
+        )
+        for command in ("tools/product/prove-package.py", "--work-root", "--output",
+                        ".source_package_verified == true", ".installed_package_verified == true",
+                        ".installation_replay_identical == true",
+                        "tools/delivery/product_distribution.py verify"):
+            self.assertIn(command, workflow)
+        for shared_control in ("pg_ctl", "pg_isready", "contracts/postgresql-cluster.json",
+                               "LAPLACE_PACKAGE_PRODUCT_STARTED_DATABASE"):
+            self.assertNotIn(shared_control, workflow)
+        # Local cleanup cannot be held behind a slow distribution upload.
+        self.assertLess(workflow.index("name: Clean isolated installation workspace"),
+                        workflow.index("uses: actions/upload-artifact@"))
+        self.assertIn("name: Clean isolated installation workspace\n        if: always()", workflow)
+
+
+
 
 class ImmutableRepositoryInputsTests(unittest.TestCase):
     def setUp(self) -> None:

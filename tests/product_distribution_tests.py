@@ -256,7 +256,20 @@ class ProductDistributionTests(unittest.TestCase):
         self.assertIn("--target laplace_product_installer", workflow)
         self.assertIn("product_distribution.py verify", workflow)
         self.assertIn("actions/upload-artifact@", workflow)
-        self.assertIn("compression-level: 0", workflow)
+        self.assertIn("if: inputs.publish_installer", workflow)
+        # The installer is an uncompressed TAR; requested transfers compress it.
+        self.assertRegex(workflow, r"compression-level: [1-9]\b")
+        caller = (REPOSITORY / ".github/workflows/product-path.yml").read_text(encoding="utf-8")
+        for name in ("Build and verify local installer", "Upload installer only for requested distribution"):
+            self.assertIn(f"name: {name}\n        if: inputs.publish_installer", workflow)
+        for declaration in (workflow, caller):
+            inputs = declaration.split("      publish_installer:\n", 1)[1].split("  pull_request:", 1)[0]
+            self.assertIn("        type: boolean", inputs)
+            self.assertIn("        default: false", inputs)
+        self.assertIn("github.event_name == 'workflow_dispatch' && inputs.publish_installer", caller)
+        self.assertIn("publish_installer: ${{ needs.classify.outputs.publish_installer == 'true' }}", caller)
+        self.assertLess(workflow.index("name: Clean isolated installation workspace"),
+                        workflow.index("name: Upload installer only for requested distribution"))
         self.assertIn("'.archive' \"$installer_selection\"", workflow)
         self.assertIn("LAPLACE_PRODUCT_INSTALLER_ARCHIVE_SHA256", workflow)
 
