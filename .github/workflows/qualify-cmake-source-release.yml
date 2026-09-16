@@ -30,8 +30,7 @@ jobs:
           HEAD="91f3e58814ece4dbf5f3a4ce9b067448a265098f"
           TREE="d8e2ba2b15e0aab5abd6cec1833aac914aa551b2"
           OLD_TREE="a772252db92984b499fc2f42e33efaa8164c416b"
-          TARGETS={35154689537:"6f82dd036489ed26ea59dc86c4acf4cdec8b0437",
-                   35155051133:MAIN}
+          TARGETS={35155051133:MAIN}
           audit={"schema":"laplace.superseded-main-normal-pause/v1","status":"running",
                  "repository":REPO,"replacement_pr":394,"replacement_head":HEAD,
                  "replacement_tree":TREE,"targets":[],"force_cancel":False}
@@ -54,6 +53,8 @@ jobs:
           def get(path): return api(path)[1]
           def guard(run_id,head):
               run=get("/actions/runs/"+str(run_id))
+              audit.setdefault("observed_run_identities",{})[str(run_id)]={key:run.get(key) for key in ("head_sha","head_branch","event","run_attempt","path","status","conclusion")}
+              save()
               require(run["head_sha"]==head and run["head_branch"]=="main"
                   and run["event"]=="push" and run["run_attempt"]==1
                   and run["path"]==".github/workflows/product-path.yml",
