@@ -256,6 +256,55 @@ class PackageTests(unittest.TestCase):
                     else: self.manifest['laplace'][field]=value
                     with self.assertRaisesRegex(ValueError,'provenance'):self.validate()
 
+
+    def test_installed_metadata_observation_survives_exact_reclaim_and_binds_both_receipts(self):
+        owner = subject.build_workspace_retention
+        with tempfile.TemporaryDirectory() as directory:
+            estate = Path(directory) / 'product'
+            build_root, stage_root = estate / 'build', estate / 'stage'
+            plan_id = '4' * 64
+            build, stage = build_root / plan_id, stage_root / plan_id
+            build.mkdir(parents=True)
+            physical = stage / 'root' / self.manifest['root'].lstrip('/')
+            physical.mkdir(parents=True)
+            path = build / 'package-manifest.json'
+            path.write_bytes(owner.canonical_bytes(self.manifest))
+            original = owner.canonical_bytes({
+                'schema':owner.PACKAGE_RECEIPT_SCHEMA, 'package_id':self.package,
+                'plan_sha256':'e'*64, 'manifest':str(path),
+                'manifest_sha256':owner.sha256_file(path), 'physical_root':str(physical),
+                'activation_eligible':True, 'build_input_closure_complete':True,
+                'product_activated':False})
+            (build / 'package-receipt.json').write_bytes(original)
+            product = {'package_manifest_root':str(build_root), 'package_stage_root':str(stage_root)}
+            installation = {**self.installation, 'source_physical_root':str(stage/'root')}
+            plan = {'package_id':self.package,
+                    'package_manifest_sha256':installation['package_manifest_sha256']}
+            live = subject.resolve_installed_package_metadata(product, installation, plan, self.package)
+            owner.reconcile({'build':{'root':str(build_root),'stage_root':str(stage_root)}},
+                receipt_root=estate/'retention', preserve=set(), minimum_age_seconds=0)
+            retained = subject.resolve_installed_package_metadata(product, installation, plan, self.package)
+            self.assertEqual(retained['selection'], 'retained')
+            self.assertEqual(retained['manifest'], live['manifest'])
+            self.assertEqual(Path(retained['receipt_path']).read_bytes(), original)
+            self.assertFalse(build.exists())
+            self.assertFalse(stage.exists())
+            build.mkdir()
+            path.write_bytes(b"partial new execution")
+            again = subject.resolve_installed_package_metadata(product, installation, plan, self.package)
+            self.assertEqual(again['receipt_sha256'], retained['receipt_sha256'])
+            self.assertEqual(again['build_metadata']['status'], 'rejected')
+            for field in ('package_id', 'package_manifest_sha256'):
+                for which in ('installation', 'plan'):
+                    changed_installation, changed_plan = dict(installation), dict(plan)
+                    (changed_installation if which == 'installation' else changed_plan)[field] = 'f'*64
+                    with self.subTest(field=field, which=which), self.assertRaisesRegex(ValueError, 'manifest differs'):
+                        subject.resolve_installed_package_metadata(
+                            product, changed_installation, changed_plan, self.package)
+            changed = {**installation, 'source_physical_root':str(stage_root/('5'*64)/'root')}
+            with self.assertRaises(owner.RetentionError):
+                subject.resolve_installed_package_metadata(product, changed, plan, self.package)
+
     def test_installed_observer_resolves_requested_immutable_commit_before_host_reads(self):
         sentinel=RuntimeError('expected immutable source boundary')
         with mock.patch.object(subject.runner,'require_runner'), \
