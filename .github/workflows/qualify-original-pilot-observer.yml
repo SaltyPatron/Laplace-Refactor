@@ -86,6 +86,38 @@ jobs:
               assert mismatch["sourceBoundByWrapper"] is False
               assert mismatch["progress"]["fresh"]["sourceBoundByWrapper"] is False
               assert mismatch["wrapperReadErrorType"] == "ValueError"
+          pid = ns["os"].getpid()
+          actual_stat = ns["process_stat"](pid)
+          boot = [int(line.split()[1]) for line in ns["bounded_proc"]("/proc/stat", 262144).splitlines() if line.startswith("btime ")][0]
+          started = ns["datetime"].datetime.fromtimestamp(boot + actual_stat["startTicks"] / ns["os"].sysconf("SC_CLK_TCK"), ns["datetime"].timezone.utc).isoformat()
+          sample = {"processId": pid, "processStartedAt": started}
+          first = ns["process_snapshot"](sample, True)
+          assert first["observed"] is True and first["processId"] == pid and first["startTicks"] == actual_stat["startTicks"]
+          assert first["residentBytes"] >= 0 and first["threads"] >= 1
+          assert ns["process_snapshot"](sample, False)["unavailableReason"] == "wrapper_source_unbound"
+          wrong = dict(sample, processStartedAt="2000-01-01T00:00:00+00:00")
+          assert ns["process_snapshot"](wrong, True)["observed"] is False
+          ns["process_delta"]("actual", first)
+          second = ns["process_snapshot"](sample, True)
+          ns["process_delta"]("actual", second)
+          assert second["delta"]["sampleSeconds"] > 0
+          assert second["delta"]["userCpuSeconds"] >= 0 and second["delta"]["systemCpuSeconds"] >= 0
+          ns["PREVIOUS_PROCESSES"]["reuse"] = dict(first, startTicks=first["startTicks"] + 1)
+          reuse = ns["process_snapshot"](sample, True)
+          ns["process_delta"]("reuse", reuse)
+          assert reuse["deltaUnavailableReason"] == "process_identity_changed" and "delta" not in reuse
+          original_read = ns["bounded_proc"]
+          def io_denied(path, budget):
+              if path == f"/proc/{pid}/io":
+                  raise PermissionError("fixture denial")
+              return original_read(path, budget)
+          ns["bounded_proc"] = io_denied
+          try:
+              denied = ns["process_snapshot"](sample, True)
+              assert denied["observed"] is True
+              assert denied["ioUnavailableErrorType"] == "PermissionError" and "ioMetrics" not in denied
+          finally:
+              ns["bounded_proc"] = original_read
           signal.alarm(0)
-          print("OBSERVER_QUALIFICATION passed: YAML/Bash/Python syntax; actual observer fixture projection; source mismatch remains unbound; no fixture mutation.")
+          print("OBSERVER_QUALIFICATION passed: YAML/Bash/Python syntax; actual observer fixture projection; source mismatch remains unbound; no fixture mutation; actual process identity and CPU counters; PID reuse and denied I/O controls.")
           PY
