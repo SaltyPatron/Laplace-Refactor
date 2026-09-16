@@ -31,9 +31,10 @@ jobs:
           if not runtime.is_dir() or runtime.is_symlink() or runtime.stat().st_uid!=uid:
               raise RuntimeError("self-linger did not establish the exact user runtime")
           env={**os.environ,"XDG_RUNTIME_DIR":str(runtime),"DBUS_SESSION_BUS_ADDRESS":"unix:path="+str(runtime/"bus")}
-          state=command(["loginctl","show-user",str(uid),"--property=Linger,RuntimePath,State"])
+          state=command(["loginctl","show-user",str(uid),"--property=Linger","--property=RuntimePath","--property=State"])
           manager=command(["systemctl","--user","show","--property=Version,RuntimeWatchdogUSec"],env)
-          report["linger_enabled"]="Linger=yes" in state.stdout.splitlines()
+          marker=pathlib.Path("/var/lib/systemd/linger/laplace-runner")
+          report["linger_enabled"]="Linger=yes" in state.stdout.splitlines() and marker.is_file() and not marker.is_symlink() and marker.stat().st_uid==0
           report["user_manager_reachable"]=manager.returncode==0
           report["runtime_directory"]={"path":str(runtime),"uid":runtime.stat().st_uid,"mode":oct(stat.S_IMODE(runtime.stat().st_mode))}
           print(json.dumps(report,sort_keys=True))
