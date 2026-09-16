@@ -97,6 +97,7 @@
           "output_hex": "41",
           "canonical_root_unchanged": true,
           "exact_warm_replay": true,
+          "warm_publication_reused": true,
           "evidence_lineage_counts_unchanged": true,
           "completed_steps": 2,
           "replay_physical_provider_batches": 1,

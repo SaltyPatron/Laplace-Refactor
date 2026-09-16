@@ -277,6 +277,36 @@ class ProductActivationRunnerTests(unittest.TestCase):
             output.assert_not_called()
             self.assertFalse((Path(directory) / "attempt.json").exists())
 
+    def test_installed_cognition_accepts_explicit_no_publication_for_existing_prompt(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        result = {name: "\\x" + "ab" * 32 for name in (
+            "program_id", "execution_receipt_id", "output_fingerprint",
+            "prompt_admission_receipt_id", "prompt_persistence_receipt_id")}
+        result["trunk_entity_id"] = "\\x" + "cd" * 16
+        published = proof.require_identity_widths(result)
+        self.assertEqual(published["prompt_persistence_receipt_id"], "ab" * 32)
+        result["prompt_persistence_receipt_id"] = None
+        reused = proof.require_identity_widths(result)
+        self.assertIsNone(reused["prompt_persistence_receipt_id"])
+        self.assertEqual(reused["trunk_entity_id"], published["trunk_entity_id"])
+        del result["prompt_persistence_receipt_id"]
+        with self.assertRaisesRegex(RuntimeError, "omitted.*publication"):
+            proof.require_identity_widths(result)
+        for invalid in ("", "\\x12", 0, False):
+            with self.subTest(invalid=invalid):
+                result["prompt_persistence_receipt_id"] = invalid
+                with self.assertRaises(RuntimeError):
+                    proof.require_identity_widths(result)
+
+    def test_installed_cognition_reuse_requires_the_same_materialized_prompt_root(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        first = {"trunk_entity_id": "ab" * 16, "prompt_persistence_receipt_id": None}
+        replay = {"trunk_entity_id": "ab" * 16, "prompt_persistence_receipt_id": None}
+        proof.require_same_prompt_root(first, replay)
+        replay["trunk_entity_id"] = "cd" * 16
+        with self.assertRaisesRegex(RuntimeError, "different canonical root"):
+            proof.require_same_prompt_root(first, replay)
+
     def test_installed_cognition_request_declares_its_complete_structural_boundary(self) -> None:
         proof = load_module("tools/delivery/product_cognition_live_proof.py")
         multiturn = load_module("tools/delivery/product_cognition_multiturn_live_proof.py")

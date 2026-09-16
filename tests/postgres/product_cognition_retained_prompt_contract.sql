@@ -97,6 +97,12 @@ BEGIN
 END
 $check$;
 
+-- Snapshot the actual stream-receipt owner before this product call. The
+-- product returns a producer receipt; it does not write the separate
+-- composition_execution_receipt table or expose its stream receipt ID.
+CREATE TEMP TABLE product_cognition_deposit_before AS
+SELECT receipt_id FROM laplace.canonical_deposit_receipt;
+
 -- No expected answer is supplied to the product. 'A' is checked only after
 -- executing the independently compiled constituent/emit program against 'AA'.
 CREATE TEMP TABLE product_cognition_first AS
@@ -116,29 +122,68 @@ SELECT result.trunk_entity_id AS id,
         FROM laplace.physicality p WHERE p.entity_id=result.trunk_entity_id) AS physicalities
 FROM product_cognition_first result;
 
+CREATE TEMP TABLE product_cognition_new_deposit AS
+SELECT deposit.*
+FROM laplace.canonical_deposit_receipt deposit
+WHERE NOT EXISTS (
+    SELECT 1 FROM product_cognition_deposit_before before_state
+    WHERE before_state.receipt_id=deposit.receipt_id);
+
+CREATE TEMP TABLE product_cognition_deposit_after_first AS
+SELECT deposit.receipt_id,pg_catalog.record_send(deposit) AS body
+FROM laplace.canonical_deposit_receipt deposit;
+
 DO $stored$
-DECLARE result product_cognition_first%ROWTYPE; atom bytea; records bigint;
+DECLARE result product_cognition_first%ROWTYPE; atom bytea;
+        records bigint; new_receipts bigint;
 BEGIN
     SELECT * INTO STRICT result FROM product_cognition_first;
     SELECT ((laplace.identity_codepoint_calculate_batch(
         input.context,ARRAY[65])).entity_ids)[1]
         INTO STRICT atom FROM product_cognition_input input;
+    IF octet_length(atom) IS DISTINCT FROM 16 THEN
+        RAISE EXCEPTION 'native atom identity was not returned for the retained prompt check';
+    END IF;
     SELECT count(*) INTO records FROM laplace.physicality
         WHERE entity_id=result.trunk_entity_id;
-    IF records < 1 OR records > 16
-       OR NOT EXISTS(SELECT 1 FROM product_cognition_root_before WHERE entity IS NOT NULL)
-       OR result.prompt_persistence_receipt_id IS NULL
-       OR octet_length(result.prompt_persistence_receipt_id) <> 32
-       OR result.prompt_persistence_receipt_id = decode(repeat('00',32),'hex')
-       OR NOT EXISTS(
-           SELECT 1 FROM laplace.composition_execution_receipt
-           WHERE producer_receipt=result.prompt_persistence_receipt_id)
-       OR NOT EXISTS(
-           SELECT 1 FROM laplace.physicality
-           WHERE entity_id=result.trunk_entity_id AND physicality_type=1
-             AND logical_count=2 AND vertex_count>0
-             AND laplace.trajectory_entity_ids(trajectory) <@ ARRAY[atom]) THEN
-        RAISE EXCEPTION 'product prompt was not canonically persisted before durable replay';
+    IF records < 1 OR records > 16 THEN
+        RAISE EXCEPTION 'product root physicality count is outside the fixture bound: %',records;
+    END IF;
+    IF NOT EXISTS(SELECT 1 FROM product_cognition_root_before WHERE entity IS NOT NULL) THEN
+        RAISE EXCEPTION 'product root canonical entity is absent';
+    END IF;
+    IF NOT EXISTS(
+        SELECT 1 FROM laplace.physicality
+        WHERE entity_id=result.trunk_entity_id AND physicality_type=1
+          AND logical_count=2 AND vertex_count>0
+          AND laplace.trajectory_entity_ids(trajectory)=ARRAY[atom]) THEN
+        RAISE EXCEPTION 'product root has no native two-A composition physicality';
+    END IF;
+
+    SELECT count(*) INTO new_receipts FROM product_cognition_new_deposit;
+    IF result.prompt_persistence_receipt_id IS NULL THEN
+        -- Exact presence can require no publication even on this fixture's
+        -- first call. Canonical readback above still has to succeed.
+        IF new_receipts <> 0 THEN
+            RAISE EXCEPTION 'product reported reuse but added canonical deposit receipts: %',new_receipts;
+        END IF;
+    ELSE
+        IF octet_length(result.prompt_persistence_receipt_id) <> 32
+           OR result.prompt_persistence_receipt_id=decode(repeat('00',32),'hex') THEN
+            RAISE EXCEPTION 'product returned a malformed persistence producer receipt';
+        END IF;
+        IF new_receipts <> 1 THEN
+            RAISE EXCEPTION 'product publication did not add one canonical deposit receipt: %',new_receipts;
+        END IF;
+        IF NOT EXISTS(
+            SELECT 1 FROM product_cognition_new_deposit deposit
+            CROSS JOIN product_cognition_input input
+            WHERE deposit.source_fingerprint=(input.scope).source_fingerprint
+              AND deposit.recipe_fingerprint=(input.scope).calculation_recipe_fingerprint
+              AND deposit.status=0 AND deposit.physicality_count>0
+              AND deposit.occurrence_count=0) THEN
+            RAISE EXCEPTION 'product canonical deposit source, recipe, status or native counts differ';
+        END IF;
     END IF;
 END
 $stored$;
@@ -183,6 +228,20 @@ BEGIN
           (SELECT counts FROM product_cognition_evidence_before) THEN
         RAISE EXCEPTION 'durable product replay changed canonical prompt, execution, or evidence counts';
     END IF;
+    IF warm.prompt_persistence_receipt_id IS NOT NULL
+       OR replay.prompt_persistence_receipt_id IS NOT NULL THEN
+        RAISE EXCEPTION 'warm product replay requested publication for already-present canonical state';
+    END IF;
+    IF EXISTS (
+        (SELECT deposit.receipt_id,pg_catalog.record_send(deposit)
+         FROM laplace.canonical_deposit_receipt deposit
+         EXCEPT SELECT receipt_id,body FROM product_cognition_deposit_after_first)
+        UNION ALL
+        (SELECT receipt_id,body FROM product_cognition_deposit_after_first
+         EXCEPT SELECT deposit.receipt_id,pg_catalog.record_send(deposit)
+         FROM laplace.canonical_deposit_receipt deposit)) THEN
+        RAISE EXCEPTION 'warm product replay changed retained canonical deposit receipts';
+    END IF;
 END
 $replay$;
 
@@ -192,6 +251,11 @@ SELECT 'LAPLACE_QA_RECEIPT product_cognition_retained_prompt ' || jsonb_build_ob
     'schema','laplace.product-cognition-retained-prompt-test/v1',
     'product_calls',3,'durable_replay_calls',2,'output_hex',encode(warm.output,'hex'),
     'canonical_root_unchanged',true,'exact_warm_replay',true,
+    'warm_publication_reused',true,
+    'first_persistence_producer_receipt_id',encode(first.prompt_persistence_receipt_id,'hex'),
+    'first_new_canonical_deposit_receipt_ids',
+        (SELECT coalesce(jsonb_agg(encode(receipt_id,'hex') ORDER BY receipt_id),'[]'::jsonb)
+         FROM product_cognition_new_deposit),
     'evidence_lineage_counts_unchanged',true,
     'trunk_entity_id',encode(warm.trunk_entity_id,'hex'),
     'prompt_admission_receipt_id',encode(warm.prompt_admission_receipt_id,'hex'),

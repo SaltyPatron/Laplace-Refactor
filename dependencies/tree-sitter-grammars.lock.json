@@ -1,7 +1,7 @@
 {
   "schema": "laplace.tree-sitter-grammar-lock/v2",
   "source_kind": "independent-upstream-git-repositories",
-  "repository_count": 299,
+  "repository_count": 300,
   "repositories": [
     {
       "name": "tree-sitter-ada",
@@ -4598,6 +4598,29 @@
         }
       ],
       "packaging_eligible": true
+    },
+    {
+      "declared_license": "BSD-2-Clause",
+      "description": "ea20c62",
+      "external_scanners": [
+        {
+          "path": "src/scanner.c",
+          "sha256": "07baec3cb4c92ce4df37b0640d624806187d9b77fdb167fa55f5681ba481e208"
+        }
+      ],
+      "generated_parsers": [
+        {
+          "path": "src/parser.c",
+          "sha256": "532f4f8de0ba4e24686d65ea7470e590210e0958910cf0d2727586a2bc76a58f"
+        }
+      ],
+      "git_archive_sha256": "b34b0d3e5886319cf0a183cc1d900f4021c0fe00b3f8e18f7463e1408d64fa4e",
+      "license_files": [],
+      "name": "tree-sitter-pgn",
+      "packaging_eligible": false,
+      "revision": "ea20c62ce066156da37bb9eae707ffb343c64d15",
+      "tree_sitter_json_sha256": "003ede74d962ffddadc265d7719074fd3332eaa40a8230a1ce3be309c26c85a5",
+      "upstream": "https://github.com/rolandwalker/tree-sitter-pgn"
     },
     {
       "name": "tree-sitter-php",

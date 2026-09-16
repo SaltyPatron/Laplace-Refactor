@@ -61,6 +61,7 @@ jobs:
           if [[ -n "$selected_source" ]]; then
             export LAPLACE_STOCKFISH_SOURCE="$selected_source"
           fi
+          export LAPLACE_X11_EVIDENCE="$output/x11-runtime"
           scripts/setup-chess.sh --cutechess-gui 2>&1 | tee "$output/source-setup.log"
           python3 tools/dependencies/chess_tools.py check --tool cutechess --cutechess-gui \
             2>&1 | tee "$output/cutechess-gui-readiness.json"
@@ -95,7 +96,7 @@ jobs:
           import subprocess
           output = Path(os.environ["RUNNER_TEMP"]) / f"chess-calibration-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
           output.mkdir(parents=True, exist_ok=True)
-          paths = ["dependencies/lock.json", "dependencies/artifact-lock.json", "dependencies/chess-release-selection.json", "tools/dependencies/chess_tools.py", "tools/dependencies/chess_gui_session.py", "scripts/provision-chess-x11.sh", "tools/dependencies/git_checkout.py", "tools/dependencies/chess_benchmark.py", "tools/dependencies/chess_pgn.py", "tools/dependencies/source_estate.py"]
+          paths = ["dependencies/lock.json", "dependencies/artifact-lock.json", "dependencies/chess-release-selection.json", "tools/dependencies/chess_tools.py", "tools/dependencies/chess_gui_session.py", "tools/dependencies/x11_runtime.py", "scripts/provision-chess-x11.sh", "tools/dependencies/git_checkout.py", "tools/dependencies/chess_benchmark.py", "tools/dependencies/chess_pgn.py", "tools/dependencies/source_estate.py"]
           context = {
               "schema": "laplace.chess-calibration-execution-context/v1",
               "scope": os.environ["CHESS_EVIDENCE_CONTEXT"],

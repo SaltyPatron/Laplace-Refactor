@@ -25,6 +25,7 @@ import time
 REPOSITORY = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY))
 from tools.dependencies import chess_tools as dependencies
+from tools.dependencies import x11_runtime
 
 SCHEMA = "laplace.refactor-cutechess-x11/v1"
 TOOLS = ("Xvfb", "xauth", "xdotool", "xprop", "xwininfo")
@@ -260,8 +261,6 @@ def main(argv=None):
     streams = []
     try:
         with execution_deadline(args.deadline_seconds) as deadline:
-            unavailable = [tool for tool in TOOLS if not shutil.which(tool)]
-            check(not unavailable, "missing virtual X11 tools: " + ", ".join(unavailable))
             check(dependencies.SCRATCH.is_dir(), "dependency scratch directory is missing")
             selected, artifacts = dependencies.configuration()
             manifest = dependencies.verify_installation(args.prefix, selected, artifacts,
@@ -277,12 +276,26 @@ def main(argv=None):
                         "xcb_sha256": dependencies.digest(plugin),
                         "manifest_sha256": dependencies.digest(args.prefix / "current.json")}
             check(identity["binary_sha256"] == tool["gui"]["sha256"], "GUI differs from the selected manifest")
-            report.update(selection=identity,
-                          tools={tool: shutil.which(tool) for tool in TOOLS})
+            runtime = x11_runtime.load()
+            environment = dependencies.qt_gui_environment(qt)
+            if runtime is not None:
+                environment = x11_runtime.selected_environment(runtime, environment, qt_prefix=qt)
+            unavailable = [name for name in TOOLS if not shutil.which(name, path=environment.get("PATH"))]
+            check(not unavailable, "missing virtual X11 tools: " + ", ".join(unavailable))
+            selected_tools = {name: str(Path(shutil.which(name, path=environment.get("PATH"))).resolve(strict=True))
+                              for name in TOOLS}
+            runtime_files = None
+            if runtime is not None:
+                observed_tools, runtime_files = x11_runtime.loaded_files(environment, deadline)
+                check(observed_tools == runtime["tools"], "X11 tools differ from their selected runtime")
+                report["private_runtime"] = {
+                    "runtime_id": runtime["runtime_id"], "manifest_sha256": runtime["manifest_sha256"],
+                    "root": runtime["root"], "packages": runtime["packages"],
+                    "loaded_files": runtime_files, "host_packages_installed": False}
+            report.update(selection=identity, tools=selected_tools)
             checkpoint(output, report)
             private = tempfile.TemporaryDirectory(prefix="refactor-cutechess-x11-", dir=dependencies.SCRATCH)
             directory = Path(private.name)
-            environment = dependencies.qt_gui_environment(qt)
             for name in ("DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "QT_QPA_PLATFORM",
                          "QT_QPA_PLATFORMTHEME", "QT_QPA_GENERIC_PLUGINS", "QT_STYLE_OVERRIDE"):
                 environment.pop(name, None)
@@ -332,6 +345,14 @@ def main(argv=None):
                   and dependencies.digest(plugin) == identity["xcb_sha256"]
                   and dependencies.digest(args.prefix / "current.json") == identity["manifest_sha256"],
                   "selected GUI, Qt plugin or dependency manifest changed during interaction")
+            if runtime is not None:
+                current_runtime = x11_runtime.load()
+                check(current_runtime is not None
+                      and current_runtime["manifest_sha256"] == runtime["manifest_sha256"],
+                      "selected X11 runtime changed during interaction")
+                observed_tools, final_files = x11_runtime.loaded_files(environment, deadline)
+                check(observed_tools == runtime["tools"] and final_files == runtime_files,
+                      "selected X11 executable or shared library changed during interaction")
             report.update(status="passed", mapped_windows_and_actions_verified=True,
                           normal_exit_verified=True, selected_xcb_loaded=True,
                           gui_log_sha256=dependencies.digest(output / "gui.log"))

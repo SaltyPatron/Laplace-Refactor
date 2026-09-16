@@ -452,7 +452,10 @@ FROM laplace.cognition_firmware_execute_product(
     return result, command_receipt
 
 
-def require_identity_widths(result: dict[str, Any]) -> dict[str, str]:
+def require_identity_widths(result: dict[str, Any]) -> dict[str, str | None]:
+    if "prompt_persistence_receipt_id" not in result:
+        raise RuntimeError("product result omitted the prompt publication disposition")
+    publication = result["prompt_persistence_receipt_id"]
     values = {
         "program_id": bytea_hex(result.get("program_id"), "program_id"),
         "execution_receipt_id": bytea_hex(
@@ -464,16 +467,27 @@ def require_identity_widths(result: dict[str, Any]) -> dict[str, str]:
         "prompt_admission_receipt_id": bytea_hex(
             result.get("prompt_admission_receipt_id"), "prompt_admission_receipt_id"
         ),
-        "prompt_persistence_receipt_id": bytea_hex(
-            result.get("prompt_persistence_receipt_id"), "prompt_persistence_receipt_id"
+        # The native owner returns NULL when canonical prompt content already
+        # exists and no producer stream needs publication. Do not invent one.
+        "prompt_persistence_receipt_id": (
+            None if publication is None else bytea_hex(publication, "prompt_persistence_receipt_id")
         ),
         "trunk_entity_id": bytea_hex(result.get("trunk_entity_id"), "trunk_entity_id"),
     }
     for name, value in values.items():
+        if name == "prompt_persistence_receipt_id" and value is None:
+            continue
         expected = 32 if name == "trunk_entity_id" else 64
         if len(value) != expected:
             raise RuntimeError(f"{name} has the wrong identity width")
     return values
+
+
+def require_same_prompt_root(first: dict[str, str | None], replay: dict[str, str | None]) -> None:
+    # Both identities have already passed require_identity_widths. The frontier
+    # program independently materializes the persisted AA root through PostgreSQL.
+    if first["trunk_entity_id"] != replay["trunk_entity_id"]:
+        raise RuntimeError("installed prompt replay selected a different canonical root")
 
 
 def prove(output: Path, failure_artifact: Path | None = None) -> None:
@@ -569,6 +583,7 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
     )
     batch_output = bytes.fromhex(bytea_hex(batch_result.get("output"), "output"))
     batch_identities = require_identity_widths(batch_result)
+    require_same_prompt_root(constituent_identities, batch_identities)
     if batch_output != b"AA":
         raise RuntimeError(
             f"materialization frontier proof returned {batch_output!r}, expected exact AA"
@@ -607,6 +622,8 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
         "observed_output_utf8": constituent_output.decode("utf-8"),
         "execution": constituent_result,
         "execution_identities": constituent_identities,
+        "prompt_publication_required": constituent_result["prompt_persistence_receipt_id"] is not None,
+        "prompt_replay_canonical_root_verified": True,
         "command_receipt": constituent_command_receipt,
         "materialization_frontier": {
             "program": batch_firmware,

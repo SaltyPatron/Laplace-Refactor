@@ -100,6 +100,7 @@ class CustomStackQaTests(unittest.TestCase):
             "schema": "laplace.product-cognition-retained-prompt-test/v1",
             "product_calls": 3, "durable_replay_calls": 2, "output_hex": "41",
             "canonical_root_unchanged": True, "exact_warm_replay": True,
+            "warm_publication_reused": True,
             "evidence_lineage_counts_unchanged": True, "completed_steps": 2,
             "replay_physical_provider_batches": 1, "replay_materialization_nodes": 1,
         }

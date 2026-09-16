@@ -1,0 +1,94 @@
+name: PGN native provider qualification
+
+on:
+  push:
+    branches:
+      - verify/pgn-provider-qualification
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pgn-provider-qualification
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Acquire exact selected grammar source and locked runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/laplace-output/pgn-provider"
+          source_parent="$RUNNER_TEMP/laplace-sources/pgn-qualification"
+          source_root="$source_parent/tree-sitter-pgn"
+          dependency_root="$RUNNER_TEMP/laplace-dependencies"
+          mkdir -p "$output" "$source_parent"
+          upstream=$(jq -er '.source.upstream' dependencies/pgn-provider-selection.json)
+          revision=$(jq -er '.source.revision' dependencies/pgn-provider-selection.json)
+          test "$upstream" = https://github.com/rolandwalker/tree-sitter-pgn
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e "$source_root"
+          git init -q "$source_root"
+          git -C "$source_root" remote add origin "$upstream"
+          timeout --kill-after=10s 120s git -C "$source_root" fetch --depth=1 --no-tags origin "$revision"
+          git -C "$source_root" checkout --detach "$revision"
+          test "$(git -C "$source_root" rev-parse HEAD)" = "$revision"
+          ./tools/dependencies/acquire-locked-git.sh dependencies/lock.json "$dependency_root" blake3 eigen googletest spectra tree-sitter
+          printf 'LAPLACE_PGN_OUTPUT=%s\n' "$output" >> "$GITHUB_ENV"
+          printf 'LAPLACE_PGN_SOURCE_PARENT=%s\n' "$source_parent" >> "$GITHUB_ENV"
+          printf 'LAPLACE_PGN_SOURCE=%s\n' "$source_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
+      - name: Inventory actual Git archive and build through the common qualifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/dependencies/grammars/inventory.sh "$LAPLACE_PGN_SOURCE_PARENT" "$LAPLACE_PGN_OUTPUT/observed-grammar-lock.json"
+          bash tools/dependencies/grammars/verify-lock.sh "$LAPLACE_PGN_SOURCE_PARENT" "$LAPLACE_PGN_OUTPUT/observed-grammar-lock.json"
+          python3 tools/sources/qualify_grammar.py \
+            --grammar-root "$LAPLACE_PGN_SOURCE" \
+            --runtime-root "$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            --grammar-lock dependencies/tree-sitter-grammars.lock.json \
+            --dependency-lock dependencies/lock.json \
+            --grammar tree-sitter-pgn --output "$LAPLACE_PGN_OUTPUT/build"
+          cat "$LAPLACE_PGN_OUTPUT/observed-grammar-lock.json"
+          cat "$LAPLACE_PGN_OUTPUT/build/build-receipt.json"
+      - name: Configure and execute the real native PGN source conformance target
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_directory="$RUNNER_TEMP/laplace-output/build/pgn-qualification"
+          cmake --preset linux-dev -B "$build_directory" \
+            -DLAPLACE_BLAKE3_SOURCE="$LAPLACE_DEPENDENCY_ROOT/blake3/c" \
+            -DLAPLACE_GTEST_SOURCE="$LAPLACE_DEPENDENCY_ROOT/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$LAPLACE_DEPENDENCY_ROOT/eigen" \
+            -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
+            -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            -DLAPLACE_PGN_GRAMMAR_RECEIPT="$LAPLACE_PGN_OUTPUT/build/build-receipt.json"
+          cmake --build "$build_directory" --target laplace_pgn_native_source_probe --parallel 2
+          ctest --test-dir "$build_directory" --no-tests=error --output-on-failure -V \
+            -R '^source[.]pgn-native-provider-contract$'
+      - name: Retain native qualification receipt even after failed conformance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_receipt="$RUNNER_TEMP/laplace-output/build/pgn-qualification/tests/pgn-native-source-qualification.json"
+          if [[ -f "$source_receipt" ]]; then
+            cp "$source_receipt" "$RUNNER_TEMP/laplace-output/pgn-provider/native-qualification.json"
+            cat "$source_receipt"
+          fi
+      - name: Retain exact provider discovery and source-build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pgn-provider-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/laplace-output/pgn-provider/
+          if-no-files-found: error
+          retention-days: 30

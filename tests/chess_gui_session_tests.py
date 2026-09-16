@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Controls for the external X11 acceptance observer, not substitute GUI evidence."""
+import hashlib
+import io
 import json
 import os
 import shutil
@@ -9,6 +11,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import tarfile
 import time
 import unittest
 from unittest.mock import Mock, patch
@@ -16,6 +19,7 @@ from unittest.mock import Mock, patch
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 from tools.dependencies import chess_gui_session as proof
+from tools.dependencies import x11_runtime as runtime
 
 
 class CommandReplies:
@@ -269,12 +273,13 @@ class GuiSessionControls(unittest.TestCase):
             "        print('' if sys.argv[-1]==os.environ.get('X11_FIXTURE_MISSING') else 'installed')",
             "    else: print('fixture inventory only')",
             "elif name=='sudo': raise SystemExit(71)",
+            "elif name=='python3': raise SystemExit(73)",
             "elif name=='apt-get' and os.environ.get('X11_FIXTURE_APT_FAIL')=='1': raise SystemExit(79)",
             "",
         ])
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            for name in ("dpkg-query", "apt-get", "sudo"):
+            for name in ("dpkg-query", "apt-get", "sudo", "python3"):
                 executable = directory / name
                 executable.write_text(fixture)
                 executable.chmod(0o700)
@@ -292,7 +297,7 @@ class GuiSessionControls(unittest.TestCase):
             self.assertIn("fixture inventory only", result.stdout)
             environment["X11_FIXTURE_MISSING"] = "xauth"
             result, commands = run()
-            changes = [row for row in commands if row[0] in ("apt-get", "sudo")]
+            changes = [row for row in commands if row[0] in ("apt-get", "sudo", "python3")]
             if os.geteuid() == 0:
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertEqual([["apt-get"] + apt_options + ["update"],
@@ -302,8 +307,9 @@ class GuiSessionControls(unittest.TestCase):
                 self.assertEqual(79, result.returncode)
                 self.assertEqual([["apt-get"] + apt_options + ["update"]], [row for row in commands if row[0] == "apt-get"])
             else:
-                self.assertEqual(71, result.returncode)
-                self.assertEqual([["sudo", "-n", "bash", str(script)]], changes)
+                self.assertEqual(73, result.returncode)
+                self.assertEqual([["python3", str(REPO / "tools/dependencies/x11_runtime.py")]], changes)
+                self.assertIn("Missing X11 packages: xauth", result.stderr)
             environment["X11_FIXTURE_WAIT"] = "1"
             log.write_text("")
             started = time.monotonic()
@@ -312,6 +318,165 @@ class GuiSessionControls(unittest.TestCase):
             self.assertEqual(124, result.returncode)
             self.assertLess(time.monotonic() - started, 2.5)
             self.assertTrue(log.read_text(), "the bounded provisioner did not start its tool fixture")
+
+
+class PrivateRuntimeControls(unittest.TestCase):
+    def test_apt_plan_requires_bounded_concrete_packages_without_host_runtime_replacement(self):
+        selected = ("Inst libxdo3 (1:3.20160805.1-4 Ubuntu:22.04/jammy [amd64])\n"
+                    "Inst xvfb [2:old] (2:21.1.4-2ubuntu1.7~22.04.16 Ubuntu:22.04/jammy-updates [amd64])\n")
+        self.assertEqual([("libxdo3", "1:3.20160805.1-4"), ("xvfb", "2:21.1.4-2ubuntu1.7~22.04.16")],
+                         runtime.simulation_packages(selected))
+        for bad in ("", selected + selected, "Remv xauth [1]\n" + selected,
+                    "Inst libc6 (2.35 Ubuntu:22.04/jammy [amd64])\n",
+                    "Inst ../../x (1 source)\n", "Inst x bad"):
+            with self.subTest(plan=bad), self.assertRaises(RuntimeError):
+                runtime.simulation_packages(bad)
+
+    def test_signed_package_metadata_cannot_conflict_or_omit_hashes(self):
+        row = ("Package: xvfb\nVersion: 2:1\nArchitecture: amd64\nSize: 17\nSHA256: "
+               + "a" * 64 + "\nDescription: example\n continued description\n")
+        value = runtime.package_metadata(row + "\n" + row, "xvfb", "2:1")
+        self.assertEqual(17, value["bytes"])
+        self.assertEqual("a" * 64, value["sha256"])
+        for text in (row.replace("SHA256:", "SHA1:"), row.replace("amd64", "arm64"),
+                     row.replace("Size: 17", "Size: -1"), row + "\n" + row.replace("a" * 64, "b" * 64),
+                     row + "SHA256: " + "b" * 64 + "\n"):
+            with self.subTest(metadata=text), self.assertRaises(RuntimeError):
+                runtime.package_metadata(text, "xvfb", "2:1")
+
+    def test_package_payload_rejects_escaping_links_paths_and_special_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "payload.tar"
+            def write(name, kind=tarfile.REGTYPE, target=""):
+                with tarfile.open(archive, "w") as stream:
+                    entry = tarfile.TarInfo(name)
+                    entry.type = kind
+                    entry.linkname = target
+                    entry.size = 1 if kind == tarfile.REGTYPE else 0
+                    stream.addfile(entry, io.BytesIO(b"x") if entry.size else None)
+            write("./usr/bin/tool")
+            self.assertEqual(1, runtime.validate_tar(archive))
+            write("./usr/lib/libx.so", tarfile.SYMTYPE, "libx.so.1")
+            self.assertEqual(0, runtime.validate_tar(archive))
+            for name, kind, target in (("../escape", tarfile.REGTYPE, ""),
+                                       ("/absolute", tarfile.REGTYPE, ""),
+                                       ("usr/bin/link", tarfile.SYMTYPE, "../../../escape"),
+                                       ("usr/bin/link", tarfile.SYMTYPE, "/usr/bin/host"),
+                                       ("pipe", tarfile.FIFOTYPE, "")):
+                write(name, kind, target)
+                with self.subTest(name=name, target=target), self.assertRaises(RuntimeError):
+                    runtime.validate_tar(archive)
+
+    def test_runtime_receipt_rechecks_package_and_loaded_host_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            selected = base / "generations" / ("a" * 64) / "root"
+            selected.mkdir(parents=True)
+            tool = selected / "tool"
+            tool.write_bytes(b"selected")
+            host = base / "host-library"
+            host.write_bytes(b"host")
+            document = {"schema": runtime.SCHEMA, "runtime_id": "a" * 64, "root": str(selected),
+                        "files": runtime.file_inventory(selected),
+                        "loaded_files": {str(host): runtime.digest(host)}}
+            document["manifest_sha256"] = hashlib.sha256(runtime.canonical(document)).hexdigest()
+            (base / "current.json").write_text(json.dumps(document))
+            self.assertEqual(document, runtime.load(base))
+            tool.write_bytes(b"changed")
+            with self.assertRaisesRegex(RuntimeError, "package bytes"):
+                runtime.load(base)
+            tool.write_bytes(b"selected")
+            host.write_bytes(b"changed")
+            with self.assertRaisesRegex(RuntimeError, "executable/library/resource"):
+                runtime.load(base)
+            host.write_bytes(b"host")
+            document["root"] = str(base)
+            (base / "current.json").write_text(json.dumps(document))
+            with self.assertRaisesRegex(RuntimeError, "manifest identity"):
+                runtime.load(base)
+
+    def test_selected_environment_preserves_selected_qt_before_private_x11(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            selected, qt = base / "runtime", base / "qt"
+            for path in (selected / "usr/bin", selected / "usr/lib/x86_64-linux-gnu",
+                         selected / "lib/x86_64-linux-gnu", qt / "bin", qt / "lib"):
+                path.mkdir(parents=True)
+            environment = runtime.selected_environment(
+                {"root": str(selected)}, {"PATH": "/usr/bin", "LD_LIBRARY_PATH": "/host/lib",
+                                         "OTHER": "preserved"}, qt_prefix=qt)
+            self.assertEqual([str(qt / "bin"), str(selected / "usr/bin"), "/usr/bin"],
+                             environment["PATH"].split(os.pathsep))
+            self.assertEqual([str(qt / "lib"), str(selected / "usr/lib/x86_64-linux-gnu"),
+                              str(selected / "lib/x86_64-linux-gnu"), "/host/lib"],
+                             environment["LD_LIBRARY_PATH"].split(os.pathsep))
+            self.assertEqual("preserved", environment["OTHER"])
+
+    def test_loader_observation_uses_exact_environment_and_rejects_unresolved_dependency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tool, library = Path(directory) / "tool", Path(directory) / "library"
+            tool.write_bytes(b"tool")
+            library.write_bytes(b"library")
+            environment = {"PATH": directory, "LD_LIBRARY_PATH": directory}
+            with patch.object(runtime, "TOOLS", ("Xvfb",)), patch.object(runtime, "RESOURCES", ()), \
+                 patch.object(runtime.shutil, "which", return_value=str(tool)) as selected, \
+                 patch.object(runtime, "execute", return_value=f"libx => {library} (0x123)\n") as execute:
+                tools, files = runtime.loaded_files(environment, time.monotonic() + 1)
+                self.assertEqual({"Xvfb": str(tool)}, tools)
+                self.assertEqual({str(tool): runtime.digest(tool), str(library): runtime.digest(library)}, files)
+                self.assertEqual(environment, execute.call_args.kwargs["env"])
+                self.assertEqual(directory, selected.call_args.kwargs["path"])
+                execute.return_value = "libx => not found\n"
+                with self.assertRaisesRegex(RuntimeError, "unresolved"):
+                    runtime.loaded_files(environment, time.monotonic() + 1)
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "owned Linux process groups")
+    def test_provision_timeout_reaps_owned_workers_without_killing_other_process(self):
+        outside = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                worker_pid = Path(directory) / "worker.pid"
+                program = ("import subprocess,sys,time; "
+                           "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); "
+                           "open(sys.argv[1],'w').write(str(p.pid)); time.sleep(30)")
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    runtime.run_owned([sys.executable, "-c", program, str(worker_pid)], timeout=.5,
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                self.assertTrue(worker_pid.is_file())
+                status = Path("/proc") / worker_pid.read_text() / "status"
+                cleanup_deadline = time.monotonic() + 1
+                while True:
+                    self.assertIsNone(outside.poll())
+                    try:
+                        state = status.read_text()
+                    except FileNotFoundError:
+                        break
+                    if "State:\tZ" in state:
+                        break
+                    self.assertLess(time.monotonic(), cleanup_deadline,
+                                    "owned worker remained alive after process-group cleanup")
+                    time.sleep(.02)
+                self.assertIsNone(outside.poll())
+        finally:
+            outside.terminate()
+            outside.wait(timeout=2)
+
+    def test_runtime_directories_reject_symlink_ancestors_and_failure_logs_are_bounded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            actual = base / "actual"
+            actual.mkdir()
+            (base / "link").symlink_to(actual, target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError, "symlinks"):
+                runtime.physical_directory(base / "link" / "child", create=True)
+            work = base / "work"
+            (work / "logs").mkdir(parents=True)
+            (work / "logs/failure.log").write_bytes(b"a" * (1024 * 1024) + b"terminal failure")
+            target = base / "retained"
+            runtime.retain_logs(work, target)
+            data = (target / "failure.log").read_bytes()
+            self.assertEqual(1024 * 1024, len(data))
+            self.assertTrue(data.endswith(b"terminal failure"))
 
 
 if __name__ == "__main__":

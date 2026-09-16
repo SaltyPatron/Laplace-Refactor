@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runtime libraries and observable input/window tools for the selected Qt GUI.
 set -euo pipefail
+repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 packages=(
     xvfb xauth xdotool x11-utils fonts-dejavu-core
     libx11-xcb1 libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0
@@ -19,8 +20,11 @@ for package in "${packages[@]}"; do
     [[ "$status" == installed ]] || missing+=("$package")
 done
 if ((${#missing[@]})); then
+    printf 'Missing X11 packages: %s\n' "${missing[*]}" >&2
     if ((EUID != 0)); then
-        exec sudo -n bash "$0"
+        # The supported runner has no package-manager sudo grant. Qualify the
+        # official distro package closure in the shared user-owned tool estate.
+        exec python3 "$repository/tools/dependencies/x11_runtime.py"
     fi
     apt_options=(-o DPkg::Lock::Timeout=30 -o Acquire::Retries=2
                  -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
