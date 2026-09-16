@@ -42,12 +42,25 @@ python3 tools/dependencies/chess_tools.py check
 
 # Build only Stockfish or select an already installed compatible Qt SDK.
 bash scripts/setup-chess.sh --tool stockfish
+bash scripts/setup-chess.sh --tool stockfish --stockfish-source /vault/External/Stockfish/SF_19
 bash scripts/setup-chess.sh --tool cutechess --qt-prefix /path/to/Qt/6.11.2/gcc_64
 
 # Launch the exact recorded source executable, or use its path directly.
 python3 tools/dependencies/chess_tools.py run --tool stockfish
 python3 tools/dependencies/chess_tools.py run --tool cutechess -- --version
 ```
+
+`--stockfish-source` selects an existing Stockfish Git checkout at its actual
+location. `LAPLACE_STOCKFISH_SOURCE` supplies the same selection when the flag is
+absent; the explicit flag takes precedence. Setup verifies the checkout's origin,
+tracked bytes, modes, locked revision, archive and licenses through the same source
+owner, then updates and builds `src/stockfish` there. The matching locked NNUE is
+verified before the real UCI/search probe. Modified sources are preserved and cause
+an explicit failure. A missing or non-Git selected path fails without creating a
+replacement checkout. This override affects Stockfish only; Cute Chess continues
+to use the selected source estate. With no override, the existing
+`<source-root>/stockfish` acquisition remains the default. `check` and `run` use the
+actual source/executable paths retained in `current.json`.
 
 The online freshness check fails when a newer stable release exists, so an old
 selection cannot silently be described as current. Update the Git/network/version

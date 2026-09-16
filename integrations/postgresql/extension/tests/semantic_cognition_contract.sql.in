@@ -261,6 +261,75 @@ BEGIN
 END
 $contract$;
 
+-- A second independently selected mapping fits the same admitted row/evidence
+-- closure. One candidate slot must observe the second row as an overflow
+-- sentinel and publish no prefix; two slots must execute both selected rows.
+SET session_replication_role = replica;
+INSERT INTO laplace.reference_mapping_proposition(
+    proposition_id,left_coordinate,right_coordinate,relation_id,
+    relation_kind,relation_version,flags)
+SELECT decode(repeat('32',32),'hex'),left_coordinate,
+       decode(repeat('43',16),'hex'),relation_id,relation_kind,relation_version,flags
+FROM laplace.reference_mapping_proposition
+WHERE proposition_id = decode(repeat('31',32),'hex');
+INSERT INTO laplace.reference_mapping_occurrence(
+    mapping_id,occurrence_id,proposition_id,boundary_id,source_profile_id,
+    left_reference_id,right_reference_id,row_entity_id,
+    left_field_entity_id,left_value_entity_id,right_field_entity_id,right_value_entity_id,
+    source_ordinal,artifact_ordinal,row_ordinal,left_disposition,right_disposition,disposition)
+SELECT decode(repeat('63',32),'hex'),decode(repeat('64',32),'hex'),
+       decode(repeat('32',32),'hex'),boundary_id,source_profile_id,
+       left_reference_id,decode(repeat('77',32),'hex'),row_entity_id,
+       left_field_entity_id,left_value_entity_id,right_field_entity_id,
+       decode(repeat('13',16),'hex'),source_ordinal,artifact_ordinal,row_ordinal,
+       left_disposition,right_disposition,disposition
+FROM laplace.reference_mapping_occurrence
+WHERE mapping_id = decode(repeat('61',32),'hex');
+SET session_replication_role = origin;
+
+DO $capacity_sentinel$
+DECLARE
+    fixture laplace.cognition_observation_request;
+    budget laplace.cognition_observation_search_budget;
+    actual semantic_cognition_actual%ROWTYPE;
+    rejected boolean := false;
+BEGIN
+    SELECT (request).* INTO STRICT fixture FROM semantic_cognition_fixture;
+    budget := fixture.search_budget;
+    budget.transition_batch_capacity := 1;
+    fixture.search_budget := budget;
+    BEGIN
+        PERFORM laplace.cognition_semantic_execute(
+            pg_temp.execution_context(), fixture);
+    EXCEPTION WHEN data_exception THEN
+        IF SQLERRM <> 'Laplace live semantic cognition produced no readable terminal answer' THEN
+            RAISE;
+        END IF;
+        rejected := true;
+    END;
+    IF NOT rejected THEN
+        RAISE EXCEPTION 'semantic candidate overflow published a partial answer';
+    END IF;
+
+    budget.transition_batch_capacity := 2;
+    fixture.search_budget := budget;
+    SELECT result.* INTO STRICT actual
+    FROM laplace.cognition_semantic_execute(
+        pg_temp.execution_context(), fixture) AS result;
+    IF actual.status IS DISTINCT FROM 0 OR actual.answer_count IS DISTINCT FROM 1 OR
+       actual.answer_entity_id IS DISTINCT FROM decode(repeat('12',16),'hex') OR
+       actual.provider_rows_examined IS DISTINCT FROM 2 OR
+       actual.provider_database_operations IS DISTINCT FROM 1 THEN
+        RAISE EXCEPTION 'semantic sentinel retry did not execute both selected rows: %', actual;
+    END IF;
+END
+$capacity_sentinel$;
+
+DELETE FROM laplace.reference_mapping_occurrence
+WHERE mapping_id = decode(repeat('63',32),'hex');
+DELETE FROM laplace.reference_mapping_proposition
+WHERE proposition_id = decode(repeat('32',32),'hex');
+
 -- Mutation control: a raw testimony row is not enough. Remove it from the exact
 -- admitted testimony receipt while leaving the mapping, node, root projection and
 -- testimony rows themselves intact. A boundary-pinned query must reject it.

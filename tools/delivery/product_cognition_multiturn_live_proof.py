@@ -87,7 +87,8 @@ def request_sql_turn(
         + forward
         + ","
         + materialization
-        + ",4096::numeric,8192::numeric,0,1)::laplace.cognition_firmware_product_request"
+        + f",4096::numeric,8192::numeric,{base.OBSERVATION_BOUNDARY_COMPLETE},1)"
+        "::laplace.cognition_firmware_product_request"
     )
 
 
