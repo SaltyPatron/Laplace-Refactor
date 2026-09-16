@@ -284,7 +284,7 @@ jobs:
             echo '## Product-path gate'
             echo "Required evidence: $REQUIRED_EVIDENCE"
             echo "Hosted source checks: $HOSTED_RESULT"
-            echo "Hosted native profiles selected: $HOSTED_NATIVE_SELECTED (false means not executed)"
+            echo "Hosted native profiles selected: ${HOSTED_NATIVE_SELECTED:-unknown} (false means not executed)"
             echo "Publication recovery: $PUBLICATION_RECOVERY_RESULT"
             echo "Custom-stack proof: $CUSTOM_RESULT"
             echo "Candidate chess calibration: $CHESS_RESULT"
