@@ -51,7 +51,7 @@ EXPECTED_VERSIONS = {
     "pkgconf": "3.0.6",
     "gnu-bison": "3.8.2",
     "flex": "2.6.4",
-    "cmake": "4.4.2",
+    "cmake": "4.4.3",
     "ninja": "1.13.2",
 }
 EXPECTED_TEST_COMMANDS = {

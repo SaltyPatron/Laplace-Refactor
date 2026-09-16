@@ -13,6 +13,8 @@
     ".github/workflows/ci.yml",
     ".github/dependabot.yml",
     ".github/CODEOWNERS",
+    ".github/scripts/consolidate-branches.py",
+    ".github/branch-resolutions.json",
     "tools/delivery/product_path.py",
     "tools/branch_estate*.py",
     "tests/product_path*_tests.py",

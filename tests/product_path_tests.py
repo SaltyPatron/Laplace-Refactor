@@ -178,7 +178,8 @@ class ProductPathTests(unittest.TestCase):
     def test_housekeeping_never_rebuilds_deploys_or_reingests(self) -> None:
         for path in ("docs/product/ROADMAP.md", ".github/workflows/final-convergence-audit.yml",
                      ".github/workflows/product-path.yml", "tools/delivery/product_path.py",
-                     "tests/product_path_tests.py", "contracts/product-path.json"):
+                     "tests/product_path_tests.py", "contracts/product-path.json",
+                     ".github/scripts/consolidate-branches.py", ".github/branch-resolutions.json"):
             with self.subTest(path=path):
                 result = self.classify(path)
                 self.assertTrue(result["hosted_only"])
@@ -186,6 +187,21 @@ class ProductPathTests(unittest.TestCase):
                 for field in ("requires_hosted_native", "requires_deployment",
                               "requires_custom_stack", "requires_stockfish_corpus"):
                     self.assertFalse(result[field], (path, field))
+
+
+    def test_housekeeping_allowlist_does_not_cover_other_scripts_or_mixed_runtime(self) -> None:
+        for paths in (
+            (".github/scripts/install-product.py",),
+            (".github/branch-resolutions-other.json",),
+            (".github/scripts/consolidate-branches.py", "engine/src/composition.cpp"),
+            (".github/branch-resolutions.json", "tools/admit_source.py"),
+        ):
+            with self.subTest(paths=paths):
+                result = self.classify(*paths)
+                for field in ("requires_hosted_native", "requires_deployment",
+                              "requires_custom_stack", "requires_stockfish_corpus"):
+                    self.assertTrue(result[field], (paths, field))
+                self.assertFalse(result["hosted_only"])
 
     def test_hosted_build_workflow_still_executes_its_native_profiles(self) -> None:
         result = self.classify(".github/workflows/ci.yml")
