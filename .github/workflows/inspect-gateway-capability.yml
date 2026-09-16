@@ -31,6 +31,23 @@ jobs:
                       report["configured_signing_key_format_valid"]=False
           else:
               report["probe_stderr"]=p.stderr[:4096]
+          from pathlib import Path
+          bundle=Path("/opt/laplace/deployment/current").resolve(strict=True)
+          if p.returncode==0 and bundle.name==probe.get("bundle_id"):
+              report["installed_sources"]=[]
+              for relative in ("bin/laplace-product-activate","controllers/product_service_state.py"):
+                  path=bundle/relative
+                  if not path.is_file():
+                      report["installed_sources"].append({"path":relative,"present":False});continue
+                  if path.is_symlink() or path.stat().st_uid!=0 or path.stat().st_size>131072:
+                      raise RuntimeError("installed trusted source metadata differs")
+                  raw=path.read_bytes()
+                  text=raw.decode("utf-8")
+                  report["installed_sources"].append({"path":relative,"present":True,
+                      "sha256":hashlib.sha256(raw).hexdigest(),"bytes":len(raw),
+                      "source":text if relative.startswith("bin/") else None,
+                      "supports_authenticated_upgrade":"execute_gateway_upgrade" in text,
+                      "mentions_cognition_service":"laplace-refactor-cognition.service" in text})
           print(json.dumps(report,sort_keys=True))
           
           PY
