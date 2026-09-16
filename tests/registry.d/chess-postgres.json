@@ -1,0 +1,29 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "postgres.chess-line-durable-replay-contract",
+      "profiles": [
+        "chess-postgres"
+      ],
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-FINITE-RESOURCE-BOUNDARY"
+      ],
+      "covered_dimensions": [
+        "qualified native standard-chess trace lowered through the common canonical P/M/LINE planner",
+        "actual active Unicode tuples and public PostgreSQL composition deposit with exact complete-body readback",
+        "caller rollback, warm replay and a fresh backend with unchanged canonical entity/physicality/trajectory state",
+        "fsync, synchronous_commit and full_page_writes enabled on the disposable private cluster",
+        "source observations retained separately; no PLAYING, PGN-import or recorded-game-rate claim"
+      ],
+      "defect_controls": [
+        "actual stored identity witness corruption",
+        "actual stored physicality radius corruption",
+        "actual packed trajectory corruption",
+        "missing native input, mismatched engine directory, absent writable external evidence root and interruption evidence"
+      ]
+    }
+  ]
+}

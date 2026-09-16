@@ -1,0 +1,56 @@
+{
+  "schema": "laplace.chess-line-contract/v1",
+  "requirements": [
+    "docs/product/CHESS_GRAPH_INTEGRATION.md",
+    "docs/product/CHESS_PROVING_LADDER.md"
+  ],
+  "scope": "Native structural projection of a qualified orthodox-standard rules trace into the existing common composition DAG; not an independent rules engine or PLAYING source admission.",
+  "input": {
+    "squares": "a1=0 to h8=63, rank-major; no square=64",
+    "pieces": "empty=0; white pawn/knight/bishop/rook/queen/king=1..6; black=9..14",
+    "positions": "64 piece codes, side to move, four orthodox castling rights, legally available en-passant target",
+    "moves": "actual piece from/to squares, optional promotion kind, ordinary/castle-king/castle-queen/en-passant form",
+    "partition": "contiguous per-line position and move ranges exactly cover the batch",
+    "authority": "The native qualified Board adapter must validate each legal move and derive EP availability from actual legal moves. The planner validates exact transported board deltas; it cannot certify legality.",
+    "raw_observations": "Provider EP, FEN/SAN/LAN, clocks, reversible ply counts, plies since setup, repetition/search counters and source/player/event evidence are outside this planner and must remain available from their observation owner."
+  },
+  "identity": {
+    "owner": "engine/src/canonical_composition_plan.hpp -> ordinary laplace_composition_working_set",
+    "kernel": "existing ordered child-ID/multiplicity BLAKE3 witness and public prefix; no new hash domain or chess ID generator",
+    "semantic_tags": "Actual admitted content children: Chess_Position, Chess_Piece, Chess_Square, Chess_Move, Chess_Line. Field labels and their ordered values are explicit content.",
+    "position": "Repetition-normalized legal-move state only. Board, side, castling rights and actual legal EP participate. Fifty-move/repetition-history/search equivalence is not claimed.",
+    "move": "Piece action with side/kind, actual source/destination, optional promotion and special form. Ordinary capture context is retained by adjacent positions.",
+    "line": "Chess_Line followed by P0,M0,P1,...,Pn, exactly ordered. Equal positions/actions are shared; convergent endpoints cannot collapse distinct histories.",
+    "numerals": "Existing canonical number tag, shared with Highway/physicality reflection",
+    "exclusions": [
+      "source and provider identifiers",
+      "player/game identifiers",
+      "FEN/SAN/PGN/display strings",
+      "clocks and repetition history",
+      "geometry epoch and occurrence metadata"
+    ],
+    "recipe": "The recipe fingerprint identifies the planner/physicality generation; it is not a salt for canonical content identity."
+  },
+  "replay": {
+    "native": "A LINE reconstructed from its actual known canonical children must retain its entity witness and physicality under the same recipe/geometry.",
+    "occurrence": "Every request has flags=0. Repeating a LINE batch does not create PLAYING or independent evidence.",
+    "persistence": "Use the existing active atom provider and composition PostgreSQL presence/persistence owner; no chess-specific store.",
+    "future_acceptance": "Actual admitted-floor deposition, exact stored readback and new-backend replay remain required before claiming durable chess admission."
+  },
+  "bounds": [
+    "maximum positions",
+    "maximum moves",
+    "maximum lines",
+    "maximum native requests",
+    "maximum native operands"
+  ],
+  "nonclaims": [
+    "independent chess legality",
+    "all chess variants or nonorthodox castling setups",
+    "complete draw/search state",
+    "PLAYING provenance admission",
+    "folded-segment identity equivalence",
+    "chess perfcache acceptance",
+    "recorded games per second"
+  ]
+}

@@ -24,6 +24,8 @@ server_log=
 port=${LAPLACE_POSTGRES_TEST_PORT:-55432}
 server_started=0
 perfcache_root=
+chess_evidence_directory=
+chess_phase=configuration
 server_asan_options=${ASAN_OPTIONS:-}
 if [[ -n "$sanitizer_preload" ]]; then
     server_asan_options="${server_asan_options}${server_asan_options:+:}detect_leaks=0"
@@ -62,6 +64,64 @@ cleanup() {
             kill -KILL "$pid" 2>/dev/null || true
         fi
     done
+    if [[ -n "$chess_evidence_directory" && -n "$test_root" ]]; then
+        # Export only bounded named evidence, before disposable cluster cleanup.
+        # A guard kill can leave no native receipt; retain that absence honestly.
+        if ! python3 - "$test_root" "$chess_evidence_directory" "$exit_code" "$chess_phase" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import sys
+
+source, target = (Path(value) for value in sys.argv[1:3])
+artifacts = {}
+for name in (
+    "unicode-resource-guard.json", "resource-guard.json",
+    "chess-line-resource-guard.json", "chess-line-receipt.json",
+    "chess-line-observations.json", "postgres.log",
+):
+    path = source / name
+    if not path.exists():
+        continue
+    if path.is_symlink() or not path.is_file():
+        raise SystemExit("chess evidence is not a regular file: " + name)
+    size = path.stat().st_size
+    destination = target / name
+    if name == "postgres.log":
+        # Server diagnostics may be large; retain a declared bounded suffix.
+        offset = max(0, size - 8 * 1024 * 1024)
+        with path.open("rb") as stream:
+            stream.seek(offset)
+            payload = stream.read(8 * 1024 * 1024)
+        destination.write_bytes(payload)
+    else:
+        if size > 32 * 1024 * 1024:
+            raise SystemExit("chess evidence exceeds its byte bound: " + name)
+        offset = 0
+        shutil.copyfile(path, destination)
+        payload = destination.read_bytes()
+    artifacts[name] = {
+        "bytes": len(payload), "source_bytes": size, "source_offset": offset,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+    }
+receipt = {
+    "schema": "laplace.chess-line-postgres-runner/v1",
+    "exit_code": int(sys.argv[3]), "last_phase": sys.argv[4],
+    "status": "passed" if int(sys.argv[3]) == 0 and sys.argv[4] == "completed" else "failed",
+    "artifacts": artifacts,
+}
+encoded = json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+(target / "runner-receipt.json").write_text(encoded + "\n", encoding="utf-8")
+print("LAPLACE_QA_RECEIPT chess_line_postgres_runner " + encoded)
+PY
+        then
+            echo "could not retain complete chess-line evidence at $chess_evidence_directory" >&2
+            if [[ $exit_code -eq 0 ]]; then exit_code=92; fi
+        else
+            echo "Chess LINE PostgreSQL evidence retained at $chess_evidence_directory"
+        fi
+    fi
     if [[ -n "$socket_directory" && "$socket_directory" == "$temporary_parent"/lp-pg.* ]]; then
         rm -rf -- "$socket_directory"
     fi
@@ -99,21 +159,63 @@ if (( socket_path_bytes >= 104 )); then
 fi
 mkdir -p -- "$perfcache_root"
 
+if [[ "$mode" == "chess-line" ]]; then
+    # Keep the existing nine-argument interface: source probe, then chess probe.
+    chess_manifest=${LAPLACE_CHESS_LINE_MANIFEST:-}
+    chess_pgn=${LAPLACE_CHESS_LINE_PGN:-}
+    chess_native_engine=${LAPLACE_CHESS_LINE_NATIVE_ENGINE:-}
+    chess_evidence_root=${LAPLACE_CHESS_LINE_EVIDENCE_ROOT:-}
+    for input in "$chess_manifest" "$chess_pgn" "$chess_native_engine" "$sql_file"; do
+        if [[ "$input" != /* || ! -f "$input" || ! -r "$input" ]]; then
+            echo "chess-line requires readable absolute manifest, PGN, native-engine and SQL paths" >&2
+            exit 64
+        fi
+    done
+    for probe in "$native_probe" "$auxiliary_probe"; do
+        if [[ "$probe" != /* || ! -x "$probe" || ! -f "$probe" ]]; then
+            echo "chess-line requires actual executable source and chess probes" >&2
+            exit 64
+        fi
+    done
+    if [[ "$chess_evidence_root" != /* || ! -d "$chess_evidence_root" || ! -w "$chess_evidence_root" ]]; then
+        echo "chess-line requires an existing writable absolute LAPLACE_CHESS_LINE_EVIDENCE_ROOT" >&2
+        exit 64
+    fi
+    chess_native_engine=$(realpath -e -- "$chess_native_engine")
+    if [[ "$(dirname "$chess_native_engine")" != "$(realpath -e -- "$engine_directory")" ]]; then
+        echo "chess-line native engine must belong to the selected engine directory" >&2
+        exit 64
+    fi
+    chess_evidence_root=$(realpath -e -- "$chess_evidence_root")
+    repository_root=$(realpath -e -- "$(dirname "$0")/../..")
+    if [[ "$chess_evidence_root" == "$repository_root" || "$chess_evidence_root" == "$repository_root"/* ]]; then
+        echo "chess-line evidence must be outside the source repository" >&2
+        exit 64
+    fi
+    chess_evidence_directory=$(mktemp -d "$chess_evidence_root/chess-line-postgres.XXXXXX")
+    postgres_client_library_directory=$("$pg_bindir/pg_config" --libdir)
+    chess_phase=initialization
+fi
+
 "$pg_bindir/initdb" -D "$data_directory" \
     --no-locale --encoding=UTF8 --auth=trust >/dev/null
 postgres_options="-k $socket_directory -p $port -c listen_addresses= -c max_prepared_transactions=4 -c laplace.perfcache_root=$perfcache_root -c extension_control_path=$control_root -c dynamic_library_path=$module_directory:$postgres_library_directory:$engine_directory"
-if [[ "$mode" != "composition-measurement" ]]; then
-    postgres_options="-F $postgres_options"
-else
+if [[ "$mode" == "composition-measurement" ]]; then
     postgres_options="$postgres_options -c shared_buffers=1GB -c max_wal_size=8GB -c checkpoint_timeout=30min -c track_io_timing=on -c track_wal_io_timing=on"
+elif [[ "$mode" == "chess-line" ]]; then
+    postgres_options="$postgres_options -c fsync=on -c synchronous_commit=on -c full_page_writes=on"
+else
+    postgres_options="-F $postgres_options"
 fi
 if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
       "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ||
+      "$mode" == "chess-line" ]]; then
     postgres_options="$postgres_options -c shared_buffers=512MB -c max_wal_size=8GB -c checkpoint_timeout=30min"
 fi
 if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ||
+      "$mode" == "chess-line" ]]; then
     statement_timeout_ms=${LAPLACE_POSTGRES_STATEMENT_TIMEOUT_MS:-60000}
     if [[ "$mode" == "unicode-root" ]]; then
         statement_timeout_ms=${LAPLACE_POSTGRES_UNICODE_BOOTSTRAP_TIMEOUT_MS:-300000}
@@ -331,7 +433,8 @@ elif [[ "$mode" == "perfcache-mutation" ]]; then
     psql_arguments+=(-v "perfcache_mutant_module=$LAPLACE_MUTANT_MODULE")
 elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
       "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ||
+      "$mode" == "chess-line" ]]; then
     unicode_source_root=${LAPLACE_UNICODE_SOURCE_ROOT:-}
     if [[ -z "$unicode_source_root" || ! -d "$unicode_source_root" ]]; then
         echo "verified Unicode source root is unavailable: $unicode_source_root" >&2
@@ -439,8 +542,14 @@ elif [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
         done <<<"$probe_output"
         psql_arguments+=(-v "cili_source_root=$cili_source_root")
     fi
-    if [[ "$mode" == "source-admission" ]]; then
-        probe_output=$("$native_probe")
+    if [[ "$mode" == "source-admission" || "$mode" == "chess-line" ]]; then
+        if [[ "$mode" == "chess-line" ]]; then
+            chess_phase=source-authority
+            probe_output=$(LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+                timeout 30 "$native_probe")
+        else
+            probe_output=$("$native_probe")
+        fi
         for key in TABULAR_ARTIFACT_GRAPH TABULAR_ARCHIVE_ID TABULAR_TEXT_ID; do
             value=$(awk -F= -v key="$key" '$1 == key {print $2}' <<<"$probe_output")
             if [[ ! "$value" =~ ^[0-9a-f]+$ ]]; then
@@ -532,13 +641,15 @@ if [[ "$mode" == "composition-measurement" ]]; then
 fi
 
 if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ||
+      "$mode" == "chess-line" ]]; then
     unicode_bootstrap_timeout_ms=${LAPLACE_POSTGRES_UNICODE_BOOTSTRAP_TIMEOUT_MS:-300000}
     if [[ ! "$unicode_bootstrap_timeout_ms" =~ ^[1-9][0-9]*$ ]]; then
         echo "PostgreSQL Unicode bootstrap timeout must be a positive integer" >&2
         exit 64
     fi
     postmaster_pid=$(head -n 1 -- "$data_directory/postmaster.pid")
+    if [[ "$mode" == "chess-line" ]]; then chess_phase=unicode-bootstrap; fi
     unicode_bootstrap_command=(
         "$pg_bindir/psql" "${psql_arguments[@]}"
         -c "SET statement_timeout = '$unicode_bootstrap_timeout_ms ms'"
@@ -558,9 +669,11 @@ if [[ "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
     psql_arguments+=(-v source_skip_unicode=1)
 fi
 
+if [[ "$mode" == "chess-line" ]]; then chess_phase=source-setup; fi
 psql_command=("$pg_bindir/psql" "${psql_arguments[@]}")
 if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ||
+      "$mode" == "chess-line" ]]; then
     psql_command+=(-c "SET statement_timeout = '$statement_timeout_ms ms'")
 fi
 if [[ -n "${variable_file:-}" ]]; then
@@ -578,7 +691,8 @@ if [[ "$mode" == "source-admission" ]]; then
 fi
 
 if [[ "$mode" == "unicode-root" || "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ||
+      "$mode" == "chess-line" ]]; then
     source_max_wall_seconds=${LAPLACE_POSTGRES_MAX_WALL_SECONDS:-60}
     source_max_data_bytes=${LAPLACE_POSTGRES_MAX_DATA_BYTES:-1073741824}
     source_max_wal_bytes=${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}
@@ -614,7 +728,8 @@ fi
 
 if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
       "$mode" == "source-admission" || "$mode" == "iso-639-admission" ||
-      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ]]; then
+      "$mode" == "cili-admission" || "$mode" == "source-admission-suite" ||
+      "$mode" == "chess-line" ]]; then
     if [[ ! -f "$unicode_tier0_path" ]]; then
         echo "Unicode Tier-0 artifact was not published" >&2
         exit 80
@@ -633,6 +748,65 @@ if [[ "$mode" == "unicode-root" || "$mode" == "unicode-access-mutation" ||
         echo "Unicode identity reverse artifact has unexpected size: $unicode_reverse_bytes" >&2
         exit 83
     fi
+fi
+
+if [[ "$mode" == "chess-line" ]]; then
+    chess_phase=native-line-replay
+    # The native probe performs actual commit, full-body readback, corruption
+    # controls and fresh-backend replay; it writes its own success/failure state.
+    python3 "$(dirname "$0")/../../tools/tests/postgres_resource_guard.py" \
+        --data-directory "$data_directory" \
+        --workspace-directory "$test_root" \
+        --postmaster-pid "$postmaster_pid" \
+        --max-wall-seconds "${LAPLACE_POSTGRES_CHESS_LINE_MAX_WALL_SECONDS:-120}" \
+        --max-data-bytes "${LAPLACE_POSTGRES_MAX_DATA_BYTES:-1073741824}" \
+        --max-wal-bytes "${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}" \
+        --max-workspace-bytes "${LAPLACE_POSTGRES_MAX_WORKSPACE_BYTES:-2147483648}" \
+        --max-rss-bytes "${LAPLACE_POSTGRES_MAX_RSS_BYTES:-12884901888}" \
+        --sample-seconds 1 \
+        --receipt "$test_root/chess-line-resource-guard.json" \
+        -- env \
+            ASAN_OPTIONS="$server_asan_options" \
+            LD_PRELOAD="${sanitizer_preload}${sanitizer_preload:+${LD_PRELOAD:+:}}${LD_PRELOAD:-}" \
+            LD_LIBRARY_PATH="$engine_directory:$postgres_client_library_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            "$auxiliary_probe" "$socket_directory" "$port" \
+            "$chess_manifest" "$chess_pgn" "$chess_native_engine" \
+            "$test_root/chess-line-receipt.json" "$test_root/chess-line-observations.json"
+    chess_phase=evidence-validation
+    python3 - "$test_root/chess-line-receipt.json" "$test_root/chess-line-observations.json" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+paths = [Path(value) for value in sys.argv[1:]]
+for path in paths:
+    if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= 32 * 1024 * 1024:
+        raise SystemExit("native chess probe did not retain bounded regular evidence")
+receipt_bytes, observations_bytes = (path.read_bytes() for path in paths)
+receipt = json.loads(receipt_bytes)
+observations = json.loads(observations_bytes)
+if (not isinstance(receipt, dict)
+        or receipt.get("schema") != "laplace.chess-line-postgres-acceptance/v1"
+        or receipt.get("status") != "passed"
+        or any(receipt.get(field) is not True for field in (
+            "native_trace_execution", "active_unicode_composition_execution",
+            "postgresql_line_admission", "fresh_backend_verified",
+            "exact_warm_cold_result", "caller_rollback_verified",
+            "backend_engine_mappings_verified", "fsync", "synchronous_commit", "full_page_writes"))
+        or receipt.get("full_pgn_parser_in_this_probe") is not False
+        or receipt.get("raw_pgn_source_profile_admitted") is not False
+        or type(receipt.get("playing_entities_admitted")) is not int
+        or receipt["playing_entities_admitted"] != 0
+        or receipt.get("recorded_game_rate_measured") is not False
+        or receipt.get("observations_sha256") != hashlib.sha256(observations_bytes).hexdigest()
+        or not isinstance(observations, dict)
+        or observations.get("schema") != "laplace.chess-line-source-observations/v1"
+        or type(observations.get("source_occurrences")) is not int
+        or observations["source_occurrences"] != 1):
+    raise SystemExit("native chess acceptance evidence is incomplete or mismatched")
+PY
+    chess_phase=completed
 fi
 
 if [[ "$mode" == "contract" ]]; then

@@ -46,6 +46,7 @@ add_library(laplace_engine SHARED
     src/tabular_source.cpp
     src/world_admission.c
     src/composition.cpp
+    src/chess_line.cpp
     src/composition_execution.cpp
     src/content_admission.cpp
     src/trajectory.c
