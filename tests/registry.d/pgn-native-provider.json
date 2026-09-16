@@ -1,0 +1,27 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "source.pgn-native-provider-contract",
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-GRAMMAR-NONSEMANTIC",
+        "LP-TEST-ADMISSION-FIELD-NODE-DISPOSITION",
+        "LP-TEST-AST-EXACT-RECOMPOSITION"
+      ],
+      "covered_dimensions": [
+        "exact locked PGN parser and scanner source-built through the common provider",
+        "full-source native composition and exact UTF-8/CRLF reconstruction",
+        "main-line and recursive-variation syntax ownership",
+        "ERROR/MISSING and tolerated incomplete-source distinctions",
+        "scalar/batch and replay canonical source identity",
+        "no chess legality, completed playing, database admission or throughput claim"
+      ],
+      "defect_controls": [
+        "changed native comment node kind detected by independent fixture counts",
+        "missing quote and comment closure retains error or missing disposition",
+        "wrong shared-object digest refuses native loading",
+        "exhausted structural depth refuses the complete source plan"
+      ]
+    }
+  ]
+}
