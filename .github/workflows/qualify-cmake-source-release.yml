@@ -64,7 +64,7 @@ jobs:
         run: |
           set -o pipefail
           python3 tests/toolchain_build_tests.py 2>&1 | tee .cmake-source-qualification/evidence/toolchain-controls.log
-          bash tests/release_assets_test.sh 2>&1 | tee .cmake-source-qualification/evidence/archive-controls.log
+          bash tests/release_assets_test.sh "$PWD/tools/dependencies/release-assets.py" "$TMPDIR" 2>&1 | tee .cmake-source-qualification/evidence/archive-controls.log
           git diff --exit-code
       - name: Retain exact source control evidence
         if: always()
