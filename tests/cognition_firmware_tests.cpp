@@ -328,7 +328,8 @@ TEST_F(CognitionFirmware, DistinctPathsToSameEntityDoNotInventAmbiguityOrEvidenc
 TEST_F(CognitionFirmware, ExactPromptWitnessFromAnotherProviderIsReusedByNativeFirmware) {
     text = "AA";
     steps = {Query({OBS, 0}, LAPLACE_OBSERVATION_QUERY_CONSTITUENT), Emit(0)};
-    Admit();
+    steps[0].kind = LAPLACE_COGNITION_FIRMWARE_INTERPRET;
+    ASSERT_NO_FATAL_FAILURE(Admit());
     world.edges.clear();
     world.surfaces = {{Codepoint('A'), Codepoint('T'), 'A'}};
     Result baseline;
@@ -362,7 +363,8 @@ TEST_F(CognitionFirmware, ExactPromptWitnessFromAnotherProviderIsReusedByNativeF
 TEST_F(CognitionFirmware, MatchingWitnessDoesNotHideMalformedCandidateFromAnotherProvider) {
     text = "AA";
     steps = {Query({OBS, 0}, LAPLACE_OBSERVATION_QUERY_CONSTITUENT), Emit(0)};
-    Admit();
+    steps[0].kind = LAPLACE_COGNITION_FIRMWARE_INTERPRET;
+    ASSERT_NO_FATAL_FAILURE(Admit());
     world.edges.clear();
     world.surfaces = {{Codepoint('A'), Codepoint('T'), 'A'}};
     PromptWitnessMirror mirror;
