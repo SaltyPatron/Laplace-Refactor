@@ -1,0 +1,164 @@
+name: Cancel only the interrupted Original lexical backend query
+on:
+  push:
+    branches: ['diag/cancel-original-lexical-query-f2-*']
+permissions:
+  contents: read
+jobs:
+  cleanup:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
+    steps:
+      - name: Request one exact owned query cancellation and observe actual termination
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 65s python3 - <<'PY'
+          import csv, datetime, hashlib, io, json, os, re, selectors, signal, stat, subprocess, tempfile, time
+          from pathlib import Path
+          EXPECTED_SHA, EXPECTED_TREE = "f2cbb5fc7305dfd20d9fa3a19003b60a06b457c0", "42167cb4cbef49382fd427e7e4f51b26eea2d7f4"
+          SESSION = Path("/build/laplace/work/ci-sessions/35104196613-1-product/session.json")
+          def deadline(signum, frame):
+              raise TimeoutError("bounded database observation deadline")
+          signal.signal(signal.SIGALRM, deadline)
+          signal.alarm(55)
+          os.environ.update(PGHOST="/var/run/postgresql", PGPORT="5432", PGUSER="laplace_admin",
+                            PGCONNECT_TIMEOUT="3", PGAPPNAME="laplace-readonly-progress-observer",
+                            PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=3000 -c lock_timeout=500")
+          for key in ("PGSERVICE", "PGSERVICEFILE"):
+              os.environ.pop(key, None)
+          
+          def bounded_query(database: str, sql_path: Path, timeout: int, max_bytes: int) -> bytes:
+              argv = ["psql", "-X", "-h", os.environ.get("PGHOST", "/var/run/postgresql"),
+                      "-p", os.environ.get("PGPORT", "5432"), "-U", os.environ.get("PGUSER", "laplace_admin"),
+                      "-d", database, "-v", "ON_ERROR_STOP=1", "-A", "-t", "-q", "-f", str(sql_path)]
+              process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              output, error = bytearray(), bytearray()
+              deadline = time.monotonic() + timeout + 10
+              try:
+                  with selectors.DefaultSelector() as selector:
+                      for stream, tag in ((process.stdout, "output"), (process.stderr, "error")):
+                          os.set_blocking(stream.fileno(), False)
+                          selector.register(stream, selectors.EVENT_READ, tag)
+                      while selector.get_map():
+                          remaining = deadline - time.monotonic()
+                          if remaining <= 0:
+                              raise RuntimeError("readback process deadline exceeded")
+                          for key, _ in selector.select(min(remaining, 1.0)):
+                              chunk = os.read(key.fd, 65536)
+                              if not chunk:
+                                  selector.unregister(key.fileobj)
+                                  continue
+                              target, bound = (output, max_bytes) if key.data == "output" else (error, 1 << 20)
+                              if len(target) + len(chunk) > bound:
+                                  raise RuntimeError(f"readback {key.data} exceeded declared byte envelope {bound}")
+                              target.extend(chunk)
+                  process.wait(timeout=max(0.01, deadline - time.monotonic()))
+                  if process.returncode:
+                      raise RuntimeError(f"read-only source query failed ({process.returncode}): "
+                                         + error.decode("utf-8", errors="replace"))
+                  return bytes(output)
+              finally:
+                  if process.poll() is None:
+                      process.kill()
+                      process.wait()
+                  process.stdout.close()
+                  process.stderr.close()
+          
+          def bounded_proc(path, budget):
+              descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(descriptor, "rb") as stream:
+                  if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                      raise ValueError("process evidence is not regular")
+                  raw = stream.read(budget + 1)
+              if len(raw) > budget:
+                  raise ValueError("process evidence exceeded budget")
+              return raw.decode("ascii", errors="strict")
+          
+          def process_stat(pid):
+              raw = bounded_proc(f"/proc/{pid}/stat", 4096)
+              end = raw.rfind(")")
+              if end < 0 or raw.split(" ", 1)[0] != str(pid):
+                  raise ValueError("unexpected process stat identity")
+              fields = raw[end + 2:].split()
+              if len(fields) < 22:
+                  raise ValueError("incomplete process stat")
+              return {"processId": pid, "userTicks": int(fields[11]), "systemTicks": int(fields[12]),
+                      "threads": int(fields[17]), "startTicks": int(fields[19]),
+                      "virtualBytes": int(fields[20]), "residentPages": int(fields[21])}
+          
+          SQL = "BEGIN TRANSACTION READ ONLY;\nSET LOCAL statement_timeout = '3s';\nSET LOCAL lock_timeout = '500ms';\nSET LOCAL idle_in_transaction_session_timeout = '5s';\nSELECT jsonb_build_object(\n 'schema', 'laplace.postgresql-backend-identity/v1',\n 'observedAt', clock_timestamp(), 'transactionReadOnly', current_setting('transaction_read_only'),\n 'database', current_database(), 'currentUser', current_user,\n 'backend', (SELECT jsonb_build_object(\n   'pid', pid, 'backendStart', backend_start, 'backendType', backend_type,\n   'state', state, 'transactionStart', xact_start, 'queryStart', query_start,\n   'queryAgeSeconds', EXTRACT(EPOCH FROM clock_timestamp()-query_start),\n   'queryId', query_id, 'queryFingerprintMd5', md5(query), 'queryBytes', octet_length(query),\n   'queryClass', CASE\n      WHEN position('ops.physicality_descriptor_materialize(' IN regexp_replace(lower(query),'[[:space:]]','','g')) > 0\n        THEN 'ops.physicality_descriptor_materialize'\n      WHEN position('pg_advisory_xact_lock(hashtextextended(' IN regexp_replace(lower(query),'[[:space:]]','','g')) > 0\n        THEN 'advisory_xact_control'\n      ELSE 'unclassified-no-text-emitted' END,\n   'waitEventType', wait_event_type, 'waitEvent', wait_event,\n   'blockingPids', pg_blocking_pids(pid))\n   FROM pg_stat_activity WHERE datname=current_database() AND pid=4123046\n     AND backend_start='2026-09-16T13:56:55.74258+00:00'::timestamptz)\n);\nROLLBACK;\n"
+          def source_binding():
+              fd = os.open(SESSION, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(fd, "rb") as stream:
+                  if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                      raise ValueError("session is not regular")
+                  raw = stream.read(65537)
+              if len(raw) > 65536:
+                  raise ValueError("session exceeds envelope")
+              data = json.loads(raw)
+              if data.get("schema") != "laplace.ci-session.v1" or data.get("source") != {"commit": EXPECTED_SHA, "tree": EXPECTED_TREE} or data.get("kind") != "product":
+                  raise ValueError("selected lifecycle identity differs")
+              active = data.get("active")
+              return {"source": EXPECTED_SHA, "receiptSha256": hashlib.sha256(raw).hexdigest(),
+                      "status": str(data.get("status", ""))[:80],
+                      "activePhase": str(active.get("phase", ""))[:80] if isinstance(active, dict) else None}
+          
+          
+          def backend(sql_path):
+              raw = bounded_query("laplace", sql_path, 5, 65536)
+              data = json.loads(raw)
+              if data.get("schema") != "laplace.postgresql-backend-identity/v1" or data.get("transactionReadOnly") != "on" or data.get("database") != "laplace" or data.get("currentUser") != "laplace_admin":
+                  raise ValueError("installed read-only backend observation differs")
+              return data
+          
+          
+          def owned_process(pid, expected_ticks):
+              result = {"pid": pid, "expectedStartTicks": expected_ticks}
+              try:
+                  current = process_stat(pid)
+                  result.update(present=True, sameOwnedProcess=current["startTicks"] == expected_ticks,
+                                currentStartTicks=current["startTicks"], userTicks=current["userTicks"],
+                                systemTicks=current["systemTicks"], residentPages=current["residentPages"])
+              except FileNotFoundError:
+                  result.update(present=False, sameOwnedProcess=False)
+              except (OSError, ValueError, UnicodeError) as error:
+                  result["unavailableErrorType"] = type(error).__name__
+              return result
+          
+          CANCEL_SQL = "BEGIN;\nSET LOCAL statement_timeout = '3s';\nSET LOCAL lock_timeout = '500ms';\nSET LOCAL idle_in_transaction_session_timeout = '5s';\nSELECT jsonb_build_object('schema','laplace.exact-backend-query-cancel/v1',\n 'database',current_database(),'currentUser',current_user,\n 'target', (SELECT jsonb_build_object('pid',pid,'backendStart',backend_start,\n 'queryStart',query_start,'transactionStart',xact_start,\n 'signalAccepted',pg_cancel_backend(pid))\n FROM pg_stat_activity\n WHERE datname='laplace' AND usename='laplace_admin' AND backend_type='client backend'\n AND pid=4123046 AND backend_start='2026-09-16T13:56:55.74258+00:00'::timestamptz\n AND query_start='2026-09-16T13:57:18.472508+00:00'::timestamptz\n AND xact_start='2026-09-16T13:57:15.384961+00:00'::timestamptz AND state='active'\n AND octet_length(query)=96 AND md5(query)='b1337a4665ea7d85787b68c05e495823'\n AND position('ops.physicality_descriptor_materialize(' IN regexp_replace(lower(query),'[[:space:]]','','g'))>0));\nROLLBACK;\n"
+          with tempfile.TemporaryDirectory(dir="/build/laplace/work", prefix="laplace-owned-query-cancel-") as directory:
+              query_path = Path(directory) / "observe.sql"
+              query_path.write_text(SQL)
+              result = {"schema": "laplace.owned-lexical-query-interruption/v1",
+                        "source": EXPECTED_SHA, "lifecycleRun":35104196613,
+                        "priorReadOnlyCleanupRun":35109448504,
+                        "scope":"One PostgreSQL query-cancel request for the fixed interrupted lexical backend only; no backend termination, data writes, cluster restart or unrelated sessions.",
+                        "cancelSqlSha256":hashlib.sha256(CANCEL_SQL.encode()).hexdigest()}
+              binding=source_binding()
+              result["lifecycle"]=binding
+              if binding["status"]!="failed" or binding["activePhase"] is not None:
+                  raise ValueError("owned lifecycle is not interrupted and inactive")
+              for pid,ticks in ((4122796,82453132),(4123028,82453554)):
+                  observed=owned_process(pid,ticks)
+                  if "unavailableErrorType" in observed or observed.get("sameOwnedProcess") is not False:
+                      raise ValueError("owned phase or CLI cleanup is not proved")
+              result["before"]=backend(query_path)
+              cancel_path=Path(directory)/"cancel.sql"
+              cancel_path.write_text(CANCEL_SQL)
+              response=json.loads(bounded_query("laplace",cancel_path,5,65536))
+              if response.get("schema")!="laplace.exact-backend-query-cancel/v1" or response.get("database")!="laplace" or response.get("currentUser")!="laplace_admin":
+                  raise ValueError("cancel response identity differs")
+              result["request"]=response
+              print("LEXICAL_QUERY_CANCEL "+json.dumps(result,sort_keys=True),flush=True)
+              until=time.monotonic()+30
+              while True:
+                  observed=backend(query_path)
+                  row=observed.get("backend")
+                  ended=row is None or (row.get("transactionStart") is None and row.get("state")=="idle")
+                  print("LEXICAL_QUERY_CANCEL_READBACK "+json.dumps({"observed":observed,"exactTransactionEnded":ended},sort_keys=True),flush=True)
+                  if ended or time.monotonic()>=until:
+                      break
+                  time.sleep(5)
+          signal.alarm(0)
+          PY
