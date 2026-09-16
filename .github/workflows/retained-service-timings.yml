@@ -1,0 +1,181 @@
+name: Read retained installed service timings
+on:
+  push:
+    branches: [diag/activated-service-timings-20260916]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  retained-timings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Authenticate retained artifact and print vetted timing fields
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, math, os, resource, stat, subprocess, tempfile, zipfile
+          from pathlib import Path, PurePosixPath
+          
+          REPOSITORY = "SaltyPatron/Laplace-Refactor"
+          REPOSITORY_ID = 1345590348
+          RUN = 35102083502
+          HEAD = "0b75a27fe57a9a27f58264311ebab42508a24a5f"
+          ARTIFACT = 10448173102
+          ZIP_BYTES = 591602
+          ZIP_SHA = "8f03c8932403d1bb2c440a02eebcfdbf391ca70e5ba17823f2e33a4298c771cf"
+          PACKAGE = "a4888efa3798fda28ce4ca91d56ef17e12dcd71b57fc82040d502ac2612e1cc5"
+          DEPLOYMENT = "e5fb773c3c5758679eb13c3dd228a0ba2aab27af"
+          NAME = "activated-source-binding-35102083502-1"
+          MAX_JSON = 1024 * 1024
+          MEMBERS = ("result.json", "service/result.json", "gateway.json")
+          TIMINGS = ("activation_before", "restart_command", "restart_to_verified_health", "activation_after")
+          PHASES = ["browser", "health", "descriptors", "explore", "cognition_turn_0",
+                    "cognition_turn_1", "openai_nonstream", "openai_stream",
+                    "mcp_initialize", "mcp_tools", "mcp_query"]
+          
+          def require(condition, message):
+              if not condition:
+                  raise RuntimeError(message)
+          
+          def unique_object(pairs):
+              result = {}
+              for key, value in pairs:
+                  require(key not in result, "duplicate JSON field")
+                  result[key] = value
+              return result
+          
+          def document(raw):
+              value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object)
+              require(isinstance(value, dict), "receipt must be an object")
+              return value
+          
+          def fetch(endpoint, path, maximum):
+              # gh handles GitHub's authenticated redirect; no signed URL or token is
+              # reconstructed or handed to a second HTTP client.
+              def file_limit():
+                  resource.setrlimit(resource.RLIMIT_FSIZE, (maximum, maximum))
+              with path.open("xb") as stream:
+                  result = subprocess.run(
+                      ["gh", "api", "--hostname", "github.com", endpoint],
+                      stdout=stream, stderr=subprocess.PIPE, timeout=45,
+                      preexec_fn=file_limit,
+                  )
+              require(result.returncode == 0 and 0 < path.stat().st_size <= maximum,
+                      "authenticated bounded GitHub fetch failed")
+          
+          def seconds(value):
+              require(type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 540,
+                      "invalid retained elapsed seconds")
+              return value
+          
+          with tempfile.TemporaryDirectory(prefix="laplace-retained-timings-", dir=os.environ["RUNNER_TEMP"]) as temporary:
+              root = Path(temporary)
+              fetch(f"repos/{REPOSITORY}/actions/artifacts/{ARTIFACT}", root / "artifact.json", MAX_JSON)
+              metadata = document((root / "artifact.json").read_bytes())
+              require(metadata.get("id") == ARTIFACT and metadata.get("name") == NAME and
+                      metadata.get("expired") is False and metadata.get("size_in_bytes") == ZIP_BYTES and
+                      metadata.get("digest") == "sha256:" + ZIP_SHA, "artifact metadata differs")
+              binding = metadata.get("workflow_run", {})
+              require(binding.get("id") == RUN and binding.get("head_sha") == HEAD and
+                      binding.get("head_branch") == "verify/activated-source-binding-installed" and
+                      binding.get("repository_id") == REPOSITORY_ID and
+                      binding.get("head_repository_id") == REPOSITORY_ID, "artifact run binding differs")
+              fetch(f"repos/{REPOSITORY}/actions/runs/{RUN}", root / "run.json", MAX_JSON)
+              run = document((root / "run.json").read_bytes())
+              require(run.get("id") == RUN and run.get("head_sha") == HEAD and
+                      run.get("head_branch") == "verify/activated-source-binding-installed" and
+                      run.get("run_attempt") == 1 and run.get("event") == "push" and
+                      run.get("status") == "completed" and run.get("conclusion") == "success" and
+                      run.get("path") == ".github/workflows/activated-source-binding.yml" and
+                      run.get("repository", {}).get("full_name") == REPOSITORY and
+                      run.get("repository", {}).get("id") == REPOSITORY_ID and
+                      run.get("head_repository", {}).get("full_name") == REPOSITORY and
+                      run.get("head_repository", {}).get("id") == REPOSITORY_ID, "successful run identity differs")
+              fetch(f"repos/{REPOSITORY}/actions/artifacts/{ARTIFACT}/zip", root / "artifact.zip", MAX_JSON)
+              archive_bytes = (root / "artifact.zip").read_bytes()
+              require(len(archive_bytes) == ZIP_BYTES and hashlib.sha256(archive_bytes).hexdigest() == ZIP_SHA,
+                      "retained artifact ZIP bytes differ")
+              receipts = {}
+              receipt_hashes = {}
+              with zipfile.ZipFile(root / "artifact.zip") as archive:
+                  entries = archive.infolist()
+                  require(0 < len(entries) <= 128, "ZIP entry count exceeds bound")
+                  require(sum(item.file_size for item in entries) <= 64 * 1024 * 1024,
+                          "ZIP declared expansion exceeds bound")
+                  names = set()
+                  for item in entries:
+                      path = PurePosixPath(item.filename)
+                      require(item.filename not in names and len(item.filename) <= 512 and
+                              not path.is_absolute() and ".." not in path.parts and
+                              "\\" not in item.filename and not stat.S_ISLNK(item.external_attr >> 16) and
+                              not item.flag_bits & 1 and
+                              item.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED),
+                              "ZIP entry metadata is unsafe or unsupported")
+                      names.add(item.filename)
+                  require(set(MEMBERS).issubset(names), "fixed receipt member is absent")
+                  for name in MEMBERS:
+                      item = archive.getinfo(name)
+                      require(not item.is_dir() and 0 < item.file_size <= MAX_JSON,
+                              "fixed JSON member exceeds bound")
+                      with archive.open(item) as stream:
+                          raw = stream.read(MAX_JSON + 1)
+                      require(len(raw) == item.file_size and len(raw) <= MAX_JSON,
+                              "fixed JSON member size differs")
+                      receipts[name] = document(raw)
+                      receipt_hashes[name] = hashlib.sha256(raw).hexdigest()
+          
+              result = receipts["result.json"]
+              require(result.get("schema") == "laplace.activated-source-binding-proof/v1" and
+                      result.get("status") == "passed" and result.get("activation_unchanged") is True and
+                      result.get("package_id") == PACKAGE and
+                      result.get("expected_repository_commit") == DEPLOYMENT and
+                      result.get("original_main_conclusion") == "failure" and
+                      result.get("completed_phases") == [
+                          "exact_installed_source", "service", "http-readiness", "explicit",
+                          "automatic-first", "automatic-second", "gateway"],
+                      "outer installed proof identity or result differs")
+              service = receipts["service/result.json"]
+              observation = service.get("observation", {})
+              unit = observation.get("unit", {})
+              require(service.get("schema") == "laplace.cognition-service-lifecycle/v1" and
+                      service.get("action") == "restart" and service.get("status") == "passed" and
+                      type(service.get("uid")) is int and service["uid"] == 994 and
+                      service.get("cold_boot_proven") is False and
+                      observation.get("package_id") == PACKAGE and
+                      observation.get("repository_commit") == DEPLOYMENT and
+                      observation.get("activated_package_verified") is True and
+                      observation.get("scope") in ("user", "system") and
+                      unit.get("LoadState") == "loaded" and unit.get("ActiveState") == "active" and
+                      unit.get("UnitFileState") == "enabled" and unit.get("NeedDaemonReload") == "no" and
+                      unit.get("DropInPaths") == "", "retained service identity or active owner differs")
+              timings = observation.get("timings_seconds")
+              require(isinstance(timings, dict) and set(timings) == set(TIMINGS), "service timing fields differ")
+              timing_values = {name: seconds(timings[name]) for name in TIMINGS}
+              gateway = receipts["gateway.json"]
+              require(gateway.get("schema") == "laplace.installed-product-gateway-proof/v2" and
+                      gateway.get("status") == "passed" and gateway.get("package_id") == PACKAGE and
+                      gateway.get("completed_phases") == PHASES, "retained gateway result or phases differ")
+              elapsed = seconds(gateway.get("elapsed_seconds"))
+          
+              # Only these vetted fields leave the archive. No raw receipts, source text,
+              # checkpoints, prompts, SQL, command output, or signed download URLs are printed.
+              print(json.dumps({
+                  "schema": "laplace.retained-service-timing-observation/v1",
+                  "artifact": {"id": ARTIFACT, "name": NAME, "run_id": RUN, "head_sha": HEAD,
+                               "bytes": ZIP_BYTES, "zip_sha256": ZIP_SHA},
+                  "receipt_sha256": receipt_hashes,
+                  "package_id": PACKAGE,
+                  "deployment_commit": DEPLOYMENT,
+                  "service": {"status": service["status"], "scope": observation["scope"],
+                              "uid": service["uid"], "load_state": unit["LoadState"],
+                              "active_state": unit["ActiveState"], "unit_file_state": unit["UnitFileState"],
+                              "activated_package_verified": True, "cold_boot_proven": False,
+                              "timings_seconds": timing_values},
+                  "gateway": {"status": gateway["status"], "elapsed_seconds": elapsed,
+                              "completed_phases": gateway["completed_phases"]},
+              }, sort_keys=True, indent=2))
+          PY
