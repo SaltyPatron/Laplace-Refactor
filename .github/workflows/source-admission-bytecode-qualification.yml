@@ -1,297 +1,157 @@
-name: Installed complete Stockfish source acceptance
+name: Observe existing PostgreSQL service authority
 on:
   push:
     branches: [verify/source-admission-bytecode-20260916]
 permissions:
   contents: read
-concurrency:
-  group: installed-full-stockfish-source
-  cancel-in-progress: false
-env:
-  PYTHONDONTWRITEBYTECODE: "1"
-  GIT_OPTIONAL_LOCKS: "0"
-  LAPLACE_SOURCE_ESTATE_ROOT: /opt/laplace/sources
-  TMPDIR: /build/laplace/work
-  TMP: /build/laplace/work
-  TEMP: /build/laplace/work
-  STOCKFISH_SOURCE_OVERRIDE: ${{ vars.LAPLACE_STOCKFISH_SOURCE }}
-  CORPUS_EVIDENCE: /build/laplace/work/installed-full-stockfish-source/${{ github.run_id }}-${{ github.run_attempt }}
 jobs:
-  qualify:
+  observe:
     if: github.repository == 'SaltyPatron/Laplace-Refactor'
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 120
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      OBSERVATION: ${{ runner.temp }}/postgresql-service-capability-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: 9dfd692e6a848e015de212b79898fc759a890d1e
           fetch-depth: 0
           persist-credentials: false
-      - name: Retain exact candidate driver and prepare the thin caller
+      - name: Read only the exact PostgreSQL unit and declared lifecycle authority
         shell: bash
         run: |
           set -euo pipefail
-          umask 077
-          test "$(id -un)" = laplace-runner
-          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
-          test "$GITHUB_REF" = refs/heads/verify/source-admission-bytecode-20260916
           test "$(git rev-parse HEAD)" = 9dfd692e6a848e015de212b79898fc759a890d1e
-          test "$(git rev-parse HEAD^{tree})" = e4e597fbacf2ec5dac74254c598a84e79cec20af
-          test "$(git diff --name-only --no-renames 9dfd692e6a848e015de212b79898fc759a890d1e "$GITHUB_SHA")" = .github/workflows/source-admission-bytecode-qualification.yml
-          test -z "$(git status --porcelain --untracked-files=all)"
-          python3 -B - <<'PY'
-          import os,stat
-          from pathlib import Path
-          target=Path(os.environ["CORPUS_EVIDENCE"])
-          target.parent.mkdir(mode=0o700,exist_ok=True)
-          info=target.parent.lstat()
-          if not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.geteuid() or stat.S_IMODE(info.st_mode) not in (0o700,0o2700):
-              raise SystemExit("evidence parent is not a private owned directory")
-          target.mkdir(mode=0o700)
-          PY
-          git show "$GITHUB_SHA:.github/workflows/source-admission-bytecode-qualification.yml" > "$CORPUS_EVIDENCE/executed-workflow.yml"
-          git archive --format=tar HEAD tools/sources tools/product/build_workspace_retention.py tools/product/repository_inputs.py tools/delivery/product_activation_runner.py tools/delivery/product_gateway_live_proof.py tools/postgresql/clusterctl.py tools/postgresql/cluster_core.py tools/admit_source_guard.py tools/dependencies/chess_tools.py tools/dependencies/git_checkout.py tools/host/run-exclusive.sh dependencies/lock.json dependencies/tree-sitter-grammars.lock.json .github/workflows/product-path.yml .github/workflows/stockfish-corpus-acceptance.yml > "$CORPUS_EVIDENCE/candidate-source.tar"
-          cat > "$CORPUS_EVIDENCE/qualify.py" <<'PY'
-          import hashlib, json, os, subprocess, sys, time
-          from pathlib import Path
-          sys.path.insert(0,str(Path.cwd()/"tools"))
-          from sources import stockfish_corpus_acceptance as owner
-          
-          out=Path(os.environ["CORPUS_EVIDENCE"])
-          base="6347401133605adada0b3ebad06ef0051082e76a"
-          package="1117fa6aca97a6f1a0f49341cc95fca4281ad3dbaecc31aec2b0f4abf81a2d55"
-          aggregate="da9e8e07115f770cf0d17f24b31b0fd475a2df1d36e87b3c57f7eec496e2c11b"
-          candidate="9dfd692e6a848e015de212b79898fc759a890d1e"
-          began=time.monotonic()
-          report={"schema":"laplace.installed-full-source-operation/v1","status":"running",
-                  "candidate_commit":candidate,"installed_repository_commit":base,
-                  "installed_package_id":package,"expected_activation_aggregate_sha256":aggregate,
-                  "driver_scope":"candidate observer and orchestration; unchanged installed admission engine",
-                  "source_estate":os.environ["LAPLACE_SOURCE_ESTATE_ROOT"],
-                  "source_scope":"complete locked Stockfish Git tree, all 119 tracked files; no subset",
-                  "owner_timeout_seconds":5400,"native_engine_rebuilt":False,
-                  "service_restarted":False,"completed_phases":[]}
-          before=None
-          def save():
-              report["elapsed_seconds"]=time.monotonic()-began
-              owner.save(out/"operation-result.json",report)
-          def checked_activation(name):
-              value=owner.observe_activation(base,out/(name+".json"))
-              owner.require(value["package_id"]==package,"installed package differs from selected1117")
-              owner.require(any(item["document"].get("result_sha256")==aggregate
-                                for item in value["runner_receipts"]),"installed activation aggregate differs")
-              return value
-          def command(name,args,seconds):
-              report["active_phase"]=name
-              save()
-              with (out/(name+".stdout")).open("xb") as stdout,(out/(name+".stderr")).open("xb") as stderr:
-                  result=subprocess.run(args,stdout=stdout,stderr=stderr,timeout=seconds,check=False)
-                  stdout.flush();stderr.flush();os.fsync(stdout.fileno());os.fsync(stderr.fileno())
-              report[name+"_exit_code"]=result.returncode
-              owner.require(result.returncode==0,name+" failed; exact stdout/stderr and owner receipt are retained")
-              report["completed_phases"].append(name)
-              save()
-          def recover_installed_cluster():
-              # Authenticate the committed package and plan before the existing
-              # runner owner may start its already initialized PostgreSQL cluster.
-              owner.runner.require_runner()
-              cluster=owner.runner.clusterctl
-              contract=owner.load(Path("contracts/postgresql-cluster.json"))
-              gateway=owner.load(Path("contracts/product-activation-gateway.json"))
-              active=Path(contract["package"]["active_link"])
-              release=Path(contract["package"]["release_root"])/package
-              owner.require(active.is_symlink() and os.readlink(active)=="releases/"+package
-                            and active.resolve(strict=True)==release,
-                            "recovery active package differs")
-              evidence=Path(contract["instance"]["receipt_directory"])/"cluster-activation"/package
-              installation=owner.load(evidence/"package-installation.json")
-              result=owner.load(evidence/"activation-result.json")
-              plan_path=owner.runner.validate_cluster_result(result,package)
-              plan=owner.load(plan_path)
-              cluster.validate_plan(plan,contract)
-              owner.require(plan["plan_sha256"]==result["plan_sha256"]
-                            and str(result["system_identifier"])=="7682119102860556519",
-                            "recovery plan or original cluster identity differs")
-              metadata=owner.resolve_installed_package_metadata(gateway["product"],installation,plan,package)
-              manifest=metadata["manifest"]
-              owner.runner.validate_package_installation(
-                  installation,manifest,Path(installation["source_physical_root"]))
-              status=cluster.verify_package(manifest,contract,Path("/"))
-              owner.require(status.verified,"recovery package bytes failed: "+status.reason)
-              owner.validate_loaded_plan(plan,manifest,contract,status.files,release)
-              runtime=Path(plan["runtime_link"])
-              owner.require(runtime.is_symlink() and os.readlink(runtime)=="../releases/"+package
-                            and runtime.resolve(strict=True)==release
-                            and status.manifest_sha256==installation["package_manifest_sha256"]
-                            ==plan["package_manifest_sha256"],"recovery runtime or manifest differs")
-              fingerprint=owner.repository_inputs.repository_build_fingerprint_at_commit(Path.cwd(),base)
-              _,_,matches,_=owner.observe_native_receipts(
-                  Path(contract["instance"]["receipt_directory"]),base,package,manifest,
-                  installation,plan,result,fingerprint)
-              owner.require(any(document.get("result_sha256")==aggregate
-                                for _,document,_,_ in matches),"recovery activation aggregate differs")
-              # Read the existing control identity before any startup; no initdb,
-              # package installation, source reseed or receipt replacement occurs.
-              data=Path(plan["instance"]["data_directory"])
-              owner.require(data.is_dir() and not data.is_symlink()
-                            and data.resolve(strict=True)==data and data.stat().st_uid==os.geteuid(),
-                            "preserved cluster directory is not the exact owned physical path")
-              control_command=[str(release/"pgsql-18/bin/pg_controldata"),"-D",str(data)]
-              probe=subprocess.run(control_command,
-                  cwd="/",env=cluster.activation_environment(),capture_output=True,
-                  text=True,timeout=30,check=False)
-              control=cluster.command_execution_receipt("read-preserved-control-identity",control_command,probe)
-              owner.require(probe.returncode==0,"preserved cluster control identity is unreadable")
-              identifiers=[line.split(":",1)[1].strip() for line in probe.stdout.splitlines()
-                           if line.startswith("Database system identifier:")]
-              owner.require(identifiers==[str(result["system_identifier"])],
-                            "preserved cluster control identity differs")
-              owner.save(out/"recovery-authority.json",{
-                  "package_id":package,"activation_aggregate":aggregate,
-                  "plan_path":str(plan_path),"plan_sha256":plan["plan_sha256"],
-                  "manifest_path":metadata["manifest_path"],"manifest_sha256":status.manifest_sha256,
-                  "system_identifier":identifiers[0],"control_identity_command":control})
-              report["active_phase"]="recover-installed-postgresql"
-              save()
-              observed=owner.runner.ensure_cluster_running(plan,contract,result)
-              owner.save(out/"recovered-loaded-postgresql.json",observed)
-              report["postgresql_recovery_verified"]=True
-              report["recovered_postmaster_pid"]=observed["postmaster_pid"]
-              report["completed_phases"].append("recover-installed-postgresql")
-              save()
-          save()
-          try:
-              recover_installed_cluster()
-              before=checked_activation("activation-before")
-              report["completed_phases"].append("activation-before")
-              command("gateway-readiness",[sys.executable,"-B","tools/delivery/product_gateway_live_proof.py",
-                  "--output",str(out/"gateway-readiness"),"--package-id",package,
-                  "--readiness-only","--product-receipt",before["package_metadata"]["receipt_path"]],120)
-              command("gateway-semantic-proof",[sys.executable,"-B","tools/delivery/product_gateway_live_proof.py",
-                  "--output",str(out/"gateway-semantic-proof"),"--package-id",package],180)
-              # Extract and run the exact already-qualified four-row predicate.
-              workflow=Path(".github/workflows/product-path.yml").read_text()
-              block=workflow.split("\n  dev-bat-live-substrate:",1)[1]
-              opening='--arg package_id "$package_id" \''
-              predicate=block.split(opening,1)[1].split('\' "$result" >/dev/null',1)[0]
-              (out/"live-substrate-predicate.jq").write_text(predicate)
-              command("live-substrate",[str(Path(before["release"])/"bin/laplace-live-substrate"),"Aé中Ω"],30)
-              command("live-substrate-predicate",["jq","-e","--arg","package_id",package,predicate,
-                                               str(out/"live-substrate.stdout")],10)
-              report["live_substrate_result_sha256"]=owner.sha(out/"live-substrate.stdout")
-              raw=os.environ.get("STOCKFISH_SOURCE_OVERRIDE","").strip()
-              if raw:
-                  os.environ["LAPLACE_STOCKFISH_SOURCE"]=raw
-              selection=out/"stockfish-source-selection.json"
-              command("source-selection",[sys.executable,"-B","tools/dependencies/chess_tools.py",
-                                         "select-source","--selection-output",str(selection)],180)
-              command("complete-source-admission-and-repeat",
-                      [sys.executable,"-B","tools/sources/stockfish_corpus_acceptance.py",
-                       "--source-selection",str(selection),"--expected-sha",base,
-                       "--output",str(out/"corpus"),"--timeout","5400"],5700)
-              report["status"]="passed"
-          except Exception as error:
-              report.update(status="failed",error={"type":type(error).__module__+"."+type(error).__name__,
-                                                  "message":str(error)[:1600]})
-          finally:
-              if before is not None:
-                  try:
-                      after=checked_activation("activation-after")
-                      owner.require(owner.stable_activation(before)==owner.stable_activation(after),
-                                    "activated product changed during source acceptance")
-                      report["activation_unchanged"]=True
-                      report["completed_phases"].append("activation-after")
-                  except Exception as error:
-                      report.update(status="failed",activation_after_error={
-                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:1600]})
-              partial=out/"corpus/result.json"
-              if partial.is_file() and not partial.is_symlink():
-                  try:
-                      value=owner.load(partial)
-                      report["corpus"]={key:value.get(key) for key in
-                          ("status","canonical_corpus_admission_completed","zero_amplification_repeat_proven",
-                           "database_mutation_outcome")}
-                      report["corpus"]["error"]=str(value.get("error",""))[:1600]
-                      report["corpus"]["receipt_sha256"]=owner.sha(partial)
-                  except Exception as error:
-                      report.update(status="failed",retained_receipt_error={
-                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:1600]})
-              if not report.get("activation_unchanged"):
-                  report["status"]="failed"
-              save()
-          raise SystemExit(0 if report["status"]=="passed" else 1)
-          
-          PY
-          python3 -B - "$CORPUS_EVIDENCE/qualify.py" <<'PY'
-          import ast,sys
-          from pathlib import Path
-          ast.parse(Path(sys.argv[1]).read_text())
-          PY
-      - name: Execute the existing complete source owner under the shared host lock
-        shell: bash
-        run: |
-          set -euo pipefail
+          test "$(git diff --name-only --no-renames HEAD "$GITHUB_SHA")" = .github/workflows/source-admission-bytecode-qualification.yml
+          test "$(id -un)" = laplace-runner
           umask 077
-          set +e
-          timeout --signal=TERM --kill-after=20s 6600s \
-            bash tools/host/run-exclusive.sh \
-            python3 -B "$CORPUS_EVIDENCE/qualify.py" \
-            > "$CORPUS_EVIDENCE/operation.stdout" \
-            2> "$CORPUS_EVIDENCE/operation.stderr"
-          status=$?
-          set -e
-          printf '%s\n' "CORPUS_OPERATION_EXIT=$status" >> "$GITHUB_ENV"
-          exit "$status"
-      - name: Print bounded phase and exception evidence
-        if: always()
-        shell: bash
-        run: |
-          python3 -B - <<'PY'
-          import json,os,re
+          mkdir "$OBSERVATION"
+          (
+          timeout --signal=TERM --kill-after=5s 60s python3 - <<'PY'
+          import hashlib
+          import json
+          import os
           from pathlib import Path
-          evidence=Path(os.environ["CORPUS_EVIDENCE"])
-          path=evidence/"operation-result.json"
-          result={"operation_exit":os.environ.get("CORPUS_OPERATION_EXIT"),
-                  "operation_result_present":path.is_file()}
-          if path.is_file():
-              if path.is_symlink() or path.stat().st_size>131072:
-                  raise SystemExit("operation result is linked or oversized")
-              value=json.loads(path.read_text())
-              for key in ("schema","status","candidate_commit","installed_repository_commit",
-                          "installed_package_id","expected_activation_aggregate_sha256","driver_scope",
-                          "source_estate","source_scope","owner_timeout_seconds","native_engine_rebuilt",
-                          "service_restarted","completed_phases","active_phase","activation_unchanged",
-                          "live_substrate_result_sha256","elapsed_seconds","error","activation_after_error",
-                          "retained_receipt_error","corpus","postgresql_recovery_verified","recovered_postmaster_pid"):
-                  if key in value:
-                      result[key]=value[key]
-          partial=evidence/"corpus/result.json"
-          if partial.is_file() and not partial.is_symlink() and partial.stat().st_size<=1048576:
-              corpus=json.loads(partial.read_text())
-              failures=[]
-              for entry in corpus.get("commands",[])[-8:]:
-                  name=entry.get("name","")
-                  if entry.get("status") not in ("failed","deadline-exhausted-submission-outcome-unknown") or not re.fullmatch(r"[a-z0-9-]{1,64}",name):
-                      continue
-                  log=evidence/"corpus"/(name+".stderr.log")
-                  projection={key:entry.get(key) for key in ("name","status","exit_code","stderr_sha256")}
-                  if log.is_file() and not log.is_symlink():
-                      with log.open("rb") as stream:
-                          stream.seek(0,2)
-                          projection["stderr_bytes"]=stream.tell()
-                          stream.seek(max(0,stream.tell()-4096))
-                          projection["stderr_tail"]=stream.read(4096).decode("utf-8","replace")
-                  failures.append(projection)
-              result["failed_owner_commands"]=failures
-          print(json.dumps(result,sort_keys=True))
+          import stat
+          import subprocess
+          
+          UNIT = "laplace-refactor-postgresql.service"
+          SOURCE_BLOB = "7c11d67f63396cd49cdce38f5f5e35f812b81238"
+          source = Path("packaging/systemd") / UNIT
+          installed = Path("/etc/systemd/system") / UNIT
+          bootstrap = Path("/opt/laplace/receipts/bootstrap/host.json")
+          environment = {"LANG": "C", "LC_ALL": "C", "PATH": "/usr/sbin:/usr/bin:/sbin:/bin"}
+          result = {"schema": "laplace.postgresql-service-capability-observation/v1",
+                    "lifecycle_mutation_performed": False, "cold_boot_proven": False, "uid": os.geteuid(),
+                    "source_blob": SOURCE_BLOB}
+          stage = "source"
+          
+          def read_regular(path, maximum):
+              info = path.lstat()
+              if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
+                  raise ValueError("not a bounded physical regular file")
+              descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+              try:
+                  opened = os.fstat(descriptor)
+                  if (info.st_dev, info.st_ino) != (opened.st_dev, opened.st_ino):
+                      raise ValueError("file identity changed")
+                  data = os.read(descriptor, maximum + 1)
+                  after = os.fstat(descriptor)
+                  if (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns) != (
+                          after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                      raise ValueError("file changed during observation")
+                  if len(data) != opened.st_size or len(data) > maximum:
+                      raise ValueError("file length changed or exceeds bound")
+                  return data, {"uid": opened.st_uid, "gid": opened.st_gid,
+                                "mode": format(stat.S_IMODE(opened.st_mode), "04o"),
+                                "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+              finally:
+                  os.close(descriptor)
+          
+          def command(arguments):
+              value = subprocess.run(arguments, cwd="/", env=environment, timeout=8,
+                                     capture_output=True, check=False)
+              if len(value.stdout) > 16384 or len(value.stderr) > 16384:
+                  raise ValueError("command output exceeds bound")
+              return value
+          
+          try:
+              source_bytes, source_identity = read_regular(source, 65536)
+              framed = b"blob " + str(len(source_bytes)).encode("ascii") + b"\0" + source_bytes
+              if hashlib.sha1(framed).hexdigest() != SOURCE_BLOB:
+                  raise ValueError("source unit differs from pinned blob")
+              result["source"] = source_identity
+              stage = "installed-unit"
+              try:
+                  unit_bytes, unit_identity = read_regular(installed, 65536)
+                  result["installed_unit"] = {**unit_identity, "present": True,
+                      "matches_source": unit_bytes == source_bytes,
+                      "root_owned_mode_0644": unit_identity["uid"] == 0 and
+                          unit_identity["gid"] == 0 and unit_identity["mode"] == "0644"}
+              except FileNotFoundError:
+                  result["installed_unit"] = {"present": False}
+              stage = "system-manager"
+              fields = ("LoadState", "ActiveState", "SubState", "UnitFileState", "FragmentPath",
+                        "NeedDaemonReload", "User", "Group", "MainPID", "ControlGroup", "DropInPaths")
+              shown = command(["/usr/bin/systemctl", "show", UNIT, "--no-pager",
+                               "--property=" + ",".join(fields)])
+              values = dict(line.split("=", 1) for line in shown.stdout.decode("utf-8", "strict").splitlines()
+                            if "=" in line)
+              if any(key not in fields or len(value) > 2048 for key, value in values.items()):
+                  raise ValueError("unexpected or oversized manager property")
+              result["system_unit"] = {"exit_code": shown.returncode, "properties": values}
+              enabled = command(["/usr/bin/systemctl", "is-enabled", "--quiet", UNIT])
+              result["is_enabled"] = {"exit_code": enabled.returncode, "enabled": enabled.returncode == 0}
+              stage = "fixed-sudo-authority"
+              result["fixed_sudo_authority"] = {}
+              for action in ("start", "stop", "restart"):
+                  checked = command(["/usr/bin/sudo", "-n", "-l", "/usr/bin/systemctl", action, UNIT])
+                  result["fixed_sudo_authority"][action] = {
+                      "exit_code": checked.returncode, "permitted": checked.returncode == 0}
+              stage = "historical-bootstrap"
+              try:
+                  data, identity = read_regular(bootstrap, 65536)
+                  value = json.loads(data)
+                  if not isinstance(value, dict):
+                      raise ValueError("bootstrap is not an object")
+                  envelope = value.get("service_envelope", {})
+                  principal = value.get("service_identity", {})
+                  policy = value.get("sudo_policy", {})
+                  if not all(isinstance(item, dict) for item in (envelope, principal, policy)):
+                      raise ValueError("bootstrap public sections differ")
+                  def public(section, names):
+                      selected = {name: section[name] for name in names if name in section}
+                      if any(not isinstance(item, (str, int, bool, type(None))) or
+                             isinstance(item, str) and len(item) > 512 for item in selected.values()):
+                          raise ValueError("bootstrap public scalar differs")
+                      return selected
+                  result["historical_bootstrap"] = {
+                      "present": True, "file": identity,
+                      "identity": public(value, ("schema", "phase", "recovered_from_live_envelope",
+                                                 "recovered_repository_commit")),
+                      "service_identity": public(principal, ("user", "group", "uid", "gid")),
+                      "service_envelope": public(envelope, ("path", "sha256", "enabled", "started_by_bootstrap")),
+                      "sudo_policy": public(policy, ("path", "sha256", "expected_sha256", "verification",
+                                                     "service", "systemctl"))}
+              except FileNotFoundError:
+                  result["historical_bootstrap"] = {"present": False}
+              result["postmaster_process"] = {
+                  "observed": False,
+                  "reason": "Use the enclosing operator's authenticated activation observation; no new database query."}
+              result["status"] = "observed"
+          except Exception as error:
+              result.update(status="failed", failed_stage=stage, error_type=type(error).__name__)
+              print(json.dumps(result, sort_keys=True))
+              raise SystemExit(1)
+          print(json.dumps(result, sort_keys=True))
           PY
-      - name: Retain successful or partial exact owner evidence
+          ) | tee "$OBSERVATION/result.json"
+      - name: Retain actual observed authority or bounded failure
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: installed-full-stockfish-source-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.CORPUS_EVIDENCE }}/
-          if-no-files-found: warn
+          name: postgresql-service-capability-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.OBSERVATION }}/
+          if-no-files-found: error
           retention-days: 30
-          compression-level: 6
-          include-hidden-files: true
