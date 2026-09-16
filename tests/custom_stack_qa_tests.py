@@ -538,6 +538,7 @@ raise SystemExit(exit_code)
             "canonical_atom_owner_read_verified": True,
             "original_atom_owner_read_verified": True,
             "cross_epoch_source_view_verified": True,
+            "structural_frontier_exhaustion_verified": True,
             "original_same_entity_rle_nodes": 5,
             "original_same_entity_rle_carriers": 4,
             "same_physicality_distinct_observation_replay": True,
@@ -567,7 +568,10 @@ raise SystemExit(exit_code)
                   ("cold_backend_verified", 1), ("canonical_physicalities_unchanged", False),
                   ("cross_epoch_source_view_verified", False),
                   ("cross_epoch_source_view_verified", 1),
-                  ("cross_epoch_source_view_verified", "true")]
+                  ("cross_epoch_source_view_verified", "true"),
+                  ("structural_frontier_exhaustion_verified", False),
+                  ("structural_frontier_exhaustion_verified", 1),
+                  ("structural_frontier_exhaustion_verified", "true")]
         for field, value in cases:
             with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)

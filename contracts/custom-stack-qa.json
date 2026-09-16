@@ -57,6 +57,7 @@
           "canonical_atom_owner_read_verified": true,
           "original_atom_owner_read_verified": true,
           "cross_epoch_source_view_verified": true,
+          "structural_frontier_exhaustion_verified": true,
           "original_same_entity_rle_nodes": 5,
           "original_same_entity_rle_carriers": 4,
           "same_physicality_distinct_observation_replay": true,

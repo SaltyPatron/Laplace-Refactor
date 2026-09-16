@@ -296,7 +296,8 @@ BEGIN
 END $content_binding$;
 
 CREATE FUNCTION physicality_entity_contract.query(
-    selected_anchor bytea DEFAULT NULL,selected_goal bytea DEFAULT NULL)
+    selected_anchor bytea DEFAULT NULL,selected_goal bytea DEFAULT NULL,
+    maximum_depth integer DEFAULT 1)
 RETURNS laplace.cognition_observation_persisted_result
 LANGUAGE SQL VOLATILE AS $query$
     SELECT laplace.cognition_observation_execute_persisted(context.value,
@@ -306,7 +307,7 @@ LANGUAGE SQL VOLATILE AS $query$
             (context.value).epochs[@LAPLACE_PHYSICALITY_TEST_EVIDENCE_INDEX@],(context.value).authority_fingerprint,
             decode(repeat('35',32),'hex'),
             ROW(4::numeric,128::numeric,128::numeric,128::numeric,
-                67108864::numeric,1024::numeric,256::numeric,8::numeric,4,1,4,128)
+                67108864::numeric,1024::numeric,256::numeric,8::numeric,maximum_depth,1,4,128)
                 ::laplace.cognition_observation_search_budget,
             ROW(4::numeric,8::numeric,8::numeric,128::numeric,4::numeric,
                 1048576::numeric,1024::numeric,256::numeric,128,4)
@@ -317,6 +318,25 @@ LANGUAGE SQL VOLATILE AS $query$
     JOIN laplace.physicality_entity_node root
         ON root.view_id=first.view_id AND root.entity_id=first.root_entity_id
 $query$;
+
+-- This acceptance asks for a direct constituent. Its finite frontier is the
+-- declared one-hop boundary, not four levels of unrelated descriptor fields.
+-- Keep the formerly overbroad query as a real exhaustion/no-publication control.
+DO $structural_frontier_limit$
+DECLARE result laplace.cognition_observation_persisted_result;
+    before jsonb:=physicality_entity_contract.counts();
+BEGIN
+    result:=physicality_entity_contract.query(NULL,NULL,4);
+    IF (result.execution).status IS DISTINCT FROM 0
+       OR (result.execution).disposition IS DISTINCT FROM 6
+       OR (result.execution).obligation_disposition IS DISTINCT FROM 5
+       OR (result.execution).final_remaining_required_count IS DISTINCT FROM 1::numeric
+       OR cardinality(result.answers) IS DISTINCT FROM 0
+       OR result.provider_rows_fetched IS NULL OR result.provider_rows_fetched<=0
+       OR physicality_entity_contract.counts() IS DISTINCT FROM before THEN
+        RAISE EXCEPTION 'bounded descriptor frontier did not retain exact exhaustion without answers or writes: %',result;
+    END IF;
+END $structural_frontier_limit$;
 
 CREATE TABLE physicality_entity_contract.search AS
 SELECT physicality_entity_contract.query() AS result;
@@ -1393,6 +1413,7 @@ SELECT 'LAPLACE_QA_RECEIPT physicality_entity_reflection ' ||
     'canonical_atom_owner_read_verified',true,
     'original_atom_owner_read_verified',true,
     'cross_epoch_source_view_verified',true,
+    'structural_frontier_exhaustion_verified',true,
     'original_same_entity_rle_nodes',5,
     'original_same_entity_rle_carriers',4,
     'same_physicality_distinct_observation_replay',true,
