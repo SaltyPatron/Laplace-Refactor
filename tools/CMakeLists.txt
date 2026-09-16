@@ -141,6 +141,7 @@ install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/sources/git_profile.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/sources/verified_git.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/sources/qualify_grammar.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sources/runtime_state.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}/sources")
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/git_checkout.py"
     DESTINATION "${CMAKE_INSTALL_BINDIR}/dependencies")
