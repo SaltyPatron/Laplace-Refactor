@@ -1,0 +1,78 @@
+name: Persistent PostgreSQL system owner controls
+on:
+  push:
+    branches: [qualify/cmake-source-443-20260916]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      SOURCE_SHA: bc6ecc54f2e64a9922c4df3c1356d208b5cacb60
+      SOURCE_TREE: d340139e294fc03bdbfb5e3fc4ace9dcb560a831
+      TMPDIR: /build/laplace/work/pg-service
+      TMP: /build/laplace/work/pg-service
+      TEMP: /build/laplace/work/pg-service
+      EVIDENCE: /build/laplace/recovery/pg-service-owner
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 2
+      - name: Prepare exact source
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /build/laplace
+          sudo chown "$(id -u):$(id -g)" /build/laplace
+          mkdir -p "$TMPDIR" "$EVIDENCE" /build/laplace/worktrees
+          test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
+          git worktree add --detach /build/laplace/worktrees/pg-service-owner "$SOURCE_SHA"
+          python3 -c 'import yaml; print("PyYAML " + yaml.__version__)'
+          printf '%s\n' "$SOURCE_SHA $SOURCE_TREE" > "$EVIDENCE/source.txt"
+      - name: Execute existing lifecycle and caller controls
+        run: |
+          set -euo pipefail
+          cd /build/laplace/worktrees/pg-service-owner
+          status=0
+          qualify() {
+            local label="$1"
+            shift
+            set +e
+            timeout --signal=TERM --kill-after=10s 300s "$@" 2>&1 | tee "$EVIDENCE/$label.log"
+            local result=$?
+            set -e
+            printf '%s\t%s\n' "$label" "$result" >> "$EVIDENCE/exit-codes.tsv"
+            if [ "$result" -ne 0 ]; then status=1; fi
+          }
+          qualify host-evidence python3 tests/chess_host_evidence_tests.py
+          bash -n tools/host/run-exclusive.sh
+          python3 - <<'PY' 2>&1 | tee "$EVIDENCE/python-ast.log"
+          import ast, json
+          from pathlib import Path
+          paths = [
+              "tools/postgresql/service_lifecycle.py", "tools/postgresql/clusterctl.py",
+              "tools/delivery/product_activation_runner.py", "tools/delivery/product_cluster_upgrade.py",
+              "tools/delivery/product_predecessor_adoption.py", "tools/delivery/product_activation_reconcile.py",
+              "tools/delivery/install_product_activation_gateway.py", "tools/delivery/product_distribution_core.py",
+              "tools/sources/stockfish_corpus_acceptance.py", "tests/postgresql_cluster_tests.py",
+              "tests/product_activation_runner_tests.py", "tests/chess_host_evidence_tests.py",
+          ]
+          for path in paths:
+              ast.parse(Path(path).read_text())
+          json.loads(Path("contracts/product-activation-gateway.json").read_text())
+          print("PASS 12 Python ASTs and gateway JSON; no service/native execution claimed")
+          PY
+          test -z "$(git status --porcelain --untracked-files=all)"
+          printf '%s\n' "PASS clean source worktree" | tee "$EVIDENCE/source-clean.txt"
+          exit "$status"
+      - name: Retain lifecycle control evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pg-service-owner-controls
+          path: /build/laplace/recovery/pg-service-owner/
+          if-no-files-found: error
+          retention-days: 30
+
