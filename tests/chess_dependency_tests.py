@@ -1014,7 +1014,8 @@ class ChessDependencies(unittest.TestCase):
             path.write_text(f"# {name} fixture\n")
         version = sdk / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
         version.parent.mkdir(parents=True)
-        version.write_text('set(PACKAGE_VERSION "6.11.2")\n')
+        version.write_text('include("${CMAKE_CURRENT_LIST_DIR}/Qt6ConfigVersionImpl.cmake")\n')
+        version.with_name("Qt6ConfigVersionImpl.cmake").write_text('set(PACKAGE_VERSION "6.11.2")\n')
         suffix, lead = (".dll", "") if platform.system() == "Windows" else (".dylib", "lib") if platform.system() == "Darwin" else (".so", "lib")
         plugin = sdk / "plugins/platforms" / (lead + "qoffscreen" + suffix)
         plugin.parent.mkdir(parents=True)
@@ -1065,6 +1066,54 @@ class ChessDependencies(unittest.TestCase):
         self.assertEqual(command + ["-platform", "offscreen", "--version"], receipt["command"])
         self.assertGreaterEqual(receipt["elapsed_seconds"], 0)
         self.assertEqual([], list(self.directory.glob("cutechess-gui-probe-*")))
+
+    def test_qt_environment_sdk_reuse_reads_actual_version_wrapper(self) -> None:
+        sdk = self.gui_sdk_fixture()
+        arguments = argparse.Namespace(prefix=self.directory / "installation", offline=True)
+        variables = {"LAPLACE_QT_PREFIX": "", "QT_ROOT_DIR": "", "CMAKE_PREFIX_PATH": ""}
+        with patch.object(TOOLS, "execute", side_effect=AssertionError("SDK reuse must not execute acquisition")), \
+             patch.object(TOOLS, "acquire", side_effect=AssertionError("SDK reuse must not download")):
+            for name in variables:
+                with self.subTest(variable=name), patch.dict(os.environ, {**variables, name: str(sdk)}):
+                    self.assertEqual(sdk.resolve(), TOOLS.acquire_qt(arguments, self.selected, self.artifacts))
+            implementation = sdk / "lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake"
+            with patch.dict(os.environ, {**variables, "LAPLACE_QT_PREFIX": str(sdk)}):
+                implementation.write_text('set(PACKAGE_VERSION "6.10.0")\n')
+                with self.assertRaisesRegex(TOOLS.ChessToolError, "Qt SDK is missing|acquisition is not selected"):
+                    TOOLS.acquire_qt(arguments, self.selected, self.artifacts)
+                implementation.unlink()
+                with self.assertRaisesRegex(TOOLS.ChessToolError, "Qt SDK is missing|acquisition is not selected"):
+                    TOOLS.acquire_qt(arguments, self.selected, self.artifacts)
+
+    def test_gui_version_reads_real_qt_wrapper_and_retains_exact_inputs(self) -> None:
+        sdk = self.gui_sdk_fixture()
+        wrapper = sdk / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
+        implementation = wrapper.with_name("Qt6ConfigVersionImpl.cmake")
+        wrapper_bytes = wrapper.read_bytes()
+        wrapped = TOOLS.qt_gui_inventory(sdk)
+        self.assertEqual("6.11.2", wrapped["qt_version"])
+        self.assertEqual([{"path": str(path), "sha256": TOOLS.digest(path)}
+                          for path in (wrapper, implementation)], wrapped["version_files"])
+        # Compatible SDKs may use CMake's version file directly.
+        wrapper.write_bytes(implementation.read_bytes())
+        implementation.unlink()
+        direct = TOOLS.qt_gui_inventory(sdk)
+        self.assertEqual("6.11.2", direct["qt_version"])
+        self.assertEqual([{"path": str(wrapper), "sha256": TOOLS.digest(wrapper)}],
+                         direct["version_files"])
+        wrapper.write_bytes(wrapper_bytes)
+        with patch.object(TOOLS.subprocess, "run", side_effect=AssertionError("bad version must refuse before launch")):
+            with self.assertRaises(FileNotFoundError):
+                TOOLS.probe_cutechess_gui(["unlaunched"], sdk)
+            for content, message in (('set(PACKAGE_VERSION "6.7.3")\n', "requires Qt"),
+                                     ('# no declared version\n', "missing or conflicting")):
+                implementation.write_text(content)
+                with self.assertRaisesRegex(TOOLS.ChessToolError, message):
+                    TOOLS.probe_cutechess_gui(["unlaunched"], sdk)
+            implementation.write_text('set(PACKAGE_VERSION "6.11.2")\n')
+            wrapper.write_bytes(wrapper_bytes + b'set(PACKAGE_VERSION "6.10.0")\n')
+            with self.assertRaisesRegex(TOOLS.ChessToolError, "missing or conflicting"):
+                TOOLS.probe_cutechess_gui(["unlaunched"], sdk)
 
     def test_gui_inventory_records_both_split_and_unified_wayland_plugins(self) -> None:
         with patch.object(TOOLS.platform, "system", return_value="Linux"):
@@ -1210,7 +1259,13 @@ class ChessDependencies(unittest.TestCase):
             build_root=self.directory / "build", qt_prefix=sdk, jobs=1, offline=True, cutechess_gui=False)
         original_read = TOOLS.json_read
         def fixture_lock(path):
-            return {"dependencies": {"cutechess": entry}} if path == TOOLS.ROOT / "dependencies/lock.json" else original_read(path)
+            document = original_read(path)
+            if path == TOOLS.ROOT / "dependencies/lock.json":
+                # main() validates the full release selection before direct run.
+                # Retain unrelated tools and CuteChess release metadata while
+                # replacing only this fixture's source identity.
+                document["dependencies"]["cutechess"].update(entry)
+            return document
         with patch.object(TOOLS, "SCRATCH", self.directory), patch.object(TOOLS, "json_read", side_effect=fixture_lock), \
              patch.object(TOOLS, "tool_source", return_value=source):
             cli_only = TOOLS.build_tools(arguments, self.selected, self.artifacts)

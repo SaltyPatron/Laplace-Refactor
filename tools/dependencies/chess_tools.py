@@ -682,6 +682,26 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
     return result
 
 
+def qt_package_version(prefix: Path) -> tuple[str, list[Path]]:
+    """Read exact selected-SDK version files without evaluating CMake."""
+    version_file = prefix / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
+    version_paths = [version_file]
+    version_text = version_file.read_text(encoding="utf-8")
+    # Current Qt packages wrap CMake's generated version implementation.
+    # Read only this fixed sibling; never execute or follow arbitrary CMake code.
+    if re.search(r'(?m)^\s*include\(\s*"\$\{CMAKE_CURRENT_LIST_DIR\}/Qt6ConfigVersionImpl\.cmake"\s*\)',
+                 version_text):
+        implementation = version_file.with_name("Qt6ConfigVersionImpl.cmake")
+        version_paths.append(implementation)
+        version_text += "\n" + implementation.read_text(encoding="utf-8")
+    versions = re.findall(r'(?m)^\s*set\(\s*PACKAGE_VERSION\s+"([0-9]+\.[0-9]+\.[0-9]+)"\s*\)',
+                          version_text)
+    require(bool(versions) and len(set(versions)) == 1,
+            "Qt package version is missing or conflicting")
+    version = versions[0]
+    return version, version_paths
+
+
 def acquire_qt(arguments: argparse.Namespace, selected: dict, artifacts: dict) -> Path:
     """Acquire the SDK prerequisite; Cute Chess itself is always built from source."""
     sdk = selected["qt"]
@@ -693,8 +713,11 @@ def acquire_qt(arguments: argparse.Namespace, selected: dict, artifacts: dict) -
         candidate = Path(value)
         version_file = candidate / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
         if version_file.is_file() and (candidate / "lib/cmake/Qt6Core5Compat/Qt6Core5CompatConfig.cmake").is_file() and (candidate / "lib/cmake/Qt6Svg/Qt6SvgConfig.cmake").is_file():
-            version = re.search(r'set\(PACKAGE_VERSION "([0-9.]+)"\)', version_file.read_text())
-            if version and version.group(1) == sdk["version"]:
+            try:
+                version, _ = qt_package_version(candidate)
+            except (ChessToolError, OSError, ValueError):
+                continue
+            if version == sdk["version"]:
                 return candidate.resolve()
     platform_key = f"{platform.system()}-{platform.machine()}"
     provider = sdk["platforms"].get(platform_key)
@@ -762,9 +785,8 @@ def qt_gui_inventory(prefix: Path) -> dict:
     module_paths = {name: prefix / f"lib/cmake/Qt6{name}/Qt6{name}Config.cmake" for name in modules}
     for name, path in module_paths.items():
         require(path.is_file(), f"Cute Chess GUI Qt module is missing: {name} ({path})")
-    version_file = prefix / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
-    version = re.search(r'set\(PACKAGE_VERSION "([0-9.]+)"\)', version_file.read_text())
-    require(version is not None and tuple(map(int, version.group(1).split("."))) >= (6, 8, 0),
+    version, version_paths = qt_package_version(prefix)
+    require(tuple(map(int, version.split("."))) >= (6, 8, 0),
             "Cute Chess GUI requires Qt >=6.8")
     system = platform.system()
     suffix, lead = (".dll", "") if system == "Windows" else (".dylib", "lib") if system == "Darwin" else (".so", "lib")
@@ -788,7 +810,8 @@ def qt_gui_inventory(prefix: Path) -> dict:
         plugins[name] = {"path": str(path), "present": present,
                          "sha256": digest(path) if present else None}
     require(plugins["offscreen"]["present"], "Cute Chess GUI offscreen platform plugin is missing")
-    return {"qt_version": version.group(1),
+    return {"qt_version": version,
+            "version_files": [{"path": str(path), "sha256": digest(path)} for path in version_paths],
             "modules": {name: {"path": str(path), "sha256": digest(path)} for name, path in module_paths.items()},
             "module_identity_scope": "CMake package configuration files; Qt shared-library binaries are not hashed",
             "plugins": plugins, "scope": "file inventory; plugin presence alone is not loadability"}
