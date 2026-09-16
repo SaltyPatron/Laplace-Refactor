@@ -80,8 +80,7 @@ class SourceRuntimeSchemaTests(unittest.TestCase):
         for name in ("initdb", "pg_ctl", "postgres", "psql"):
             if not (cls.pg / name).is_file() or not os.access(cls.pg / name, os.X_OK):
                 raise RuntimeError("missing selected PostgreSQL executable: " + name)
-        cls.temporary = tempfile.TemporaryDirectory(prefix="source-state-", dir=scratch)
-        cls.root = Path(cls.temporary.name)
+        cls.root = Path(tempfile.mkdtemp(prefix="source-state-", dir=scratch))
         cls.data, cls.socket = cls.root / "data", cls.root / "s"
         cls.socket.mkdir(mode=0o700)
         if len(os.fsencode(cls.socket)) > 80:
@@ -157,7 +156,7 @@ class SourceRuntimeSchemaTests(unittest.TestCase):
             if result.returncode:
                 raise RuntimeError("owned PostgreSQL fixture did not stop; workspace retained")
             cls.started = False
-        cls.temporary.cleanup()
+        shutil.rmtree(cls.root)
 
     def insert(self, table, overrides):
         values = {}
