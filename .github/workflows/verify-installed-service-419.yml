@@ -10,14 +10,16 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
       - name: Verify installed package and execute existing service and HTTP checks
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
           test "$(id -un)" = laplace-runner
           test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
-          test "$(git rev-parse HEAD^)" = 419cbcb4fd4c569706ee3c253ab4775f5fcaebad
-          test "$(git diff --name-only HEAD^ HEAD)" = .github/workflows/verify-installed-service-419.yml
+          git merge-base --is-ancestor 419cbcb4fd4c569706ee3c253ab4775f5fcaebad HEAD
+          test "$(git diff --name-only 419cbcb4fd4c569706ee3c253ab4775f5fcaebad HEAD)" = .github/workflows/verify-installed-service-419.yml
           git diff --exit-code --quiet
           git diff --cached --exit-code --quiet
           export output="$RUNNER_TEMP/installed-service-419-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
