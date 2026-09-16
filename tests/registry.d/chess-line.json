@@ -1,0 +1,71 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "ChessLine.BatchReusesExactContentWithoutManufacturingOccurrences",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "native canonical P/M/LINE content through existing composition owner",
+        "identity, physicality and exact ordered trajectory reuse without PLAYING occurrence"
+      ]
+    },
+    {
+      "ctest_name": "ChessLine.TranspositionSharesEndpointAndActionsButPreservesExactPaths",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "native canonical P/M/LINE content through existing composition owner",
+        "identity, physicality and exact ordered trajectory reuse without PLAYING occurrence"
+      ]
+    },
+    {
+      "ctest_name": "ChessLine.CommonComposerPreservesExactAlternatingTrajectoryAndKnownChildReplay",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "native canonical P/M/LINE content through existing composition owner",
+        "identity, physicality and exact ordered trajectory reuse without PLAYING occurrence"
+      ]
+    },
+    {
+      "ctest_name": "ChessLine.SourceAndGeometryDoNotSaltContentAndNumeralsUseCommonIdentity",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "native canonical P/M/LINE content through existing composition owner",
+        "identity, physicality and exact ordered trajectory reuse without PLAYING occurrence"
+      ]
+    },
+    {
+      "ctest_name": "ChessLine.CastlingPromotionAndEnPassantPreserveExactNativeBoardDelta",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "native canonical P/M/LINE content through existing composition owner",
+        "identity, physicality and exact ordered trajectory reuse without PLAYING occurrence"
+      ]
+    },
+    {
+      "ctest_name": "ChessLine.LimitsAndMalformedInputsPublishNoPartialPlan",
+      "evidence_targets": [
+        "LP-TEST-BULK-DETERMINISM",
+        "LP-TEST-IDENTITY-NEGATIVE"
+      ],
+      "covered_dimensions": [
+        "native canonical P/M/LINE content through existing composition owner",
+        "identity, physicality and exact ordered trajectory reuse without PLAYING occurrence"
+      ]
+    }
+  ]
+}

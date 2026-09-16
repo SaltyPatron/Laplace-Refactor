@@ -3025,6 +3025,13 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/source_admission_active_control_mutation.sql"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/source_admission_active_control_mutation.sql"
         COPYONLY)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/chess_line_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/chess_line_contract.sql" COPYONLY)
+    # Bind the optional native chess/PG carrier to actual targets from this
+    # configured common build; it must not rediscover an ambient engine/hash ABI.
+    file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/chess-postgres-targets.json"
+        CONTENT "{\n  \"schema\": \"laplace.chess-postgres-native-targets/v1\",\n  \"source_root\": \"${CMAKE_SOURCE_DIR}\",\n  \"native_engine\": \"$<TARGET_FILE:laplace_engine>\",\n  \"blake3_library\": \"$<TARGET_FILE:BLAKE3::blake3>\",\n  \"blake3_include\": \"${LAPLACE_BLAKE3_SOURCE}\",\n  \"pg_config\": \"${LAPLACE_PG_CONFIG}\",\n  \"pg_bindir\": \"${LAPLACE_POSTGRES_BINDIR}\",\n  \"pg_include\": \"${LAPLACE_POSTGRES_INCLUDE_CLIENT}\",\n  \"control_root\": \"$<TARGET_FILE_DIR:laplace_pg>/share\",\n  \"module\": \"$<TARGET_FILE:laplace_pg>\",\n  \"source_probe\": \"$<TARGET_FILE:laplace_postgres_native_receipt_probe>\",\n  \"sql\": \"${CMAKE_CURRENT_BINARY_DIR}/postgres/chess_line_contract.sql\",\n  \"unicode_root\": \"${LAPLACE_UNICODE_SOURCE_ROOT}\",\n  \"sanitizer_preload\": \"${laplace_sanitizer_preload}\"\n}\n")
     add_executable(laplace_postgres_native_receipt_probe
         postgres/native_receipt_probe.cpp)
     target_link_libraries(laplace_postgres_native_receipt_probe PRIVATE
@@ -3731,3 +3738,10 @@ if(UNIX)
         LABELS "implementation;package;dependencies"
         RUN_SERIAL TRUE)
 endif()
+
+add_executable(laplace_chess_line_tests chess_line_tests.cpp)
+target_link_libraries(laplace_chess_line_tests PRIVATE Laplace::Composition GTest::gtest_main)
+target_compile_options(laplace_chess_line_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+gtest_discover_tests(laplace_chess_line_tests PROPERTIES
+    LABELS "implementation;chess;composition;identity" TIMEOUT 30)

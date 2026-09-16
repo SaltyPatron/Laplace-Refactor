@@ -7,13 +7,15 @@ import hashlib
 from http.client import HTTPConnection, HTTPException, HTTPResponse
 import importlib.util
 import io
+import os
 import json
 from pathlib import Path
 import re
 import stat
 import sys
 import time
-from typing import Any
+from typing import Any, Callable
+import uuid
 from urllib import error, request
 from urllib.parse import urlsplit
 
@@ -456,7 +458,8 @@ def prove_source_ingestion(package_id: str) -> dict[str, Any]:
     return {"catalog_boundary_sha256": catalog.get("boundary_sha256"), "source_id": source_id, "plan_id": plan_id, "job_id": job_id, "idempotent_retry_same_job": True, "state": job.get("state"), "result_sha256": result_sha, "admission_schema": result.get("schema"), "readback_schema": readback.get("schema"), "entity_count": result.get("entity_count"), "physicality_count": result.get("physicality_count"), "attestation_count": result.get("attestation_count")}
 
 
-def prove(output: Path, package_id: str, *, include_source_ingestion: bool = False) -> None:
+def execute_gateway_proof(package_id: str, *, include_source_ingestion: bool,
+                          retain: Callable[[str, Any], None]) -> dict[str, Any]:
     status, content_type, index = http("GET", "/", timeout=10.0)
     if status != 200 or "text/html" not in content_type or b"Laplace" not in index:
         raise RuntimeError("installed browser root did not return the Laplace application")
@@ -473,10 +476,12 @@ def prove(output: Path, package_id: str, *, include_source_ingestion: bool = Fal
         if marker not in app:
             raise RuntimeError(f"installed browser application lacks required route marker {marker!r}")
 
+    retain("browser", {"index": "explore-chat-operator", "app": "ok"})
     health = json_http("GET", "/api/v1/health", timeout=10.0)
     if health.get("schema") != "laplace.product.health/v1" or health.get("status") != "ready":
         raise RuntimeError(f"gateway health is not ready: {health}")
 
+    retain("health", health)
     descriptors = json_http("GET", "/api/v1/descriptors", timeout=10.0)
     if descriptors.get("schema") != "laplace.product.descriptors/v1":
         raise RuntimeError("gateway descriptors schema is invalid")
@@ -490,19 +495,28 @@ def prove(output: Path, package_id: str, *, include_source_ingestion: bool = Fal
     if not isinstance(source_descriptor, dict) or source_descriptor.get("caller_supplied_server_path") is not False or source_descriptor.get("idempotent_durable_jobs") is not True:
         raise RuntimeError("gateway descriptors do not expose the selected durable source-ingestion boundary")
 
+    retain("descriptors", descriptors)
     explore = prove_explore()
+    retain("explore", explore)
 
-    session = f"proof-{package_id[:24]}"
+    session = f"proof-{package_id[:24]}-{uuid.uuid4().hex}"
     first = json_http("POST", "/api/v1/cognition", {"prompt": "AA", "session": session})
     require_native_success(first, "gateway cognition turn 0")
     if first.get("turn_ordinal") != 0:
         raise RuntimeError(f"gateway cognition turn 0 reported ordinal {first.get('turn_ordinal')}")
+    retain("cognition_turn_0", {"session": session, "status": first.get("status"),
+        "ordinal": first.get("turn_ordinal"), "checkpoint": first.get("next_checkpoint_fingerprint"),
+        "output_utf8": first.get("output_utf8")})
     second = json_http("POST", "/api/v1/cognition", {"prompt": "AAA", "session": session})
     require_native_success(second, "gateway cognition turn 1")
     if second.get("turn_ordinal") != 1 or second.get("continued") is not True:
         raise RuntimeError(f"gateway cognition did not continue the installed session: {second}")
     if first.get("next_checkpoint_fingerprint") == second.get("next_checkpoint_fingerprint"):
         raise RuntimeError("gateway cognition did not advance the durable checkpoint")
+
+    retain("cognition_turn_1", {"session": session, "status": second.get("status"),
+        "ordinal": second.get("turn_ordinal"), "continued": second.get("continued"),
+        "checkpoint": second.get("next_checkpoint_fingerprint"), "output_utf8": second.get("output_utf8")})
 
     # The compatibility adapter currently preserves one exact user message only.
     # Client-supplied system/developer/assistant history is intentionally unsupported
@@ -519,23 +533,29 @@ def prove(output: Path, package_id: str, *, include_source_ingestion: bool = Fal
     message = choices[0].get("message") if isinstance(choices[0], dict) else None
     if not isinstance(message, dict) or message.get("role") != "assistant" or not isinstance(message.get("content"), str) or not message.get("content"):
         raise RuntimeError("OpenAI-compatible chat returned no assistant text")
+    retain("openai_nonstream", {"object": chat.get("object"), "model": chat.get("model"),
+        "assistant_content": message.get("content")})
     streamed = stream_chat(chat_messages)
+    retain("openai_stream", streamed)
 
     initialized = json_http("POST", "/mcp", {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}}, timeout=10.0)
     if initialized.get("jsonrpc") != "2.0" or not isinstance(initialized.get("result"), dict):
         raise RuntimeError("MCP initialize response is invalid")
+    retain("mcp_initialize", {"jsonrpc": initialized.get("jsonrpc"), "result": initialized["result"]})
     tools = json_http("POST", "/mcp", {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}, timeout=10.0)
     tool_values = tools.get("result", {}).get("tools") if isinstance(tools.get("result"), dict) else None
     names = {item.get("name") for item in tool_values if isinstance(item, dict)} if isinstance(tool_values, list) else set()
     required_tools = {"laplace.query", "laplace.cognition", "laplace.source_catalog", "laplace.source_preflight", "laplace.source_admit", "laplace.source_job", "laplace.sql"}
     if not required_tools.issubset(names):
         raise RuntimeError(f"MCP tool surface is incomplete: {sorted(names)}")
+    retain("mcp_tools", {"tools": sorted(names)})
     query = json_http("POST", "/mcp", {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "laplace.query", "arguments": {"collection": "summary"}}}, timeout=60.0)
     result = query.get("result")
     structured = result.get("structuredContent") if isinstance(result, dict) else None
     if not isinstance(structured, dict) or structured.get("schema") != "laplace.inspect.summary/v1":
         raise RuntimeError("MCP laplace.query did not return live canonical substrate state")
 
+    retain("mcp_query", {"query_schema": structured.get("schema")})
     source_ingestion = (prove_source_ingestion(package_id) if include_source_ingestion else
                         {"disposition": "not_requested", "reason": "corpus acceptance requires explicit selection"})
     proof = {
@@ -564,9 +584,45 @@ def prove(output: Path, package_id: str, *, include_source_ingestion: bool = Fal
         "source_ingestion": source_ingestion,
         "mcp": {"tools": sorted(names), "query_schema": structured.get("schema")},
     }
+    return proof
+
+
+def prove(output: Path, package_id: str, *, include_source_ingestion: bool = False) -> None:
+    """Retain completed phases and the actual failure without reusing old proof."""
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(proof, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps(proof, sort_keys=True))
+    report: dict[str, Any] = {
+        "schema": "laplace.installed-product-gateway-proof/v2",
+        "package_id": package_id, "status": "running", "completed_phases": [],
+        "started_at": int(time.time()), "partial": {},
+    }
+    started = time.monotonic()
+    with output.open("x", encoding="utf-8") as receipt:
+        def save() -> None:
+            receipt.seek(0)
+            receipt.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
+            receipt.truncate()
+            receipt.flush()
+            os.fsync(receipt.fileno())
+
+        def retain(phase: str, value: Any) -> None:
+            report["partial"][phase] = value
+            report["completed_phases"].append(phase)
+            report["elapsed_seconds"] = time.monotonic() - started
+            save()
+
+        save()
+        try:
+            report.update(execute_gateway_proof(
+                package_id, include_source_ingestion=include_source_ingestion, retain=retain))
+            report["status"] = "passed"
+        except BaseException as error:
+            report["status"] = "failed"
+            report["failure"] = {"type": type(error).__name__, "message": str(error)[:2000]}
+            raise
+        finally:
+            report["elapsed_seconds"] = time.monotonic() - started
+            save()
+    print(json.dumps(report, sort_keys=True))
 
 
 def main() -> int:

@@ -83,6 +83,166 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
         self.assertEqual(list(long_scratch.iterdir()), [])
         self.assertFalse((self.root / "initdb-arguments").exists())
 
+    def chess_harness(self, *, bootstrap_status: int = 0, stalled_probe: bool = False,
+                      wal_growth_bytes: int = 0
+                      ) -> tuple[list[str], dict[str, str], Path]:
+        """Protocol-only stand-ins; no canonical tuples or passing acceptance are fabricated."""
+        binaries = self.root / "chess-pg"
+        binaries.mkdir()
+        engine = self.root / "engine"
+        engine.mkdir()
+        (engine / "liblaplace_engine.so").write_bytes(b"unit-harness-not-a-native-engine")
+        scratch = self.root / "scratch"
+        scratch.mkdir()
+        evidence = self.root / "evidence"
+        evidence.mkdir()
+        unicode_root = self.root / "unicode"
+        unicode_root.mkdir()
+        for name in ("manifest.json", "source.pgn", "fixture.sql"):
+            (self.root / name).write_text("unit harness transport only\n")
+        events = self.root / "events.jsonl"
+        program = (
+            "#!" + sys.executable + "\n"
+            "import json, os, pathlib, sys, time\n"
+            "name=pathlib.Path(sys.argv[0]).name\n"
+            "args=sys.argv[1:]\n"
+            "with open(os.environ['LAPLACE_TEST_EVENTS'],'a') as log:\n"
+            "    log.write(json.dumps({'program':name,'args':args})+'\\n')\n"
+            "if name=='pg_config':\n"
+            "    print(os.environ['LAPLACE_TEST_CLIENT_LIBRARY'])\n"
+            "elif name=='initdb':\n"
+            "    data=pathlib.Path(args[args.index('-D')+1]); data.mkdir()\n"
+            "    (data/'pg_wal').mkdir()\n"
+            "    (data/'postmaster.pid').write_text('2147483647\\n')\n"
+            "elif name=='pg_ctl':\n"
+            "    if 'start' in args:\n"
+            "        pathlib.Path(args[args.index('-l')+1]).write_text('unit harness server\\n')\n"
+            "elif name=='source-probe':\n"
+            "    print('TABULAR_ARTIFACT_GRAPH=aa\\nTABULAR_ARCHIVE_ID=bb\\nTABULAR_TEXT_ID=cc')\n"
+            "elif name=='psql':\n"
+            "    if any(value.endswith('/unicode_root_contract.sql') for value in args):\n"
+            "        status=int(os.environ['LAPLACE_TEST_BOOTSTRAP_STATUS'])\n"
+            "        if status: sys.exit(status)\n"
+            "        for prefix,size in (('unicode_tier0_path=',762586574),"
+            "('unicode_reverse_path=',117440896)):\n"
+            "            value=next(value[len(prefix):] for value in args if value.startswith(prefix))\n"
+            "            with open(value,'wb') as output: output.truncate(size)\n"
+            "elif name=='chess-probe':\n"
+            "    wal_bytes=int(os.environ['LAPLACE_TEST_WAL_GROWTH_BYTES'])\n"
+            "    if wal_bytes:\n"
+            "        calls=[json.loads(line) for line in pathlib.Path(os.environ['LAPLACE_TEST_EVENTS']).read_text().splitlines()]\n"
+            "        initialization=next(call['args'] for call in calls if call['program']=='initdb')\n"
+            "        data=pathlib.Path(initialization[initialization.index('-D')+1])\n"
+            "        with open(data/'pg_wal'/'chess-probe-test-segment','wb') as output:\n"
+            "            output.write(os.urandom(wal_bytes)); output.flush(); os.fsync(output.fileno())\n"
+            "        time.sleep(30)\n"
+            "    if os.environ['LAPLACE_TEST_STALL_PROBE']=='1': time.sleep(30)\n"
+            "    # Zero exit deliberately supplies no native acceptance evidence.\n"
+        )
+        for name in ("pg_config", "initdb", "pg_ctl", "psql", "source-probe", "chess-probe"):
+            path = binaries / name
+            path.write_text(program)
+            path.chmod(0o700)
+        environment = os.environ | {
+            "TMPDIR": str(scratch),
+            "LAPLACE_TEST_EVENTS": str(events),
+            "LAPLACE_TEST_CLIENT_LIBRARY": str(engine),
+            "LAPLACE_TEST_BOOTSTRAP_STATUS": str(bootstrap_status),
+            "LAPLACE_TEST_STALL_PROBE": "1" if stalled_probe else "0",
+            "LAPLACE_TEST_WAL_GROWTH_BYTES": str(wal_growth_bytes),
+            "LAPLACE_UNICODE_SOURCE_ROOT": str(unicode_root),
+            "LAPLACE_CHESS_LINE_MANIFEST": str(self.root / "manifest.json"),
+            "LAPLACE_CHESS_LINE_PGN": str(self.root / "source.pgn"),
+            "LAPLACE_CHESS_LINE_NATIVE_ENGINE": str(engine / "liblaplace_engine.so"),
+            "LAPLACE_CHESS_LINE_EVIDENCE_ROOT": str(evidence),
+            "LAPLACE_POSTGRES_TEST_RETAIN_ON_FAILURE": "0",
+            "LAPLACE_POSTGRES_CHESS_LINE_MAX_WALL_SECONDS": "0.05" if stalled_probe else "5",
+        }
+        command = [
+            "bash", str(RUN_SPI), "chess-line", str(binaries), "control", "module",
+            str(engine), str(binaries / "source-probe"), str(binaries / "chess-probe"),
+            str(self.root / "fixture.sql"), "",
+        ]
+        return command, environment, events
+
+    def chess_evidence(self) -> tuple[Path, dict[str, object]]:
+        directories = list((self.root / "evidence").iterdir())
+        self.assertEqual(len(directories), 1)
+        directory = directories[0]
+        return directory, json.loads((directory / "runner-receipt.json").read_text())
+
+    def test_chess_runner_rejects_unbound_native_input_before_initializing(self) -> None:
+        command, environment, events = self.chess_harness()
+        environment["LAPLACE_CHESS_LINE_NATIVE_ENGINE"] = str(self.root / "absent.so")
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 64, result.stderr)
+        programs = [json.loads(line)["program"] for line in events.read_text().splitlines()]
+        self.assertNotIn("initdb", programs)
+        self.assertNotIn("chess-probe", programs)
+        self.assertEqual(list((self.root / "scratch").iterdir()), [])
+        self.assertEqual(list((self.root / "evidence").iterdir()), [])
+
+    def test_chess_runner_retains_failed_bootstrap_and_never_admits_line(self) -> None:
+        command, environment, events = self.chess_harness(bootstrap_status=29)
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 29, result.stderr)
+        calls = [json.loads(line) for line in events.read_text().splitlines()]
+        programs = [call["program"] for call in calls]
+        self.assertNotIn("chess-probe", programs)
+        self.assertEqual(programs.count("psql"), 1)
+        starts = [call for call in calls if call["program"] == "pg_ctl" and "start" in call["args"]]
+        self.assertEqual(len(starts), 1)
+        options = starts[0]["args"][starts[0]["args"].index("-o") + 1].split()
+        self.assertNotIn("-F", options)
+        for setting in ("fsync=on", "synchronous_commit=on", "full_page_writes=on"):
+            self.assertIn(setting, options)
+        self.assertTrue(any(call["program"] == "pg_ctl" and "stop" in call["args"] for call in calls))
+        directory, retained = self.chess_evidence()
+        self.assertEqual(retained["status"], "failed")
+        self.assertEqual(retained["exit_code"], 29)
+        self.assertEqual(retained["last_phase"], "unicode-bootstrap")
+        guard = json.loads((directory / "unicode-resource-guard.json").read_text())
+        self.assertEqual(guard["client_returncode"], 29)
+        self.assertNotIn("chess-line-receipt.json", retained["artifacts"])
+        self.assertNotIn("chess-line-observations.json", retained["artifacts"])
+        self.assertEqual(list((self.root / "scratch").iterdir()), [])
+
+    def test_chess_runner_rejects_zero_exit_without_native_acceptance_evidence(self) -> None:
+        command, environment, events = self.chess_harness()
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=20)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        calls = [json.loads(line) for line in events.read_text().splitlines()]
+        native_calls = [call for call in calls if call["program"] == "chess-probe"]
+        self.assertEqual(len(native_calls), 1)
+        args = native_calls[0]["args"]
+        self.assertEqual(len(args), 7)
+        self.assertEqual(args[2], environment["LAPLACE_CHESS_LINE_MANIFEST"])
+        self.assertEqual(args[3], environment["LAPLACE_CHESS_LINE_PGN"])
+        self.assertEqual(args[4], environment["LAPLACE_CHESS_LINE_NATIVE_ENGINE"])
+        directory, retained = self.chess_evidence()
+        self.assertEqual(retained["status"], "failed")
+        self.assertEqual(retained["last_phase"], "evidence-validation")
+        guard = json.loads((directory / "chess-line-resource-guard.json").read_text())
+        self.assertEqual(guard["client_returncode"], 0)
+        self.assertIsNone(guard["breach"])
+        self.assertNotIn("chess-line-receipt.json", retained["artifacts"])
+        self.assertIn("native chess probe did not retain bounded regular evidence", result.stderr)
+        self.assertEqual(list((self.root / "scratch").iterdir()), [])
+
+    def test_chess_runner_kills_stalled_native_probe_and_retains_guard_failure(self) -> None:
+        command, environment, events = self.chess_harness(stalled_probe=True)
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 90, result.stderr)
+        directory, retained = self.chess_evidence()
+        self.assertEqual(retained["status"], "failed")
+        self.assertEqual(retained["last_phase"], "native-line-replay")
+        guard = json.loads((directory / "chess-line-resource-guard.json").read_text())
+        self.assertEqual(guard["result"], "resource-ceiling-breached")
+        self.assertEqual(guard["breach"]["dimension"], "wall_seconds")
+        self.assertNotEqual(guard["client_returncode"], 0)
+        self.assertNotIn("chess-line-receipt.json", retained["artifacts"])
+        self.assertEqual(list((self.root / "scratch").iterdir()), [])
+
     def arguments(self, command: list[str], **overrides: int | float) -> object:
         values: dict[str, int | float] = {
             "max_wall_seconds": 2.0,
@@ -204,12 +364,35 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
         )
         self.assertNotIn("LAPLACE_POSTGRES_STATEMENT_TIMEOUT_MS:-180000", harness)
 
-    def test_deliberate_guard_omission_is_detected(self) -> None:
-        harness = RUN_SPI.read_text(encoding="utf-8")
-        mutant = harness.replace(
-            "LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912", "unbounded", 1
-        )
-        self.assertNotIn("LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912", mutant)
+    def test_chess_runner_forwards_wal_ceiling_to_native_probe(self) -> None:
+        command, environment, events = self.chess_harness(wal_growth_bytes=8192)
+        environment["LAPLACE_POSTGRES_MAX_WAL_BYTES"] = "4096"
+        environment["LAPLACE_POSTGRES_CHESS_LINE_MAX_WALL_SECONDS"] = "10"
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=25)
+        self.assertEqual(result.returncode, 90, result.stderr)
+        calls = [json.loads(line) for line in events.read_text().splitlines()]
+        self.assertEqual(sum(call["program"] == "chess-probe" for call in calls), 1)
+        self.assertTrue(any(call["program"] == "pg_ctl" and "stop" in call["args"] for call in calls))
+        directory, retained = self.chess_evidence()
+        self.assertEqual(retained["status"], "failed")
+        self.assertEqual(retained["exit_code"], 90)
+        self.assertEqual(retained["last_phase"], "native-line-replay")
+        for filename in ("unicode-resource-guard.json", "resource-guard.json"):
+            earlier = json.loads((directory / filename).read_text())
+            self.assertEqual(earlier["result"], "completed")
+            self.assertIsNone(earlier["breach"])
+            self.assertEqual(earlier["client_returncode"], 0)
+        guard = json.loads((directory / "chess-line-resource-guard.json").read_text())
+        self.assertEqual(guard["result"], "resource-ceiling-breached")
+        self.assertEqual(guard["ceilings"]["wal_bytes"], 4096)
+        self.assertEqual(guard["breach"]["dimension"], "wal_bytes")
+        self.assertEqual(guard["breach"]["ceiling"], 4096)
+        self.assertGreater(guard["breach"]["observed"], 4096)
+        self.assertGreater(guard["maxima"]["wal_bytes"], 4096)
+        self.assertNotEqual(guard["client_returncode"], 0)
+        self.assertNotIn("chess-line-receipt.json", retained["artifacts"])
+        self.assertNotIn("chess-line-observations.json", retained["artifacts"])
+        self.assertEqual(list((self.root / "scratch").iterdir()), [])
 
 
 if __name__ == "__main__":

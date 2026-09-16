@@ -424,5 +424,93 @@ class InstalledHttpReadinessTests(unittest.TestCase):
         self.assertNotIn("no TCP listener", step)
 
 
+class FullGatewayProofLifecycleTests(unittest.TestCase):
+    def setUp(self) -> None:
+        specification = importlib.util.spec_from_file_location("full_gateway_lifecycle", LIVE)
+        assert specification is not None and specification.loader is not None
+        self.proof = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(self.proof)
+
+    def test_repeated_attempts_have_distinct_sessions_and_retain_completed_native_turns(self) -> None:
+        sessions = {}
+        def http(method, path, payload=None, timeout=320.0):
+            if path == "/":
+                return 200, "text/html", INDEX.read_bytes()
+            if path == "/app.js":
+                return 200, "application/javascript", WEB.read_bytes()
+            raise AssertionError(path)
+        def json_http(method, path, payload=None, timeout=320.0):
+            if path == "/api/v1/health":
+                return {"schema": "laplace.product.health/v1", "status": "ready"}
+            if path == "/api/v1/descriptors":
+                return {"schema": "laplace.product.descriptors/v1",
+                        "transports": {"mcp": "/mcp", "openai": "/v1"},
+                        "explore": {"schema": "laplace.product.explore/v1"},
+                        "source_ingestion": {"caller_supplied_server_path": False,
+                                             "idempotent_durable_jobs": True}}
+            if path == "/api/v1/cognition":
+                session = payload["session"]
+                ordinal = sessions.get(session, 0)
+                sessions[session] = ordinal + 1
+                return {"status": 0, "output_utf8": "A", "turn_ordinal": ordinal,
+                        "continued": ordinal > 0,
+                        "next_checkpoint_fingerprint": ("%02x" % (ordinal + 1)) * 32}
+            if path == "/v1/chat/completions":
+                raise RuntimeError("controlled OpenAI transport interruption")
+            raise AssertionError(path)
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(self.proof, "http", side_effect=http), \
+                mock.patch.object(self.proof, "json_http", side_effect=json_http), \
+                mock.patch.object(self.proof, "prove_explore", return_value={"controlled_transport": True}):
+            for index in range(2):
+                output = Path(directory) / f"attempt-{index}.json"
+                with self.assertRaisesRegex(RuntimeError, "controlled OpenAI"):
+                    self.proof.prove(output, "ab" * 32)
+                report = json.loads(output.read_text())
+                self.assertEqual(report["status"], "failed")
+                self.assertEqual(report["completed_phases"],
+                    ["browser", "health", "descriptors", "explore",
+                     "cognition_turn_0", "cognition_turn_1"])
+                self.assertEqual(report["partial"]["cognition_turn_0"]["ordinal"], 0)
+                self.assertEqual(report["partial"]["cognition_turn_1"]["ordinal"], 1)
+                self.assertNotIn("openai_nonstream", report["partial"])
+                self.assertEqual(report["failure"]["type"], "RuntimeError")
+                self.assertGreaterEqual(report["elapsed_seconds"], 0)
+        self.assertEqual(len(sessions), 2)
+        self.assertEqual(set(sessions.values()), {2})
+        for session in sessions:
+            self.assertTrue(session.startswith("proof-" + ("ab" * 12) + "-"))
+            self.assertRegex(session.rsplit("-", 1)[1], r"^[0-9a-f]{32}$")
+
+    def test_initial_failure_is_retained_and_prior_proof_is_never_overwritten(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "proof.json"
+            with mock.patch.object(self.proof, "http", side_effect=RuntimeError("actual transport boundary failed")):
+                with self.assertRaisesRegex(RuntimeError, "transport boundary"):
+                    self.proof.prove(output, "ab" * 32)
+            before = output.read_bytes()
+            report = json.loads(before)
+            self.assertEqual(report["status"], "failed")
+            self.assertEqual(report["completed_phases"], [])
+            self.assertEqual(report["partial"], {})
+            with mock.patch.object(self.proof, "http") as request, self.assertRaises(FileExistsError):
+                self.proof.prove(output, "ab" * 32)
+            request.assert_not_called()
+            self.assertEqual(output.read_bytes(), before)
+
+    def test_activation_runs_existing_full_owner_after_readiness_with_bounded_retention(self) -> None:
+        workflow = (ROOT / ".github/workflows/product-activation.yml").read_text()
+        step = workflow.split("      - name: Start and execute the installed Laplace cognition surface", 1)[1]
+        step = step.split("      - name: Observe retained Highway", 1)[0]
+        self.assertEqual(step.count("python3 tools/delivery/product_gateway_live_proof.py"), 2)
+        self.assertLess(step.index("--readiness-only"), step.index("for attempt in"))
+        self.assertLess(step.index("--readiness-only"), step.index('gateway_root='))
+        self.assertIn("timeout --signal=TERM --kill-after=10s 300s", step)
+        self.assertIn('--package-id "$package_id" --output "$gateway_root/proof.json"', step)
+        self.assertIn('>"$gateway_root/stdout.log" 2>"$gateway_root/stderr.log"', step)
+        self.assertIn("always() && env.LAPLACE_INSTALLED_GATEWAY_PROOF != ''", step)
+        self.assertIn('.status == "passed"', step)
+        self.assertNotIn("--include-source-ingestion", step)
+
 if __name__ == "__main__":
     unittest.main()

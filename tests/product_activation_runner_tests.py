@@ -7,11 +7,13 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -307,6 +309,94 @@ class ProductActivationRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "different canonical root"):
             proof.require_same_prompt_root(first, replay)
 
+
+    def successful_frontier_result(self):
+        result = {name: "\\x" + "ab" * 32 for name in (
+            "program_id", "execution_receipt_id", "output_fingerprint",
+            "prompt_admission_receipt_id")}
+        result.update({"status": 0, "native_status": 0, "failed_step": -1,
+            "prompt_persistence_receipt_id": None,
+            "trunk_entity_id": "\\x" + "cd" * 16, "output": "\\x4141",
+            "completed_steps": 3, "emitted_parts": 1, "provider_call_count": 4,
+            "materialization_resolved_nodes": 1, "materialization_trajectory_reads": 1,
+            "materialization_trajectory_bytes": 32, "materialization_database_operations": 4})
+        return result
+
+    def test_frontier_accepts_inline_atom_run_with_one_provider_root(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        result = self.successful_frontier_result()
+        first = proof.require_identity_widths(result)
+        proof.require_frontier_result(result, first)
+        # The independently checked constituent route resolves A itself.
+        constituent = {**result, "output": "\\x41", "completed_steps": 2,
+                       "materialization_trajectory_reads": 0,
+                       "materialization_trajectory_bytes": 0,
+                       "materialization_database_operations": 2}
+        proof.require_constituent_result(constituent)
+
+    def test_frontier_refuses_duplicate_child_work_and_changed_content(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        result = self.successful_frontier_result()
+        first = proof.require_identity_widths(result)
+        mutations = (
+            ("materialization_resolved_nodes", 0), ("materialization_resolved_nodes", 2),
+            ("materialization_resolved_nodes", 3), ("materialization_database_operations", 3),
+            ("materialization_database_operations", 5), ("materialization_trajectory_reads", 2),
+            ("materialization_trajectory_bytes", 64), ("materialization_trajectory_bytes", 0),
+            ("output", "\\x41"), ("completed_steps", 2), ("emitted_parts", 2),
+            ("trunk_entity_id", "\\x" + "ef" * 16), ("execution_receipt_id", "\\x12"),
+            ("materialization_resolved_nodes", True), ("materialization_database_operations", "4"),
+            ("materialization_trajectory_reads", None), ("emitted_parts", True),
+        )
+        for field, value in mutations:
+            with self.subTest(field=field, value=value), self.assertRaises(RuntimeError):
+                proof.require_frontier_result({**result, field:value}, first)
+
+    def test_postexecution_validation_retains_actual_result_and_transport(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        identities, runtime, firmware, _, _ = self.cognition_failure_inputs()
+        valid = self.successful_frontier_result()
+        valid["program_id"] = "\\x" + firmware["program_id"]
+        first = proof.require_identity_widths(valid)
+        cases = (
+            ("frontier-count", {**valid, "materialization_resolved_nodes": 2},
+             lambda result: proof.require_frontier_result(result, first)),
+            ("frontier-root", {**valid, "trunk_entity_id": "\\x" + "ef" * 16},
+             lambda result: proof.require_frontier_result(result, first)),
+            ("constituent-output", {**valid, "completed_steps": 2},
+             proof.require_constituent_result),
+        )
+        for label, result, validator in cases:
+            with self.subTest(label=label), tempfile.TemporaryDirectory(dir=ROOT) as directory:
+                root = Path(directory)
+                output, artifact = root / "proof.json", root / "failure.json"
+                stdout = json.dumps(result) + "\n"
+                stderr = "NOTICE: actual successful execution fixture\n"
+                captured_sql = []
+                def execute(*args, completed_observer):
+                    sql = args[2]
+                    captured_sql.append(sql)
+                    command = {"exit_code": 0, "stdin_sha256": proof.u.sha256_bytes(sql.encode())}
+                    completed_observer(subprocess.CompletedProcess(["psql"], 0, stdout, stderr), command)
+                    return result, command
+                with mock.patch.object(proof.r, "runner_sql", side_effect=execute), \
+                     mock.patch("builtins.print"), self.assertRaises(RuntimeError):
+                    proof.execute_product({}, {"instance":{"admin_role":"laplace_admin"}},
+                        identities, runtime, firmware, "AA", label, failure_output=output,
+                        failure_artifact=artifact, validate_result=validator)
+                retained = json.loads(artifact.read_text())
+                self.assertEqual(artifact.read_bytes(), output.read_bytes())
+                self.assertEqual(retained["execution"], result)
+                self.assertEqual(retained["execution"]["status"], 0)
+                self.assertEqual(retained["request_sql_utf8"], captured_sql[-1])
+                self.assertEqual(retained["native_failure"]["state"], "unavailable")
+                self.assertIs(retained["success_receipt_issued"], False)
+                self.assertNotIn("proof_sha256", retained)
+                self.assertEqual(bytes.fromhex(retained["outputs"]["stdout"]["retained_hex"]).decode(), stdout)
+                self.assertEqual(bytes.fromhex(retained["outputs"]["stderr"]["retained_hex"]).decode(), stderr)
+                digest = retained.pop("failure_sha256")
+                self.assertEqual(digest, proof.u.sha256_bytes(proof.u.canonical_bytes(retained)))
+
     def test_installed_cognition_request_declares_its_complete_structural_boundary(self) -> None:
         proof = load_module("tools/delivery/product_cognition_live_proof.py")
         multiturn = load_module("tools/delivery/product_cognition_multiturn_live_proof.py")
@@ -384,6 +474,153 @@ class ProductActivationRunnerTests(unittest.TestCase):
                     self.assertEqual(result["status"], 9)
                     self.assertEqual(result["execution"]["native_status"], 2)
                     self.assertEqual(result["checkpoint_hex"], "")
+
+
+    @unittest.skipUnless(shutil.which("jq"), "jq is required to execute delivery result predicates")
+    def test_installed_continuation_predicates_accept_actual_service_route(self) -> None:
+        service = load_module("tools/cognition_service.py")
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        package = "45" * 32
+        program = "46" * 32
+        identities = {key: "47" * 32 for key in (
+            "source_epoch", "identity_epoch", "geometry_epoch", "evidence_epoch",
+            "dependency_epoch", "database_epoch", "request_fingerprint", "package_epoch",
+            "numeric_epoch", "authority_fingerprint",
+        )}
+        runtime = {"unicode_present": True, "highway_present": True,
+                   "perfcache_epoch": "48" * 32, "numeric_epoch": "49" * 32}
+        firmware = {"program_id": program, "image_hex": "abcd", "mode": "auto"}
+        initial = {"session_fingerprint": "50" * 32, "discourse_id": "51" * 32,
+                   "turn_ordinal": 0}
+        continued = {**initial, "turn_ordinal": 1, "previous_package_id": package,
+                     "previous_program_id": program, "previous_checkpoint_hex": "abcd",
+                     "previous_checkpoint_fingerprint": "52" * 32}
+        for name, session in (("first", initial), ("second", continued)):
+            match = re.search(
+                r"jq -e '\n([^']*)\n          ' <<<\"\$" + name + r"\"", workflow)
+            self.assertIsNotNone(match, name)
+            assert match is not None
+            predicate = match.group(1)
+            native = {"status": 0, "native_status": 0, "output": "\\x41",
+                      "checkpoint": "\\xabcd",
+                      "next_checkpoint_fingerprint": "\\x" + ("52" if name == "first" else "53") * 32,
+                      "execution_receipt_id": "\\x" + "54" * 32}
+            # Exercise the actual service SQL/response builders; only the package,
+            # active database state, compiler and SQL transport are controlled.
+            with mock.patch.object(service, "selected_product", return_value=(package, Path("/selected"))), \
+                 mock.patch.object(service, "compile_firmware", return_value=firmware), \
+                 mock.patch.object(service, "load_identities", return_value=identities), \
+                 mock.patch.object(service, "active_runtime_state", return_value=runtime), \
+                 mock.patch.object(service, "run_psql", return_value=native) as execute:
+                response = service.execute_cognition("AA", None, session)
+            sql = execute.call_args.args[1]
+            self.assertIn("FROM laplace.cognition_firmware_execute_product(", sql)
+            self.assertIn("decode('abcd','hex')", sql)
+            self.assertEqual(response["execution_route"], "automatic-firmware")
+            self.assertEqual(response["output_utf8"], "A")
+
+            def accepted(document):
+                result = subprocess.run(["jq", "-e", predicate], input=json.dumps(document),
+                                        text=True, capture_output=True, check=False)
+                return result.returncode == 0
+
+            self.assertTrue(accepted(response), name)
+            for field, value in (
+                ("status", 9), ("mode", "explicit"),
+                ("execution_route", "native-conversation"),
+                ("execution_route", "explicit-firmware"),
+                ("turn_ordinal", 1 - session["turn_ordinal"]),
+                ("continued", name == "first"),
+                ("checkpoint_hex", ""), ("next_checkpoint_fingerprint", "malformed"),
+            ):
+                with self.subTest(turn=name, field=field, invalid=value):
+                    self.assertFalse(accepted({**response, field: value}))
+            missing_receipt = copy.deepcopy(response)
+            missing_receipt["execution"].pop("execution_receipt_id")
+            self.assertFalse(accepted(missing_receipt))
+            malformed_receipt = copy.deepcopy(response)
+            malformed_receipt["execution"]["execution_receipt_id"] = "malformed"
+            self.assertFalse(accepted(malformed_receipt))
+
+
+    @unittest.skipUnless(shutil.which("jq"), "jq is required to execute selected native receipt routing")
+    def test_actual_selected_highway_shell_accepts_both_variants_and_retains_other_history(self) -> None:
+        sys.path.insert(0, str(ROOT / "tests"))
+        import product_activation_runtime_adapter_tests as recovery_fixture
+        validator = load_module("tools/sources/stockfish_corpus_acceptance.py")
+        runner = validator.runner
+        revalidation = recovery_fixture.producer_revalidation(self)
+        package = revalidation["package_id"]
+        original = {"schema": runner.highwayctl.RECEIPT_SCHEMA, "phase": "product-activated",
+                    "package_id": package, "restart_proven": True,
+                    "cold_application_readback_proven": True}
+        original["receipt_sha256"] = runner.unicodectl.document_identity(original, "receipt_sha256")
+        workflow = WORKFLOW.read_text()
+        block = workflow.split("          # Begin selected Highway proof verification.\n", 1)[1]
+        block = block.split("          # End selected Highway proof verification.", 1)[0]
+        shell = "set -euo pipefail\n" + textwrap.dedent(block)
+        expected = "ab" * 20
+        for native, name in ((original, "highway-product-activation.json"),
+                             (revalidation, "highway-committed-revalidation.json")):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                generation = root / "generation"
+                generation.mkdir()
+                other_name = ("highway-committed-revalidation.json" if name.startswith("highway-product")
+                              else "highway-product-activation.json")
+                other = generation / other_name
+                other.write_text('{"retained":"unselected historical evidence"}\n')
+                historical = other.read_bytes()
+                aggregate = {"schema": runner.RESULT_SCHEMA, "package_id": package,
+                    "repository_commit": expected, "execution_owner": runner.RUNNER_USER,
+                    "root_product_executor": False,
+                    **validator.activation.highway_aggregate_fields(native)}
+                aggregate["result_sha256"] = runner.document_identity(aggregate, "result_sha256")
+                aggregate_path = root / "aggregate.json"
+                native_path = generation / name
+                def write_inputs(selected=native, terminal=aggregate):
+                    native_path.unlink(missing_ok=True)
+                    native_path.write_text(json.dumps(selected))
+                    aggregate_path.write_text(json.dumps(terminal))
+                def execute():
+                    return subprocess.run(["bash", "-c", shell], cwd=ROOT, text=True,
+                        capture_output=True, check=False, env={**os.environ,
+                            "generation": str(generation), "package_id": package,
+                            "GITHUB_SHA": expected,
+                            "LAPLACE_PRODUCT_ACTIVATION_RESULT": str(aggregate_path)})
+                write_inputs()
+                result = execute()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), name)
+                self.assertEqual(other.read_bytes(), historical)
+                for defect in ("missing", "symlink", "malformed", "aggregate-digest",
+                               "native-digest", "wrong-package", "wrong-selected-digest", "mixed-variant"):
+                    with self.subTest(name=name, defect=defect):
+                        selected = copy.deepcopy(native)
+                        terminal = copy.deepcopy(aggregate)
+                        if defect == "native-digest": selected["receipt_sha256"] = "00" * 32
+                        if defect == "wrong-package": selected["package_id"] = "ff" * 32
+                        if defect == "aggregate-digest": terminal["result_sha256"] = "00" * 32
+                        if defect == "wrong-selected-digest":
+                            field = ("highway_activation_receipt_sha256" if native is original
+                                     else "highway_revalidation_receipt_sha256")
+                            terminal[field] = "ee" * 32
+                            terminal["result_sha256"] = runner.document_identity(terminal, "result_sha256")
+                        if defect == "mixed-variant":
+                            terminal["highway_activation_receipt_sha256"] = "ee" * 32
+                            terminal["highway_revalidation_receipt_sha256"] = "ee" * 32
+                            terminal["result_sha256"] = runner.document_identity(terminal, "result_sha256")
+                        write_inputs(selected, terminal)
+                        if defect == "missing": native_path.unlink()
+                        if defect == "symlink":
+                            target = root / "actual-native.json"
+                            target.write_bytes(native_path.read_bytes())
+                            native_path.unlink()
+                            native_path.symlink_to(target)
+                        if defect == "malformed": native_path.write_text('{"broken":')
+                        result = execute()
+                        self.assertNotEqual(result.returncode, 0, defect)
+                        self.assertEqual(other.read_bytes(), historical)
 
     @unittest.skipUnless(shutil.which("jq"), "jq is required to execute delivery result predicates")
     def test_workflow_and_setup_accept_only_distinct_complete_revalidation_variant(self) -> None:
@@ -476,7 +713,12 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertIn('execution_owner == "laplace-runner"', source)
         self.assertIn("root_product_executor == false", source)
         self.assertIn("pg_ctl", source)
-        self.assertIn("sudo -n /usr/bin/systemctl restart laplace-refactor-cognition.service", source)
+        self.assertIn("product_cognition_service.py ensure", source)
+        self.assertIn("product_cognition_service.py verify", source)
+        self.assertIn("product_cognition_service.py restart", source)
+        self.assertNotIn("sudo -n /usr/bin/systemctl restart laplace-refactor-cognition.service", source)
+        self.assertLess(source.index("product_cognition_service.py ensure"), source.index("  compose-product:"))
+        self.assertIn("--expected-sha '${{ inputs.expected_sha }}'", source)
         self.assertIn("lifecycle_provider", source)
         for forbidden in (
             "laplace-product-activate",

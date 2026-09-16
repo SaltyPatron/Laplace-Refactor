@@ -225,7 +225,21 @@ jobs:
             .postgresql_initialized == false and
             .activation_gateway_installed == false
           ' "$bootstrap" >/dev/null
-          echo 'Laplace runner-owned host prerequisites verified.'
+          cognition_evidence="$RUNNER_TEMP/cognition-service-prerequisites-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -m 0700 "$cognition_evidence"
+          python3 tools/delivery/product_cognition_service.py ensure \
+            --expected-uid "$(id -u)" --output "$cognition_evidence/ensure"
+          python3 tools/delivery/product_cognition_service.py verify \
+            --expected-uid "$(id -u)" --output "$cognition_evidence/verify"
+          echo 'Laplace runner-owned host prerequisites and selected cognition service verified.'
+      - name: Retain selected cognition service prerequisites
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cognition-service-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cognition-service-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
 
   compose-product:
     needs: runner-authority
@@ -527,14 +541,15 @@ jobs:
           set -euo pipefail
           python3 tests/receipt_estate_runner_tests.py
           result="$RUNNER_TEMP/laplace-runner-receipt-estate.json"
+          package_id='${{ needs.compose-product.outputs.package_id }}'
           python3 tools/delivery/receipt_estate_runner.py \
             --cluster-contract contracts/postgresql-cluster.json \
-            --output "$result"
-          package_id='${{ needs.compose-product.outputs.package_id }}'
+            --package-id "$package_id" --output "$result"
           receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
           generation="$receipt_root/cluster-activation/$package_id"
-          jq -e '
+          jq -e --arg package_id "$package_id" '
             .schema == "laplace.runner-receipt-estate-convergence/v1" and
+            .scope == "selected-package" and .selected_package_id == $package_id and
             (.migration_count | type) == "number" and
             (.preserved_unknown_or_conflicting | type) == "array" and
             (.receipt_sha256 | test("^[0-9a-f]{64}$"))
@@ -547,11 +562,45 @@ jobs:
             public-readback-bindings.json \
             release-capacity.json \
             unicode-product-activation.json \
-            highway-product-activation.json \
             installed-cognition-proof.json; do
             test -f "$generation/$required"
             test ! -L "$generation/$required"
           done
+          # Begin selected Highway proof verification.
+          highway_name=$(jq -er '
+            if .phase == "product-unicode-and-highway-activated" and
+               (has("highway_revalidation_receipt_sha256") | not) and
+               (.highway_activation_receipt_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+            then "highway-product-activation.json"
+            elif .phase == "product-unicode-activated-and-highway-revalidated" and
+                 (has("highway_activation_receipt_sha256") | not) and
+                 (.highway_revalidation_receipt_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+            then "highway-committed-revalidation.json"
+            else error("activation result does not select one exact Highway proof variant") end
+          ' "$LAPLACE_PRODUCT_ACTIVATION_RESULT")
+          test -f "$generation/$highway_name"
+          test ! -L "$generation/$highway_name"
+          python3 - "$LAPLACE_PRODUCT_ACTIVATION_RESULT" "$generation/$highway_name" "$package_id" "$GITHUB_SHA" <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / "tools"))
+          from sources.stockfish_corpus_acceptance import load, runner, activation
+          aggregate = load(Path(sys.argv[1]), maximum=4*1024*1024)
+          native = load(Path(sys.argv[2]), maximum=4*1024*1024)
+          if (aggregate.get("schema") != runner.RESULT_SCHEMA or
+                  aggregate.get("package_id") != sys.argv[3] or
+                  aggregate.get("repository_commit") != sys.argv[4] or
+                  aggregate.get("execution_owner") != runner.RUNNER_USER or
+                  aggregate.get("root_product_executor") is not False or
+                  aggregate.get("result_sha256") != runner.document_identity(aggregate, "result_sha256")):
+              raise RuntimeError("retained activation result is not the selected authenticated generation")
+          activation.validate_product_terminal_result(aggregate)
+          runner.validate_highway_result(native, sys.argv[3])
+          if any(aggregate.get(key) != value for key, value in activation.highway_aggregate_fields(native).items()):
+              raise RuntimeError("selected native Highway proof differs from the activation result")
+          print(Path(sys.argv[2]).name)
+          PY
+          # End selected Highway proof verification.
           test ! -e "$receipt_root/unicode-product-activation.json"
           test ! -e "$receipt_root/highway-product-activation.json"
 
@@ -567,7 +616,18 @@ jobs:
           test -x "$client"
           test -d /opt/laplace/runtime
           test ! -L /opt/laplace/runtime
-          sudo -n /usr/bin/systemctl restart laplace-refactor-cognition.service
+          python3 tools/delivery/product_cognition_service.py restart \
+            --expected-uid "$(id -u)" --expected-sha '${{ inputs.expected_sha }}' \
+            --output "$RUNNER_TEMP/cognition-service-restart-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
+          http_receipt="$receipt_root/cluster-activation/$package_id/installed-http-readiness-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          printf 'LAPLACE_INSTALLED_HTTP_READINESS=%s\n' "$http_receipt" >> "$GITHUB_ENV"
+          python3 tools/delivery/product_gateway_live_proof.py \
+            --readiness-only \
+            --package-id "$package_id" \
+            --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
+            --output "$http_receipt"
+
           for attempt in {1..30}; do
             if observed="$($client --relations constituent AA 2>/dev/null)" && [[ "$observed" == A ]]; then break; fi
             [[ "$attempt" != 30 ]] || { echo 'Installed cognition service did not become ready' >&2; exit 1; }
@@ -591,7 +651,7 @@ jobs:
           jq -e '
             .status == 0 and
             .mode == "auto" and
-            .execution_route == "native-conversation" and
+            .execution_route == "automatic-firmware" and
             .turn_ordinal == 0 and
             .continued == false and
             (.checkpoint_hex | type == "string" and length > 0) and
@@ -604,7 +664,7 @@ jobs:
           jq -e '
             .status == 0 and
             .mode == "auto" and
-            .execution_route == "native-conversation" and
+            .execution_route == "automatic-firmware" and
             .turn_ordinal == 1 and
             .continued == true and
             (.checkpoint_hex | type == "string" and length > 0) and
@@ -614,14 +674,27 @@ jobs:
           second_checkpoint=$(jq -er '.next_checkpoint_fingerprint' <<<"$second")
           test "$second_checkpoint" != "$first_checkpoint"
 
-          receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
-          http_receipt="$receipt_root/cluster-activation/$package_id/installed-http-readiness-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
-          printf 'LAPLACE_INSTALLED_HTTP_READINESS=%s\n' "$http_receipt" >> "$GITHUB_ENV"
-          python3 tools/delivery/product_gateway_live_proof.py \
-            --readiness-only \
-            --package-id "$package_id" \
-            --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
-            --output "$http_receipt"
+
+          gateway_root="$RUNNER_TEMP/installed-gateway-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -m 0700 "$gateway_root"
+          printf 'LAPLACE_INSTALLED_GATEWAY_PROOF=%s\n' "$gateway_root" >> "$GITHUB_ENV"
+          timeout --signal=TERM --kill-after=10s 300s \
+            python3 tools/delivery/product_gateway_live_proof.py \
+              --package-id "$package_id" --output "$gateway_root/proof.json" \
+              >"$gateway_root/stdout.log" 2>"$gateway_root/stderr.log"
+          jq -e --arg package "$package_id" '
+            .schema == "laplace.installed-product-gateway-proof/v2" and
+            .status == "passed" and .package_id == $package and
+            .cognition.turn_0.status == 0 and .cognition.turn_1.status == 0 and
+            .cognition.turn_0.ordinal == 0 and .cognition.turn_1.ordinal == 1 and
+            .cognition.turn_1.continued == true and
+            .cognition.turn_0.checkpoint != .cognition.turn_1.checkpoint and
+            .openai_chat.declared_boundary == "single-user-message" and
+            .openai_chat.client_supplied_role_history == false and
+            .openai_chat.roles == ["user"] and .openai_chat.streaming.done == true and
+            .openai_chat.streaming.finished == true and
+            .mcp.query_schema == "laplace.inspect.summary/v1"
+          ' "$gateway_root/proof.json" >/dev/null
 
           {
             echo '## Installed usable cognition surface'
@@ -630,11 +703,28 @@ jobs:
             echo '- HTTP API and browser: `http://127.0.0.1:55434`; health identifies the selected package and active native controls'
             echo '- browser index, JavaScript and stylesheet served bytes match the selected installed package manifest'
             echo "- retained HTTP readiness receipt: $http_receipt"
+            echo "- full HTTP cognition, OpenAI single-message streaming/nonstreaming and MCP live-query evidence: $gateway_root/proof.json"
             echo '- no database role, sudo, environment variable, receipt path, or SQL is required by the caller'
             echo '- explicit compatibility: `laplace-cognition --relations constituent AA` returned `A` through installed firmware execution'
-            echo '- default caller: two sequential `laplace-cognition AA` turns executed the native prompt-conversation route'
+            echo '- default caller: two sequential `laplace-cognition AA` turns executed the selected native automatic firmware'
             echo '- continuation: turn 1 consumed the durably deposited discourse frame from turn 0 and emitted a distinct successor frame'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain installed gateway semantic proof and partial failure evidence
+        if: always() && env.LAPLACE_INSTALLED_GATEWAY_PROOF != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installed-gateway-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.LAPLACE_INSTALLED_GATEWAY_PROOF }}/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retain selected cognition service restart evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cognition-service-restart-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cognition-service-restart-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Retain installed HTTP readiness evidence
         if: always() && env.LAPLACE_INSTALLED_HTTP_READINESS != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
