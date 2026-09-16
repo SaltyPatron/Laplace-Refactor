@@ -1,4 +1,4 @@
-name: Source runtime state actual PostgreSQL controls
+name: Source runtime state QA registration controls
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -10,8 +10,8 @@ jobs:
     timeout-minutes: 15
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      SOURCE_SHA: 16b3c3aa872f826b85e56f9707fe8518021f58a3
-      SOURCE_TREE: 0e93a391130e21d4085ec9d8f9d0e8962fb466c4
+      SOURCE_SHA: ed0cb03ec0a50d78e45bc20b7bbba23d1dcb8540
+      SOURCE_TREE: a6460aeb36bce941b032483ab99c5f8e46a35b51
       TMPDIR: /build/laplace/work/sql
       TMP: /build/laplace/work/sql
       TEMP: /build/laplace/work/sql
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 2
-      - name: Prepare exact source and selected real PostgreSQL
+      - name: Prepare exact source
         run: |
           set -euo pipefail
           sudo mkdir -p /build/laplace
@@ -29,13 +29,7 @@ jobs:
           test "$(git rev-parse "$SOURCE_SHA^{tree}")" = "$SOURCE_TREE"
           git worktree add --detach /build/laplace/worktrees/source-runtime-state "$SOURCE_SHA"
           printf '%s\n' "$SOURCE_SHA $SOURCE_TREE" > "$EVIDENCE/source.txt"
-          pg_bindir="$(find /usr/lib/postgresql -mindepth 2 -maxdepth 2 -type d -name bin | sort -V | tail -n 1)"
-          test -n "$pg_bindir"
-          for tool in initdb pg_ctl postgres psql; do test -x "$pg_bindir/$tool"; done
-          printf 'PG_BINDIR=%s\n' "$pg_bindir" >> "$GITHUB_ENV"
-          "$pg_bindir/postgres" --version | tee "$EVIDENCE/postgresql-version.txt"
-          cmake --version > "$EVIDENCE/cmake-version.txt"
-      - name: Execute installed caller and actual schema controls
+      - name: Execute QA registration controls
         run: |
           set -euo pipefail
           cd /build/laplace/worktrees/source-runtime-state
@@ -50,25 +44,22 @@ jobs:
             printf '%s\t%s\n' "$label" "$result" >> "$EVIDENCE/exit-codes.tsv"
             if [ "$result" -ne 0 ]; then status=1; fi
           }
-          qualify installed-callers python3 tests/source_admission_guard_tests.py tools/admit_source_guard.py
-          qualify actual-postgresql python3 tests/source_runtime_state_postgres_tests.py --pg-bindir "$PG_BINDIR" -v
+          qualify qa-registration python3 tests/custom_stack_qa_tests.py -v
           python3 - <<'PY' 2>&1 | tee "$EVIDENCE/python-ast.log"
-          import ast
+          import ast, json
           from pathlib import Path
-          for name in ("tools/admit_source.py", "tools/admit_source_guard.py",
-                       "tools/sources/runtime_state.py", "tests/source_admission_guard_tests.py",
-                       "tests/source_runtime_state_postgres_tests.py"):
-              ast.parse(Path(name).read_text())
-              print("PASS Python AST " + name)
+          ast.parse(Path("tests/custom_stack_qa_tests.py").read_text())
+          json.loads(Path("tests/registry.d/verified-cpp-source.json").read_text())
+          print("PASS QA Python AST and registry JSON")
           PY
           test -z "$(git status --porcelain --untracked-files=all)"
           printf '%s\n' "PASS clean source worktree" | tee "$EVIDENCE/source-clean.txt"
           exit "$status"
-      - name: Retain exact source and actual PostgreSQL evidence
+      - name: Retain QA registration evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: source-runtime-state-postgresql-controls
+          name: source-runtime-state-qa-controls
           path: /build/laplace/recovery/source-runtime-state/
           if-no-files-found: error
           retention-days: 30

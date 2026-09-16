@@ -21,6 +21,23 @@
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-IDENTITY-NEGATIVE"],
       "covered_dimensions": ["native source admission persists actual C++ syntax and exact source roots", "zero semantic claims use absent evidence receipts", "distinct named artifacts share identical canonical content", "exact source readback verifies the complete retained structural receipt", "replay and failed provider or corrupted readback publish no extra state"]
+    },
+    {
+      "ctest_name": "postgres.source-runtime-state-schema",
+      "profiles": [
+        "postgres",
+        "custom-stack"
+      ],
+      "evidence_targets": [
+        "LP-TEST-ADMISSION-READ-REACHABILITY",
+        "LP-TEST-PERFCACHE-ACTIVATION-EPOCH"
+      ],
+      "covered_dimensions": [
+        "source runtime SQL executes against exact generated authoritative PostgreSQL table/domain definitions and constraints",
+        "active Unicode deposit/root bindings and independent active Highway generation yield one exact context",
+        "inactive missing mismatched or ambiguous bindings refuse and stale generation columns cause actual PostgreSQL errors",
+        "schema/query fixture does not claim native Unicode deposition or installed product activation"
+      ]
     }
   ]
 }
