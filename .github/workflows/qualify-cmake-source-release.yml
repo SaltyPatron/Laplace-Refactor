@@ -1,95 +1,53 @@
-name: Qualify CMake consumer operator and publication selector coherence
+name: Read retained PostgreSQL QA timing evidence
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-concurrency:
-  group: laplace-cmake-operator-source-controls
-  cancel-in-progress: false
+  actions: read
 jobs:
-  source-controls:
+  read-retained:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      PYTHONDONTWRITEBYTECODE: "1"
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Authenticate and syntax-check the prepared consumer operation
+      - name: Authenticate existing artifact and report actual lane timing
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
           set -euo pipefail
-          python3 -B - <<'PY'
-          import ast, base64, hashlib, json, os, pathlib, re, subprocess, urllib.request
-          import yaml
-          out=pathlib.Path(os.environ["RUNNER_TEMP"])/"cmake-operator-source-controls"
-          out.mkdir(mode=0o700)
-          blob="f4cc02a7213c58a3b87e6f3717da302fb85958d3"
-          url="https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+blob
-          request=urllib.request.Request(url,headers={
-              "Authorization":"Bearer "+os.environ["GH_TOKEN"],
-              "Accept":"application/vnd.github+json",
-              "X-GitHub-Api-Version":"2022-11-28"})
-          with urllib.request.urlopen(request,timeout=30) as response:
-              document=json.load(response)
-          body=base64.b64decode(document["content"])
-          assert document["sha"]==blob and document["encoding"]=="base64"
-          assert hashlib.sha1(b"blob "+str(len(body)).encode()+b"\0"+body).hexdigest()==blob
-          source=body.decode("utf-8")
-          (out/"prepared-operation.yml").write_bytes(body)
-          parsed=yaml.safe_load(source)
-          bash_count=python_count=0
-          for job in parsed["jobs"].values():
-              for step in job["steps"]:
-                  if "run" not in step:
-                      continue
-                  run=step["run"]
-                  bash_count+=1
-                  subprocess.run(["bash","-n"],input=run,text=True,check=True)
-                  lines=run.splitlines()
-                  index=0
-                  while index<len(lines):
-                      match=re.search(r"<<'([A-Z_]+)'",lines[index])
-                      if match:
-                          closing=match.group(1)
-                          end=index+1
-                          while end<len(lines) and lines[end]!=closing:
-                              end+=1
-                          assert end<len(lines),"unterminated heredoc"
-                          program="\n".join(lines[index+1:end])+"\n"
-                          ast.parse(program,filename=f"prepared-heredoc-{python_count+1}.py")
-                          python_count+=1
-                          (out/f"prepared-heredoc-{python_count}.py").write_text(program)
-                          index=end
-                      index+=1
-          assert bash_count==3 and python_count==3,(bash_count,python_count)
-          placeholders=sorted(set(re.findall(r"__EXPECTED_[A-Z_]+__",source)))
-          assert len(placeholders)==5,placeholders
-          receipt={"schema":"laplace.cmake-operator-source-controls/v1","status":"passed",
-              "operator_blob":blob,"operator_sha256":hashlib.sha256(body).hexdigest(),
-              "bash_programs":bash_count,"python_programs":python_count,
-              "unfilled_binding_placeholders":placeholders,
-              "host_operation_executed":False,"installed_selection_changed":False}
-          (out/"syntax.json").write_text(json.dumps(receipt,indent=2)+"\n")
-          print(json.dumps(receipt,sort_keys=True))
+          python3 - <<'PY'
+          import hashlib, io, json, os, urllib.request, zipfile
+          base='https://api.github.com/repos/SaltyPatron/Laplace-Refactor'
+          def get(path):
+              request=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(request,timeout=60) as response:
+                  return response.read()
+          run=json.loads(get('/actions/runs/35158959755'))
+          assert run['head_sha']=='75976f0ee0015845802cf88651174c5d44702b06'
+          assert run['event']=='pull_request' and run['head_branch']=='fix/ci-execution-owners-20260916'
+          artifact=json.loads(get('/actions/artifacts/10473690947'))
+          assert artifact['workflow_run']['id']==35158959755
+          assert not artifact['expired']
+          expected='db380fd2fd6ea7926395c7dbccb86e6a01387f6bb46f01bf2ab648169fd99a91'
+          assert artifact['digest']=='sha256:'+expected
+          data=get('/actions/artifacts/10473690947/zip')
+          assert len(data)==32809 and hashlib.sha256(data).hexdigest()==expected
+          archive=zipfile.ZipFile(io.BytesIO(data))
+          print(json.dumps({'artifact':10473690947,'run':35158959755,'zip_sha256':expected,'names':archive.namelist()},sort_keys=True))
+          names=[n for n in archive.namelist() if n=='result.json' or n.endswith('/result.json')]
+          assert len(names)==1
+          result=json.loads(archive.read(names[0]))
+          print('LAPLACE_QA_RESULT_BEGIN')
+          print(json.dumps({key:value for key,value in result.items() if key!='lanes'},sort_keys=True,indent=2))
+          for lane in result['lanes']:
+              print(json.dumps({key:value for key,value in lane.items() if key not in ('embedded_receipts','command')},sort_keys=True,indent=2))
+          print('LAPLACE_QA_RESULT_END')
+          for name in archive.namelist():
+              if name.endswith('.log'):
+                  content=archive.read(name).decode('utf-8',errors='replace')
+                  lines=content.splitlines()
+                  selected=[line for line in lines if any(word in line for word in ('Total Test time','tests passed','source-runtime-state-schema','verified-cpp-source-contract','Test #'))]
+                  print('LAPLACE_QA_LOG '+name)
+                  print('\n'.join(selected)[-18000:])
           PY
-      - name: Execute publication projection and historical evidence controls
-        shell: bash
-        run: |
-          set -euo pipefail
-          unset LAPLACE_VERIFY_CONTINUATION_PHYSICAL
-          python3 -B tests/program_authority_tests.py 2>&1 |
-            tee "$RUNNER_TEMP/cmake-operator-source-controls/program-authority-tests.log"
-      - name: Retain source qualification evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: cmake-operator-source-controls-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/cmake-operator-source-controls/
-          if-no-files-found: error
-          retention-days: 90
