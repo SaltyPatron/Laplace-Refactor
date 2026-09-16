@@ -135,7 +135,14 @@ def load_module(module_name: str, installed_name: str, source_name: str) -> Any:
         raise RuntimeError(f"cannot load installed Laplace component: {target}")
     module = module_from_spec(spec)
     sys.modules[loader.name] = module
-    loader.exec_module(module)
+    # Installed package bytes are immutable. Keep dynamic sibling imports from
+    # creating __pycache__ entries, including imports performed by that module.
+    previous_bytecode_policy = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = previous_bytecode_policy
     return module
 
 

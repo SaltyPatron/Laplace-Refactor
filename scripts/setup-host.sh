@@ -15,6 +15,9 @@ RUNNER_SHELL="/usr/sbin/nologin"
 SERVICE="laplace-refactor-postgresql.service"
 SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$SERVICE"
 SERVICE_TARGET="/etc/systemd/system/$SERVICE"
+COGNITION_SERVICE="laplace-refactor-cognition.service"
+COGNITION_SERVICE_SOURCE="$REPOSITORY/packaging/systemd/$COGNITION_SERVICE"
+COGNITION_SERVICE_TARGET="/etc/systemd/system/$COGNITION_SERVICE"
 SUDOERS_TARGET="/etc/sudoers.d/laplace-refactor-postgresql-service"
 BOOTSTRAP_RECEIPT="/opt/laplace/receipts/bootstrap/host.json"
 MODE="${1:-setup}"
@@ -29,6 +32,24 @@ resolve_command() {
         exit 1
     fi
     printf '%s\n' "$resolved"
+}
+
+install_static_service_envelopes() {
+    # Validate the complete input pair before writing either installed envelope.
+    local source
+    for source in "$SERVICE_SOURCE" "$COGNITION_SERVICE_SOURCE"; do
+        if [[ ! -f "$source" || -L "$source" ]]; then
+            echo "static service definition is absent or unsafe: $source" >&2
+            return 1
+        fi
+    done
+    "$INSTALL_BIN" -o root -g root -m 0644 "$SERVICE_SOURCE" "$SERVICE_TARGET"
+    "$INSTALL_BIN" -o root -g root -m 0644 "$COGNITION_SERVICE_SOURCE" "$COGNITION_SERVICE_TARGET"
+    "$SYSTEMCTL_BIN" daemon-reload
+    "$SYSTEMCTL_BIN" enable "$SERVICE" >/dev/null
+    "$SYSTEMCTL_BIN" enable "$COGNITION_SERVICE" >/dev/null
+    "$SYSTEMCTL_BIN" is-enabled --quiet "$SERVICE"
+    "$SYSTEMCTL_BIN" is-enabled --quiet "$COGNITION_SERVICE"
 }
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -265,13 +286,10 @@ print(
 )
 '
 
-# Install one static OS service envelope. It runs as laplace-runner and points only at
-# the runner-owned /opt/laplace/runtime/refactor link. No package generation, database
-# operation, or semantic action is encoded in this bootstrap step.
-"$INSTALL_BIN" -o root -g root -m 0644 "$SERVICE_SOURCE" "$SERVICE_TARGET"
-"$SYSTEMCTL_BIN" daemon-reload
-"$SYSTEMCTL_BIN" enable "$SERVICE" >/dev/null
-"$SYSTEMCTL_BIN" is-enabled --quiet "$SERVICE"
+# Install and enable both static OS envelopes before prerequisites can return.
+# They run as laplace-runner and point at the runner-owned runtime link. Enabling
+# these envelopes does not start services or perform package/database operations.
+install_static_service_envelopes
 
 # Narrow recurring privilege only. This policy cannot invoke a shell, package
 # installer, database controller, Unicode/Highway operation, or whole-product gateway
@@ -296,6 +314,7 @@ TMP_RECEIPT="$("$MKTEMP_BIN")"
 trap '"$RM_BIN" -f "$TMP_RECEIPT"' EXIT
 SUDOERS_SHA="$("$SHA256SUM_BIN" "$SUDOERS_TARGET" | "$AWK_BIN" '{print $1}')"
 SERVICE_SHA="$("$SHA256SUM_BIN" "$SERVICE_TARGET" | "$AWK_BIN" '{print $1}')"
+COGNITION_SERVICE_SHA="$("$SHA256SUM_BIN" "$COGNITION_SERVICE_TARGET" | "$AWK_BIN" '{print $1}')"
 RUNNER_UID="$("$ID_BIN" -u "$RUNNER_USER")"
 RUNNER_GID="$("$ID_BIN" -g "$RUNNER_USER")"
 cat > "$TMP_RECEIPT" <<EOF
@@ -311,6 +330,12 @@ cat > "$TMP_RECEIPT" <<EOF
   "service_envelope": {
     "path": "$SERVICE_TARGET",
     "sha256": "$SERVICE_SHA",
+    "enabled": true,
+    "started_by_bootstrap": false
+  },
+  "cognition_service_envelope": {
+    "path": "$COGNITION_SERVICE_TARGET",
+    "sha256": "$COGNITION_SERVICE_SHA",
     "enabled": true,
     "started_by_bootstrap": false
   },
@@ -337,12 +362,16 @@ fi
 
 bash "$SCRIPT_DIR/setup-chess.sh"
 "$SUDO_BIN" -u "$RUNNER_USER" -H -- bash "$SCRIPT_DIR/setup-product.sh"
-COGNITION_SERVICE=laplace-refactor-cognition.service
-"$INSTALL_BIN" -o root -g root -m 0644 "$REPOSITORY/packaging/systemd/$COGNITION_SERVICE" "/etc/systemd/system/$COGNITION_SERVICE"
-"$SYSTEMCTL_BIN" daemon-reload
-"$SYSTEMCTL_BIN" enable "$COGNITION_SERVICE"
-"$SYSTEMCTL_BIN" restart "$COGNITION_SERVICE"
-"$SYSTEMCTL_BIN" is-active --quiet "$COGNITION_SERVICE"
+cognition_evidence=$(mktemp -d "$TMPDIR/setup-cognition-service.XXXXXXXX")
+"$CHOWN_BIN" "$RUNNER_USER:$RUNNER_GROUP" "$cognition_evidence"
+"$SUDO_BIN" -u "$RUNNER_USER" -H -- "$PYTHON_BIN" \
+    "$REPOSITORY/tools/delivery/product_cognition_service.py" ensure \
+    --expected-uid "$RUNNER_UID" --output "$cognition_evidence/ensure"
+"$SUDO_BIN" -u "$RUNNER_USER" -H -- "$PYTHON_BIN" \
+    "$REPOSITORY/tools/delivery/product_cognition_service.py" restart \
+    --expected-uid "$RUNNER_UID" \
+    --expected-sha "$(git -c safe.directory="$REPOSITORY" rev-parse HEAD)" \
+    --output "$cognition_evidence/restart"
 for attempt in {1..30}; do
     if "$SUDO_BIN" -u "$RUNNER_USER" -H -- /opt/laplace/runtime/refactor/bin/laplace-cognition --relations constituent AA > "$TMPDIR/setup-cognition-readback" 2>/dev/null; then
         [[ $(cat "$TMPDIR/setup-cognition-readback") == A ]] && break

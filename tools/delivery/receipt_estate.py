@@ -195,6 +195,8 @@ def migrate_packages(
     migrated: list[dict[str, str]],
     preserved: list[str],
     removed: list[str],
+    *,
+    selected_package_id: str | None = None,
 ) -> None:
     legacy = receipt_root / "packages"
     if not legacy.exists() and not legacy.is_symlink():
@@ -207,6 +209,9 @@ def migrate_packages(
             preserved.append(str(source))
             continue
         package_id = match.group(1)
+        if selected_package_id is not None and package_id != selected_package_id:
+            preserved.append(str(source))
+            continue
         document = load_json(source)
         if document.get("schema") != INSTALLATION_SCHEMA:
             preserved.append(str(source))
@@ -235,11 +240,16 @@ def migrate_package_directory_tree(
     migrated: list[dict[str, str]],
     preserved: list[str],
     removed: list[str],
+    *,
+    selected_package_id: str | None = None,
 ) -> None:
     if not source_root.exists() and not source_root.is_symlink():
         return
     physical_directory(source_root, "legacy package-addressed receipt root")
     for package_directory in sorted(source_root.iterdir(), key=lambda value: value.name):
+        if selected_package_id is not None and package_directory.name != selected_package_id:
+            preserved.append(str(package_directory))
+            continue
         if (
             HEX_256.fullmatch(package_directory.name) is None
             or package_directory.is_symlink()
@@ -293,10 +303,12 @@ def migrate_singleton_product_receipt(
     gid: int,
     system_root: bool,
     migrated: list[dict[str, str]],
+    *,
+    selected_package_id: str | None = None,
 ) -> None:
     if not source.exists() and not source.is_symlink():
         return
-    package_id = package_id_from_document(source)
+    package_id = package_id_from_document(source, selected_package_id)
     document = load_json(source)
     if (destination_name == "highway-committed-revalidation.json"
             and document.get("schema") != "laplace.highway-committed-revalidation-receipt/v1"):
@@ -327,11 +339,16 @@ def migrate_named_package_leaf(
     migrated: list[dict[str, str]],
     preserved: list[str],
     removed: list[str],
+    *,
+    selected_package_id: str | None = None,
 ) -> None:
     if not source_root.exists() and not source_root.is_symlink():
         return
     physical_directory(source_root, "legacy package receipt root")
     for package_directory in sorted(source_root.iterdir(), key=lambda value: value.name):
+        if selected_package_id is not None and package_directory.name != selected_package_id:
+            preserved.append(str(package_directory))
+            continue
         if (
             HEX_256.fullmatch(package_directory.name) is None
             or package_directory.is_symlink()
