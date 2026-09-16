@@ -1,14 +1,10 @@
 [Unit]
-Description=Laplace Refactor cognition service
-After=laplace-refactor-postgresql.service
-ConditionPathExists=!/opt/laplace/receipts/bootstrap/cognition-user-service.json
+Description=Laplace Refactor cognition service (laplace-runner user manager)
+ConditionPathExists=/opt/laplace/receipts/bootstrap/cognition-user-service.json
 StartLimitIntervalSec=0
-RequiresMountsFor=/build /opt/laplace/runtime /opt/laplace/pgdata /var/lib/pgwal /pgtemp
 
 [Service]
 Type=simple
-User=laplace-runner
-Group=laplace-runner
 UMask=0002
 Environment=TMPDIR=/build/laplace/work/refactor-scratch
 Environment=TMP=/build/laplace/work/refactor-scratch
@@ -19,4 +15,4 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

@@ -48,5 +48,16 @@ jq -e --arg package "$package" '
     .package_id == $package and .execution_owner == "laplace-runner" and
     .root_product_executor == false
 ' "$work/activation.json" >/dev/null
+# Retain the same exact activation owner used by deployment and service restart.
+python3 - "$work/activation.json" "$(git -c safe.directory="$PWD" rev-parse HEAD)" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd() / "tools"))
+from sources.stockfish_corpus_acceptance import load, retain_activation, runner
+runner.require_runner()
+contract = load(Path("contracts/postgresql-cluster.json"))
+print(retain_activation(Path(sys.argv[1]), sys.argv[2],
+    Path(contract["instance"]["receipt_directory"])))
+PY
 python3 tools/delivery/product_cognition_live_proof.py --output "$work/cognition.json"
 echo "Product activation and installed cognition readback completed. Evidence: $work"
