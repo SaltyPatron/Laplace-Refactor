@@ -408,9 +408,11 @@ def verify_git_readback(command: list[str], result: dict[str, Any], proof: dict[
     maximum_file_bytes = max(item["byte_count"] for item in artifacts)
     maximum_nodes = max(4096, maximum_file_bytes * 4)
     maximum_carriers = max(4096, maximum_file_bytes * 16)
+    # The retained v3 structural receipt is the authority for its exact witness
+    # count, and the PostgreSQL verifier streams that set 128 rows at a time.
+    # Pass a finite profile-derived bound; do not invent a smaller global corpus
+    # ceiling after admission has already committed.
     witness_bound = max(4096, int(profile["span_count"]))
-    if witness_bound > 5000000:
-        raise AdmissionError("source readback exceeds its five-million-witness boundary")
     sql = f"""WITH selected AS MATERIALIZED (
  SELECT receipt_id,witness_fingerprint FROM laplace.source_structural_witness_receipt
  WHERE source_profile_id={profile_id} AND composition_working_set_receipt={composition_id} AND version=3
