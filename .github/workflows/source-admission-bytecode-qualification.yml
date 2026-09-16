@@ -1,297 +1,94 @@
-name: Installed complete Stockfish source acceptance
+name: Qualify shared source verification
 on:
   push:
     branches: [verify/source-admission-bytecode-20260916]
 permissions:
   contents: read
-concurrency:
-  group: installed-full-stockfish-source
-  cancel-in-progress: false
-env:
-  PYTHONDONTWRITEBYTECODE: "1"
-  GIT_OPTIONAL_LOCKS: "0"
-  LAPLACE_SOURCE_ESTATE_ROOT: /opt/laplace/sources
-  TMPDIR: /build/laplace/work
-  TMP: /build/laplace/work
-  TEMP: /build/laplace/work
-  STOCKFISH_SOURCE_OVERRIDE: ${{ vars.LAPLACE_STOCKFISH_SOURCE }}
-  CORPUS_EVIDENCE: /build/laplace/work/installed-full-stockfish-source/${{ github.run_id }}-${{ github.run_attempt }}
 jobs:
   qualify:
     if: github.repository == 'SaltyPatron/Laplace-Refactor'
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 120
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ef4047f7a36c82c7969b8e9fba212304aef4d684
           fetch-depth: 0
           persist-credentials: false
-      - name: Retain exact candidate driver and prepare the thin caller
+      - name: Verify exact source and execute grammar and cleanup controls
         shell: bash
         run: |
-          set -euo pipefail
-          umask 077
-          test "$(id -un)" = laplace-runner
-          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
-          test "$GITHUB_REF" = refs/heads/verify/source-admission-bytecode-20260916
-          test "$(git rev-parse HEAD)" = ef4047f7a36c82c7969b8e9fba212304aef4d684
-          test "$(git rev-parse HEAD^{tree})" = ee3e7beb33f252542f00f8b2d7fb81767207a3a6
-          test "$(git diff --name-only --no-renames ef4047f7a36c82c7969b8e9fba212304aef4d684 "$GITHUB_SHA")" = .github/workflows/source-admission-bytecode-qualification.yml
-          test -z "$(git status --porcelain --untracked-files=all)"
           python3 -B - <<'PY'
-          import os,stat
-          from pathlib import Path
-          target=Path(os.environ["CORPUS_EVIDENCE"])
-          target.parent.mkdir(mode=0o700,exist_ok=True)
-          info=target.parent.lstat()
-          if not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.geteuid() or stat.S_IMODE(info.st_mode) not in (0o700,0o2700):
-              raise SystemExit("evidence parent is not a private owned directory")
-          target.mkdir(mode=0o700)
-          PY
-          git show "$GITHUB_SHA:.github/workflows/source-admission-bytecode-qualification.yml" > "$CORPUS_EVIDENCE/executed-workflow.yml"
-          git archive --format=tar HEAD tools/sources tools/product/build_workspace_retention.py tools/product/repository_inputs.py tools/delivery/product_activation_runner.py tools/delivery/product_gateway_live_proof.py tools/postgresql/clusterctl.py tools/postgresql/cluster_core.py tools/admit_source_guard.py tools/dependencies/chess_tools.py tools/dependencies/git_checkout.py tools/host/run-exclusive.sh dependencies/lock.json dependencies/tree-sitter-grammars.lock.json .github/workflows/product-path.yml .github/workflows/stockfish-corpus-acceptance.yml > "$CORPUS_EVIDENCE/candidate-source.tar"
-          cat > "$CORPUS_EVIDENCE/qualify.py" <<'PY'
-          import hashlib, json, os, subprocess, sys, time
-          from pathlib import Path
-          sys.path.insert(0,str(Path.cwd()/"tools"))
-          from sources import stockfish_corpus_acceptance as owner
-          
-          out=Path(os.environ["CORPUS_EVIDENCE"])
-          base="6347401133605adada0b3ebad06ef0051082e76a"
-          package="1117fa6aca97a6f1a0f49341cc95fca4281ad3dbaecc31aec2b0f4abf81a2d55"
-          aggregate="da9e8e07115f770cf0d17f24b31b0fd475a2df1d36e87b3c57f7eec496e2c11b"
-          candidate="ef4047f7a36c82c7969b8e9fba212304aef4d684"
-          began=time.monotonic()
-          report={"schema":"laplace.installed-full-source-operation/v1","status":"running",
-                  "candidate_commit":candidate,"installed_repository_commit":base,
-                  "installed_package_id":package,"expected_activation_aggregate_sha256":aggregate,
-                  "driver_scope":"candidate observer and orchestration; unchanged installed admission engine",
-                  "source_estate":os.environ["LAPLACE_SOURCE_ESTATE_ROOT"],
-                  "source_scope":"complete locked Stockfish Git tree, all 119 tracked files; no subset",
-                  "owner_timeout_seconds":5400,"native_engine_rebuilt":False,
-                  "service_restarted":False,"completed_phases":[]}
-          before=None
+          import ast, hashlib, json, os, pathlib, re, subprocess, time
+          root = pathlib.Path.cwd()
+          expected = {"tests/postgresql_build_tests.py":"be4a19e6f2ba523a40bd60496cca8e94d7b9f3cc","tests/postgresql_package_publication_tests.py":"d1b6e69091481b8cc0d471207d63c384d3129e7f","tests/product_package_tests.py":"933a5bc9d14f659e718e971a94c77e836ea0ef9f","tests/toolchain_build_tests.py":"e9d45a97bf38ae4a43be86c16fc39a0cca5b5b58","tools/delivery/postgresql_package_publication.py":"0ba44f5a15894ac7fe26d2d1706ab5759e4704a5","tools/dependencies/build-runtime-graph.py":"dd134acfe31b505e39f0c642f5d17810dbc66d13","tools/dependencies/package_receipts.py":"29fbc5bd51e849cdef3fd77d2c70044959aa71ec","tools/postgresql/build-package.py":"58c8cd0d8942444d978cd1d5d8a86a250a66fbb1","tools/product/build-package.py":"5db4d8905bbf881b6b6cb63f2153db3e1b7ade5f","tools/toolchain/build-package.py":"bc41dc94e22a93cf2d5514e5bca43555741a9fdb","tests/product_build_workspace_retention_tests.py":"a40d2c1cb5bf7efcbcf62488609ea781da1b47d0","tests/product_gateway_contract_tests.py":"1a699c3d1ec8116e1ea5afe3506fbb835e1abec4","tests/stockfish_corpus_acceptance_tests.py":"6c56ef37d82b4291986082afbc04e038b8fb8fe8","tools/delivery/product_gateway_live_proof.py":"b17c5ce2a5f4e3e3a62b7dd7e340e5e0f832b0da","tools/product/build_workspace_retention.py":"b4096647685940393d8880fd1e0bdcc6bf900196","tools/sources/stockfish_corpus_acceptance.py":"b00543ad24b0d6e22624c6ed2b4a2adfc8cb910a","docs/delivery/CHESS_DEPENDENCIES.md":"6ba8f534d4c2a07cae8a51c181665f2aa42d5a77",".github/workflows/product-path.yml":"7fbe68e2d7ff112a8d0d78df064df1595e3c6aa4","tests/product_path_status_tests.py":"66f72233ccd1df114db40cad36398633c2d9a71b",".github/workflows/stockfish-corpus-acceptance.yml":"317c69a359d2f8da0fef98a5885a29c7ac29c3da","tests/verified_git_source_tests.py":"014c896ca0106e34685daf404c5fdd19dc6c8ca5","tools/sources/verified_git.py":"87683bb0091e2dbb790488d2f95d9361189c706e","tools/sources/qualify_grammar.py":"b9a52114a35ca2a7cc190a95b25dc46d5e576c0f","tools/delivery/runner_orphan_cleanup.py":"b562b96d11e46d9100b1d70bef17ad39b13472a8","tests/runner_orphan_cleanup_tests.py":"a5fc76183401a4ac038756580b840b84180c484c"}
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "shared-source-verification-controls"
+          output.mkdir()
+          observed = {}
+          for name, blob in expected.items():
+              path = root / name
+              raw = path.read_bytes()
+              value = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+              if path.is_symlink() or value != blob:
+                  raise RuntimeError("qualified candidate source differs: " + name)
+              if name.endswith(".py"):
+                  ast.parse(raw, filename=name)
+              observed[name] = {"git_blob": blob, "sha256": hashlib.sha256(raw).hexdigest()}
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "--no-renames",
+               "6347401133605adada0b3ebad06ef0051082e76a", "HEAD"], text=True).splitlines()
+          if set(changed) != set(expected) | {".github/workflows/source-admission-bytecode-qualification.yml"}:
+              raise RuntimeError("cumulative qualification delta differs")
+          if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], text=True):
+              raise RuntimeError("qualification checkout is dirty")
+          report = {"schema": "laplace.shared-source-verification-controls/v1",
+              "head": os.environ["GITHUB_SHA"], "base": "6347401133605adada0b3ebad06ef0051082e76a",
+              "source": observed, "status": "running", "suites": [],
+              "host_execution": False, "consumer_installed": False}
+          result = output / "result.json"
           def save():
-              report["elapsed_seconds"]=time.monotonic()-began
-              owner.save(out/"operation-result.json",report)
-          def checked_activation(name):
-              value=owner.observe_activation(base,out/(name+".json"))
-              owner.require(value["package_id"]==package,"installed package differs from selected1117")
-              owner.require(any(item["document"].get("result_sha256")==aggregate
-                                for item in value["runner_receipts"]),"installed activation aggregate differs")
-              return value
-          def command(name,args,seconds):
-              report["active_phase"]=name
-              save()
-              with (out/(name+".stdout")).open("xb") as stdout,(out/(name+".stderr")).open("xb") as stderr:
-                  result=subprocess.run(args,stdout=stdout,stderr=stderr,timeout=seconds,check=False)
-                  stdout.flush();stderr.flush();os.fsync(stdout.fileno());os.fsync(stderr.fileno())
-              report[name+"_exit_code"]=result.returncode
-              owner.require(result.returncode==0,name+" failed; exact stdout/stderr and owner receipt are retained")
-              report["completed_phases"].append(name)
-              save()
-          def recover_installed_cluster():
-              # Authenticate the committed package and plan before the existing
-              # runner owner may start its already initialized PostgreSQL cluster.
-              owner.runner.require_runner()
-              cluster=owner.runner.clusterctl
-              contract=owner.load(Path("contracts/postgresql-cluster.json"))
-              gateway=owner.load(Path("contracts/product-activation-gateway.json"))
-              active=Path(contract["package"]["active_link"])
-              release=Path(contract["package"]["release_root"])/package
-              owner.require(active.is_symlink() and os.readlink(active)=="releases/"+package
-                            and active.resolve(strict=True)==release,
-                            "recovery active package differs")
-              evidence=Path(contract["instance"]["receipt_directory"])/"cluster-activation"/package
-              installation=owner.load(evidence/"package-installation.json")
-              result=owner.load(evidence/"activation-result.json")
-              plan_path=owner.runner.validate_cluster_result(result,package)
-              plan=owner.load(plan_path)
-              cluster.validate_plan(plan,contract)
-              owner.require(plan["plan_sha256"]==result["plan_sha256"]
-                            and str(result["system_identifier"])=="7682119102860556519",
-                            "recovery plan or original cluster identity differs")
-              metadata=owner.resolve_installed_package_metadata(gateway["product"],installation,plan,package)
-              manifest=metadata["manifest"]
-              owner.runner.validate_package_installation(
-                  installation,manifest,Path(installation["source_physical_root"]))
-              status=cluster.verify_package(manifest,contract,Path("/"))
-              owner.require(status.verified,"recovery package bytes failed: "+status.reason)
-              owner.validate_loaded_plan(plan,manifest,contract,status.files,release)
-              runtime=Path(plan["runtime_link"])
-              owner.require(runtime.is_symlink() and os.readlink(runtime)=="../releases/"+package
-                            and runtime.resolve(strict=True)==release
-                            and status.manifest_sha256==installation["package_manifest_sha256"]
-                            ==plan["package_manifest_sha256"],"recovery runtime or manifest differs")
-              fingerprint=owner.repository_inputs.repository_build_fingerprint_at_commit(Path.cwd(),base)
-              _,_,matches,_=owner.observe_native_receipts(
-                  Path(contract["instance"]["receipt_directory"]),base,package,manifest,
-                  installation,plan,result,fingerprint)
-              owner.require(any(document.get("result_sha256")==aggregate
-                                for _,document,_,_ in matches),"recovery activation aggregate differs")
-              # Read the existing control identity before any startup; no initdb,
-              # package installation, source reseed or receipt replacement occurs.
-              data=Path(plan["instance"]["data_directory"])
-              owner.require(data.is_dir() and not data.is_symlink()
-                            and data.resolve(strict=True)==data and data.stat().st_uid==os.geteuid(),
-                            "preserved cluster directory is not the exact owned physical path")
-              control_command=[str(release/"pgsql-18/bin/pg_controldata"),"-D",str(data)]
-              probe=subprocess.run(control_command,
-                  cwd="/",env=cluster.activation_environment(),capture_output=True,
-                  text=True,timeout=30,check=False)
-              control=cluster.command_execution_receipt("read-preserved-control-identity",control_command,probe)
-              owner.require(probe.returncode==0,"preserved cluster control identity is unreadable")
-              identifiers=[line.split(":",1)[1].strip() for line in probe.stdout.splitlines()
-                           if line.startswith("Database system identifier:")]
-              owner.require(identifiers==[str(result["system_identifier"])],
-                            "preserved cluster control identity differs")
-              owner.save(out/"recovery-authority.json",{
-                  "package_id":package,"activation_aggregate":aggregate,
-                  "plan_path":str(plan_path),"plan_sha256":plan["plan_sha256"],
-                  "manifest_path":metadata["manifest_path"],"manifest_sha256":status.manifest_sha256,
-                  "system_identifier":identifiers[0],"control_identity_command":control})
-              report["active_phase"]="recover-installed-postgresql"
-              save()
-              observed=owner.runner.ensure_cluster_running(plan,contract,result)
-              owner.save(out/"recovered-loaded-postgresql.json",observed)
-              report["postgresql_recovery_verified"]=True
-              report["recovered_postmaster_pid"]=observed["postmaster_pid"]
-              report["completed_phases"].append("recover-installed-postgresql")
-              save()
+              result.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
           save()
-          try:
-              recover_installed_cluster()
-              before=checked_activation("activation-before")
-              report["completed_phases"].append("activation-before")
-              command("gateway-readiness",[sys.executable,"-B","tools/delivery/product_gateway_live_proof.py",
-                  "--output",str(out/"gateway-readiness"),"--package-id",package,
-                  "--readiness-only","--product-receipt",before["package_metadata"]["receipt_path"]],120)
-              command("gateway-semantic-proof",[sys.executable,"-B","tools/delivery/product_gateway_live_proof.py",
-                  "--output",str(out/"gateway-semantic-proof"),"--package-id",package],180)
-              # Extract and run the exact already-qualified four-row predicate.
-              workflow=Path(".github/workflows/product-path.yml").read_text()
-              block=workflow.split("\n  dev-bat-live-substrate:",1)[1]
-              opening='--arg package_id "$package_id" \''
-              predicate=block.split(opening,1)[1].split('\' "$result" >/dev/null',1)[0]
-              (out/"live-substrate-predicate.jq").write_text(predicate)
-              command("live-substrate",[str(Path(before["release"])/"bin/laplace-live-substrate"),"Aé中Ω"],30)
-              command("live-substrate-predicate",["jq","-e","--arg","package_id",package,predicate,
-                                               str(out/"live-substrate.stdout")],10)
-              report["live_substrate_result_sha256"]=owner.sha(out/"live-substrate.stdout")
-              raw=os.environ.get("STOCKFISH_SOURCE_OVERRIDE","").strip()
-              if raw:
-                  os.environ["LAPLACE_STOCKFISH_SOURCE"]=raw
-              selection=out/"stockfish-source-selection.json"
-              command("source-selection",[sys.executable,"-B","tools/dependencies/chess_tools.py",
-                                         "select-source","--selection-output",str(selection)],180)
-              command("complete-source-admission-and-repeat",
-                      [sys.executable,"-B","tools/sources/stockfish_corpus_acceptance.py",
-                       "--source-selection",str(selection),"--expected-sha",base,
-                       "--output",str(out/"corpus"),"--timeout","5400"],5700)
-              report["status"]="passed"
-          except Exception as error:
-              report.update(status="failed",error={"type":type(error).__module__+"."+type(error).__name__,
-                                                  "message":str(error)[:1600]})
-          finally:
-              if before is not None:
-                  try:
-                      after=checked_activation("activation-after")
-                      owner.require(owner.stable_activation(before)==owner.stable_activation(after),
-                                    "activated product changed during source acceptance")
-                      report["activation_unchanged"]=True
-                      report["completed_phases"].append("activation-after")
-                  except Exception as error:
-                      report.update(status="failed",activation_after_error={
-                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:1600]})
-              partial=out/"corpus/result.json"
-              if partial.is_file() and not partial.is_symlink():
-                  try:
-                      value=owner.load(partial)
-                      report["corpus"]={key:value.get(key) for key in
-                          ("status","canonical_corpus_admission_completed","zero_amplification_repeat_proven",
-                           "database_mutation_outcome")}
-                      report["corpus"]["error"]=str(value.get("error",""))[:1600]
-                      report["corpus"]["receipt_sha256"]=owner.sha(partial)
-                  except Exception as error:
-                      report.update(status="failed",retained_receipt_error={
-                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:1600]})
-              if not report.get("activation_unchanged"):
-                  report["status"]="failed"
+          for filename, expected_count in (
+                  ("verified_git_source_tests.py", 31),
+                  ("runner_orphan_cleanup_tests.py", 16)):
+              started = time.monotonic()
+              entry = {"suite": filename, "expected_controls": expected_count, "status": "running"}
+              report["suites"].append(entry)
               save()
-          raise SystemExit(0 if report["status"]=="passed" else 1)
-          
+              target = output / (filename + ".log")
+              with target.open("xb") as log:
+                  try:
+                      completed = subprocess.run(["python3", "-B", "tests/" + filename],
+                          stdout=log, stderr=subprocess.STDOUT, timeout=180, check=False)
+                      entry["exit_code"] = completed.returncode
+                  except subprocess.TimeoutExpired:
+                      entry["exit_code"] = 124
+                      entry["status"] = "timed-out"
+              raw = target.read_bytes()
+              text = raw.decode("utf-8", errors="replace")
+              counts = re.findall(r"^Ran (\d+) tests? in ", text, re.M)
+              entry.update({"seconds": time.monotonic() - started,
+                  "log_sha256": hashlib.sha256(raw).hexdigest(),
+                  "actual_controls": int(counts[-1]) if counts else None})
+              if entry["status"] != "timed-out":
+                  entry["status"] = ("passed" if entry["exit_code"] == 0
+                      and entry["actual_controls"] == expected_count
+                      and not re.search(r"skipped=|skipped '", text) else "failed")
+              print(filename + "\n" + text, flush=True)
+              save()
+          report["status"] = "passed" if all(x["status"] == "passed" for x in report["suites"]) else "failed"
+          report["actual_controls"] = sum(x["actual_controls"] or 0 for x in report["suites"])
+          save()
+          print(json.dumps(report, sort_keys=True), flush=True)
+          raise SystemExit(0 if report["status"] == "passed" else 1)
           PY
-          python3 -B - "$CORPUS_EVIDENCE/qualify.py" <<'PY'
-          import ast,sys
-          from pathlib import Path
-          ast.parse(Path(sys.argv[1]).read_text())
-          PY
-      - name: Execute the existing complete source owner under the shared host lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          set +e
-          timeout --signal=TERM --kill-after=20s 6600s \
-            bash tools/host/run-exclusive.sh \
-            python3 -B "$CORPUS_EVIDENCE/qualify.py" \
-            > "$CORPUS_EVIDENCE/operation.stdout" \
-            2> "$CORPUS_EVIDENCE/operation.stderr"
-          status=$?
-          set -e
-          printf '%s\n' "CORPUS_OPERATION_EXIT=$status" >> "$GITHUB_ENV"
-          exit "$status"
-      - name: Print bounded phase and exception evidence
-        if: always()
-        shell: bash
-        run: |
-          python3 -B - <<'PY'
-          import json,os,re
-          from pathlib import Path
-          evidence=Path(os.environ["CORPUS_EVIDENCE"])
-          path=evidence/"operation-result.json"
-          result={"operation_exit":os.environ.get("CORPUS_OPERATION_EXIT"),
-                  "operation_result_present":path.is_file()}
-          if path.is_file():
-              if path.is_symlink() or path.stat().st_size>131072:
-                  raise SystemExit("operation result is linked or oversized")
-              value=json.loads(path.read_text())
-              for key in ("schema","status","candidate_commit","installed_repository_commit",
-                          "installed_package_id","expected_activation_aggregate_sha256","driver_scope",
-                          "source_estate","source_scope","owner_timeout_seconds","native_engine_rebuilt",
-                          "service_restarted","completed_phases","active_phase","activation_unchanged",
-                          "live_substrate_result_sha256","elapsed_seconds","error","activation_after_error",
-                          "retained_receipt_error","corpus","postgresql_recovery_verified","recovered_postmaster_pid"):
-                  if key in value:
-                      result[key]=value[key]
-          partial=evidence/"corpus/result.json"
-          if partial.is_file() and not partial.is_symlink() and partial.stat().st_size<=1048576:
-              corpus=json.loads(partial.read_text())
-              failures=[]
-              for entry in corpus.get("commands",[])[-8:]:
-                  name=entry.get("name","")
-                  if entry.get("status") not in ("failed","deadline-exhausted-submission-outcome-unknown") or not re.fullmatch(r"[a-z0-9-]{1,64}",name):
-                      continue
-                  log=evidence/"corpus"/(name+".stderr.log")
-                  projection={key:entry.get(key) for key in ("name","status","exit_code","stderr_sha256")}
-                  if log.is_file() and not log.is_symlink():
-                      with log.open("rb") as stream:
-                          stream.seek(0,2)
-                          projection["stderr_bytes"]=stream.tell()
-                          stream.seek(max(0,stream.tell()-4096))
-                          projection["stderr_tail"]=stream.read(4096).decode("utf-8","replace")
-                  failures.append(projection)
-              result["failed_owner_commands"]=failures
-          print(json.dumps(result,sort_keys=True))
-          PY
-      - name: Retain successful or partial exact owner evidence
+      - name: Retain actual control output and source identity
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: installed-full-stockfish-source-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.CORPUS_EVIDENCE }}/
-          if-no-files-found: warn
+          name: shared-source-verification-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shared-source-verification-controls/
+          if-no-files-found: error
           retention-days: 30
-          compression-level: 6
-          include-hidden-files: true

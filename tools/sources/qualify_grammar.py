@@ -23,8 +23,15 @@ def tracked_files(root: Path) -> dict[str, bytes]:
         raise GitCorpusError(str(error)) from error
 
 
-def verify_source(root: Path, entry: dict) -> dict:
+def physical_source_root(root: Path) -> Path:
     require(root.is_absolute() and not root.is_symlink(), "source root must be absolute and non-symlink")
+    physical = root.resolve(strict=True)
+    require(physical.is_dir(), "source root must be a directory")
+    return physical
+
+
+def verify_source(root: Path, entry: dict) -> dict:
+    root = physical_source_root(root)
     origin = git(root, "remote", "get-url", "origin").decode().strip()
     require(origin.removesuffix(".git") == entry["upstream"].removesuffix(".git") or local_import_origin(origin),
             "grammar/runtime origin differs from its lock")
@@ -45,6 +52,10 @@ def verify_source(root: Path, entry: dict) -> dict:
 def build(grammar_root: Path, runtime_root: Path, grammar_lock: Path,
           dependency_lock: Path, grammar_name: str, output: Path,
           compiler: str = "cc") -> Path:
+    # Resolve accepted parent aliases once; all verification and compiler inputs
+    # remain bound to these physical checkouts throughout this build.
+    grammar_root = physical_source_root(grammar_root)
+    runtime_root = physical_source_root(runtime_root)
     grammar_document = json.loads(grammar_lock.read_text())
     entries = grammar_document.get("repositories", grammar_document.get("grammars", []))
     matches = [entry for entry in entries if entry["name"] == grammar_name]
@@ -127,6 +138,7 @@ def acquire(grammar_root: Path, grammar_lock: Path, grammar_name: str) -> None:
         verify_source(grammar_root, entry)
         return
     grammar_root.mkdir(parents=True)
+    grammar_root = physical_source_root(grammar_root)
     for arguments in (["init", "-q"], ["remote", "add", "origin", entry["upstream"]],
                       ["fetch", "--depth=1", "--no-tags", "origin", entry["revision"]],
                       ["checkout", "--detach", entry["revision"]]):
