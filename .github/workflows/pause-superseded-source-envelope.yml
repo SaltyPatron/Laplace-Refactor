@@ -1,0 +1,92 @@
+name: Pause superseded cleanup-only deployment
+
+on:
+  push:
+    branches: [diag/pause-refactor-1eb-before-activation-20260916]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  pause-exact-run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify exact completed proof and preactivation boundary then normally pause
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import json, os, pathlib, urllib.request
+          repo = "SaltyPatron/Laplace-Refactor"
+          run_id = 35122689512
+          head = "1eb44bb6f50806619b903e689dba1b3c4370966e"
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "pause-1eb-audit.json"
+          audit = {"repository": repo, "run_id": run_id, "head_sha": head, "status": "checking", "mutation": None}
+          def save():
+              output.write_text(json.dumps(audit, indent=2) + "\n")
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *args, **kwargs):
+                  raise RuntimeError("GitHub API redirect refused")
+          opener = urllib.request.build_opener(NoRedirect())
+          def api(path, method="GET"):
+              if not path.startswith("/repos/" + repo + "/"):
+                  raise RuntimeError("API path outside fixed repository")
+              request = urllib.request.Request("https://api.github.com" + path, method=method,
+                  headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                           "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+              with opener.open(request, timeout=20) as response:
+                  data = response.read(2097153)
+                  if len(data) > 2097152:
+                      raise RuntimeError("API response exceeds fixed bound")
+                  return response.status, json.loads(data) if data else {}
+          save()
+          try:
+              assert os.environ["GITHUB_REPOSITORY"] == repo
+              _, current = api("/repos/" + repo + "/git/ref/heads/main")
+              assert current["object"]["sha"] == head, "main moved"
+              _, qualified = api("/repos/" + repo + "/actions/runs/35122720319")
+              assert qualified["head_sha"] == "480a2c68403dd5d6323f89fbfda6cc8442dbcb2c"
+              assert qualified["conclusion"] == "success", "bytecode repair has not qualified"
+              _, run = api("/repos/" + repo + "/actions/runs/" + str(run_id))
+              assert run["head_sha"] == head and run["head_branch"] == "main"
+              assert run["path"] == ".github/workflows/product-path.yml" and run["event"] == "push"
+              assert run["run_attempt"] == 1 and run["status"] == "in_progress"
+              _, source_commit = api("/repos/" + repo + "/git/commits/" + head)
+              assert source_commit["tree"]["sha"] == "88efa986eebfb5ce62ffd981c92a5e0461c1206d"
+              assert [p["sha"] for p in source_commit["parents"]] == ["f8e0059c449bce2aa2350542065c51dec0c2bb6e"]
+              _, repair = api("/repos/" + repo + "/pulls/387")
+              assert repair["head"]["sha"] == "5bc2c48d9067b12c813b0f5ab73537eceab16392"
+              assert repair["base"]["sha"] == head and repair["state"] == "open"
+              _, listed = api("/repos/" + repo + "/actions/runs/" + str(run_id) + "/jobs?per_page=100")
+              assert listed["total_count"] <= 100
+              jobs = listed["jobs"]
+              protected = [j for j in jobs if j["name"].startswith(("dev-bat-deployment", "deployed-", "dev-bat-live-substrate"))]
+              assert all(j["status"] == "queued" and not j.get("steps") for j in protected), "activation or installed acceptance already started"
+              active = [j for j in jobs if j["status"] == "in_progress"]
+              assert active and all(j["name"] in ("custom-stack-proof / postgresql-native", "package-product-proof / package-product", "product-path") for j in active), "unexpected active phase"
+              audit.update({"status": "authorized-boundary-verified", "repair_pull_request": 387,
+                  "qualified_repair_run": qualified["id"], "active_jobs": [
+                  {"id": j["id"], "name": j["name"], "steps": [
+                  {"number": s["number"], "name": s["name"]} for s in j.get("steps", []) if s["status"] == "in_progress"]} for j in active],
+                  "activation_jobs_started": False})
+              save()
+              status, result = api("/repos/" + repo + "/actions/runs/" + str(run_id) + "/cancel", "POST")
+              assert status == 202, "normal cancellation was not accepted"
+              audit.update({"status": "normal-cancellation-accepted", "mutation": "POST exact run/cancel", "http_status": status})
+          except BaseException as error:
+              audit.update({"status": "refused-or-failed", "error": str(error)})
+              save()
+              raise
+          save()
+          print(json.dumps(audit, sort_keys=True))
+          
+      - name: Retain cancellation audit
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pause-refactor-1eb-audit
+          path: ${{ runner.temp }}/pause-1eb-audit.json
+          if-no-files-found: error
+          retention-days: 30
