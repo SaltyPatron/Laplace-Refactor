@@ -1,0 +1,140 @@
+name: Observe current Original lifecycle without shared-host work
+on:
+  push:
+    branches: ['diag/observe-original-main-f2-*']
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
+    steps:
+      - name: Read exact lifecycle phase and owned process counters
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 40s python3 - <<'PY'
+          import datetime, hashlib, json, os, signal, stat, time
+          from pathlib import Path
+          RUN, SHA, TREE = 35104196613, "f2cbb5fc7305dfd20d9fa3a19003b60a06b457c0", "42167cb4cbef49382fd427e7e4f51b26eea2d7f4"
+          PATH = Path(f"/build/laplace/work/ci-sessions/{RUN}-1-product/session.json")
+          def deadline(signum, frame):
+              raise TimeoutError("bounded read-only lifecycle observation deadline")
+          signal.signal(signal.SIGALRM, deadline)
+          signal.alarm(30)
+          def read(path, limit):
+              fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(fd, "rb") as stream:
+                  if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                      raise ValueError("not a regular evidence file")
+                  raw = stream.read(limit + 1)
+              if len(raw) > limit:
+                  raise ValueError("evidence exceeded read budget")
+              return raw
+          def proc(pid):
+              raw = read(f"/proc/{pid}/stat", 4096).decode("ascii")
+              end = raw.rfind(")")
+              if end < 0 or raw.split(" ", 1)[0] != str(pid):
+                  raise ValueError("process identity mismatch")
+              fields = raw[end + 2:].split()
+              if len(fields) < 22:
+                  raise ValueError("incomplete process stat")
+              return {"pid": pid, "parentPid": int(fields[1]), "group": int(fields[2]), "startTicks": int(fields[19]),
+                      "userTicks": int(fields[11]), "systemTicks": int(fields[12]),
+                      "residentPages": int(fields[21]), "threads": int(fields[17])}
+          previous = {}
+          def observe():
+              result = {"schema": "laplace.ci-session-live-observation/v1", "runId": RUN, "attempt": 1,
+                        "expectedSource": SHA, "observedUtc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "scope": "Read-only fixed lifecycle receipt and verified descendants within the owned process group; no checkout, host lock, arguments, environment, database or process mutation. PostgreSQL server CPU is outside this group."}
+              try:
+                  raw = read(PATH, 65536)
+                  state = json.loads(raw)
+                  if state.get("schema") != "laplace.ci-session.v1" or state.get("source") != {"commit": SHA, "tree": TREE} or state.get("kind") != "product":
+                      raise ValueError("lifecycle receipt identity differs")
+                  result["receipt"] = {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(),
+                                       "status": str(state.get("status", ""))[:80], "next": state.get("next") if type(state.get("next")) is int else None}
+                  rows = state.get("results", [])
+                  if not isinstance(rows, list) or len(rows) > 64:
+                      raise ValueError("invalid completed phase list")
+                  result["receipt"]["results"] = [{"phase": str(row.get("phase", ""))[:80], "exitCode": row.get("exit_code") if type(row.get("exit_code")) is int else None} for row in rows]
+                  active = state.get("active")
+                  if active is not None:
+                      pid = active.get("pid")
+                      birth = active.get("start")
+                      if type(pid) is not int or not 0 < pid < 2147483648 or not isinstance(birth, str):
+                          raise ValueError("invalid active process identity")
+                      boot, source_pid, ticks = birth.split(":")
+                      if read("/proc/sys/kernel/random/boot_id", 128).decode().strip() != boot or int(source_pid) != pid:
+                          raise ValueError("boot or process identity changed")
+                      leader = proc(pid)
+                      if leader["startTicks"] != int(ticks) or leader["group"] != pid:
+                          raise ValueError("owned group leader identity changed")
+                      result["active"] = {"phase": str(active.get("phase", ""))[:80], "pid": pid, "startTicks": leader["startTicks"], "bootId": boot}
+                      members, scan = [], 0
+                      for entry in Path("/proc").iterdir():
+                          if not entry.name.isdecimal():
+                              continue
+                          scan += 1
+                          if scan > 4096:
+                              result["processScanTruncated"] = True
+                              break
+                          try:
+                              item = proc(int(entry.name))
+                              if item["group"] == pid:
+                                  members.append(item)
+                                  if len(members) >= 64:
+                                      result["groupMembersTruncated"] = True
+                                      break
+                          except (OSError, ValueError, UnicodeError):
+                              continue
+                      stable = {}
+                      for member in members:
+                          try:
+                              current = proc(member["pid"])
+                              if (current["startTicks"], current["parentPid"], current["group"]) == (member["startTicks"], member["parentPid"], member["group"]):
+                                  stable[current["pid"]] = current
+                          except (OSError, ValueError, UnicodeError):
+                              pass
+                      rooted = {pid: stable[pid]} if pid in stable else {}
+                      for _ in range(len(stable)):
+                          added = False
+                          for candidate_pid, member in stable.items():
+                              parent = rooted.get(member["parentPid"])
+                              if candidate_pid not in rooted and parent is not None and member["startTicks"] >= parent["startTicks"]:
+                                  rooted[candidate_pid] = member
+                                  added = True
+                          if not added:
+                              break
+                      result["unprovedOrChangedGroupMembers"] = len(members) - len(rooted)
+                      members = list(rooted.values())
+                      if proc(pid)["startTicks"] != leader["startTicks"]:
+                          raise ValueError("group leader changed during observation")
+                      hz, page = os.sysconf("SC_CLK_TCK"), os.sysconf("SC_PAGE_SIZE")
+                      now = time.monotonic()
+                      result["groupMembers"] = []
+                      for member in sorted(members, key=lambda item: item["pid"]):
+                          identity = (boot, member["pid"], member["startTicks"])
+                          item = {"pid": member["pid"], "parentPid": member["parentPid"], "startTicks": member["startTicks"],
+                                  "userCpuSeconds": member["userTicks"] / hz, "systemCpuSeconds": member["systemTicks"] / hz,
+                                  "residentBytes": member["residentPages"] * page, "threads": member["threads"]}
+                          prior = previous.get(identity)
+                          if prior and now > prior["at"]:
+                              user, system = item["userCpuSeconds"] - prior["user"], item["systemCpuSeconds"] - prior["system"]
+                              if user >= 0 and system >= 0:
+                                  item["delta"] = {"sampleSeconds": now - prior["at"], "userCpuSeconds": user,
+                                                   "systemCpuSeconds": system, "cpuCoreEquivalents": (user + system) / (now - prior["at"])}
+                          previous[identity] = {"at": now, "user": item["userCpuSeconds"], "system": item["systemCpuSeconds"]}
+                          result["groupMembers"].append(item)
+                  result["receiptRead"] = True
+              except (OSError, ValueError, TypeError, KeyError, UnicodeError) as error:
+                  result["receiptRead"] = False
+                  result["unavailableErrorType"] = type(error).__name__
+                  if isinstance(error, OSError):
+                      result["errno"] = error.errno
+              print("LIFECYCLE_LIVE_OBSERVATION " + json.dumps(result, sort_keys=True, allow_nan=False), flush=True)
+          observe()
+          time.sleep(10)
+          observe()
+          signal.alarm(0)
+          PY
