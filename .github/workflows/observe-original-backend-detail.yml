@@ -1,0 +1,381 @@
+name: Observe exact Original backend and retained phase counters
+on:
+  push:
+    branches: ['diag/observe-original-backend-detail-f2-*']
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
+    steps:
+      - name: Read fixed backend identity and exact CLI phase labels twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 65s python3 - <<'PY'
+          import csv, datetime, hashlib, io, json, os, re, selectors, signal, stat, subprocess, tempfile, time
+          from pathlib import Path
+          EXPECTED_SHA, EXPECTED_TREE = "f2cbb5fc7305dfd20d9fa3a19003b60a06b457c0", "42167cb4cbef49382fd427e7e4f51b26eea2d7f4"
+          SESSION = Path("/build/laplace/work/ci-sessions/35104196613-1-product/session.json")
+          def deadline(signum, frame):
+              raise TimeoutError("bounded database observation deadline")
+          signal.signal(signal.SIGALRM, deadline)
+          signal.alarm(55)
+          os.environ.update(PGHOST="/var/run/postgresql", PGPORT="5432", PGUSER="laplace_admin",
+                            PGCONNECT_TIMEOUT="3", PGAPPNAME="laplace-readonly-progress-observer",
+                            PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=3000 -c lock_timeout=500")
+          for key in ("PGSERVICE", "PGSERVICEFILE"):
+              os.environ.pop(key, None)
+          
+          def bounded_query(database: str, sql_path: Path, timeout: int, max_bytes: int) -> bytes:
+              argv = ["psql", "-X", "-h", os.environ.get("PGHOST", "/var/run/postgresql"),
+                      "-p", os.environ.get("PGPORT", "5432"), "-U", os.environ.get("PGUSER", "laplace_admin"),
+                      "-d", database, "-v", "ON_ERROR_STOP=1", "-A", "-t", "-q", "-f", str(sql_path)]
+              process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              output, error = bytearray(), bytearray()
+              deadline = time.monotonic() + timeout + 10
+              try:
+                  with selectors.DefaultSelector() as selector:
+                      for stream, tag in ((process.stdout, "output"), (process.stderr, "error")):
+                          os.set_blocking(stream.fileno(), False)
+                          selector.register(stream, selectors.EVENT_READ, tag)
+                      while selector.get_map():
+                          remaining = deadline - time.monotonic()
+                          if remaining <= 0:
+                              raise RuntimeError("readback process deadline exceeded")
+                          for key, _ in selector.select(min(remaining, 1.0)):
+                              chunk = os.read(key.fd, 65536)
+                              if not chunk:
+                                  selector.unregister(key.fileobj)
+                                  continue
+                              target, bound = (output, max_bytes) if key.data == "output" else (error, 1 << 20)
+                              if len(target) + len(chunk) > bound:
+                                  raise RuntimeError(f"readback {key.data} exceeded declared byte envelope {bound}")
+                              target.extend(chunk)
+                  process.wait(timeout=max(0.01, deadline - time.monotonic()))
+                  if process.returncode:
+                      raise RuntimeError(f"read-only source query failed ({process.returncode}): "
+                                         + error.decode("utf-8", errors="replace"))
+                  return bytes(output)
+              finally:
+                  if process.poll() is None:
+                      process.kill()
+                      process.wait()
+                  process.stdout.close()
+                  process.stderr.close()
+          
+          PREVIOUS_PROCESSES = {}
+          
+          def bounded_proc(path, budget):
+              descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(descriptor, "rb") as stream:
+                  if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                      raise ValueError("process evidence is not regular")
+                  raw = stream.read(budget + 1)
+              if len(raw) > budget:
+                  raise ValueError("process evidence exceeded budget")
+              return raw.decode("ascii", errors="strict")
+          
+          def process_stat(pid):
+              raw = bounded_proc(f"/proc/{pid}/stat", 4096)
+              end = raw.rfind(")")
+              if end < 0 or raw.split(" ", 1)[0] != str(pid):
+                  raise ValueError("unexpected process stat identity")
+              fields = raw[end + 2:].split()
+              if len(fields) < 22:
+                  raise ValueError("incomplete process stat")
+              return {"processId": pid, "userTicks": int(fields[11]), "systemTicks": int(fields[12]),
+                      "threads": int(fields[17]), "startTicks": int(fields[19]),
+                      "virtualBytes": int(fields[20]), "residentPages": int(fields[21])}
+          
+          def process_snapshot(sample, source_bound):
+              result = {"observed": False, "scope": "Read-only process counters; no command line or environment."}
+              if not source_bound:
+                  return dict(result, unavailableReason="wrapper_source_unbound")
+              try:
+                  pid = sample.get("processId")
+                  if type(pid) is not int or not 0 < pid < 2147483648:
+                      raise ValueError("invalid progress process identity")
+                  started = sample.get("processStartedAt")
+                  if not isinstance(started, str):
+                      raise ValueError("progress process start time unavailable")
+                  expected = datetime.datetime.fromisoformat(started.replace("Z", "+00:00"))
+                  if expected.tzinfo is None:
+                      raise ValueError("progress process start time has no offset")
+                  tick_hz = os.sysconf("SC_CLK_TCK")
+                  page_bytes = os.sysconf("SC_PAGE_SIZE")
+                  result["observationStep"] = "kernel-stat-before"
+                  before = process_stat(pid)
+                  result["numericKernelStat"] = before
+                  result["observationStep"] = "kernel-boot-clock"
+                  boot_lines = bounded_proc("/proc/stat", 262144).splitlines()
+                  boot_values = [int(line.split()[1]) for line in boot_lines if line.startswith("btime ")]
+                  if len(boot_values) != 1 or tick_hz <= 0 or page_bytes <= 0:
+                      raise ValueError("kernel process clock unavailable")
+                  kernel_start = boot_values[0] + before["startTicks"] / tick_hz
+                  difference = abs(expected.timestamp() - kernel_start)
+                  result["numericStartEvidence"] = {"kernelBootSeconds": boot_values[0], "ticksPerSecond": tick_hz, "kernelStartEpochSeconds": kernel_start, "backendStartEpochSeconds": expected.timestamp(), "differenceSeconds": difference}
+                  result["observationStep"] = "optional-status-and-io"
+                  # Clock corroboration is reported; stable SQL/kernel identity below owns binding.
+                  optional = {}
+                  try:
+                      status = bounded_proc(f"/proc/{pid}/status", 65536)
+                      wanted = {"VmRSS": "residentKiB", "VmHWM": "peakResidentKiB", "Threads": "threads",
+                                "voluntary_ctxt_switches": "voluntaryContextSwitches",
+                                "nonvoluntary_ctxt_switches": "involuntaryContextSwitches"}
+                      status_metrics = {}
+                      for line in status.splitlines():
+                          key, sep, value = line.partition(":")
+                          if sep and key in wanted:
+                              parts = value.split()
+                              if not parts or not parts[0].isdigit():
+                                  raise ValueError("invalid process status metric")
+                              if key in ("VmRSS", "VmHWM") and parts[1:] != ["kB"]:
+                                  raise ValueError("unexpected process memory unit")
+                              status_metrics[wanted[key]] = int(parts[0])
+                      optional["statusMetrics"] = status_metrics
+                  except (OSError, ValueError, UnicodeError) as error:
+                      optional["statusUnavailableErrorType"] = type(error).__name__
+                  try:
+                      io_text = bounded_proc(f"/proc/{pid}/io", 4096)
+                      wanted = {"read_bytes": "readBytes", "write_bytes": "writeBytes",
+                                "rchar": "readCharacters", "wchar": "writeCharacters",
+                                "syscr": "readSyscalls", "syscw": "writeSyscalls"}
+                      io_metrics = {}
+                      for line in io_text.splitlines():
+                          key, sep, value = line.partition(":")
+                          if sep and key in wanted:
+                              if not value.strip().isdigit():
+                                  raise ValueError("invalid process I/O metric")
+                              io_metrics[wanted[key]] = int(value)
+                      optional["ioMetrics"] = io_metrics
+                  except (OSError, ValueError, UnicodeError) as error:
+                      optional["ioUnavailableErrorType"] = type(error).__name__
+                  result["observationStep"] = "kernel-stat-after"
+                  after = process_stat(pid)
+                  if (before["processId"], before["startTicks"]) != (after["processId"], after["startTicks"]):
+                      raise ValueError("process identity changed during observation")
+                  return dict(result, observed=True, processId=pid, startTicks=after["startTicks"],
+                              kernelStartUtc=datetime.datetime.fromtimestamp(kernel_start, datetime.timezone.utc).isoformat(),
+                              recordedBackendStartUtc=expected.isoformat(), kernelBootSeconds=boot_values[0],
+                              startTimeDifferenceSeconds=difference, startTimeToleranceSeconds=2, wallClockStartMatched=difference <= 2,
+                              ticksPerSecond=tick_hz, userCpuSeconds=after["userTicks"] / tick_hz,
+                              systemCpuSeconds=after["systemTicks"] / tick_hz,
+                              residentBytes=after["residentPages"] * page_bytes,
+                              virtualBytes=after["virtualBytes"], threads=after["threads"],
+                              sampleMonotonicSeconds=time.monotonic(), **optional)
+              except (OSError, ValueError, TypeError, KeyError, UnicodeError) as error:
+                  known = {"process evidence is not regular", "process evidence exceeded budget", "unexpected process stat identity", "incomplete process stat", "invalid progress process identity", "progress process start time unavailable", "progress process start time has no offset", "kernel process clock unavailable", "process identity changed during observation"}
+                  return dict(result, unavailableErrorType=type(error).__name__, unavailableReason=str(error) if str(error) in known else "numeric_timestamp_or_permission_failure")
+          
+          def process_delta(phase, current):
+              previous = PREVIOUS_PROCESSES.pop(phase, None)
+              if not current.get("observed"):
+                  return
+              PREVIOUS_PROCESSES[phase] = current.copy()
+              if previous is None:
+                  current["deltaUnavailableReason"] = "no_verified_prior_sample"
+                  return
+              if (current["processId"], current["startTicks"]) != (previous["processId"], previous["startTicks"]):
+                  current["deltaUnavailableReason"] = "process_identity_changed"
+                  return
+              elapsed = current["sampleMonotonicSeconds"] - previous["sampleMonotonicSeconds"]
+              user = current["userCpuSeconds"] - previous["userCpuSeconds"]
+              system = current["systemCpuSeconds"] - previous["systemCpuSeconds"]
+              if elapsed <= 0 or user < 0 or system < 0:
+                  current["deltaUnavailableReason"] = "non_monotonic_process_sample"
+                  return
+              current["delta"] = {"sampleSeconds": elapsed, "userCpuSeconds": user, "systemCpuSeconds": system,
+                                  "cpuCoreEquivalents": (user + system) / elapsed}
+              for key in ("readBytes", "writeBytes"):
+                  prior_value = previous.get("ioMetrics", {}).get(key)
+                  current_value = current.get("ioMetrics", {}).get(key)
+                  if type(prior_value) is int and type(current_value) is int and current_value >= prior_value:
+                      current["delta"][key] = current_value - prior_value
+          SQL = "BEGIN TRANSACTION READ ONLY;\nSET LOCAL statement_timeout = '3s';\nSET LOCAL lock_timeout = '500ms';\nSET LOCAL idle_in_transaction_session_timeout = '5s';\nSELECT jsonb_build_object(\n 'schema', 'laplace.postgresql-backend-identity/v1',\n 'observedAt', clock_timestamp(), 'transactionReadOnly', current_setting('transaction_read_only'),\n 'database', current_database(), 'currentUser', current_user,\n 'backend', (SELECT jsonb_build_object(\n   'pid', pid, 'backendStart', backend_start, 'backendType', backend_type,\n   'state', state, 'queryStart', query_start,\n   'queryAgeSeconds', EXTRACT(EPOCH FROM clock_timestamp()-query_start),\n   'queryId', query_id, 'queryFingerprintMd5', md5(query), 'queryBytes', octet_length(query),\n   'queryClass', CASE\n      WHEN position('ops.physicality_descriptor_materialize(' IN regexp_replace(lower(query),'[[:space:]]','','g')) > 0\n        THEN 'ops.physicality_descriptor_materialize'\n      WHEN position('pg_advisory_xact_lock(hashtextextended(' IN regexp_replace(lower(query),'[[:space:]]','','g')) > 0\n        THEN 'advisory_xact_control'\n      ELSE 'unclassified-no-text-emitted' END,\n   'waitEventType', wait_event_type, 'waitEvent', wait_event,\n   'blockingPids', pg_blocking_pids(pid))\n   FROM pg_stat_activity WHERE datname=current_database() AND pid=4123046\n     AND backend_start='2026-09-16T13:56:55.74258+00:00'::timestamptz)\n);\nROLLBACK;\n"
+          def source_binding():
+              fd = os.open(SESSION, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(fd, "rb") as stream:
+                  if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                      raise ValueError("session is not regular")
+                  raw = stream.read(65537)
+              if len(raw) > 65536:
+                  raise ValueError("session exceeds envelope")
+              data = json.loads(raw)
+              if data.get("schema") != "laplace.ci-session.v1" or data.get("source") != {"commit": EXPECTED_SHA, "tree": EXPECTED_TREE} or data.get("kind") != "product":
+                  raise ValueError("selected lifecycle identity differs")
+              active = data.get("active")
+              return {"source": EXPECTED_SHA, "receiptSha256": hashlib.sha256(raw).hexdigest(),
+                      "status": str(data.get("status", ""))[:80],
+                      "activePhase": str(active.get("phase", ""))[:80] if isinstance(active, dict) else None}
+          
+          
+          def backend(sql_path):
+              raw = bounded_query("laplace", sql_path, 5, 65536)
+              data = json.loads(raw)
+              if data.get("schema") != "laplace.postgresql-backend-identity/v1" or data.get("transactionReadOnly") != "on" or data.get("database") != "laplace" or data.get("currentUser") != "laplace_admin":
+                  raise ValueError("installed read-only backend observation differs")
+              return data
+          
+          def linked_cli_logs():
+              report = {"scope": "Bounded phase labels/numeric counters from exact live CLI open log files; all free text, arguments, environment and exception payloads are omitted."}
+              state = json.loads(SESSION.read_bytes())
+              if state.get("source") != {"commit": EXPECTED_SHA, "tree": EXPECTED_TREE} or state.get("schema") != "laplace.ci-session.v1":
+                  raise ValueError("session changed before log attribution")
+              active = state.get("active")
+              if not isinstance(active, dict) or active.get("pid") != 4122796:
+                  return dict(report, unavailableReason="selected_phase_has_changed")
+              def identity(pid):
+                  raw = bounded_proc(f"/proc/{pid}/stat", 4096)
+                  fields = raw[raw.rfind(")") + 2:].split()
+                  return {"pid": pid, "parentPid": int(fields[1]), "group": int(fields[2]), "startTicks": int(fields[19])}
+              leader = identity(4122796)
+              cli = identity(4123028)
+              boot = bounded_proc("/proc/sys/kernel/random/boot_id", 128).strip()
+              if active.get("start") != f"{boot}:4122796:{leader['startTicks']}" or cli["startTicks"] != 82453554 or cli["group"] != 4122796:
+                  raise ValueError("selected CLI ownership changed")
+              current = cli
+              ancestors = []
+              for _ in range(8):
+                  ancestors.append(current)
+                  if current["pid"] == leader["pid"]:
+                      break
+                  parent = identity(current["parentPid"])
+                  if parent["startTicks"] > current["startTicks"] or parent["group"] != leader["pid"]:
+                      raise ValueError("CLI ancestor identity changed")
+                  current = parent
+              if ancestors[-1]["pid"] != leader["pid"]:
+                  raise ValueError("CLI is not a bounded child of active source phase")
+              fds = []
+              for entry in Path("/proc/4123028/fd").iterdir():
+                  if len(fds) >= 256:
+                      report["fdScanTruncated"] = True
+                      break
+                  fds.append(entry)
+              selected = {}
+              for entry in fds:
+                  try:
+                      target = os.readlink(entry)
+                      name = Path(target).name
+                      if name not in ("laplace-cli.csv", "laplace-ingest-chain.log") or not os.path.isabs(target) or target.endswith(" (deleted)"):
+                          continue
+                      target_stat, fd_stat = os.stat(target, follow_symlinks=False), os.stat(entry)
+                      if not stat.S_ISREG(target_stat.st_mode) or (target_stat.st_dev, target_stat.st_ino) != (fd_stat.st_dev, fd_stat.st_ino):
+                          continue
+                      selected[(target_stat.st_dev, target_stat.st_ino)] = (Path(target), target_stat, name)
+                  except (OSError, ValueError):
+                      continue
+              report["files"] = []
+              minimum = datetime.datetime.fromisoformat("2026-09-16T13:56:49+00:00")
+              allowed = ("physicality-capture", "canonical-registration", "connection-and-apply-lock",
+                         "physicality-provider-admission", "native-tuples-and-merge-preparation", "presence-verification",
+                         "copy-survivor-selection", "copy-and-copy-transaction-commits",
+                         "consensus-acceptance-participant", "control-transaction-commit")
+              for path, original, name in selected.values():
+                  fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+                  with os.fdopen(fd, "rb") as stream:
+                      before = os.fstat(stream.fileno())
+                      if (before.st_dev, before.st_ino) != (original.st_dev, original.st_ino):
+                          raise ValueError("selected log inode changed")
+                      offset = max(0, before.st_size - 524288)
+                      stream.seek(offset)
+                      raw = stream.read(min(524288, before.st_size - offset))
+                      after = os.fstat(stream.fileno())
+                  item = {"path": str(path), "bytesAtStart": before.st_size, "bytesAtEnd": after.st_size,
+                          "tailOffset": offset, "tailBytes": len(raw), "tailSha256": hashlib.sha256(raw).hexdigest(),
+                          "modifiedUtc": datetime.datetime.fromtimestamp(after.st_mtime, datetime.timezone.utc).isoformat(),
+                          "phaseEvents": []}
+                  text = raw.decode("utf-8", errors="replace")
+                  if offset:
+                      text = text.split("\n", 1)[-1]
+                      item["partialPrefixDiscarded"] = True
+                  if name == "laplace-cli.csv":
+                      parse_errors = 0
+                      for line in text.splitlines():
+                          if "WS_APPLY phase:" not in line or len(line) > 32768:
+                              continue
+                          try:
+                              row = next(csv.reader([line], strict=True))
+                              if len(row) != 6:
+                                  continue
+                              stamp = datetime.datetime.fromisoformat(row[0])
+                              if stamp < minimum:
+                                  continue
+                              message = row[4]
+                              phase = next((phase for phase in allowed if re.search(r"(?<![A-Za-z-])" + re.escape(phase) + r"(?![A-Za-z-])", message)), None)
+                              if phase is None:
+                                  continue
+                              values = {key: float(value) if "." in value else int(value) for key, value in re.findall(
+                                  r"\b(elapsed_ms|elapsed_s|rows|entities|physicalities|attestations|bytes|grant_bytes|retained_bytes|remaining_bytes|count|vertices|source_forms)=([0-9]+(?:\.[0-9]+)?)\b", message)}
+                              boundary = next((value for value in ("entered", "exited", "started", "completed", "begin", "end")
+                                               if re.search(r"\b" + value + r"\b", message)), "unclassified")
+                              item["phaseEvents"].append({"utc": stamp.isoformat(), "phase": phase, "boundary": boundary, "numericCounters": values})
+                          except (ValueError, csv.Error):
+                              parse_errors += 1
+                      item["parseErrors"] = parse_errors
+                  else:
+                      for match in re.finditer(r"==== chain \[([1-4])/4\]: ingest (unicode|iso639|cili|wordnet)\b", text):
+                          item["phaseEvents"].append({"sourceIndex": int(match.group(1)), "source": match.group(2)})
+                      item["sourceEventsAreTailOnly"] = True
+                  if len(item["phaseEvents"]) > 64:
+                      item["eventsTruncated"] = True
+                      item["phaseEvents"] = item["phaseEvents"][-64:]
+                  report["files"].append(item)
+              if identity(4123028)["startTicks"] != cli["startTicks"] or identity(4122796)["startTicks"] != leader["startTicks"]:
+                  raise ValueError("CLI identity changed during log observation")
+              report["linkedCliPid"] = 4123028
+              report["linkedCliStartTicks"] = cli["startTicks"]
+              return report
+          
+          def observe(sql_path):
+              result = {"schema": "laplace.postgresql-backend-clock-observation/v1", "source": EXPECTED_SHA,
+                        "observedUtc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "sqlSha256": hashlib.sha256(SQL.encode()).hexdigest(),
+                        "boundedQueryOwnerBlob": "5750337fb503deb62273a556e92a3fff32b8d0b8",
+                        "scope": "Read-only fixed backend identity before/after kernel counters. Wall clock discrepancy is reported, not hidden by widening tolerance. No query text, arguments, environment or process/database mutation. Backend is not independently linked to the Original CLI."}
+              try:
+                  result["lifecycle"] = source_binding()
+                  try:
+                      result["retainedCliPhaseLogs"] = linked_cli_logs()
+                  except (OSError, ValueError, TypeError, KeyError) as error:
+                      result["retainedCliPhaseLogs"] = {"unavailableErrorType": type(error).__name__}
+                  before = backend(sql_path)
+                  result["before"] = before
+                  row = before.get("backend")
+                  if row is None:
+                      result["backendPresent"] = False
+                  else:
+                      if row.get("pid") != 4123046 or row.get("backendType") != "client backend":
+                          raise ValueError("fixed backend identity differs")
+                      result["backendPresent"] = True
+                      observed = process_snapshot({"processId": row["pid"], "processStartedAt": row["backendStart"]}, True)
+                      after = backend(sql_path)
+                      result["after"] = after
+                      tail_row = after.get("backend")
+                      keys = ("pid", "backendStart", "backendType")
+                      if not isinstance(tail_row, dict) or any(row.get(key) != tail_row.get(key) for key in keys):
+                          raise ValueError("SQL backend identity changed around process observation")
+                      if not observed.get("observed"):
+                          result["processObservation"] = observed
+                      else:
+                          final_stat = process_stat(row["pid"])
+                          if final_stat["startTicks"] != observed["startTicks"]:
+                              raise ValueError("kernel backend identity changed after SQL readback")
+                          observed["identityQualification"] = "same PostgreSQL PID/backend_start/backend_type before+after and same kernel PID/startticks around counters and after SQL readback"
+                          observed["queryIdentityStableAcrossObservation"] = all(row.get(key) == tail_row.get(key) for key in ("queryStart", "queryId", "queryFingerprintMd5"))
+                          process_delta("backend:" + str(row["pid"]), observed)
+                          result["processObservation"] = observed
+                  result["readOnlyObservationSucceeded"] = True
+              except (OSError, ValueError, TypeError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
+                  result["readOnlyObservationSucceeded"] = False
+                  result["unavailableErrorType"] = type(error).__name__
+              print("POSTGRESQL_BACKEND_CLOCK " + json.dumps(result, sort_keys=True, allow_nan=False), flush=True)
+          with tempfile.TemporaryDirectory(dir="/build/laplace/work", prefix="laplace-readonly-backend-observation-") as directory:
+              sql_path = Path(directory) / "observation.sql"
+              sql_path.write_text(SQL)
+              observe(sql_path)
+              time.sleep(10)
+              observe(sql_path)
+          signal.alarm(0)
+          PY
