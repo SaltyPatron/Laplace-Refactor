@@ -25,7 +25,10 @@
     {
       "ctest_name": "postgres.verified-cpp-source-contract",
       "profile": "verified-cpp-source",
-      "required_receipts": ["verified_cpp_source_admission", "physicality_entity_reflection"],
+      "required_receipts": [
+        "verified_cpp_source_admission",
+        "physicality_entity_reflection"
+      ],
       "required_receipt_fields": {
         "verified_cpp_source_admission": {
           "schema": "laplace.verified-cpp-source-acceptance/v1",
@@ -77,12 +80,28 @@
     {
       "ctest_name": "postgres.highway-committed-revalidation-contract",
       "profile": "highway-committed-revalidation",
-      "required_receipts": ["highway_committed_revalidation"],
+      "required_receipts": [
+        "highway_committed_revalidation",
+        "product_cognition_retained_prompt"
+      ],
       "required_receipt_fields": {
         "highway_committed_revalidation": {
           "schema": "laplace.highway-committed-revalidation-test/v1",
           "novelty_diagnostic_controls": 3,
           "historical_geometry_controls": 1
+        },
+        "product_cognition_retained_prompt": {
+          "schema": "laplace.product-cognition-retained-prompt-test/v1",
+          "product_calls": 3,
+          "durable_replay_calls": 2,
+          "output_hex": "41",
+          "canonical_root_unchanged": true,
+          "exact_warm_replay": true,
+          "warm_publication_reused": true,
+          "evidence_lineage_counts_unchanged": true,
+          "completed_steps": 2,
+          "replay_physical_provider_batches": 1,
+          "replay_materialization_nodes": 1
         }
       },
       "order": 5,
@@ -193,7 +212,9 @@
         ".github/workflows/stockfish-corpus-acceptance.yml",
         ".github/workflows/custom-stack.yml"
       ],
-      "profiles": ["verified-cpp-source"]
+      "profiles": [
+        "verified-cpp-source"
+      ]
     },
     {
       "id": "highway-committed-revalidation",
@@ -214,9 +235,21 @@
         "tests/postgres/highway_revalidation_bindings.sql.in",
         "tests/postgres/unicode_root_contract.sql",
         "tests/postgres/run_spi_test.sh",
-        "tools/postgresql/highway_revalidation.py"
+        "tools/postgresql/highway_revalidation.py",
+        "tests/postgres/product_cognition_retained_prompt_contract.sql",
+        "engine/src/cognition_observation_provider_set.inc",
+        "engine/src/cognition_observation_candidate_provider.inc",
+        "engine/src/cognition_prompt_structural_provider.inc",
+        "engine/src/cognition_firmware.cpp",
+        "integrations/postgresql/extension/src/cognition_product_pg.c",
+        "integrations/postgresql/extension/src/cognition_firmware_pg.c",
+        "integrations/postgresql/extension/src/observation_cognition_persisted_pg.c",
+        "integrations/postgresql/extension/src/prompt_admission_pg.c",
+        "tools/cognition_firmware_compile.cpp"
       ],
-      "profiles": ["highway-committed-revalidation"]
+      "profiles": [
+        "highway-committed-revalidation"
+      ]
     },
     {
       "id": "unicode-hot-performance",

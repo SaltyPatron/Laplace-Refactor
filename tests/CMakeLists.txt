@@ -459,6 +459,26 @@ add_test(NAME source.verified-grammar-loader-contract
         --probe "$<TARGET_FILE:laplace_verified_grammar_loader_probe>")
 set_tests_properties(source.verified-grammar-loader-contract PROPERTIES
     LABELS "implementation;source-profile;grammar;identity;negative")
+
+# PGN remains a selected syntax provider through the shared native owner.
+# This target executes only when an exact source-build receipt is supplied.
+set(LAPLACE_PGN_GRAMMAR_RECEIPT "" CACHE FILEPATH "Exact locked PGN syntax provider build receipt")
+add_executable(laplace_pgn_native_source_probe pgn_native_source_probe.cpp)
+target_link_libraries(laplace_pgn_native_source_probe PRIVATE Laplace::TabularSource tree-sitter)
+target_include_directories(laplace_pgn_native_source_probe PRIVATE "${PROJECT_SOURCE_DIR}/engine/src")
+target_compile_options(laplace_pgn_native_source_probe PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang,IntelLLVM>:-Wall;-Wextra;-Wpedantic;-Werror;-Wconversion;-Wshadow>)
+if(LAPLACE_PGN_GRAMMAR_RECEIPT)
+    add_test(NAME source.pgn-native-provider-contract
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/pgn_native_provider_tests.py"
+            --receipt "${LAPLACE_PGN_GRAMMAR_RECEIPT}"
+            --probe "$<TARGET_FILE:laplace_pgn_native_source_probe>"
+            --output "${CMAKE_CURRENT_BINARY_DIR}/pgn-native-source-qualification.json")
+    set_tests_properties(source.pgn-native-provider-contract PROPERTIES
+        LABELS "implementation;source-profile;grammar;reconstruction;identity;mutation"
+        TIMEOUT 120)
+endif()
+
 add_test(NAME source.verified-git-acquisition-contract
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/verified_git_source_tests.py")
 set_tests_properties(source.verified-git-acquisition-contract PROPERTIES
@@ -2925,6 +2945,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/product_cognition_retained_prompt_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/product_cognition_retained_prompt_contract.sql"
+        @ONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/highway_revalidation_bindings.sql.in"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/highway_revalidation_bindings.sql"
         @ONLY)
@@ -3316,6 +3340,7 @@ if(LAPLACE_POSTGRES_ENABLED)
         NAME postgres.highway-committed-revalidation-contract
         COMMAND "${CMAKE_COMMAND}" -E env
             "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+            "LAPLACE_COGNITION_FIRMWARE_COMPILER=$<TARGET_FILE:laplace_cognition_firmware_compile>"
             "${LAPLACE_BASH_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
             unicode-root
@@ -3647,6 +3672,13 @@ if(UNIX)
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/chess_dependency_tests.py")
     set_tests_properties(dependencies.chess-source-tools PROPERTIES
         LABELS "implementation;package;dependencies;chess;mutation")
+
+    add_test(
+        NAME dependencies.chess-gui-session
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/chess_gui_session_tests.py")
+    set_tests_properties(dependencies.chess-gui-session PROPERTIES
+        LABELS "implementation;dependencies;chess;gui;mutation"
+        TIMEOUT 30)
 
     add_test(
         NAME dependencies.chess-benchmark-receipts

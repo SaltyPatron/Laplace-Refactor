@@ -11,6 +11,7 @@ import platform
 import queue
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from pathlib import Path, PurePosixPath
 
 
@@ -26,6 +28,8 @@ sys.path.insert(0, str(ROOT))
 from tools.dependencies.git_checkout import GitCheckoutError, snapshot as git_snapshot
 SCRATCH = Path("/build/laplace/work")
 USER_AGENT = "Laplace-Refactor-chess-dependency-check/1"
+REQUESTED_STOCKFISH_SOURCE = Path("/vault/External/Stockfish/SF_19")
+SOURCE_SELECTION_SCHEMA = "laplace.stockfish-source-selection/v1"
 
 
 class ChessToolError(RuntimeError):
@@ -248,12 +252,39 @@ def verify_source(source: Path, entry: dict) -> dict:
     return observed
 
 
+def official_git_origin_matches(origin: str, upstream: str) -> bool:
+    """Match the declared GitHub repository without accepting credential URLs."""
+    def repository(value: str) -> tuple[str, str] | None:
+        if value.startswith("git@github.com:"):
+            value = "ssh://git@github.com/" + value[len("git@github.com:"):]
+        try:
+            parsed = urlsplit(value)
+            if parsed.hostname is None or parsed.hostname.lower() != "github.com" or parsed.query or parsed.fragment:
+                return None
+            if parsed.scheme == "https":
+                if parsed.username is not None or parsed.password is not None or parsed.port not in (None, 443):
+                    return None
+            elif parsed.scheme == "ssh":
+                if parsed.username != "git" or parsed.password is not None or parsed.port not in (None, 22):
+                    return None
+            else:
+                return None
+            path = parsed.path.removesuffix("/").removesuffix(".git")
+            if re.fullmatch(r"/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", path) is None:
+                return None
+            return parsed.hostname.lower(), path.lower()
+        except ValueError:
+            return None
+    expected = repository(upstream)
+    return expected is not None and repository(origin) == expected
+
+
 def verify_origin(source: Path, entry: dict) -> None:
     origin = git(source, "remote", "get-url", "origin")
     # The existing import-verified.sh creates no-hardlink clones with a local
     # origin. Exact archive and license identity still proves that imported tree.
     local_import = Path(origin).is_absolute() or origin.startswith("file:///")
-    require(local_import or origin.removesuffix(".git") == entry["upstream"].removesuffix(".git"), f"refusing unrelated source origin: {source}")
+    require(local_import or official_git_origin_matches(origin, entry["upstream"]), f"refusing unrelated source origin: {source}")
 
 
 def update_source(source: Path, entry: dict, offline: bool) -> None:
@@ -278,6 +309,259 @@ def update_source(source: Path, entry: dict, offline: bool) -> None:
     verify_source(source, entry)
 
 
+
+def recorded_stockfish_source(prefix: Path) -> Path | None:
+    receipt = prefix / "current.json"
+    if not receipt.exists():
+        return None
+    installation = json_read(receipt)
+    tools = installation.get("tools")
+    require(isinstance(tools, dict), "chess installation receipt has no tools mapping")
+    if "stockfish" not in tools:
+        return None
+    require(isinstance(tools["stockfish"], dict), "recorded Stockfish tool is not a mapping")
+    value = tools["stockfish"].get("source")
+    require(isinstance(value, str) and bool(value.strip()),
+            "recorded Stockfish source is missing; refusing a different checkout")
+    return Path(value)
+
+
+def observe_stockfish_checkout(path: Path, entry: dict, *, official: bool) -> dict:
+    """Read only; unavailable candidates never cause clone, checkout or relink."""
+    result = {"path": str(path), "exists": None, "available": False,
+              "source": None, "git_root": None, "origin": None, "commit": None}
+    try:
+        require("\n" not in str(path) and "\r" not in str(path),
+                "Stockfish input path cannot be exported safely")
+        path.lstat()
+        result["exists"] = True
+        source = path.resolve(strict=True)
+        if not source.is_dir() or not (source / ".git").exists():
+            result["reason"] = "not-an-existing-git-checkout"
+            return result
+        root = Path(git(source, "rev-parse", "--show-toplevel")).resolve(strict=True)
+        if root != source:
+            result["reason"] = "path-is-not-the-git-root"
+            return result
+        origin = git(source, "remote", "get-url", "origin")
+        official_origin = official_git_origin_matches(origin, entry["upstream"])
+        local_import = Path(origin).is_absolute() or origin.startswith("file:///")
+        if not official_origin and (official or not local_import):
+            # Never copy a rejected remote URL (possibly with credentials) into evidence.
+            result["reason"] = "origin-is-not-the-official-stockfish-repository"
+            return result
+        commit = git(source, "rev-parse", "HEAD")
+        require(re.fullmatch(r"[0-9a-f]{40,64}", commit) is not None,
+                "Stockfish checkout returned an invalid commit")
+        require("\n" not in str(source) and "\r" not in str(source),
+                "Stockfish source path cannot be exported safely")
+        result.update({"available": True, "source": str(source), "git_root": str(root),
+                       "origin": origin if official_origin else None, "commit": commit,
+                       "origin_kind": "official" if official_origin else "local-import",
+                       "reason": "existing-checkout"})
+    except FileNotFoundError:
+        if result["exists"] is None:
+            result["exists"] = False
+        result["reason"] = "requested-local-path-unavailable" if not result["exists"] else "checkout-target-unavailable"
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        result["reason"] = "checkout-observation-failed"
+    return result
+
+
+def _path_kind(path: Path) -> str:
+    """Observe a directory entry without following its final symlink."""
+    try:
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode):
+            return "symlink"
+        if stat.S_ISDIR(mode):
+            return "directory"
+        return "regular-file" if stat.S_ISREG(mode) else "other"
+    except FileNotFoundError:
+        return "missing"
+    except NotADirectoryError:
+        return "not-a-directory"
+    except PermissionError:
+        return "permission-denied"
+    except (OSError, ValueError, RuntimeError):
+        return "observation-failed"
+
+
+def diagnose_stockfish_path(path: Path, entry: dict) -> dict:
+    """Bounded read-only metadata, never an authority for source selection."""
+    result = {"schema": "laplace.stockfish-path-diagnostic/v1",
+              "input_kind": None, "resolved_path": None, "resolved_kind": None,
+              "resolution": "not-observed", "git_marker_kind": None,
+              "ancestry": [], "nearest_existing_directory": None,
+              "enclosing_git": {"status": "not-observed", "stage": None,
+                                "top_level": None, "origin": None, "commit": None}}
+    try:
+        # No descendant traversal, marker-content reads, or raw Git error retention.
+        require(len(str(path)) <= 4096 and "\n" not in str(path) and "\r" not in str(path),
+                "diagnostic input path exceeds its envelope")
+        absolute = path.absolute()
+        ancestors = [absolute, *absolute.parents]
+        require(len(ancestors) <= 64, "diagnostic ancestry exceeds its envelope")
+        result["input_kind"] = _path_kind(path)
+        result["ancestry"] = [{"path": str(item), "kind": _path_kind(item)}
+                              for item in reversed(ancestors)]
+        try:
+            resolved = path.resolve(strict=True)
+            require("\n" not in str(resolved) and "\r" not in str(resolved),
+                    "diagnostic resolved path is not a single line")
+            result.update({"resolved_path": str(resolved), "resolved_kind": _path_kind(resolved),
+                           "resolution": "resolved"})
+            if result["resolved_kind"] == "directory":
+                result["git_marker_kind"] = _path_kind(resolved / ".git")
+        except FileNotFoundError:
+            result["resolution"] = "missing-target"
+        except NotADirectoryError:
+            result["resolution"] = "non-directory-component"
+        except PermissionError:
+            result["resolution"] = "permission-denied"
+        except (OSError, ValueError, RuntimeError):
+            result["resolution"] = "resolution-failed"
+
+        nearest = None
+        for item in ancestors:
+            try:
+                candidate = item.resolve(strict=True)
+                if _path_kind(candidate) == "directory":
+                    require("\n" not in str(candidate) and "\r" not in str(candidate),
+                            "diagnostic ancestor is not a single line")
+                    nearest = candidate
+                    break
+            except (OSError, ValueError, RuntimeError):
+                continue
+        if nearest is None:
+            result["enclosing_git"]["status"] = "no-observable-directory"
+            return result
+        result["nearest_existing_directory"] = str(nearest)
+
+        # Inherited Git repository/configuration selectors must not make an
+        # unrelated GIT_DIR or GIT_WORK_TREE masquerade as this path's parent.
+        environment = {key: value for key, value in os.environ.items()
+                       if not key.startswith("GIT_")}
+        environment.update({"GIT_NO_REPLACE_OBJECTS": "1", "GIT_TERMINAL_PROMPT": "0",
+                            "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull})
+        directories = [nearest, *nearest.parents]
+        require(len(directories) <= 64, "diagnostic resolved ancestry exceeds its envelope")
+        options = ["git", "--no-optional-locks", "--no-replace-objects"]
+        for directory in directories:
+            options.extend(["-c", "safe.directory=" + str(directory)])
+
+        def probe(*arguments: str) -> str:
+            completed = subprocess.run(
+                [*options, "-C", str(nearest), *arguments], stdin=subprocess.DEVNULL,
+                capture_output=True, text=True, check=False, timeout=2, env=environment)
+            require(completed.returncode == 0, "diagnostic Git command failed")
+            # This bounds retained metadata, not subprocess capture memory.
+            value = completed.stdout.rstrip("\r\n")
+            require(bool(value) and len(value) <= 4096 and "\n" not in value and "\r" not in value,
+                    "diagnostic Git output is not one bounded line")
+            return value
+
+        git_result = result["enclosing_git"]
+        git_result["stage"] = "top-level"
+        top = Path(probe("rev-parse", "--show-toplevel"))
+        require(top.is_absolute(), "diagnostic Git root is not absolute")
+        top = top.resolve(strict=True)
+        require(top == nearest or top in nearest.parents,
+                "diagnostic Git root is not an ancestor")
+        require("\n" not in str(top) and "\r" not in str(top),
+                "diagnostic Git root is not a single line")
+        git_result["top_level"] = str(top)
+        git_result["stage"] = "origin"
+        origin = probe("remote", "get-url", "origin")
+        if not official_git_origin_matches(origin, entry["upstream"]):
+            git_result["status"] = "origin-not-official"
+            return result
+        git_result["origin"] = origin
+        git_result["stage"] = "commit"
+        commit = probe("rev-parse", "--verify", "HEAD^{commit}")
+        require(re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit) is not None,
+                "diagnostic Git commit is invalid")
+        git_result.update({"status": "observed-official-checkout", "stage": None, "commit": commit})
+    except subprocess.TimeoutExpired:
+        result["enclosing_git"]["status"] = "command-timeout"
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        result["enclosing_git"]["status"] = "observation-failed"
+    return result
+
+
+def select_stockfish_source(prefix: Path, explicit: Path | None = None) -> dict:
+    """Choose a host checkout without changing it or inventing a runner path."""
+    entry = json_read(ROOT / "dependencies/lock.json")["dependencies"]["stockfish"]
+    configured = recorded_stockfish_source(prefix)
+    requested = observe_stockfish_checkout(REQUESTED_STOCKFISH_SOURCE, entry, official=True)
+    requested["diagnostic"] = diagnose_stockfish_path(REQUESTED_STOCKFISH_SOURCE, entry)
+    current = observe_stockfish_checkout(configured, entry, official=False) if configured is not None else None
+    receipt = {"schema": SOURCE_SELECTION_SCHEMA,
+               "requested_local_path": str(REQUESTED_STOCKFISH_SOURCE),
+               "requested_checkout": requested,
+               "configured_source": str(configured) if configured is not None else None,
+               "configured_checkout": current, "explicit_override": str(explicit) if explicit is not None else None,
+               "selected_source": None, "selected_checkout": None, "disposition": "refused"}
+    if explicit is not None:
+        chosen = observe_stockfish_checkout(explicit, entry, official=True)
+        reason = "explicit-override"
+    elif requested["available"]:
+        chosen, reason = requested, "requested-existing-official-checkout"
+    elif current is not None:
+        chosen, reason = current, "retained-configured-checkout"
+    else:
+        receipt.update({"disposition": "first-install-default",
+                        "selection_reason": "no-existing-requested-or-configured-checkout; portable setup default remains",
+                        "planned_official_repository": entry["upstream"]})
+        return receipt
+    receipt["selection_reason"] = reason
+    receipt["selected_checkout"] = chosen
+    if chosen["available"]:
+        receipt.update({"disposition": "selected", "selected_source": chosen["source"]})
+    return receipt
+
+
+def verify_stockfish_selection(selection: dict, prefix: Path, explicit: Path | None = None) -> dict:
+    require(selection.get("schema") == SOURCE_SELECTION_SCHEMA,
+            "invalid Stockfish source selection receipt")
+    require(selection.get("disposition") in {"selected", "first-install-default"},
+            "Stockfish source selection was refused")
+    configured = recorded_stockfish_source(prefix)
+    require(configured is not None, "Stockfish build receipt is missing")
+    source = configured.resolve(strict=True)
+    expected = selection.get("selected_source")
+    if expected is not None:
+        require(isinstance(expected, str) and source == Path(expected).resolve(strict=True),
+                "Stockfish current.json source differs from the selected checkout")
+    else:
+        require(selection["disposition"] == "first-install-default" and
+                selection.get("configured_source") is None,
+                "Stockfish selection does not name a checkout")
+    entry = json_read(ROOT / "dependencies/lock.json")["dependencies"]["stockfish"]
+    if explicit is not None:
+        override = observe_stockfish_checkout(explicit, entry, official=True)
+        require(override["available"] and override["source"] == str(source),
+                "Stockfish current.json source differs from the explicit official checkout")
+    observation = observe_stockfish_checkout(source, entry, official=False)
+    require(observation["available"], "selected Stockfish checkout is unavailable")
+    current = json_read(prefix / "current.json")
+    tool = current["tools"]["stockfish"]
+    tracked = verify_source(source, entry)
+    require(tool.get("revision") == entry["revision"] and
+            tool.get("source_archive_sha256") == entry["git_archive_sha256"] and tool.get("tracked_source") == tracked,
+            "Stockfish current.json committed-source provenance differs from the selected checkout")
+    expected_executable = source / "src" / ("stockfish.exe" if platform.system() == "Windows" else "stockfish")
+    require(Path(tool["executable"]) == expected_executable and not expected_executable.is_symlink() and
+            digest(expected_executable) == tool["sha256"],
+            "Stockfish current.json executable differs from the selected direct source build")
+    # The build may update an older selected HEAD to the lock. Bind its resulting
+    # exact provenance rather than treating the pre-build commit as immutable.
+    return {"schema": "laplace.stockfish-source-selection-verification/v1",
+            "selection": selection, "selected_source": str(source),
+            "selected_checkout": observation, "current_receipt_sha256": digest(prefix / "current.json"),
+            "locked_commit": entry["revision"], "disposition": "verified"}
+
+
 def tool_source(arguments: argparse.Namespace, name: str) -> Path:
     explicit = getattr(arguments, "stockfish_source", None) if name == "stockfish" else None
     if explicit is not None:
@@ -286,7 +570,17 @@ def tool_source(arguments: argparse.Namespace, name: str) -> Path:
         source = explicit.resolve(strict=True)
         require(source.is_dir() and (source / ".git").exists(),
                 f"selected Stockfish source is not an existing Git checkout: {explicit}")
+        entry = json_read(ROOT / "dependencies/lock.json")["dependencies"]["stockfish"]
+        observation = observe_stockfish_checkout(source, entry, official=True)
+        require(observation["available"], "selected Stockfish source is not an existing official checkout")
         return source
+    if name == "stockfish" and getattr(arguments, "prefix", None) is not None:
+        recorded = recorded_stockfish_source(arguments.prefix)
+        if recorded is not None:
+            source = recorded.resolve(strict=True)
+            require(source.is_dir() and (source / ".git").exists(),
+                    "recorded Stockfish source is unavailable; refusing a different checkout")
+            return source
     require(arguments.source_root is not None, "default source estate is not selected")
     return arguments.source_root / name
 
@@ -295,6 +589,8 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
     locked = json_read(ROOT / "dependencies/lock.json")["dependencies"]
     names = [arguments.tool] if arguments.tool else ["stockfish", "cutechess"]
     result = {"schema": "laplace.chess-source-build/v1", "product_chess_activated": False, "tools": {}}
+    prior_receipt = arguments.prefix / "current.json"
+    prior = json_read(prior_receipt) if prior_receipt.exists() else {}
     for name in names:
         entry = locked[name]
         source = tool_source(arguments, name)
@@ -321,6 +617,8 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
             executable = source / "src" / ("stockfish.exe" if platform.system() == "Windows" else "stockfish")
             checks = probe_stockfish([str(executable)], network)
         else:
+            with_gui = bool(getattr(arguments, "cutechess_gui", False) or
+                            prior.get("tools", {}).get("cutechess", {}).get("gui"))
             if arguments.qt_prefix is None:
                 arguments.qt_prefix = acquire_qt(arguments, selected, artifacts)
             arguments.qt_prefix = arguments.qt_prefix.resolve()
@@ -333,7 +631,8 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
                 require_build(configured.returncode == 0, "Cute Chess configure failed; requires CMake >=3.20, C++17 and Qt >=6.8 (Core, Widgets, Svg, Concurrent, PrintSupport, Core5Compat); set --qt-prefix for the installed Qt SDK", log)
                 # Verified current source bytes cannot authenticate a cached object
                 # that was compiled before a hidden local edit was restored.
-                built = subprocess.run(["cmake", "--build", str(work), "--clean-first", "--config", "Release", "--target", "cli", "--parallel", str(arguments.jobs)], stdout=output, stderr=subprocess.STDOUT, check=False, env=environment)
+                targets = ["cli", "gui"] if with_gui else ["cli"]
+                built = subprocess.run(["cmake", "--build", str(work), "--clean-first", "--config", "Release", "--target", *targets, "--parallel", str(arguments.jobs)], stdout=output, stderr=subprocess.STDOUT, check=False, env=environment)
                 require_build(built.returncode == 0, "Cute Chess source build failed", log)
             executable = single_match(work, "cutechess-cli.exe" if platform.system() == "Windows" else "cutechess-cli")
             if platform.system() == "Windows":
@@ -343,10 +642,29 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
                 require(deployment.is_file(), f"Qt runtime deployment tool is missing: {deployment}")
                 execute([str(deployment), "--release", "--no-translations", str(executable)], timeout=180, env=environment)
             checks = probe_cutechess([str(executable)], environment=environment)
+            gui = None
+            if with_gui:
+                gui_executable = single_match(work, "cutechess.exe" if platform.system() == "Windows" else "cutechess")
+                require(not gui_executable.is_symlink(), "Cute Chess GUI executable cannot be a symlink")
+                if platform.system() == "Windows":
+                    execute([str(deployment), "--release", "--no-translations", str(gui_executable)], timeout=180, env=environment)
+                gui_checks = probe_cutechess_gui([str(gui_executable)], arguments.qt_prefix)
+                gui = {"executable": str(gui_executable), "sha256": digest(gui_executable),
+                       "build_target": "gui", "checks": gui_checks,
+                       "direct_launch": {"argv": [str(gui_executable)], "qt_prefix": str(arguments.qt_prefix),
+                                         "plugin_path": str(arguments.qt_prefix / "plugins"),
+                                         "environment_prepend": {"PATH": str(arguments.qt_prefix / "bin"),
+                                                                 **({"LD_LIBRARY_PATH": str(arguments.qt_prefix / "lib")} if platform.system() == "Linux" else
+                                                                    {"DYLD_LIBRARY_PATH": str(arguments.qt_prefix / "lib"), "DYLD_FRAMEWORK_PATH": str(arguments.qt_prefix / "lib")} if platform.system() == "Darwin" else {})},
+                                         "environment_set": {"QT_PLUGIN_PATH": str(arguments.qt_prefix / "plugins"),
+                                                             "QT_QPA_PLATFORM_PLUGIN_PATH": str(arguments.qt_prefix / "plugins/platforms")},
+                                         "interactive_session_required": True}}
         source_observation = verify_source(source, entry)
         result["tools"][name] = {"source": str(source), "revision": entry["revision"], "source_archive_sha256": entry["git_archive_sha256"], "tracked_source": source_observation, "source_verifier_sha256": digest(Path(__file__).with_name("git_checkout.py")), "executable": str(executable), "sha256": digest(executable), "build_command": command, "build_log": str(log), "checks": checks}
         if name == "cutechess":
             result["tools"][name]["qt_prefix"] = str(arguments.qt_prefix)
+            if gui is not None:
+                result["tools"][name]["gui"] = gui
     arguments.prefix.mkdir(parents=True, exist_ok=True)
     receipt = arguments.prefix / "current.json"
     if receipt.exists():
@@ -364,6 +682,26 @@ def build_tools(arguments: argparse.Namespace, selected: dict, artifacts: dict) 
     return result
 
 
+def qt_package_version(prefix: Path) -> tuple[str, list[Path]]:
+    """Read exact selected-SDK version files without evaluating CMake."""
+    version_file = prefix / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
+    version_paths = [version_file]
+    version_text = version_file.read_text(encoding="utf-8")
+    # Current Qt packages wrap CMake's generated version implementation.
+    # Read only this fixed sibling; never execute or follow arbitrary CMake code.
+    if re.search(r'(?m)^\s*include\(\s*"\$\{CMAKE_CURRENT_LIST_DIR\}/Qt6ConfigVersionImpl\.cmake"\s*\)',
+                 version_text):
+        implementation = version_file.with_name("Qt6ConfigVersionImpl.cmake")
+        version_paths.append(implementation)
+        version_text += "\n" + implementation.read_text(encoding="utf-8")
+    versions = re.findall(r'(?m)^\s*set\(\s*PACKAGE_VERSION\s+"([0-9]+\.[0-9]+\.[0-9]+)"\s*\)',
+                          version_text)
+    require(bool(versions) and len(set(versions)) == 1,
+            "Qt package version is missing or conflicting")
+    version = versions[0]
+    return version, version_paths
+
+
 def acquire_qt(arguments: argparse.Namespace, selected: dict, artifacts: dict) -> Path:
     """Acquire the SDK prerequisite; Cute Chess itself is always built from source."""
     sdk = selected["qt"]
@@ -375,8 +713,11 @@ def acquire_qt(arguments: argparse.Namespace, selected: dict, artifacts: dict) -
         candidate = Path(value)
         version_file = candidate / "lib/cmake/Qt6/Qt6ConfigVersion.cmake"
         if version_file.is_file() and (candidate / "lib/cmake/Qt6Core5Compat/Qt6Core5CompatConfig.cmake").is_file() and (candidate / "lib/cmake/Qt6Svg/Qt6SvgConfig.cmake").is_file():
-            version = re.search(r'set\(PACKAGE_VERSION "([0-9.]+)"\)', version_file.read_text())
-            if version and version.group(1) == sdk["version"]:
+            try:
+                version, _ = qt_package_version(candidate)
+            except (ChessToolError, OSError, ValueError):
+                continue
+            if version == sdk["version"]:
                 return candidate.resolve()
     platform_key = f"{platform.system()}-{platform.machine()}"
     provider = sdk["platforms"].get(platform_key)
@@ -431,6 +772,119 @@ def install_aqt(python: Path, qt_root: Path, wheel: Path) -> Path:
     return report
 
 
+def qt_gui_environment(prefix: Path) -> dict[str, str]:
+    environment = qt_environment(prefix)
+    environment["QT_PLUGIN_PATH"] = str(prefix / "plugins")
+    environment["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(prefix / "plugins/platforms")
+    return environment
+
+
+def qt_gui_inventory(prefix: Path) -> dict:
+    """Presence/identity inventory is separate from actual plugin initialization."""
+    modules = ("Core", "Gui", "Widgets", "Concurrent", "Svg", "PrintSupport", "Core5Compat")
+    module_paths = {name: prefix / f"lib/cmake/Qt6{name}/Qt6{name}Config.cmake" for name in modules}
+    for name, path in module_paths.items():
+        require(path.is_file(), f"Cute Chess GUI Qt module is missing: {name} ({path})")
+    version, version_paths = qt_package_version(prefix)
+    require(tuple(map(int, version.split("."))) >= (6, 8, 0),
+            "Cute Chess GUI requires Qt >=6.8")
+    system = platform.system()
+    suffix, lead = (".dll", "") if system == "Windows" else (".dylib", "lib") if system == "Darwin" else (".so", "lib")
+    names = {"offscreen": "platforms/qoffscreen", "minimal": "platforms/qminimal",
+             "svg_image": "imageformats/qsvg", "svg_icon": "iconengines/qsvgicon"}
+    if system == "Linux":
+        # Qt 6.11 uses qwayland; compatible Qt 6.8 SDKs split generic/EGL.
+        # Inventory filenames independently; presence does not prove loadability.
+        names.update({"xcb": "platforms/qxcb", "wayland": "platforms/qwayland",
+                      "wayland_generic": "platforms/qwayland-generic",
+                      "wayland_egl": "platforms/qwayland-egl"})
+    elif system == "Windows":
+        names["windows"] = "platforms/qwindows"
+    elif system == "Darwin":
+        names["cocoa"] = "platforms/qcocoa"
+    plugins = {}
+    for name, relative in names.items():
+        item = Path(relative)
+        path = prefix / "plugins" / item.parent / (lead + item.name + suffix)
+        present = path.is_file()
+        plugins[name] = {"path": str(path), "present": present,
+                         "sha256": digest(path) if present else None}
+    require(plugins["offscreen"]["present"], "Cute Chess GUI offscreen platform plugin is missing")
+    return {"qt_version": version,
+            "version_files": [{"path": str(path), "sha256": digest(path)} for path in version_paths],
+            "modules": {name: {"path": str(path), "sha256": digest(path)} for name, path in module_paths.items()},
+            "module_identity_scope": "CMake package configuration files; Qt shared-library binaries are not hashed",
+            "plugins": plugins, "scope": "file inventory; plugin presence alone is not loadability"}
+
+
+def probe_cutechess_gui(argv: list[str], prefix: Path) -> dict:
+    inventory = qt_gui_inventory(prefix)
+    environment = qt_gui_environment(prefix)
+    display = {name: bool(environment.get(name)) for name in ("DISPLAY", "WAYLAND_DISPLAY")}
+    command = [*argv, "-platform", "offscreen", "--version"]
+    # QApplication initializes before upstream's --version branch. It returns
+    # before newDefaultGame and app.exec: no window/event-loop proof is implied.
+    require(SCRATCH.is_dir(), f"Required GUI probe scratch is missing: {SCRATCH}")
+    with tempfile.TemporaryDirectory(prefix="cutechess-gui-probe-", dir=SCRATCH) as scratch:
+        directory = Path(scratch)
+        for name, relative in (("XDG_CONFIG_HOME", "config"), ("XDG_CONFIG_DIRS", "system-config"),
+                               ("XDG_CACHE_HOME", "cache"), ("XDG_DATA_HOME", "data"),
+                               ("XDG_RUNTIME_DIR", "runtime")):
+            target = directory / relative
+            target.mkdir(mode=0o700)
+            environment[name] = str(target)
+        environment.update({"QT_QPA_PLATFORM": "offscreen", "QT_DEBUG_PLUGINS": "1",
+                            "QT_LOGGING_RULES": "qt.core.library=true;qt.core.plugin.*=true",
+                            "QT_MESSAGE_PATTERN": "%{category}: %{message}"})
+        for name in ("DISPLAY", "WAYLAND_DISPLAY", "QT_QPA_PLATFORMTHEME", "QT_QPA_GENERIC_PLUGINS"):
+            environment.pop(name, None)
+        started = time.perf_counter()
+        completed = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
+                                   text=True, check=False, timeout=30, env=environment)
+        elapsed = time.perf_counter() - started
+    output = completed.stdout + completed.stderr
+    require(completed.returncode == 0,
+            f"Cute Chess GUI headless initialization failed ({completed.returncode}): {output[-6000:]}")
+    version = re.search(r"^Cute Chess (1\.5\.1)(?:\s|$)", completed.stdout, re.M)
+    qt = re.search(r"Using Qt version ([0-9.]+)", completed.stdout)
+    require(version is not None, "Cute Chess GUI version mismatch")
+    require(qt is not None and qt.group(1) == inventory["qt_version"],
+            "Cute Chess GUI loaded Qt differs from the selected SDK")
+    loaded = []
+    for match in re.finditer(r'^qt\.core\.library: ("(?:\\.|[^"\\])*") loaded library\s*$', output, re.M):
+        value = json.loads(match.group(1))
+        if Path(value).name == Path(inventory["plugins"]["offscreen"]["path"]).name:
+            loaded.append(str(Path(value).resolve(strict=True)))
+    expected = str(Path(inventory["plugins"]["offscreen"]["path"]).resolve(strict=True))
+    require(set(loaded) == {expected}, "Cute Chess GUI did not prove loading the selected offscreen plugin")
+    require(qt_gui_inventory(prefix) == inventory, "Cute Chess GUI Qt plugin files changed during the probe")
+    return {"schema": "laplace.cutechess-gui-runtime/v1", "disposition": "ready-headless",
+            "qapplication_initialized": True, "platform": "offscreen", "scope": "official GUI QApplication initialization and version; no window or event loop",
+            "command": command, "elapsed_seconds": elapsed, "version": version.group(1),
+            "qt": inventory, "loaded_offscreen_plugin": {"path": expected, "sha256": inventory["plugins"]["offscreen"]["sha256"]},
+            "plugin_load_diagnostic_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
+            "interactive_desktop_tested": False, "interactive_desktop_ready": None,
+            "display_environment_present": display,
+            # Upstream selects IniFormat. On Darwin its user path honors XDG,
+            # but system INI fallbacks and Qt native preferences do not.
+            "settings_scope": {"Windows": "Windows-user-known-folder; version branch only",
+                               "Darwin": "isolated-XDG-INI-user-settings; system and Qt native settings not isolated"
+                               }.get(platform.system(), "isolated-XDG-probe")}
+
+
+def verify_cutechess_gui(tool: dict) -> dict:
+    gui = tool.get("gui")
+    require(isinstance(gui, dict), "Cute Chess GUI has not been built; install --cutechess-gui")
+    executable = Path(gui["executable"])
+    require(executable.is_file() and not executable.is_symlink() and digest(executable) == gui["sha256"],
+            "Cute Chess GUI executable differs; rebuild")
+    prefix = Path(tool["qt_prefix"])
+    require(qt_gui_inventory(prefix) == gui["checks"]["qt"], "Cute Chess GUI Qt plugin inventory differs; rebuild")
+    checks = probe_cutechess_gui([str(executable)], prefix)
+    require(digest(executable) == gui["sha256"], "Cute Chess GUI executable changed during the probe")
+    return checks
+
+
 def probe_cutechess(argv: list[str], *, environment: dict[str, str] | None = None) -> dict:
     output = execute([*argv, "--version"], env=environment)
     require(re.search(r"^cutechess-cli 1\.5\.1(?:\s|$)", output, re.M) is not None, "Cute Chess version mismatch")
@@ -442,7 +896,7 @@ def probe_cutechess(argv: list[str], *, environment: dict[str, str] | None = Non
     return {"disposition": "ready", "version_output": output.strip()}
 
 
-def verify_installation(prefix: Path, selected: dict, artifacts: dict, only: str | None = None) -> dict:
+def verify_installation(prefix: Path, selected: dict, artifacts: dict, only: str | None = None, *, with_gui: bool = False) -> dict:
     installation = json_read(prefix / "current.json")
     locked = json_read(ROOT / "dependencies/lock.json")["dependencies"]
     names = [only] if only else ["stockfish", "cutechess"]
@@ -456,6 +910,9 @@ def verify_installation(prefix: Path, selected: dict, artifacts: dict, only: str
             verify_artifact(Path(tool["source"]) / "src" / network["filename"], network)
         require(digest(Path(tool["executable"])) == tool["sha256"], f"{name} executable differs; rebuild")
         tool["checks"] = probe_stockfish([tool["executable"]], artifacts[selected["releases"]["stockfish"]["network"]]) if name == "stockfish" else probe_cutechess([tool["executable"]], environment=tool_environment(tool))
+        if name == "cutechess" and (with_gui or tool.get("gui") is not None):
+            gui_checks = verify_cutechess_gui(tool)
+            tool["gui"]["checks"] = gui_checks
     return installation
 
 
@@ -488,15 +945,19 @@ def lichess_readback(online: bool) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["install", "check", "latest", "run"])
+    parser.add_argument("action", choices=["install", "check", "latest", "run", "select-source", "check-source-selection"])
     parser.add_argument("--prefix", type=Path, default=Path("/opt/laplace/tools/chess"))
     parser.add_argument("--cache", type=Path, default=Path("/opt/laplace/external/chess-downloads"))
     parser.add_argument("--source-root", type=Path, default=Path(os.environ["LAPLACE_VERIFIED_SOURCE_ROOT"]) if os.environ.get("LAPLACE_VERIFIED_SOURCE_ROOT") else None)
     parser.add_argument("--stockfish-source", type=Path,
                         default=Path(os.environ["LAPLACE_STOCKFISH_SOURCE"].strip()) if os.environ.get("LAPLACE_STOCKFISH_SOURCE", "").strip() else None,
                         help="build this existing official Stockfish Git checkout directly (or LAPLACE_STOCKFISH_SOURCE); overrides source-root/stockfish")
+    parser.add_argument("--selection-output", type=Path, help="retain a read-only source selection or verification receipt")
+    parser.add_argument("--selection-receipt", type=Path, help="source selection to compare with the completed build")
     parser.add_argument("--build-root", type=Path, default=Path("/build/laplace/build/chess"))
     parser.add_argument("--qt-prefix", type=Path, help="use this compatible Qt SDK instead of acquiring the selected SDK")
+    parser.add_argument("--cutechess-gui", action="store_true",
+                        help="install/check the official GUI as well as CLI, or run the GUI with --tool cutechess")
     available_cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
     build_jobs = os.environ.get("LAPLACE_BUILD_JOBS") or os.environ.get("CMAKE_BUILD_PARALLEL_LEVEL") or str(available_cpus)
     parser.add_argument("--jobs", type=int, default=build_jobs)
@@ -512,12 +973,37 @@ def main() -> int:
         parser.error("unrecognized arguments: " + " ".join(extra))
     try:
         selected, artifacts = configuration()
+        if arguments.cutechess_gui:
+            require(arguments.action in {"install", "check", "run"} and arguments.tool != "stockfish",
+                    "--cutechess-gui requires install/check, or run --tool cutechess")
+        if arguments.action in {"select-source", "check-source-selection"}:
+            require(arguments.selection_output is not None, "--selection-output is required")
+            if arguments.action == "select-source":
+                observation = select_stockfish_source(arguments.prefix, arguments.stockfish_source)
+            else:
+                require(arguments.selection_receipt is not None, "--selection-receipt is required")
+                observation = verify_stockfish_selection(json_read(arguments.selection_receipt), arguments.prefix, arguments.stockfish_source)
+            destination = arguments.selection_output.resolve()
+            for checkout in (observation.get("requested_checkout"), observation.get("configured_checkout"),
+                             observation.get("selected_checkout")):
+                if checkout and checkout.get("source"):
+                    source = Path(checkout["source"])
+                    require(destination != source and source not in destination.parents,
+                            "selection evidence must be outside the upstream checkout")
+            arguments.selection_output.parent.mkdir(parents=True, exist_ok=True)
+            json_write(arguments.selection_output, observation)
+            require(observation["disposition"] != "refused", "Stockfish source selection refused; consult retained receipt")
+            print(json.dumps(observation, indent=2, sort_keys=True))
+            return 0
         if arguments.action == "run":
             require(arguments.tool is not None, "run requires --tool")
             current = json_read(arguments.prefix / "current.json")
             require(arguments.tool in current["tools"], f"{arguments.tool} has not been built")
             extra = extra[1:] if extra[:1] == ["--"] else extra
             tool = current["tools"][arguments.tool]
+            if arguments.cutechess_gui:
+                verify_cutechess_gui(tool)
+                return subprocess.call([tool["gui"]["executable"], *extra], env=qt_gui_environment(Path(tool["qt_prefix"])))
             require(digest(Path(tool["executable"])) == tool["sha256"], "direct source executable changed; run check or rebuild")
             return subprocess.call([tool["executable"], *extra], env=tool_environment(tool))
         report = {"schema": "laplace.chess-dependency-readback/v1", "product_chess_activated": False, "capability_boundary": selected["capability_boundary"]}
@@ -526,14 +1012,15 @@ def main() -> int:
             require(all(item["current"] for item in report["upstream"].values()), "newer upstream stable release exists; update exact release and artifact locks before creating a new experiment generation: " + json.dumps(report["upstream"]))
         if arguments.action == "install":
             require(arguments.jobs > 0, "--jobs must be positive")
-            if arguments.source_root is None and not (arguments.tool == "stockfish" and arguments.stockfish_source is not None):
+            if arguments.source_root is None and not (arguments.tool == "stockfish" and
+                    (arguments.stockfish_source is not None or recorded_stockfish_source(arguments.prefix) is not None)):
                 arguments.source_root = Path(subprocess.check_output([sys.executable, str(ROOT / "tools/dependencies/source_estate.py")], text=True).strip())
             if arguments.source_root is not None:
                 arguments.source_root = arguments.source_root.resolve()
             arguments.build_root = arguments.build_root.resolve()
             report["installation"] = build_tools(arguments, selected, artifacts)
         elif arguments.action == "check":
-            report["installation"] = verify_installation(arguments.prefix, selected, artifacts, arguments.tool)
+            report["installation"] = verify_installation(arguments.prefix, selected, artifacts, arguments.tool, with_gui=arguments.cutechess_gui)
         if arguments.action != "latest":
             report["syzygy"] = tablebase_readback(arguments.syzygy_manifest)
             report["lichess"] = lichess_readback(arguments.online)

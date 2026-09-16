@@ -614,15 +614,35 @@ jobs:
           second_checkpoint=$(jq -er '.next_checkpoint_fingerprint' <<<"$second")
           test "$second_checkpoint" != "$first_checkpoint"
 
+          receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
+          http_receipt="$receipt_root/cluster-activation/$package_id/installed-http-readiness-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          printf 'LAPLACE_INSTALLED_HTTP_READINESS=%s\n' "$http_receipt" >> "$GITHUB_ENV"
+          python3 tools/delivery/product_gateway_live_proof.py \
+            --readiness-only \
+            --package-id "$package_id" \
+            --product-receipt '${{ needs.compose-product.outputs.product_receipt }}' \
+            --output "$http_receipt"
+
           {
             echo '## Installed usable cognition surface'
             echo '- command: `/opt/laplace/current/bin/laplace-cognition`'
-            echo '- transport: local Unix socket `/opt/laplace/runtime/laplace-cognition.sock`; no TCP listener'
+            echo '- cognition transport: local Unix socket `/opt/laplace/runtime/laplace-cognition.sock`'
+            echo '- HTTP API and browser: `http://127.0.0.1:55434`; health identifies the selected package and active native controls'
+            echo '- browser index, JavaScript and stylesheet served bytes match the selected installed package manifest'
+            echo "- retained HTTP readiness receipt: $http_receipt"
             echo '- no database role, sudo, environment variable, receipt path, or SQL is required by the caller'
             echo '- explicit compatibility: `laplace-cognition --relations constituent AA` returned `A` through installed firmware execution'
             echo '- default caller: two sequential `laplace-cognition AA` turns executed the native prompt-conversation route'
             echo '- continuation: turn 1 consumed the durably deposited discourse frame from turn 0 and emitted a distinct successor frame'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain installed HTTP readiness evidence
+        if: always() && env.LAPLACE_INSTALLED_HTTP_READINESS != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installed-http-readiness-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.LAPLACE_INSTALLED_HTTP_READINESS }}
+          if-no-files-found: error
+          retention-days: 7
       - name: Observe retained Highway admission evidence after activation attempt
         if: always()
         run: |

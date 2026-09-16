@@ -1979,7 +1979,7 @@
       "ctest_name": "postgres.highway-committed-revalidation-contract",
       "profiles": ["postgres", "custom-stack"],
       "evidence_targets": ["LP-TEST-HIGHWAY-REGISTRY-PARITY", "LP-TEST-HIGHWAY-APPEND-ONLY", "LP-TEST-FRAMEWORK-EPOCH-RECEIPT", "LP-TEST-PHYSICALITY-TRAJECTORY-RECONSTRUCTION"],
-      "covered_dimensions": ["current committed-registry verification through the actual PostgreSQL extension", "caller COMMIT and ROLLBACK preserve canonical and retained state", "root and nested trajectory corruption is rejected", "original admission and final receipt identities remain distinct", "private native binding upgrade and corruption controls"]
+      "covered_dimensions": ["current committed-registry verification through the actual PostgreSQL extension", "caller COMMIT and ROLLBACK preserve canonical and retained state", "root and nested trajectory corruption is rejected", "original admission and final receipt identities remain distinct", "private native binding upgrade and corruption controls", "real product constituent firmware admits and persists AA through activated Unicode and Highway owners before durable provider replay", "three product calls preserve the canonical prompt entity and exact physicality bytes while warm execution replays exactly", "product replay reads durable physicalities and materializes A without adding evidence-lineage rows"]
     },
     {
       "ctest_name": "postgres.spi-isa-contract",

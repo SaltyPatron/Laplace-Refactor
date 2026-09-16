@@ -199,6 +199,114 @@ class ProductActivationRunnerTests(unittest.TestCase):
             self.assertFalse(success_artifact.exists())
             self.assertEqual(json.loads(output.read_text()), failure)
 
+    def test_installed_cognition_failure_log_matches_retained_evidence_without_raw_output(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        _, _, firmware, result, diagnostic = self.cognition_failure_inputs()
+        private = "private-prompt-sql-stderr-and-extension-field"
+        expanded = {**diagnostic, "future_private_field": private}
+        cases = (
+            ("observed", proof.NATIVE_FAILURE_MARKER + json.dumps(expanded), result),
+            ("mismatched", proof.NATIVE_FAILURE_MARKER + json.dumps(expanded), {**result, "status": 10}),
+            ("invalid", proof.NATIVE_FAILURE_MARKER + private, result),
+            ("unavailable", private, result),
+        )
+        for state, stderr, execution in cases:
+            with self.subTest(state=state), tempfile.TemporaryDirectory(dir=ROOT) as directory:
+                output = Path(directory) / "proof.json"
+                artifact = Path(directory) / "attempt.json"
+                emitted = []
+                def observe_print(encoded, *, flush):
+                    self.assertTrue(flush)
+                    self.assertEqual(output.read_bytes(), artifact.read_bytes())
+                    retained = json.loads(output.read_text())
+                    immutable = Path(directory) / (
+                        "installed-cognition-failure-" + retained["failure_sha256"] + ".json"
+                    )
+                    self.assertEqual(json.loads(immutable.read_text()), retained)
+                    emitted.append(json.loads(encoded))
+                with mock.patch("builtins.print", side_effect=observe_print):
+                    proof.retain_execution_failure(
+                        output, failure_artifact=artifact, label="installed-failure-control",
+                        result=execution, command_receipt={"exit_code": 0},
+                        captured={"stderr": stderr, "outputs": {"stderr": proof.bounded_output(stderr)}},
+                        sql=private, firmware=firmware, prompt=private,
+                        provenance={"package_id": "45" * 32}, error=private,
+                    )
+                self.assertEqual(len(emitted), 1)
+                summary = emitted[0]
+                document = json.loads(output.read_text())
+                self.assertEqual(set(summary), {"schema", "label", "failure_sha256", "native_failure"})
+                self.assertEqual(summary["schema"], "laplace.installed-product-cognition-failure-log/v1")
+                self.assertEqual(summary["label"], document["label"])
+                self.assertEqual(summary["failure_sha256"], document["failure_sha256"])
+                self.assertEqual(summary["native_failure"]["state"], state)
+                expected_native = {key: value for key, value in document["native_failure"].items()
+                                   if key in ("state", "reason")}
+                if "diagnostic" in document["native_failure"]:
+                    expected_native["diagnostic"] = {
+                        key: document["native_failure"]["diagnostic"][key]
+                        for key in ("schema", *proof.NATIVE_FAILURE_COUNTER_FIELDS)
+                    }
+                    self.assertEqual(document["native_failure"]["diagnostic"]["future_private_field"], private)
+                self.assertEqual(summary["native_failure"], expected_native)
+                self.assertNotIn(private, json.dumps(summary))
+                self.assertLess(len(json.dumps(summary)), 2048)
+                identity = document.pop("failure_sha256")
+                self.assertEqual(identity, proof.u.sha256_bytes(proof.u.canonical_bytes(document)))
+
+    def test_installed_cognition_failure_log_is_not_issued_before_retention(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        _, _, firmware, result, diagnostic = self.cognition_failure_inputs()
+        values = dict(
+            label="retention-refusal", result=result, command_receipt={"exit_code": 0},
+            captured={"stderr": proof.NATIVE_FAILURE_MARKER + json.dumps(diagnostic)},
+            sql="SELECT private_input", firmware=firmware, prompt="private_input",
+            provenance=None, error="native refusal",
+        )
+        with mock.patch("builtins.print") as output:
+            proof.retain_execution_failure(None, failure_artifact=None, **values)
+        output.assert_not_called()
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            with mock.patch.object(proof.u, "write_immutable", side_effect=RuntimeError("retention refused")), \
+                 mock.patch("builtins.print") as output, \
+                 self.assertRaisesRegex(RuntimeError, "retention refused"):
+                proof.retain_execution_failure(
+                    Path(directory) / "proof.json", failure_artifact=Path(directory) / "attempt.json",
+                    **values,
+                )
+            output.assert_not_called()
+            self.assertFalse((Path(directory) / "attempt.json").exists())
+
+    def test_installed_cognition_accepts_explicit_no_publication_for_existing_prompt(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        result = {name: "\\x" + "ab" * 32 for name in (
+            "program_id", "execution_receipt_id", "output_fingerprint",
+            "prompt_admission_receipt_id", "prompt_persistence_receipt_id")}
+        result["trunk_entity_id"] = "\\x" + "cd" * 16
+        published = proof.require_identity_widths(result)
+        self.assertEqual(published["prompt_persistence_receipt_id"], "ab" * 32)
+        result["prompt_persistence_receipt_id"] = None
+        reused = proof.require_identity_widths(result)
+        self.assertIsNone(reused["prompt_persistence_receipt_id"])
+        self.assertEqual(reused["trunk_entity_id"], published["trunk_entity_id"])
+        del result["prompt_persistence_receipt_id"]
+        with self.assertRaisesRegex(RuntimeError, "omitted.*publication"):
+            proof.require_identity_widths(result)
+        for invalid in ("", "\\x12", 0, False):
+            with self.subTest(invalid=invalid):
+                result["prompt_persistence_receipt_id"] = invalid
+                with self.assertRaises(RuntimeError):
+                    proof.require_identity_widths(result)
+
+    def test_installed_cognition_reuse_requires_the_same_materialized_prompt_root(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        first = {"trunk_entity_id": "ab" * 16, "prompt_persistence_receipt_id": None}
+        replay = {"trunk_entity_id": "ab" * 16, "prompt_persistence_receipt_id": None}
+        proof.require_same_prompt_root(first, replay)
+        replay["trunk_entity_id"] = "cd" * 16
+        with self.assertRaisesRegex(RuntimeError, "different canonical root"):
+            proof.require_same_prompt_root(first, replay)
+
     def test_installed_cognition_request_declares_its_complete_structural_boundary(self) -> None:
         proof = load_module("tools/delivery/product_cognition_live_proof.py")
         multiturn = load_module("tools/delivery/product_cognition_multiturn_live_proof.py")

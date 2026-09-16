@@ -463,6 +463,48 @@ elif [[ "$mode" != "mutation" ]]; then
     exit 64
 fi
 
+if [[ "$mode" == "unicode-root" ]]; then
+    firmware_compiler=${LAPLACE_COGNITION_FIRMWARE_COMPILER:-}
+    if [[ -z "$firmware_compiler" || ! -x "$firmware_compiler" ]]; then
+        echo "real product cognition firmware compiler is unavailable" >&2
+        exit 88
+    fi
+    firmware_document="$test_root/product-cognition-firmware.json"
+    firmware_values="$test_root/product-cognition-firmware-values"
+    LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        timeout 30 "$firmware_compiler" --relation constituent >"$firmware_document"
+    python3 - "$firmware_document" "$firmware_values" <<'PY'
+import json
+from pathlib import Path
+import re
+import sys
+
+raw = Path(sys.argv[1]).read_bytes()
+if len(raw) > 1048576:
+    raise SystemExit("product firmware compiler document exceeds its bound")
+value = json.loads(raw)
+if (not isinstance(value, dict)
+        or value.get("schema") != "laplace.cognition-firmware-image/v1"
+        or value.get("program") != "relation-chain-exact-witnessed-output"
+        or value.get("mode") != "explicit"
+        or value.get("relations") != ["constituent"]
+        or value.get("step_count") != 2
+        or not isinstance(value.get("program_id"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", value["program_id"]) is None
+        or not isinstance(value.get("image_hex"), str)
+        or re.fullmatch(r"(?:[0-9a-f]{2})+", value["image_hex"]) is None
+        or type(value.get("image_bytes")) is not int
+        or value["image_bytes"] != len(value["image_hex"]) // 2):
+    raise SystemExit("product firmware compiler did not emit the selected native program")
+Path(sys.argv[2]).write_text(value["program_id"] + "\n" + value["image_hex"] + "\n")
+PY
+    mapfile -t selected_firmware <"$firmware_values"
+    [[ "${#selected_firmware[@]}" == 2 ]] || exit 88
+    psql_arguments+=(
+        -v "product_cognition_program_id=${selected_firmware[0]}"
+        -v "product_cognition_image=${selected_firmware[1]}")
+fi
+
 if [[ "$mode" == "contract" || "$mode" == "perfcache-mutation" ]]; then
     perfcache_probe_output=$("$auxiliary_probe" "$perfcache_root")
     declare -A perfcache_manifests
@@ -525,6 +567,10 @@ if [[ -n "${variable_file:-}" ]]; then
     psql_command+=(-f "$variable_file")
 fi
 psql_command+=(-f "$sql_file")
+if [[ "$mode" == "unicode-root" ]]; then
+    # Reuse the actual activated private Unicode/Highway backend and authority.
+    psql_command+=(-f "$(dirname "$sql_file")/product_cognition_retained_prompt_contract.sql")
+fi
 if [[ "$mode" == "source-admission" ]]; then
     # This companion uses the admitted Unicode context, then reconnects to prove
     # cold descriptor readback. Keep it last because pg_temp state is per backend.

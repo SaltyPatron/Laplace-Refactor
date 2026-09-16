@@ -407,7 +407,20 @@ def execute(args: argparse.Namespace) -> dict:
     output=args.output.absolute()
     configured=load(args.chess_prefix/'current.json')
     configured_source=Path(configured['tools']['stockfish']['source']).resolve(strict=True)
-    require(configured_source not in output.resolve().parents and output.resolve()!=configured_source,
+    # Observe all candidates before creating evidence: the requested or explicit
+    # checkout can differ from the currently built source.
+    observed_selection=chess_tools.select_stockfish_source(args.chess_prefix,getattr(args,'stockfish_source',None))
+    selection_path=getattr(args,'source_selection',None)
+    selection=load(selection_path) if selection_path is not None else observed_selection
+    protected={configured_source}
+    for candidate in (selection,observed_selection):
+        if candidate.get('selected_source'):
+            protected.add(Path(candidate['selected_source']).resolve())
+        for field in ('requested_checkout','configured_checkout','selected_checkout'):
+            checkout=candidate.get(field)
+            if checkout and checkout.get('available') and checkout.get('source'):
+                protected.add(Path(checkout['source']).resolve())
+    require(all(source not in output.resolve().parents and output.resolve()!=source for source in protected),
             'evidence output must be outside the upstream checkout')
     output.mkdir(parents=True,exist_ok=False)
     report={'schema':SCHEMA,'status':'running','expected_repository_commit':args.expected_sha,
@@ -416,6 +429,10 @@ def execute(args: argparse.Namespace) -> dict:
     save(output/'result.json',report)
     deadline=time.monotonic()+args.timeout
     try:
+        save(output/'stockfish-source-selection.json',selection)
+        save(output/'stockfish-source-candidates.json',observed_selection)
+        selection_verified=chess_tools.verify_stockfish_selection(selection,args.chess_prefix,getattr(args,'stockfish_source',None))
+        save(output/'stockfish-source-selection-verified.json',selection_verified)
         before=observe_activation(args.expected_sha,output/'activation-before.json')
         selected,artifacts=chess_tools.configuration()
         installation=chess_tools.verify_installation(args.chess_prefix,selected,artifacts,only='stockfish')
@@ -423,7 +440,9 @@ def execute(args: argparse.Namespace) -> dict:
         require(tool.get('source_verifier_sha256') == sha(ROOT/'tools/dependencies/git_checkout.py') and
                 isinstance(tool.get('tracked_source'),dict),
                 'Stockfish needs a build receipt with current exact committed-byte provenance')
-        source=Path(tool['source'])
+        source=Path(tool['source']).resolve(strict=True)
+        require(str(source)==selection_verified['selected_source'],
+                'Stockfish installation changed after source selection verification')
         require(source not in output.resolve().parents and output.resolve()!=source,
                 'evidence output must be outside the upstream checkout')
         lock=load(ROOT/'dependencies/lock.json')['dependencies']
@@ -475,10 +494,15 @@ def execute(args: argparse.Namespace) -> dict:
         command=[before['cli'],'verified-git-code',str(frozen/'files'),
             '--git-manifest',str(manifest_path),'--grammar-receipt',str(grammar),
             '--active',str(release),'--pretty']
+        # Recheck immediately before a command that can write canonical state.
+        require(chess_tools.verify_stockfish_selection(selection,args.chess_prefix,getattr(args,'stockfish_source',None))==selection_verified,
+                'Stockfish selected source/build changed before corpus admission')
         first=run_command(command,'admission',output,deadline,report)
         validate_readback(first,observed,before)
         report['canonical_corpus_admission_completed']=True
         save(output/'result.json',report)
+        require(chess_tools.verify_stockfish_selection(selection,args.chess_prefix,getattr(args,'stockfish_source',None))==selection_verified,
+                'Stockfish selected source/build changed before corpus repeat')
         second=run_command(command,'repeat',output,deadline,report)
         repeat=verify_repeat(first,second,observed,before)
         after=observe_activation(args.expected_sha,output/'activation-after.json')
@@ -511,6 +535,9 @@ def main() -> int:
     parser.add_argument('--expected-sha',required=True)
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--chess-prefix',type=Path,default=Path('/opt/laplace/tools/chess'))
+    parser.add_argument('--source-selection',type=Path,help='read-only checkout selection receipt to verify before admission')
+    parser.add_argument('--stockfish-source',type=Path,
+        default=Path(os.environ['LAPLACE_STOCKFISH_SOURCE'].strip()) if os.environ.get('LAPLACE_STOCKFISH_SOURCE','').strip() else None)
     parser.add_argument('--runtime-root',type=Path)
     parser.add_argument('--timeout',type=float,default=5400)
     args=parser.parse_args()

@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -384,6 +385,26 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('tools/host/run-exclusive.sh',steps[retaining]['shell'])
         self.assertNotIn('if',steps[retaining])
 
+    def test_source_selection_retains_runner_override_and_verifies_before_work(self):
+        import yaml
+        for path,job in (('chess-calibration.yml','calibrate'),
+                         ('stockfish-corpus-acceptance.yml','installed-source-acceptance')):
+            workflow=yaml.safe_load((ROOT/'.github/workflows'/path).read_text())
+            environment=workflow['jobs'][job]['env']
+            self.assertNotIn('LAPLACE_STOCKFISH_SOURCE',environment)
+            self.assertEqual(environment['STOCKFISH_SOURCE_OVERRIDE'],'${{ vars.LAPLACE_STOCKFISH_SOURCE }}')
+            commands='\n'.join(s.get('run','') for s in workflow['jobs'][job]['steps'])
+            self.assertIn('if [[ -n "${STOCKFISH_SOURCE_OVERRIDE:-}" ]]; then',commands)
+            self.assertIn('chess_tools.py select-source',commands)
+            if job=='calibrate':
+                self.assertLess(commands.index('chess_tools.py select-source'),commands.index('scripts/setup-chess.sh'))
+                self.assertGreater(commands.index('chess_tools.py check-source-selection'),commands.index('scripts/setup-chess.sh'))
+                self.assertIn('if [[ -n "$selected_source" ]]; then',commands)
+            else:
+                self.assertIn('--source-selection "$selection"',commands)
+                self.assertIn("shutil.copyfile(selection, output / 'stockfish-source-selection.json')",commands)
+
+
 
 class ChildCommandTests(unittest.TestCase):
     def test_real_failed_child_retains_stdout_stderr_and_status(self):
@@ -404,6 +425,76 @@ class ChildCommandTests(unittest.TestCase):
                     'repeat',p,time.monotonic()+0.1,report)
             self.assertEqual(report['commands'][0]['status'],'deadline-exhausted-submission-outcome-unknown')
             self.assertTrue((p/'repeat.stderr.log').exists())
+
+
+    def test_real_checkout_selection_mismatch_fails_before_activation_or_admission(self):
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            base=Path(directory);source=base/'chosen SF_19';other=base/'stale same-content checkout'
+            subprocess.run(['git','init','--quiet',str(source)],check=True)
+            (source/'source.cpp').write_text('int main() { return 0; }\n')
+            subprocess.run(['git','-C',str(source),'add','.'],check=True)
+            subprocess.run(['git','-C',str(source),'-c','user.name=Source Test',
+                '-c','user.email=test@example.invalid','commit','--quiet','-m','fixture'],check=True)
+            subprocess.run(['git','-C',str(source),'remote','add','origin',
+                'https://github.com/official-stockfish/Stockfish.git'],check=True)
+            subprocess.run(['git','clone','--quiet','--no-hardlinks',str(source),str(other)],check=True)
+            prefix=base/'prefix';prefix.mkdir()
+            manifest=prefix/'current.json'
+            manifest.write_text(json.dumps({'tools':{'stockfish':{'source':str(source)}}}))
+            with mock.patch.object(subject.chess_tools,'REQUESTED_STOCKFISH_SOURCE',source):
+                selection=subject.chess_tools.select_stockfish_source(prefix)
+            selection_path=base/'selection.json';subject.save(selection_path,selection)
+            manifest.write_text(json.dumps({'tools':{'stockfish':{'source':str(other)}}}))
+            output=base/'evidence'
+            args=argparse.Namespace(output=output,chess_prefix=prefix,expected_sha='a'*40,
+                timeout=30,source_selection=selection_path,stockfish_source=None)
+            with mock.patch.object(subject,'observe_activation') as activation, \
+                 mock.patch.object(subject,'run_command') as command:
+                with self.assertRaisesRegex(subject.chess_tools.ChessToolError,'source differs from the selected checkout'):
+                    subject.execute(args)
+            activation.assert_not_called();command.assert_not_called()
+            failed=subject.load(output/'result.json')
+            self.assertEqual(failed['status'],'failed')
+            self.assertEqual(failed['database_mutation_outcome'],'admission-not-submitted')
+            self.assertEqual(subject.load(output/'stockfish-source-selection.json'),selection)
+            self.assertEqual(subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD']),
+                             subprocess.check_output(['git','-C',str(other),'rev-parse','HEAD']))
+
+
+    def test_output_under_different_requested_or_explicit_checkout_is_rejected_without_writes(self):
+        with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:
+            base=Path(directory);source=base/'configured';requested=base/'requested SF_19'
+            subprocess.run(['git','init','--quiet',str(source)],check=True)
+            (source/'source.cpp').write_text('int main() { return 0; }\n')
+            subprocess.run(['git','-C',str(source),'add','.'],check=True)
+            subprocess.run(['git','-C',str(source),'-c','user.name=Source Test',
+                '-c','user.email=test@example.invalid','commit','--quiet','-m','fixture'],check=True)
+            official='https://github.com/official-stockfish/Stockfish.git'
+            subprocess.run(['git','-C',str(source),'remote','add','origin',official],check=True)
+            subprocess.run(['git','clone','--quiet','--no-hardlinks',str(source),str(requested)],check=True)
+            subprocess.run(['git','-C',str(requested),'remote','set-url','origin',official],check=True)
+            prefix=base/'prefix';prefix.mkdir()
+            (prefix/'current.json').write_text(json.dumps({'tools':{'stockfish':{'source':str(source)}}}))
+            original=(requested/'source.cpp').read_bytes()
+            for mode in ('requested','explicit','retained-selection'):
+                output=requested/('forbidden-evidence-'+mode)
+                args=argparse.Namespace(output=output,chess_prefix=prefix,source_selection=None,
+                    stockfish_source=requested if mode=='explicit' else None)
+                with mock.patch.object(subject.chess_tools,'REQUESTED_STOCKFISH_SOURCE',
+                                       requested if mode!='explicit' else base/'absent'):
+                    if mode=='retained-selection':
+                        selection=subject.chess_tools.select_stockfish_source(prefix)
+                        args.source_selection=base/'retained-selection.json'
+                        subject.save(args.source_selection,selection)
+                    with mock.patch.object(subject,'observe_activation') as activation, \
+                         mock.patch.object(subject,'run_command') as command:
+                        with self.subTest(mode=mode), self.assertRaisesRegex(ValueError,'outside the upstream'):
+                            subject.execute(args)
+                    activation.assert_not_called();command.assert_not_called()
+                self.assertFalse(output.exists())
+                self.assertEqual((requested/'source.cpp').read_bytes(),original)
+                self.assertEqual(subprocess.check_output(
+                    ['git','-C',str(requested),'status','--porcelain=v1','--untracked-files=all']),b'')
 
     def test_output_under_upstream_is_rejected_before_any_write(self):
         with tempfile.TemporaryDirectory(dir=SCRATCH) as directory:

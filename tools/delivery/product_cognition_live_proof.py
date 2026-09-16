@@ -253,6 +253,13 @@ def request_sql(identities: dict[str, Any], program_id: str) -> str:
 FAILURE_SCHEMA = "laplace.installed-product-cognition-failure/v1"
 MAX_FAILURE_OUTPUT_BYTES = 65536
 NATIVE_FAILURE_MARKER = "LAPLACE_COGNITION_FAILURE "
+NATIVE_FAILURE_COUNTER_FIELDS = (
+    "status", "failed_step", "native_status", "native_disposition",
+    "physical_provider_rows", "physical_provider_batches", "semantic_provider_rows",
+    "semantic_database_operations", "materialization_nodes",
+    "materialization_trajectory_reads", "materialization_trajectory_bytes",
+    "materialization_database_operations",
+)
 
 
 def bounded_output(content: str) -> dict[str, Any]:
@@ -280,13 +287,7 @@ def native_failure_diagnostic(stderr: str, result: Any) -> dict[str, Any]:
         diagnostic = json.loads(lines[0])
     except json.JSONDecodeError:
         return {"state": "invalid", "reason": "native marker is not JSON"}
-    fields = (
-        "status", "failed_step", "native_status", "native_disposition",
-        "physical_provider_rows", "physical_provider_batches", "semantic_provider_rows",
-        "semantic_database_operations", "materialization_nodes",
-        "materialization_trajectory_reads", "materialization_trajectory_bytes",
-        "materialization_database_operations",
-    )
+    fields = NATIVE_FAILURE_COUNTER_FIELDS
     if (
         not isinstance(diagnostic, dict)
         or diagnostic.get("schema") != "laplace.cognition-failure-diagnostic/v1"
@@ -356,6 +357,22 @@ def retain_execution_failure(
     if failure_artifact is not None:
         failure_artifact.parent.mkdir(parents=True, exist_ok=True)
         failure_artifact.write_text(encoded, encoding="utf-8")
+
+    # Publish the exact retained identity and validated native counters to the
+    # ordinary CI log. Raw SQL, prompt and process output stay in the artifact.
+    native = document["native_failure"]
+    visible_native = {key: native[key] for key in ("state", "reason") if key in native}
+    if isinstance(native.get("diagnostic"), dict):
+        visible_native["diagnostic"] = {
+            key: native["diagnostic"][key]
+            for key in ("schema", *NATIVE_FAILURE_COUNTER_FIELDS)
+        }
+    print(json.dumps({
+        "schema": "laplace.installed-product-cognition-failure-log/v1",
+        "label": label,
+        "failure_sha256": document["failure_sha256"],
+        "native_failure": visible_native,
+    }, sort_keys=True), flush=True)
 
 
 def execute_product(
@@ -435,7 +452,10 @@ FROM laplace.cognition_firmware_execute_product(
     return result, command_receipt
 
 
-def require_identity_widths(result: dict[str, Any]) -> dict[str, str]:
+def require_identity_widths(result: dict[str, Any]) -> dict[str, str | None]:
+    if "prompt_persistence_receipt_id" not in result:
+        raise RuntimeError("product result omitted the prompt publication disposition")
+    publication = result["prompt_persistence_receipt_id"]
     values = {
         "program_id": bytea_hex(result.get("program_id"), "program_id"),
         "execution_receipt_id": bytea_hex(
@@ -447,16 +467,27 @@ def require_identity_widths(result: dict[str, Any]) -> dict[str, str]:
         "prompt_admission_receipt_id": bytea_hex(
             result.get("prompt_admission_receipt_id"), "prompt_admission_receipt_id"
         ),
-        "prompt_persistence_receipt_id": bytea_hex(
-            result.get("prompt_persistence_receipt_id"), "prompt_persistence_receipt_id"
+        # The native owner returns NULL when canonical prompt content already
+        # exists and no producer stream needs publication. Do not invent one.
+        "prompt_persistence_receipt_id": (
+            None if publication is None else bytea_hex(publication, "prompt_persistence_receipt_id")
         ),
         "trunk_entity_id": bytea_hex(result.get("trunk_entity_id"), "trunk_entity_id"),
     }
     for name, value in values.items():
+        if name == "prompt_persistence_receipt_id" and value is None:
+            continue
         expected = 32 if name == "trunk_entity_id" else 64
         if len(value) != expected:
             raise RuntimeError(f"{name} has the wrong identity width")
     return values
+
+
+def require_same_prompt_root(first: dict[str, str | None], replay: dict[str, str | None]) -> None:
+    # Both identities have already passed require_identity_widths. The frontier
+    # program independently materializes the persisted AA root through PostgreSQL.
+    if first["trunk_entity_id"] != replay["trunk_entity_id"]:
+        raise RuntimeError("installed prompt replay selected a different canonical root")
 
 
 def prove(output: Path, failure_artifact: Path | None = None) -> None:
@@ -552,6 +583,7 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
     )
     batch_output = bytes.fromhex(bytea_hex(batch_result.get("output"), "output"))
     batch_identities = require_identity_widths(batch_result)
+    require_same_prompt_root(constituent_identities, batch_identities)
     if batch_output != b"AA":
         raise RuntimeError(
             f"materialization frontier proof returned {batch_output!r}, expected exact AA"
@@ -590,6 +622,8 @@ def prove(output: Path, failure_artifact: Path | None = None) -> None:
         "observed_output_utf8": constituent_output.decode("utf-8"),
         "execution": constituent_result,
         "execution_identities": constituent_identities,
+        "prompt_publication_required": constituent_result["prompt_persistence_receipt_id"] is not None,
+        "prompt_replay_canonical_root_verified": True,
         "command_receipt": constituent_command_receipt,
         "materialization_frontier": {
             "program": batch_firmware,

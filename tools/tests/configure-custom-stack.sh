@@ -8,10 +8,11 @@ umask 0002
 export TMPDIR=/build/laplace/work/refactor-scratch TMP=/build/laplace/work/refactor-scratch TEMP=/build/laplace/work/refactor-scratch
 mkdir -p "$TMPDIR"
 test -s "$LAPLACE_CPP_GRAMMAR_RECEIPT"
+test -s "$LAPLACE_PGN_GRAMMAR_RECEIPT"
 # Key the persistent build by the actual recipe, tools, dependency locks and paths.
 # Source edits stay in this tree so Ninja rebuilds only their dependent targets.
 configuration=$({
-  sha256sum "$0" "$LAPLACE_ICX" "$LAPLACE_ICPX" "$LAPLACE_PG_CONFIG" "$(command -v cmake)" "$(command -v ninja)" dependencies/lock.json dependencies/installed-lock.json "$LAPLACE_CPP_GRAMMAR_RECEIPT"
+  sha256sum "$0" "$LAPLACE_ICX" "$LAPLACE_ICPX" "$LAPLACE_PG_CONFIG" "$(command -v cmake)" "$(command -v ninja)" dependencies/lock.json dependencies/installed-lock.json "$LAPLACE_CPP_GRAMMAR_RECEIPT" "$LAPLACE_PGN_GRAMMAR_RECEIPT"
   printf '%s\n' "$PWD" "$c_flags" "$cxx_flags" "$linker_flags" "$LAPLACE_DEPENDENCY_ROOT" "$LAPLACE_SOURCE_ESTATE_ROOT" "$LAPLACE_UNICODE_SOURCE_ROOT" "$LAPLACE_ISO_639_SOURCE_ROOT" "$LAPLACE_CILI_SOURCE_ROOT"
   "$LAPLACE_PG_CONFIG" --configure
 } | sha256sum | cut -d ' ' -f 1)
@@ -32,6 +33,7 @@ cmake -S . -B "$build_directory" -G Ninja \
   -DLAPLACE_SPECTRA_SOURCE="$LAPLACE_DEPENDENCY_ROOT/spectra" \
   -DLAPLACE_TREE_SITTER_SOURCE="$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
   -DLAPLACE_CPP_GRAMMAR_RECEIPT="$LAPLACE_CPP_GRAMMAR_RECEIPT" \
+  -DLAPLACE_PGN_GRAMMAR_RECEIPT="$LAPLACE_PGN_GRAMMAR_RECEIPT" \
   -DLAPLACE_SOURCE_ESTATE_ROOT="$LAPLACE_SOURCE_ESTATE_ROOT" \
   -DLAPLACE_UNICODE_SOURCE_ROOT="$LAPLACE_UNICODE_SOURCE_ROOT" \
   -DLAPLACE_ISO_639_SOURCE_ROOT="$LAPLACE_ISO_639_SOURCE_ROOT" \
