@@ -19,8 +19,10 @@ typedef struct laplace_content_reference_source {
 
 /* The caller's pinned canonical atom provider owns placement authority. Native
  * validation binds its exact known tuple to the atomic P body, codepoint/full
- * witness and active geometry epoch. Historical source atom geometry is never
- * substituted for this separately admitted provider input. */
+ * witness and the body's own geometry epoch. That pinned provider generation
+ * may predate the view context; new composition requests use the view epoch.
+ * Historical source atom geometry is never substituted for this separately
+ * admitted provider input. */
 typedef struct laplace_content_reference_atom {
     laplace_composition_known_entity known;
     const laplace_persistence_physicality_record* physicality;

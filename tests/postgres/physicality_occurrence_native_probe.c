@@ -239,6 +239,24 @@ int main(void) {
     }
     CHECK(original_edges > 0u); CHECK(canonical_edges > 0u);
 
+    /* Ordinary composition keeps the exact older-epoch atom as its input;
+     * only the new parent is placed under the current request epoch. */
+    laplace_framework_context old_context = context;
+    old_context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes[0] ^= 1u;
+    proof_form old_atom = proof_atom(&old_context, 'x', 1.0);
+    proof_form new_parent = proof_composition(&context, &old_atom, 2u);
+    CHECK(memcmp(old_atom.source.physicality.geometry_epoch.bytes,
+        new_parent.source.physicality.geometry_epoch.bytes, 32u) != 0);
+    laplace_physicality_occurrence_binding historical_rows[] = {
+        proof_interval(&new_parent, &old_atom, 1u, 2u)};
+    const proof_form* historical_forms[] = {&new_parent, &old_atom};
+    reflection_bindings cross_epoch = proof_complete(historical_rows, 1u,
+        historical_forms, 2u, &budget);
+    CHECK(cross_epoch.parent_count == 1u && cross_epoch.count == 1u);
+    CHECK(memcmp(cross_epoch.rows[0].selected_physicality_id.bytes,
+        old_atom.known.physicality_id.bytes, 32u) == 0);
+    laplace_composition_working_set_destroy(&new_parent.working_set);
+
     proof_form a = proof_atom(&context, 'a', 1.0), b = proof_atom(&context, 'b', 1.0);
     proof_form aa = proof_composition(&context, &a, 2u), bb = proof_composition(&context, &b, 2u);
     proof_form wrapper = proof_singleton(&aa);

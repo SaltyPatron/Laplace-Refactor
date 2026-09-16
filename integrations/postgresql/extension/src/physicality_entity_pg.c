@@ -289,12 +289,12 @@ static reflection_source* reflection_known_validate(
         bool independent = true;
         if (memcmp(source->physicality.entity_id.bytes, known[index].entity_id.bytes, 16u) != 0 ||
             memcmp(source->witness.bytes, known[index].identity_witness.bytes, 32u) != 0 ||
-            memcmp(source->physicality.geometry_epoch.bytes,
-                context->epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes, 32u) != 0 ||
             memcmp(source->physicality.centroid.component, known[index].centroid.component, sizeof(laplace_point4d)) != 0)
             ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
                 errmsg("Laplace physicality descriptor external selector differs from its exact stored representation")));
-        /* Validate through the same native body used by descriptor construction.
+        /* The immutable source epoch belongs to its authenticated physicality.
+         * The current context selects the new view, not a rewrite of that source.
+         * Validate through the same native body used by descriptor construction.
          * No second descriptor is built merely to validate a selected input. */
         reflection_logical(budget, source->physicality.logical_count);
         if (laplace_physicality_entity_validation_memory_bound(source->carrier_count, &validation_bytes) !=
@@ -1516,10 +1516,9 @@ static void reflection_occurrences_validate(
         parent = bsearch(&parent_pointer, sources, count, sizeof(*sources), reflection_source_pointer_compare);
         selected = bsearch(&selected_pointer, sources, count, sizeof(*sources), reflection_source_pointer_compare);
         if (parent == NULL || selected == NULL ||
-            memcmp((*selected)->physicality.entity_id.bytes, row->entity_id.bytes, 16u) != 0 ||
-            memcmp((*selected)->physicality.geometry_epoch.bytes, (*parent)->physicality.geometry_epoch.bytes, 32u) != 0)
+            memcmp((*selected)->physicality.entity_id.bytes, row->entity_id.bytes, 16u) != 0)
             ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-                errmsg("Laplace occurrence selection differs from its exact admitted child or geometry epoch")));
+                errmsg("Laplace occurrence selection differs from its exact admitted child")));
     }
     reflection_logical(budget, logical_count);
     reflection_reserve(budget, parent_count, sizeof(*bindings->parent_ids) + sizeof(*bindings->parent_receipts));

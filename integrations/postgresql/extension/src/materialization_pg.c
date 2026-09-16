@@ -107,6 +107,29 @@ static const laplace_pg_materialization_selection* materialization_selection_fin
         sizeof(*state->selections), materialization_selection_compare);
 }
 
+/* A retained owner authenticates exact physicality bodies independently from
+ * the current view epoch. Ordinary caller selections do not confer this right. */
+static int materialization_known_compare(const void* left, const void* right) {
+    const laplace_composition_known_entity* a = left;
+    const laplace_composition_known_entity* b = right;
+    int order = memcmp(a->entity_id.bytes, b->entity_id.bytes, 16u);
+    return order != 0 ? order : memcmp(a->physicality_id.bytes, b->physicality_id.bytes, 32u);
+}
+
+static bool materialization_retained_selection(
+    const laplace_pg_materialization_provider_state* state,
+    const laplace_id128* entity, const laplace_digest256* physicality) {
+    static const laplace_digest256 zero = {{0}};
+    laplace_composition_known_entity key = {0};
+    if (state->scope_external_count == 0u ||
+        materialization_digest_equal(&state->scope_view_id, &zero) ||
+        materialization_digest_equal(physicality, &zero)) return false;
+    key.entity_id = *entity;
+    key.physicality_id = *physicality;
+    return bsearch(&key, state->scope_external, state->scope_external_count,
+        sizeof(*state->scope_external), materialization_known_compare) != NULL;
+}
+
 static Datum materialization_required_value(
     HeapTuple tuple,
     TupleDesc descriptor,
@@ -610,22 +633,22 @@ static void materialization_resolve_batch(
     const laplace_digest256* requested_selections,
     size_t requested_count) {
     static const char entity_sql[] =
-        "WITH input(entity_id, selected_physicality_id, source_index) AS MATERIALIZED ("
-        " SELECT entity_id, selected_physicality_id, ordinality - 1"
-        " FROM unnest($1::bytea[],$2::bytea[]) WITH ORDINALITY"
-        " AS u(entity_id, selected_physicality_id, ordinality))"
+        "WITH input(entity_id, selected_physicality_id, retained_selection, source_index) AS MATERIALIZED ("
+        " SELECT entity_id, selected_physicality_id, retained_selection, ordinality - 1"
+        " FROM unnest($1::bytea[],$2::bytea[],$4::boolean[]) WITH ORDINALITY"
+        " AS u(entity_id, selected_physicality_id, retained_selection, ordinality))"
         " SELECT i.source_index, e.identity_witness, p.physicality_type"
         " FROM input AS i"
         " LEFT JOIN " LAPLACE_PG_SCHEMA ".entity AS e ON e.entity_id=i.entity_id"
         " LEFT JOIN " LAPLACE_PG_SCHEMA ".physicality AS p"
         " ON p.physicality_id=i.selected_physicality_id AND p.entity_id=i.entity_id"
-        " AND p.geometry_epoch=$3"
+        " AND (p.geometry_epoch=$3 OR i.retained_selection)"
         " ORDER BY i.source_index";
     static const char physicality_sql[] =
-        "WITH input(entity_id, selected_physicality_id, source_index) AS MATERIALIZED ("
-        " SELECT entity_id, selected_physicality_id, ordinality - 1"
-        " FROM unnest($1::bytea[],$4::bytea[]) WITH ORDINALITY"
-        " AS u(entity_id, selected_physicality_id, ordinality))"
+        "WITH input(entity_id, selected_physicality_id, retained_selection, source_index) AS MATERIALIZED ("
+        " SELECT entity_id, selected_physicality_id, retained_selection, ordinality - 1"
+        " FROM unnest($1::bytea[],$4::bytea[],$5::boolean[]) WITH ORDINALITY"
+        " AS u(entity_id, selected_physicality_id, retained_selection, ordinality))"
         " SELECT i.source_index,p.physicality_id,p.trajectory_fingerprint,"
         "        p.logical_count,p.vertex_count,p.trajectory,p.entity_id,p.physicality_type,"
         "        p.vertex_class,p.recipe_version,p.structural_form,p.dimension_count,p.flags,"
@@ -638,7 +661,8 @@ static void materialization_resolve_batch(
         "     recipe_fingerprint,geometry_epoch,centroid_x,centroid_y,centroid_z,centroid_m,radius"
         "   FROM " LAPLACE_PG_SCHEMA ".physicality"
         "   WHERE physicality_id=i.selected_physicality_id"
-        "     AND entity_id=i.entity_id AND physicality_type=$2 AND geometry_epoch=$3"
+        "     AND entity_id=i.entity_id AND physicality_type=$2"
+        "     AND (geometry_epoch=$3 OR i.retained_selection)"
         "   UNION ALL ("
         "     SELECT physicality_id,trajectory_fingerprint,logical_count,vertex_count,trajectory,"
         "       entity_id,physicality_type,vertex_class,recipe_version,structural_form,dimension_count,flags,"
@@ -656,6 +680,7 @@ static void materialization_resolve_batch(
     laplace_id128* ids;
     laplace_digest256* selected_ids;
     uint32_t* selected_types;
+    Datum* retained_selections;
     materialization_cache_entry** entries;
     laplace_digest256* witnesses;
     laplace_unicode_identity_key* keys;
@@ -669,8 +694,8 @@ static void materialization_resolve_batch(
     size_t unique_count = 0u;
     volatile size_t composition_count = 0u;
     size_t index;
-    Oid entity_types[3] = {BYTEAARRAYOID, BYTEAARRAYOID, BYTEAOID};
-    Datum entity_values[3];
+    Oid entity_types[4] = {BYTEAARRAYOID, BYTEAARRAYOID, BYTEAOID, BOOLARRAYOID};
+    Datum entity_values[4];
     int result;
     laplace_pg_perfcache_pin* pin = NULL;
     laplace_perfcache_registry_status cache_status;
@@ -705,8 +730,12 @@ static void materialization_resolve_batch(
     witnesses = (laplace_digest256*)palloc0(sizeof(*witnesses) * unique_count);
     selected_ids = (laplace_digest256*)palloc(sizeof(*selected_ids) * unique_count);
     selected_types = (uint32_t*)palloc0(sizeof(*selected_types) * unique_count);
-    for (index = 0u; index < unique_count; ++index)
+    retained_selections = palloc(sizeof(*retained_selections) * unique_count);
+    for (index = 0u; index < unique_count; ++index) {
         selected_ids[index] = entries[index]->key.selected_physicality_id;
+        retained_selections[index] = BoolGetDatum(materialization_retained_selection(
+            state, &ids[index], &selected_ids[index]));
+    }
     keys = (laplace_unicode_identity_key*)palloc0(sizeof(*keys) * unique_count);
     positions = (uint32_t*)palloc0(sizeof(*positions) * unique_count);
     reverse_found = (uint8_t*)palloc0(sizeof(*reverse_found) * unique_count);
@@ -720,8 +749,10 @@ static void materialization_resolve_batch(
     entity_values[1] = PointerGetDatum(materialization_selection_array(selected_ids, unique_count));
     entity_values[2] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         state->context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes, 32u));
+    entity_values[3] = PointerGetDatum(construct_array(retained_selections,
+        (int)unique_count, BOOLOID, 1, true, TYPALIGN_CHAR));
     result = SPI_execute_with_args(
-        entity_sql, 3, entity_types, entity_values, NULL, true,
+        entity_sql, 4, entity_types, entity_values, NULL, true,
         (long)(unique_count + 1u));
     ++state->database_operations;
     ++state->node_batch_count;
@@ -859,8 +890,9 @@ static void materialization_resolve_batch(
     }
 
     if (composition_count != 0u) {
-        Oid physicality_types[4] = {BYTEAARRAYOID, INT4OID, BYTEAOID, BYTEAARRAYOID};
-        Datum physicality_values[4];
+        Oid physicality_types[5] = {BYTEAARRAYOID, INT4OID, BYTEAOID, BYTEAARRAYOID, BOOLARRAYOID};
+        Datum physicality_values[5];
+        Datum* composition_retained = palloc(composition_count * sizeof(*composition_retained));
         size_t row;
         bool* seen = (bool*)palloc0(sizeof(*seen) * composition_count);
         long row_limit = composition_count > (size_t)((LONG_MAX - 1L) / 2L)
@@ -876,8 +908,12 @@ static void materialization_resolve_batch(
             sizeof(state->context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes)));
         physicality_values[3] = PointerGetDatum(materialization_selection_array(
             composition_selections, composition_count));
+        for (size_t selected = 0u; selected < composition_count; ++selected)
+            composition_retained[selected] = retained_selections[composition_source[selected]];
+        physicality_values[4] = PointerGetDatum(construct_array(composition_retained,
+            (int)composition_count, BOOLOID, 1, true, TYPALIGN_CHAR));
         result = SPI_execute_with_args(
-            physicality_sql, 4, physicality_types, physicality_values,
+            physicality_sql, 5, physicality_types, physicality_values,
             NULL, true, row_limit);
         ++state->database_operations;
         if (result != SPI_OK_SELECT || SPI_tuptable == NULL) {
@@ -1487,6 +1523,7 @@ static void materialization_begin_read_impl(
         laplace_composition_known_entity* known = palloc(
             views[0].all_known_count * sizeof(*known));
         memcpy(known, views[0].all_known, views[0].all_known_count * sizeof(*known));
+        qsort(known, views[0].all_known_count, sizeof(*known), materialization_known_compare);
         state->scope_external = known;
     }
     if (state->scope_occurrence_count != 0u) {

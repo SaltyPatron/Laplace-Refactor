@@ -83,7 +83,8 @@ laplace_content_reference_plan_view View(Plan& plan, const laplace_content_refer
     EXPECT_EQ(laplace_content_reference_plan_view_get(plan.value, &view), LAPLACE_CONTENT_REFERENCE_OK);
     return view;
 }
-std::vector<laplace_composition_result> Execute(const laplace_content_reference_plan_view& view) {
+std::vector<laplace_composition_result> Execute(const laplace_content_reference_plan_view& view,
+        std::vector<laplace_persistence_physicality_record>* physicalities = nullptr) {
     const laplace_composition_working_set_input input{view.context, &view.source_fingerprint,
         &view.recipe_fingerprint, view.known_entities, view.known_entity_count,
         view.operands, view.operand_count, view.requests, view.request_count, 4096U, 0U};
@@ -94,6 +95,13 @@ std::vector<laplace_composition_result> Execute(const laplace_content_reference_
     laplace_composition_working_set_summary summary{};
     EXPECT_EQ(laplace_composition_working_set_summary_get(set.value, &summary), LAPLACE_COMPOSITION_OK);
     EXPECT_EQ(summary.occurrence_count, 0U);
+    if (physicalities != nullptr) {
+        for (std::size_t i = 0U; i < count; ++i) {
+            laplace_persistence_physicality_record body{};
+            EXPECT_EQ(laplace_composition_working_set_physicality_candidate_get(set.value, i, &body), LAPLACE_COMPOSITION_OK);
+            physicalities->push_back(body);
+        }
+    }
     return {results, results + count};
 }
 Form Singleton(const Fixture& fixture) {
@@ -125,6 +133,45 @@ TEST(ContentReferenceView, DifferentHistoricalFormsUsePinnedCanonicalGeometry) {
     const auto values = Execute(view); ASSERT_EQ(values.size(), 1U);
     EXPECT_EQ(laplace_content_reference_plan_verify_results(first.value, values.data(), values.size()), LAPLACE_CONTENT_REFERENCE_OK);
     EXPECT_EQ(std::memcmp(&values[0].centroid, &fixture.original.body.centroid, sizeof(laplace_point4d)), 0);
+
+    // A new view epoch does not rewrite its separately pinned Unicode atom bodies.
+    const std::array original_atoms{fixture.a.body, fixture.b.body};
+    const auto original_source = fixture.original.body;
+    fixture.context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes[31] ^= 1U;
+    Plan later;
+    auto later_input = fixture.Input();
+    ASSERT_EQ(laplace_content_reference_plan_create(&later_input, &later.value), LAPLACE_CONTENT_REFERENCE_OK);
+    laplace_content_reference_plan_view later_view{};
+    ASSERT_EQ(laplace_content_reference_plan_view_get(later.value, &later_view), LAPLACE_CONTENT_REFERENCE_OK);
+    ASSERT_EQ(later_view.request_count, 1U);
+    ASSERT_EQ(later_view.known_entity_count, original_atoms.size());
+    EXPECT_EQ(std::memcmp(&later_view.source_fingerprint, &view.source_fingerprint, sizeof(laplace_digest256)), 0);
+    EXPECT_EQ(std::memcmp(&later_view.view_geometry_epoch,
+        &fixture.context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY], sizeof(laplace_digest256)), 0);
+    EXPECT_EQ(std::memcmp(&later_view.requests[0].geometry_epoch, &later_view.view_geometry_epoch, sizeof(laplace_digest256)), 0);
+    for (std::size_t i = 0U; i < original_atoms.size(); ++i) {
+        const auto& pinned = later_view.known_entities[i];
+        EXPECT_TRUE(laplace_identity_equal(&pinned.entity_id, &original_atoms[i].entity_id));
+        EXPECT_EQ(std::memcmp(&pinned.physicality_id, &original_atoms[i].physicality_id, sizeof(laplace_digest256)), 0);
+        EXPECT_EQ(std::memcmp(&pinned.identity_witness, &fixture.atoms[i].known.identity_witness, sizeof(laplace_digest256)), 0);
+        EXPECT_EQ(std::memcmp(&pinned.centroid, &original_atoms[i].centroid, sizeof(laplace_point4d)), 0);
+        EXPECT_NE(std::memcmp(&original_atoms[i].geometry_epoch, &later_view.view_geometry_epoch, sizeof(laplace_digest256)), 0);
+    }
+    std::vector<laplace_persistence_physicality_record> later_bodies;
+    const auto later_values = Execute(later_view, &later_bodies);
+    ASSERT_EQ(later_values.size(), 1U); ASSERT_EQ(later_bodies.size(), 1U);
+    EXPECT_EQ(laplace_content_reference_plan_verify_results(later.value, later_values.data(), later_values.size()), LAPLACE_CONTENT_REFERENCE_OK);
+    EXPECT_TRUE(laplace_identity_equal(&later_values[0].entity_id, &values[0].entity_id));
+    EXPECT_EQ(std::memcmp(&later_values[0].identity_witness, &values[0].identity_witness, sizeof(laplace_digest256)), 0);
+    EXPECT_EQ(std::memcmp(&later_values[0].centroid, &values[0].centroid, sizeof(laplace_point4d)), 0);
+    EXPECT_NE(std::memcmp(&later_values[0].physicality_id, &values[0].physicality_id, sizeof(laplace_digest256)), 0);
+    EXPECT_EQ(std::memcmp(&later_bodies[0].geometry_epoch, &later_view.view_geometry_epoch, sizeof(laplace_digest256)), 0);
+    EXPECT_EQ(std::memcmp(&later_bodies[0].physicality_id, &later_values[0].physicality_id, sizeof(laplace_digest256)), 0);
+    EXPECT_EQ(std::memcmp(&fixture.a.body, &original_atoms[0], sizeof(fixture.a.body)), 0);
+    EXPECT_EQ(std::memcmp(&fixture.b.body, &original_atoms[1], sizeof(fixture.b.body)), 0);
+    EXPECT_EQ(std::memcmp(&fixture.original.body, &original_source, sizeof(original_source)), 0);
+
+    fixture.context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY] = original_atoms[0].geometry_epoch;
     fixture.sources = {fixture.alternate.Input()};
     Plan second; const auto other = Execute(View(second, fixture.Input())); ASSERT_EQ(other.size(), 1U);
     EXPECT_EQ(std::memcmp(values[0].physicality_id.bytes, other[0].physicality_id.bytes, 32U), 0);
@@ -190,15 +237,15 @@ TEST(ContentReferenceView, EveryFormAndFullWitnessAreValidated) {
 
 TEST(ContentReferenceView, PinnedAtomTupleBodyWitnessAndEpochMustAgree) {
     Fixture fixture;
-    for (unsigned variant = 0U; variant < 4U; ++variant) {
+    for (unsigned variant = 0U; variant < 5U; ++variant) {
         auto atom = fixture.a.Input(); auto body = fixture.a.body; atom.physicality = &body;
         if (variant == 0U) atom.known.identity_witness.bytes[31] ^= 1U;
         if (variant == 1U) atom.known.centroid.component[0] += 0.1;
         if (variant == 2U) atom.known.tier_floor = 1U;
-        if (variant == 3U) {
+        if (variant == 3U) body.geometry_epoch.bytes[31] ^= 1U;
+        if (variant == 4U) {
             body.geometry_epoch.bytes[31] ^= 1U;
             ASSERT_EQ(laplace_persistence_physicality_identify(&body, &body.physicality_id), LAPLACE_PERSISTENCE_OK);
-            atom.known.physicality_id = body.physicality_id;
         }
         fixture.atoms = {atom, fixture.b.Input()}; auto input = fixture.Input(); Plan rejected;
         EXPECT_EQ(laplace_content_reference_plan_create(&input, &rejected.value), LAPLACE_CONTENT_REFERENCE_ATOM_INVALID);

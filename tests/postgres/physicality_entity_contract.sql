@@ -29,8 +29,13 @@ WHERE resolved.found[index] AND p.entity_id=resolved.entity_ids[index]
 
 DO $source$
 BEGIN
-    IF (SELECT count(*) FROM physicality_entity_contract.sources) <> 2 THEN
-        RAISE EXCEPTION 'physicality descriptor fixture lacks exact admitted Unicode inputs';
+    IF (SELECT count(*) FROM physicality_entity_contract.sources) <> 2
+       OR EXISTS (SELECT 1 FROM physicality_entity_contract.sources source
+           JOIN laplace.physicality p ON p.physicality_id=source.record_id
+           CROSS JOIN physicality_entity_contract.context context
+           WHERE p.geometry_epoch IS NOT DISTINCT FROM
+               (context.value).epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@]) THEN
+        RAISE EXCEPTION 'physicality descriptor fixture lacks exact admitted Unicode inputs outside its view geometry';
     END IF;
 END $source$;
 
@@ -1202,6 +1207,172 @@ BEGIN
     END IF;
 END $form_cold$;
 
+-- Retain an actual composer-produced AB body and its exact pinned A/B children.
+-- Only the new view context changes; no physicality field is rewritten.
+CREATE TABLE physicality_entity_contract.cross_epoch_context(value laplace.execution_context NOT NULL);
+DO $cross_epoch_context$
+DECLARE context laplace.execution_context;
+BEGIN
+    SELECT (value).* INTO STRICT context FROM physicality_entity_contract.context;
+    context.epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@]:=set_byte(
+        context.epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@],0,
+        get_byte(context.epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@],0)#1);
+    INSERT INTO physicality_entity_contract.cross_epoch_context VALUES(context);
+END $cross_epoch_context$;
+CREATE TABLE physicality_entity_contract.cross_epoch_sources AS
+SELECT p.physicality_id,pg_catalog.record_send(p) AS body
+FROM laplace.physicality p
+WHERE p.physicality_id IN (SELECT record_id FROM physicality_entity_contract.sources
+    UNION ALL SELECT record_id FROM physicality_entity_contract.forms WHERE ordinal=1);
+DO $cross_epoch_inputs$
+BEGIN
+    IF (SELECT count(*) FROM physicality_entity_contract.cross_epoch_sources) IS DISTINCT FROM 3::bigint
+       OR EXISTS(SELECT 1 FROM physicality_entity_contract.cross_epoch_sources original
+           JOIN laplace.physicality p USING(physicality_id)
+           CROSS JOIN physicality_entity_contract.cross_epoch_context context
+           WHERE p.geometry_epoch IS NOT DISTINCT FROM
+               (context.value).epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@]) THEN
+        RAISE EXCEPTION 'cross-epoch view fixture did not retain three original bodies outside its new geometry';
+    END IF;
+END $cross_epoch_inputs$;
+
+CREATE FUNCTION physicality_entity_contract.admit_cross_epoch()
+RETURNS TABLE(record_id bytea,view_id bytea,root_entity_id bytea,root_witness bytea,
+    entity_candidate_count bigint,inserted_entity_count bigint,derived_node_count bigint,
+    deposit_receipt_id bytea,batch_database_operations bigint)
+LANGUAGE SQL VOLATILE AS $admit_cross_epoch$
+    SELECT admitted.* FROM physicality_entity_contract.cross_epoch_context context
+    CROSS JOIN physicality_entity_contract.forms source
+    CROSS JOIN physicality_entity_contract.form_selections choices
+    CROSS JOIN LATERAL laplace.physicality_entity_admit_batch(context.value,
+        ARRAY[source.record_id],
+        ARRAY(SELECT selected FROM physicality_entity_contract.sources ORDER BY ordinal)||ARRAY[source.selected],
+        16384::bigint,65536::bigint,16384::bigint,4194304::numeric,65536::bigint,512::bigint,
+        ARRAY(SELECT choice FROM unnest(choices.value) choice
+              WHERE choice.parent_physicality_id=source.record_id
+              ORDER BY choice.first_logical_ordinal)) admitted
+    WHERE source.ordinal=1
+$admit_cross_epoch$;
+CREATE TABLE physicality_entity_contract.cross_epoch_first AS
+SELECT * FROM physicality_entity_contract.admit_cross_epoch();
+CREATE TABLE physicality_entity_contract.cross_epoch_after AS
+SELECT physicality_entity_contract.counts() AS value;
+
+CREATE FUNCTION physicality_entity_contract.materialize_cross_epoch(original_selection boolean)
+RETURNS laplace.content_materialization_result LANGUAGE SQL VOLATILE AS $materialize_cross_epoch$
+    SELECT CASE WHEN original_selection THEN laplace.content_materialize_utf8(context.value,
+        source.entity_id,first.view_id,owner.descriptor_recipe,
+        ROW(65536::numeric,262144::numeric,4194304::numeric,128,1)::laplace.cognition_materialization_request,
+        source.record_id) ELSE laplace.content_materialize_utf8(context.value,
+        source.entity_id,first.view_id,owner.descriptor_recipe,
+        ROW(65536::numeric,262144::numeric,4194304::numeric,128,1)::laplace.cognition_materialization_request) END
+    FROM physicality_entity_contract.cross_epoch_context context
+    CROSS JOIN physicality_entity_contract.cross_epoch_first first
+    JOIN laplace.physicality_entity_view owner USING(view_id)
+    CROSS JOIN physicality_entity_contract.forms source WHERE source.ordinal=1
+$materialize_cross_epoch$;
+CREATE TABLE physicality_entity_contract.cross_epoch_warm AS
+SELECT original_selection,physicality_entity_contract.materialize_cross_epoch(original_selection) AS result
+FROM unnest(ARRAY[false,true]) original_selection;
+DO $cross_epoch_warm$
+DECLARE actual record; first physicality_entity_contract.cross_epoch_first%ROWTYPE;
+    owner laplace.physicality_entity_view%ROWTYPE;
+BEGIN
+    SELECT * INTO STRICT first FROM physicality_entity_contract.cross_epoch_first;
+    SELECT * INTO STRICT owner FROM laplace.physicality_entity_view WHERE view_id=first.view_id;
+    SELECT * INTO STRICT actual FROM physicality_entity_contract.admit_cross_epoch();
+    IF actual.record_id IS DISTINCT FROM first.record_id
+       OR actual.view_id IS DISTINCT FROM first.view_id
+       OR actual.root_entity_id IS DISTINCT FROM first.root_entity_id
+       OR actual.root_witness IS DISTINCT FROM first.root_witness
+       OR actual.deposit_receipt_id IS DISTINCT FROM first.deposit_receipt_id
+       OR actual.inserted_entity_count IS DISTINCT FROM 0::bigint
+       OR owner.source_physicality_id IS DISTINCT FROM (SELECT record_id FROM physicality_entity_contract.forms WHERE ordinal=1)
+       OR owner.view_id IS NOT DISTINCT FROM (SELECT admitted.view_id FROM physicality_entity_contract.form_admitted admitted
+           JOIN physicality_entity_contract.forms source USING(record_id) WHERE source.ordinal=1)
+       OR first.root_entity_id IS DISTINCT FROM (SELECT admitted.root_entity_id
+           FROM physicality_entity_contract.form_admitted admitted
+           JOIN physicality_entity_contract.forms source USING(record_id) WHERE source.ordinal=1)
+       OR first.root_witness IS DISTINCT FROM (SELECT admitted.root_witness
+           FROM physicality_entity_contract.form_admitted admitted
+           JOIN physicality_entity_contract.forms source USING(record_id) WHERE source.ordinal=1)
+       OR owner.binding_set_id IS DISTINCT FROM (SELECT previous.binding_set_id
+           FROM physicality_entity_contract.form_admitted admitted
+           JOIN physicality_entity_contract.forms source USING(record_id)
+           JOIN laplace.physicality_entity_view previous USING(view_id) WHERE source.ordinal=1)
+       OR record_send(owner.admission_context) IS DISTINCT FROM
+           (SELECT record_send(value) FROM physicality_entity_contract.cross_epoch_context)
+       OR NOT EXISTS(SELECT 1 FROM laplace.physicality_entity_node node
+           CROSS JOIN physicality_entity_contract.cross_epoch_context context
+           WHERE node.view_id=first.view_id
+               AND node.entity_id=(SELECT entity_id FROM physicality_entity_contract.forms WHERE ordinal=1)
+               AND (node.physicality_metadata).geometry_epoch=
+                   (context.value).epochs[@LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX@])
+       OR (SELECT count(*) FROM physicality_entity_contract.cross_epoch_warm) IS DISTINCT FROM 2::bigint
+       OR EXISTS(SELECT 1 FROM physicality_entity_contract.cross_epoch_warm warm
+           WHERE (warm.result).status IS DISTINCT FROM 0
+               OR (warm.result).output IS DISTINCT FROM convert_to('AB','UTF8')
+               OR (warm.result).output_bytes IS DISTINCT FROM 2::numeric
+               OR (warm.result).codepoint_count IS DISTINCT FROM 2::numeric
+               OR (warm.result).root_content_id IS DISTINCT FROM
+                   (SELECT entity_id FROM physicality_entity_contract.forms WHERE ordinal=1)
+               OR (warm.result).source_receipt_id IS DISTINCT FROM first.view_id
+               OR (warm.result).source_recipe_id IS DISTINCT FROM owner.descriptor_recipe
+               OR physicality_entity_contract.materialize_cross_epoch(warm.original_selection) IS DISTINCT FROM warm.result)
+       OR (SELECT (result).materialization_id FROM physicality_entity_contract.cross_epoch_warm WHERE original_selection)
+           IS NOT DISTINCT FROM (SELECT (result).materialization_id FROM physicality_entity_contract.cross_epoch_warm WHERE NOT original_selection)
+       OR (SELECT (result).readset_fingerprint FROM physicality_entity_contract.cross_epoch_warm WHERE original_selection)
+           IS NOT DISTINCT FROM (SELECT (result).readset_fingerprint FROM physicality_entity_contract.cross_epoch_warm WHERE NOT original_selection)
+       OR EXISTS(SELECT 1 FROM physicality_entity_contract.cross_epoch_sources original
+           LEFT JOIN laplace.physicality p USING(physicality_id)
+           WHERE pg_catalog.record_send(p) IS DISTINCT FROM original.body)
+       OR (SELECT value->'physicalities' FROM physicality_entity_contract.cross_epoch_after)
+           IS DISTINCT FROM (SELECT value->'physicalities' FROM physicality_entity_contract.form_after)
+       OR (SELECT value->'attestations' FROM physicality_entity_contract.cross_epoch_after)
+           IS DISTINCT FROM (SELECT value->'attestations' FROM physicality_entity_contract.form_after)
+       OR physicality_entity_contract.counts() IS DISTINCT FROM
+           (SELECT value FROM physicality_entity_contract.cross_epoch_after) THEN
+        RAISE EXCEPTION 'cross-epoch original/generated read or replay changed exact content, receipts, original bodies, or stored state';
+    END IF;
+END $cross_epoch_warm$;
+
+SELECT pg_backend_pid() AS cross_epoch_warm_pid \gset
+SELECT current_setting('statement_timeout') AS cross_epoch_statement_timeout \gset
+\connect :DBNAME
+SELECT set_config('statement_timeout', :'cross_epoch_statement_timeout', false);
+SELECT pg_backend_pid() <> :cross_epoch_warm_pid AS cross_epoch_new_backend \gset
+\if :cross_epoch_new_backend
+\else
+    \echo 'cross-epoch cold read reused the original PostgreSQL backend'
+    \quit 1
+\endif
+DO $cross_epoch_cold$
+DECLARE expected record; actual laplace.content_materialization_result; replay record;
+    first physicality_entity_contract.cross_epoch_first%ROWTYPE;
+BEGIN
+    FOR expected IN SELECT * FROM physicality_entity_contract.cross_epoch_warm LOOP
+        actual:=physicality_entity_contract.materialize_cross_epoch(expected.original_selection);
+        IF actual IS DISTINCT FROM expected.result THEN
+            RAISE EXCEPTION 'new-backend cross-epoch read changed exact content or materialization receipt';
+        END IF;
+    END LOOP;
+    SELECT * INTO STRICT first FROM physicality_entity_contract.cross_epoch_first;
+    SELECT * INTO STRICT replay FROM physicality_entity_contract.admit_cross_epoch();
+    IF replay.record_id IS DISTINCT FROM first.record_id
+       OR replay.view_id IS DISTINCT FROM first.view_id
+       OR replay.root_entity_id IS DISTINCT FROM first.root_entity_id
+       OR replay.root_witness IS DISTINCT FROM first.root_witness
+       OR replay.deposit_receipt_id IS DISTINCT FROM first.deposit_receipt_id
+       OR replay.inserted_entity_count IS DISTINCT FROM 0::bigint
+       OR EXISTS(SELECT 1 FROM physicality_entity_contract.cross_epoch_sources original
+           LEFT JOIN laplace.physicality p USING(physicality_id)
+           WHERE pg_catalog.record_send(p) IS DISTINCT FROM original.body)
+       OR physicality_entity_contract.counts() IS DISTINCT FROM
+           (SELECT value FROM physicality_entity_contract.cross_epoch_after) THEN
+        RAISE EXCEPTION 'cold cross-epoch replay changed original bodies, retained owner, or stored state';
+    END IF;
+END $cross_epoch_cold$;
+
 SELECT 'LAPLACE_QA_RECEIPT physicality_entity_reflection ' ||
     jsonb_build_object('schema','laplace.physicality-entity-contract/v1',
     'root_entity_id',encode(first.root_entity_id,'hex'),
@@ -1221,6 +1392,7 @@ SELECT 'LAPLACE_QA_RECEIPT physicality_entity_reflection ' ||
     'canonical_and_original_atom_cold_reads',2,
     'canonical_atom_owner_read_verified',true,
     'original_atom_owner_read_verified',true,
+    'cross_epoch_source_view_verified',true,
     'original_same_entity_rle_nodes',5,
     'original_same_entity_rle_carriers',4,
     'same_physicality_distinct_observation_replay',true,

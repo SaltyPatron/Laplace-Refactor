@@ -163,7 +163,6 @@ Status admit_atoms(laplace_content_reference_plan& plan, const laplace_content_r
             laplace_identity_codepoint_witness(known.atom, &identity, &full) != LAPLACE_IDENTITY_OK ||
             !laplace_identity_equal(&identity, &known.entity_id) || !equal(full, known.identity_witness) ||
             !laplace_identity_equal(&body.entity_id, &identity) || !equal(body.physicality_id, known.physicality_id) ||
-            !equal(body.geometry_epoch, plan.context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY]) ||
             std::memcmp(&body.centroid, &known.centroid, sizeof(body.centroid)) != 0)
             return LAPLACE_CONTENT_REFERENCE_ATOM_INVALID;
         std::uint64_t index{}; auto status = node_for(plan, known.entity_id, index);
