@@ -181,6 +181,19 @@ jobs:
             --compiler "$LAPLACE_ICX" \
             --grammar tree-sitter-cpp --output "$provider_root"
           test -s "$provider_root/build-receipt.json"
+      - name: Build and verify the locked PGN syntax provider
+        run: |
+          set -euo pipefail
+          provider_root="$RUNNER_TEMP/laplace-output/pgn-grammar"
+          printf 'LAPLACE_PGN_GRAMMAR_RECEIPT=%s\n' "$provider_root/build-receipt.json" >> "$GITHUB_ENV"
+          python3 tools/sources/qualify_grammar.py --acquire \
+            --grammar-root "$RUNNER_TEMP/laplace-sources/tree-sitter-pgn" \
+            --runtime-root "$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            --grammar-lock dependencies/tree-sitter-grammars.lock.json \
+            --dependency-lock dependencies/lock.json \
+            --compiler "$LAPLACE_ICX" \
+            --grammar tree-sitter-pgn --output "$provider_root"
+          test -s "$provider_root/build-receipt.json"
       - name: Inventory and resolve physical source estate
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
@@ -287,6 +300,18 @@ jobs:
             ${{ runner.temp }}/laplace-output/cpp-grammar/provider.so
           if-no-files-found: warn
           retention-days: 30
+      - name: Upload exact PGN provider build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pgn-provider-custom-stack-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/laplace-output/pgn-grammar/build-receipt.json
+            ${{ runner.temp }}/laplace-output/pgn-grammar/build.stdout.log
+            ${{ runner.temp }}/laplace-output/pgn-grammar/build.stderr.log
+            ${{ runner.temp }}/laplace-output/pgn-grammar/provider.so
+          if-no-files-found: warn
+          retention-days: 30
       - name: Persist custom-stack terminal result by BLAKE3
         if: always()
         shell: bash
@@ -349,7 +374,8 @@ jobs:
           fi
       - name: Print retained PostgreSQL evidence
         if: failure()
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        # Log readback does not mutate the host and must not delay failure visibility.
+        shell: bash
         run: |
           set -euo pipefail
           find "$RUNNER_TEMP" -type f -path '*/laplace-postgres-test.*/postgres.log' \

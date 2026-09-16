@@ -254,7 +254,11 @@ def main(argv=None):
     output.mkdir(parents=True, exist_ok=False)
     report = {"schema": SCHEMA, "status": "failed", "scope": "virtual-X11-interaction",
               "operator_desktop_verified": False, "engine_game_verified": False,
-              "visual_board_correctness_verified": False, "observations": []}
+              "visual_board_correctness_verified": False, "observations": [],
+              "timings": {"clock": "monotonic",
+                          "scope": "virtual X11 and GUI application launch; observed readiness",
+                          "cache_state": "not reset or measured",
+                          "machine_boot_measured": False}}
     begun = time.monotonic()
     server = gui = None
     private = None
@@ -315,6 +319,7 @@ def main(argv=None):
             server_log = (output / "xvfb.log").open("w")
             streams.append(server_log)
             try:
+                server_launch_started = time.monotonic()
                 server = subprocess.Popen(["Xvfb", "-displayfd", str(writer), "-auth", str(authority),
                                            "-screen", "0", "1280x1024x24", "-nolisten", "tcp", "-noreset"],
                                           env=environment, stdin=subprocess.DEVNULL,
@@ -323,6 +328,8 @@ def main(argv=None):
                 os.close(writer)
                 writer = None
                 number = display_number(reader, deadline)
+                report["timings"]["x11_launch_to_display_ready_seconds"] = (
+                    time.monotonic() - server_launch_started)
             finally:
                 os.close(reader)
                 if writer is not None:
@@ -332,11 +339,16 @@ def main(argv=None):
                                  "authentication": "private MIT-MAGIC-COOKIE-1", "tcp_listening": False}
             gui_log = (output / "gui.log").open("w")
             streams.append(gui_log)
+            gui_launch_started = time.monotonic()
             gui = subprocess.Popen([str(binary), "-platform", "xcb"], env=environment,
                                    stdin=subprocess.DEVNULL, stdout=gui_log, stderr=subprocess.STDOUT,
                                    start_new_session=True)
             def observe(action, value):
-                report["observations"].append({"action": action, "observed": value})
+                elapsed = time.monotonic() - gui_launch_started
+                report["observations"].append({"action": action, "observed": value,
+                                               "seconds_since_gui_launch": elapsed})
+                if action == "main":
+                    report["timings"]["gui_launch_to_main_window_seconds"] = elapsed
                 checkpoint(output, report)
             report["process"] = exercise_windows(gui, binary, environment, deadline, observe)
             gui_log.flush()
@@ -367,7 +379,9 @@ def main(argv=None):
         report["cleanup_allowance_seconds"] = 12
         checkpoint(output, report)
     print(json.dumps({"schema": SCHEMA, "status": report["status"],
-                      "receipt": str(output / "session.json"), "scope": report["scope"]}))
+                      "receipt": str(output / "session.json"), "scope": report["scope"],
+                      "timings": report["timings"],
+                      "seconds_including_cleanup": report["seconds_including_cleanup"]}))
     return 0 if report["status"] == "passed" else 1
 
 
