@@ -40,6 +40,13 @@ jobs:
           import json, os, stat
           from pathlib import Path
           target = Path(os.environ["THIN_EVIDENCE"])
+          previous = Path("/build/laplace/work/installed-frontier-diagnostic")
+          if previous.exists():
+              old = previous.lstat()
+              print(json.dumps({"schema": "laplace.previous-directory-observation/v1",
+                                "path": str(previous), "uid": old.st_uid, "gid": old.st_gid,
+                                "mode": oct(stat.S_IMODE(old.st_mode)),
+                                "physical_directory": stat.S_ISDIR(old.st_mode)}))
           target.parent.mkdir(mode=0o700, exist_ok=True)
           info = target.parent.lstat()
           print(json.dumps({"schema": "laplace.private-evidence-directory/v1",
