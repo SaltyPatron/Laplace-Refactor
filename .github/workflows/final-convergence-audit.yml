@@ -266,5 +266,3 @@ jobs:
           path: ${{ runner.temp }}/branch-consolidation/
           if-no-files-found: error
           retention-days: 90
-
-# Hosted qualification fixture: this comment is the sole diagnostic parent-to-head change.

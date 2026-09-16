@@ -22,8 +22,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^1^2)" = e22d1b13c10430b338d92979b70f97f0db797aa8
-          test "$(git rev-parse HEAD^1^1)" = 480a2c68403dd5d6323f89fbfda6cc8442dbcb2c
+          test "$(git rev-parse HEAD^1^2)" = 992dc30f1b30221afd9ca7d47d983bda70f1654d
+          test "$(git rev-parse HEAD^1^1)" = 185c3a4eb44c36f0948f1e21d383d51010319f67
           root="/build/laplace/work/audit-only-classification/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           test ! -e "$root"
           sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$root"
@@ -35,6 +35,7 @@ jobs:
           test "$(git hash-object tests/product_path_status_tests.py)" = 6b9d6e6bb7a4908ca1b7f28bb7106d886ace1f05
           test "$(git hash-object tests/product_path_tests.py)" = 4df70b3acadeb56e3873991d73fa8aad5f13663b
           test "$(git hash-object tools/delivery/product_path.py)" = ebd733f21cf0c8a37672ad6dbe91cea49884ab7b
+          test "$(git hash-object tests/chess_host_evidence_tests.py)" = 22f57fa53136af0e90f82b562f5bdcae7b2b526a
           git diff --name-status -z -M HEAD^ HEAD > "$root/changed.status"
           python3 tools/delivery/product_path.py classify \
             --git-name-status-z "$root/changed.status" --output "$root/classification.json"
@@ -48,12 +49,12 @@ jobs:
           print(json.dumps(result,sort_keys=True))
           PY
           printf 'base_sha=%s\nhead_sha=%s\n' "$(git rev-parse HEAD^)" "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-          git diff --name-status e22d1b13c10430b338d92979b70f97f0db797aa8 HEAD > "$root/diagnostic-delta.txt"
+          git diff --name-status 992dc30f1b30221afd9ca7d47d983bda70f1654d HEAD > "$root/diagnostic-delta.txt"
       - name: Execute actual classification, Git, matrix, deployment and cancellation controls
         shell: bash
         run: |
           set -euo pipefail
-          for suite in product_path_tests product_path_status_tests product_path_concurrency_tests hosted_ci_cache_contract_tests; do
+          for suite in product_path_tests product_path_status_tests product_path_concurrency_tests hosted_ci_cache_contract_tests chess_host_evidence_tests; do
             timeout --signal=TERM --kill-after=5s 120s python3 "tests/$suite.py" \
               2>&1 | tee "$QUALIFICATION_DIR/$suite.log"
           done
