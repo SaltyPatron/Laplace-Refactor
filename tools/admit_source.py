@@ -565,39 +565,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         identities = load_activation_state(args.receipt_root, active_package_id)
         command = psql_command(tool_release, args)
 
-        geometry_epoch = require_hex(
-            run_scalar(
-                command,
-                "SELECT pg_catalog.encode(g.geometry_epoch,'hex') "
-                "FROM laplace.perfcache_active_control AS a "
-                "JOIN laplace.unicode_root_generation AS g "
-                "ON g.activation_epoch_id=a.activation_epoch_id "
-                "AND g.activation_epoch_fingerprint=a.epoch_fingerprint "
-                "WHERE a.singleton AND a.active_present;\n",
-                "live Unicode geometry read",
-            ),
-            "live Unicode geometry epoch",
-        )
-        perfcache_epoch = require_hex(
-            run_scalar(
-                command,
-                "SELECT pg_catalog.encode(epoch_fingerprint,'hex') "
-                "FROM laplace.perfcache_active_control "
-                "WHERE singleton AND active_present;\n",
-                "live Unicode perfcache epoch read",
-            ),
-            "live Unicode perfcache epoch",
-        )
-        numeric_epoch = require_hex(
-            run_scalar(
-                command,
-                "SELECT pg_catalog.encode(activation_epoch_fingerprint,'hex') "
-                "FROM laplace.highway_registry_active_control "
-                "WHERE singleton AND active_present;\n",
-                "live Highway epoch read",
-            ),
-            "live Highway epoch",
-        )
+        from sources.runtime_state import LIVE_RUNTIME_SQL, RuntimeStateError, parse_live_state
+        try:
+            live = parse_live_state(run_scalar(
+                command, LIVE_RUNTIME_SQL, "live source runtime read"))
+        except RuntimeStateError as error:
+            raise AdmissionError(str(error)) from error
+        geometry_epoch = live["geometry_epoch"]
+        perfcache_epoch = live["perfcache_epoch"]
+        numeric_epoch = live["numeric_epoch"]
         if geometry_epoch != identities["geometry_epoch"]:
             raise AdmissionError("live Unicode geometry epoch differs from active product receipt")
         # Perfcache and numeric epochs are live successor execution-context
