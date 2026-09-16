@@ -1,0 +1,179 @@
+name: Observe active Original corpus pilot progress
+on:
+  push:
+    branches: ['diag/observe-original-pilot-progress-*']
+permissions:
+  contents: read
+jobs:
+  release_waiting_runner:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    outputs:
+      observe: ${{ steps.pause.outputs.observe }}
+    steps:
+      - name: Guard and briefly cancel only the untouched waiting Refactor job
+        id: pause
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, signal, time, urllib.request
+          API = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
+          RUN, JOB, SHA = 35094417226, 104789326060, "e5fb773c3c5758679eb13c3dd228a0ba2aab27af"
+          headers = {"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json",
+                     "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "laplace-bounded-pilot-observer"}
+          def alarm(signum, frame):
+              raise TimeoutError("guarded cancellation deadline")
+          signal.signal(signal.SIGALRM, alarm)
+          signal.alarm(230)
+          def api(path, method="GET"):
+              request = urllib.request.Request(API + path, headers=headers, method=method,
+                  data=b"{}" if method == "POST" else None)
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  body = response.read(2097153)
+                  if len(body) > 2097152:
+                      raise ValueError("bounded GitHub response exceeded")
+                  return response.status, json.loads(body) if body else None
+          def guard():
+              _, ref = api("/git/ref/heads/main")
+              _, run = api(f"/actions/runs/{RUN}")
+              _, listing = api(f"/actions/runs/{RUN}/jobs?filter=latest&per_page=100")
+              if ref["object"]["sha"] != SHA:
+                  return None, "main changed"
+              if any(run.get(key) != value for key, value in {
+                  "id": RUN, "head_sha": SHA, "head_branch": "main", "run_attempt": 1,
+                  "path": ".github/workflows/product-path.yml", "status": "in_progress"}.items()):
+                  return None, "run identity or status changed"
+              jobs = listing.get("jobs", [])
+              required = {104788138001: "success", 104788195319: "success", 104788195388: "success",
+                          104788195439: "success", 104789246011: "success", 104789246155: "skipped"}
+              if listing.get("total_count") != 7 or {j["id"] for j in jobs} != set(required) | {JOB}:
+                  return None, "job set changed"
+              for job in jobs:
+                  if job["id"] in required and (job.get("status") != "completed" or job.get("conclusion") != required[job["id"]]):
+                      return None, "completed prerequisite changed"
+              target = next(j for j in jobs if j["id"] == JOB)
+              if any(target.get(key) != value for key, value in {
+                  "head_sha": SHA, "run_id": RUN, "run_attempt": 1, "status": "in_progress",
+                  "name": "custom-stack-proof / postgresql-native", "runner_id": 2,
+                  "runner_name": "hart-server-refactor"}.items()):
+                  return None, "target identity changed"
+              steps = target.get("steps", [])
+              active = [s for s in steps if s.get("status") == "in_progress"]
+              if len(active) != 1 or active[0].get("number") != 3 or active[0].get("name") != "Observe retained Highway admission evidence without database mutation":
+                  return None, "target left initial read-only observation"
+              if any(s.get("status") != "pending" or s.get("started_at") is not None or s.get("completed_at") is not None for s in steps if s["number"] > 3):
+                  return None, "a later target step started"
+              if not all(any(s["number"] == n and s.get("conclusion") == "success" for s in steps) for n in (1, 2)):
+                  return None, "setup or checkout incomplete"
+              return target, None
+          target, reason = guard()
+          if target is None:
+              print("OBSERVER_GUARD " + json.dumps({"cancelled": False, "reason": reason}), flush=True)
+          else:
+              print("OBSERVER_GUARD " + json.dumps({"run": RUN, "job": JOB, "sha": SHA,
+                  "active_step": target["steps"][2], "later_steps_unstarted": True,
+                  "scope": "Only the waiting Actions job; Original pilot untouched."}), flush=True)
+              status, _ = api(f"/actions/runs/{RUN}/force-cancel", "POST")
+              if status != 202:
+                  raise RuntimeError("force-cancel was not accepted")
+              print("OBSERVER_CANCEL_ACCEPTED " + json.dumps({"run": RUN, "http_status": status, "requests": 1}), flush=True)
+              until = time.monotonic() + 150
+              while time.monotonic() < until:
+                  _, job = api(f"/actions/jobs/{JOB}")
+                  if job.get("head_sha") != SHA or job.get("run_id") != RUN:
+                      raise RuntimeError("cancelled job identity changed")
+                  if job.get("status") == "completed":
+                      if job.get("conclusion") != "cancelled":
+                          raise RuntimeError("job did not end as the requested cancellation")
+                      print("OBSERVER_RUNNER_RELEASE " + json.dumps({"run": RUN, "job": JOB, "conclusion": job["conclusion"]}), flush=True)
+                      with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                          output.write("observe=true\n")
+                      break
+                  time.sleep(3)
+              else:
+                  raise TimeoutError("cancelled runner did not release within bounded wait")
+          signal.alarm(0)
+          PY
+  observe:
+    needs: release_waiting_runner
+    if: needs.release_waiting_runner.outputs.observe == 'true'
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
+    steps:
+      - name: Read only the fixed active pilot checkpoint and log metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 25s python3 - <<'PY'
+          import datetime, errno, json, os, signal, stat, time
+          root = "/var/lib/agents/laplace-runner/actions-runner/_work/_temp/laplace-chess-corpus-35093743188-1/corpus"
+          started = time.monotonic()
+          def deadline(signum, frame):
+              raise TimeoutError("bounded checkpoint observation deadline")
+          signal.signal(signal.SIGALRM, deadline)
+          signal.alarm(15)
+          result = {"schema": "laplace.chess-pilot-live-observation/v1", "run_id": 35093743188, "attempt": 1,
+              "expected_source": "20efd66b071b99a052c04830c1fc9b4eae8f7772",
+              "observed_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "scope": "Read-only existing checkpoint and stat metadata; no checkout, host lock, database or process mutation."}
+          def file_metadata(path):
+              try:
+                  item = os.lstat(path)
+                  return {"present": True, "regular": stat.S_ISREG(item.st_mode), "bytes": item.st_size,
+                          "modified_utc": datetime.datetime.fromtimestamp(item.st_mtime, datetime.timezone.utc).isoformat()}
+              except OSError as error:
+                  return {"present": False, "error_type": type(error).__name__, "errno": error.errno}
+          path = root + "/receipt.json"
+          result["checkpoint_file"] = file_metadata(path)
+          try:
+              descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(descriptor, "rb") as handle:
+                  before = os.fstat(handle.fileno())
+                  if not stat.S_ISREG(before.st_mode) or before.st_size > 262144:
+                      raise ValueError("checkpoint is not a bounded regular file")
+                  raw = handle.read(262145)
+                  after = os.fstat(handle.fileno())
+              if len(raw) > 262144:
+                  raise ValueError("checkpoint exceeded observation budget")
+              if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                  raise ValueError("checkpoint changed during observation")
+              data = json.loads(raw)
+              if data.get("schema") != "laplace.installed-native-corpus-measurement/v1":
+                  raise ValueError("unexpected checkpoint schema")
+              if data.get("sourceSha") not in (None, result["expected_source"]):
+                  raise ValueError("checkpoint source differs from selected pilot")
+              phases = data.get("phases", [])
+              if not isinstance(phases, list) or len(phases) > 64:
+                  raise ValueError("checkpoint phase list exceeds observation budget")
+              def bounded_string(value):
+                  return value[:160] if isinstance(value, str) else None
+              result["checkpoint"] = {key: bounded_string(data.get(key))
+                  for key in ("schema", "status", "mode", "sourceSha", "observedUtc", "finishedUtc",
+                              "errorType", "postflightErrorType", "sourcePostflightErrorType", "nativePostflightErrorType")}
+              result["checkpoint"]["error_present"] = bool(data.get("error"))
+              result["checkpoint"]["phases"] = []
+              for row in phases:
+                  if not isinstance(row, dict):
+                      raise ValueError("checkpoint phase is not an object")
+                  phase = {key: bounded_string(row.get(key)) for key in ("name", "status", "errorType")}
+                  elapsed = row.get("wallSeconds")
+                  if type(elapsed) in (int, float):
+                      phase["wallSeconds"] = elapsed
+                  result["checkpoint"]["phases"].append(phase)
+              result["checkpoint_read"] = True
+          except (OSError, ValueError, TypeError, KeyError, TimeoutError) as error:
+              result.update(checkpoint_read=False, read_error_type=type(error).__name__)
+              if isinstance(error, OSError):
+                  result["read_errno"] = error.errno
+          result["log_metadata"] = {name: file_metadata(root + "/" + name) for name in (
+              "native-before.log", "cli-build.log", "cli-native-sync.log", "measurement.log", "native-after.log")}
+          result["observer_wall_seconds"] = time.monotonic() - started
+          signal.alarm(0)
+          print("PILOT_LIVE_CHECKPOINT " + json.dumps(result, sort_keys=True, allow_nan=False), flush=True)
+          PY
