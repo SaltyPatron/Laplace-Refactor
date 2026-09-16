@@ -1,4 +1,4 @@
-name: Inspect exact installed cognition request failures
+name: Converge and verify exact installed cognition requests
 on:
   push:
     branches: [diag/cognition-requests-419-20260916]
@@ -16,8 +16,10 @@ jobs:
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           test "$(id -un)" = laplace-runner
-          git merge-base --is-ancestor 21445261244441021795df4912dfb833fe0dca38 HEAD
-          test "$(git diff --name-only 21445261244441021795df4912dfb833fe0dca38 HEAD)" = .github/workflows/inspect-installed-cognition-requests.yml
+          git merge-base --is-ancestor 25c2a546e2e49e61ae7c9843d115ba4118025d6f HEAD
+          test "$(git hash-object tools/sources/stockfish_corpus_acceptance.py)" = ff0c3264a4d9f615d54e827a19e6e0b1066e4b32
+          test "$(git hash-object tests/stockfish_corpus_acceptance_tests.py)" = b83e48c918da95df6dfb77bb1512dcd2ff6d2776
+          test "$(git diff --name-only 25c2a546e2e49e61ae7c9843d115ba4118025d6f HEAD)" = "$(printf '%s\n' .github/workflows/inspect-installed-cognition-requests.yml tests/stockfish_corpus_acceptance_tests.py tools/sources/stockfish_corpus_acceptance.py)"
           python3 - <<'PY'
           import hashlib,json,os,subprocess,sys,time
           from pathlib import Path
@@ -28,6 +30,16 @@ jobs:
           expected="419cbcb4fd4c569706ee3c253ab4775f5fcaebad"
           before=observe_activation(expected,output/"activation-before.json")
           assert before["package_id"]=="daeec53fd6e39668bbbcceb239b1da4837c89f62e3aaae9d8e99cf993f6dab64"
+          convergence = subprocess.run([sys.executable,"tools/delivery/receipt_estate_runner.py",
+              "--cluster-contract","contracts/postgresql-cluster.json","--output",str(output/"convergence.json")],
+              stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=60,check=False)
+          (output/"convergence.stdout").write_bytes(convergence.stdout)
+          (output/"convergence.stderr").write_bytes(convergence.stderr)
+          if convergence.returncode:
+              print(convergence.stderr.decode(errors="replace")); raise RuntimeError("receipt convergence failed")
+          migration = json.loads((output/"convergence.json").read_text())
+          print(json.dumps({"phase":"existing-receipt-estate-converged","migration_count":migration["migration_count"],
+              "receipt_sha256":migration["receipt_sha256"]},sort_keys=True))
           commands=[
             ("http",[sys.executable,"tools/delivery/product_gateway_live_proof.py","--readiness-only",
               "--package-id",before["package_id"],"--product-receipt",
@@ -36,6 +48,8 @@ jobs:
             ("explicit",["/opt/laplace/runtime/refactor/bin/laplace-cognition","--relations","constituent","--json","AA"],30),
             ("automatic",["/opt/laplace/runtime/refactor/bin/laplace-cognition","--session","service-diagnostic",
               "--state-root",str(output/"state"),"--reset-session","--json","AA"],30),
+            ("continued",["/opt/laplace/runtime/refactor/bin/laplace-cognition","--session","service-diagnostic",
+              "--state-root",str(output/"state"),"--json","AA"],30),
           ]
           report={"schema":"laplace.installed-request-diagnostic/v1","package_id":before["package_id"],
               "commands":[],"activation_unchanged":False}
@@ -59,8 +73,22 @@ jobs:
           after=observe_activation(expected,output/"activation-after.json")
           report["activation_unchanged"]=stable_activation(before)==stable_activation(after)
           assert report["activation_unchanged"]
+          report["status"]="failed"
+          if all(item["exit_code"]==0 for item in report["commands"]):
+              explicit=json.loads((output/"explicit.stdout").read_text())
+              first=json.loads((output/"automatic.stdout").read_text())
+              second=json.loads((output/"continued.stdout").read_text())
+              assert explicit["status"]==0 and explicit["output_utf8"]=="A" and explicit["execution_route"]=="explicit-firmware"
+              assert first["status"]==second["status"]==0 and first["mode"]==second["mode"]=="auto"
+              assert first["execution_route"]==second["execution_route"]=="native-conversation"
+              assert first["turn_ordinal"]==0 and first["continued"] is False
+              assert second["turn_ordinal"]==1 and second["continued"] is True
+              assert first["next_checkpoint_fingerprint"]!=second["next_checkpoint_fingerprint"]
+              assert json.loads((output/"http-readiness.json").read_text())["status"]=="passed"
+              report["status"]="passed"
           (output/"requests.json").write_text(json.dumps(report,sort_keys=True,indent=2)+"\n")
           print(json.dumps(report,sort_keys=True))
+          if report["status"]!="passed": raise SystemExit(1)
           PY
       - name: Retain actual request and HTTP evidence
         if: always()

@@ -134,6 +134,68 @@ def retain_activation(source: Path, expected_sha: str, receipt_root: Path) -> Pa
     return destination
 
 
+def resolve_activation_receipt(receipt_root: Path, package_id: str, name: str) -> tuple[Path, dict]:
+    """Read one producer receipt before or after the estate owner's exact move."""
+    require(HEX.fullmatch(package_id) is not None and name in {
+        'unicode-product-activation.json', 'highway-product-activation.json',
+        'highway-committed-revalidation.json'}, 'invalid native receipt address')
+    canonical = receipt_root/'cluster-activation'/package_id/name
+    for parent in (receipt_root, canonical.parent.parent, canonical.parent):
+        if parent.exists() or parent.is_symlink():
+            require(parent.is_dir() and not parent.is_symlink(),
+                    'native receipt directory is unsafe: ' + str(parent))
+    present = []
+    for path in (receipt_root/name, canonical):
+        if path.exists() or path.is_symlink():
+            document = load(path)
+            require(document.get('package_id') == package_id,
+                    'native receipt belongs to another package: ' + str(path))
+            present.append((path, document))
+    require(bool(present), 'native activation receipt is absent: ' + name)
+    if len(present) == 2:
+        require(present[0][0].read_bytes() == present[1][0].read_bytes(),
+                'producer and canonical native receipt bytes conflict: ' + name)
+    return present[-1]  # Prefer the retained canonical copy when both are byte-exact.
+
+
+def observe_native_receipts(receipt_root: Path, expected_sha: str, package_id: str,
+                            manifest: dict, installation: dict, plan: dict,
+                            cluster_result: dict) -> tuple[dict, dict, list, dict]:
+    """Bind retained native bytes to unchanged authenticated producer paths."""
+    evidence = receipt_root/'cluster-activation'/package_id
+    unicode_path = receipt_root/'unicode-product-activation.json'
+    unicode_stored, unicode = resolve_activation_receipt(receipt_root, package_id, unicode_path.name)
+    runner.validate_unicode_result(unicode, package_id)
+    aggregate_paths = sorted((receipt_root/'product-activation'/expected_sha/package_id).glob('*.json'))
+    require(len(aggregate_paths) <= 1024, 'activation receipt inventory exceeds its declared boundary')
+    matches = []
+    for path in aggregate_paths:
+        aggregate = load(path)
+        validate_package_binding(expected_sha, package_id, manifest, installation, aggregate)
+        require(path.stem == aggregate['result_sha256'], 'activation receipt address differs from its bytes')
+        if (aggregate.get('cluster_activation_receipt_sha256') != cluster_result['activation_receipt_sha256'] or
+                aggregate.get('unicode_activation_receipt_sha256') != unicode['receipt_sha256']):
+            continue  # A retained earlier activation is not the currently observed generation.
+        highway_path = receipt_root/('highway-committed-revalidation.json'
+            if aggregate['phase'] == activation.HIGHWAY_REVALIDATION_PHASE else 'highway-product-activation.json')
+        highway_stored, highway = resolve_activation_receipt(receipt_root, package_id, highway_path.name)
+        runner.validate_highway_result(highway, package_id)
+        validate_native_activation_links(plan,cluster_result,unicode,highway)
+        require(aggregate.get('cluster_result') == str(evidence/'activation-result.json') and
+                aggregate.get('unicode_result') == str(unicode_path) and
+                aggregate.get('highway_result') == str(highway_path),
+                'terminal runner receipt paths differ from current native activation')
+        if not all(aggregate.get(k) == v for k,v in activation.highway_aggregate_fields(highway).items()):
+            continue
+        matches.append((path, aggregate, highway, highway_stored))
+    require(bool(matches), 'no successful runner activation receipt binds this main commit and current package')
+    highway = matches[0][2]
+    require(all(item[2] == highway for item in matches), 'current activation receipts disagree on Highway')
+    require(str(unicode.get('system_identifier')) == str(highway.get('system_identifier')) ==
+            str(cluster_result['system_identifier']), 'native activation cluster identities differ')
+    return unicode, highway, matches, {'unicode': str(unicode_stored), 'highway': str(matches[0][3])}
+
+
 def observe_activation(expected_sha: str, output: Path) -> dict:
     runner.require_runner()
     gateway = load(ROOT/'contracts/product-activation-gateway.json')
@@ -172,36 +234,8 @@ def observe_activation(expected_sha: str, output: Path) -> dict:
     require(status.manifest_sha256 == installation['package_manifest_sha256'] ==
             plan['package_manifest_sha256'] and plan['package_id'] == package_id,
             'installed package/activation plan manifest differs')
-    unicode_path = receipt_root/'unicode-product-activation.json'
-    unicode = load(unicode_path)
-    runner.validate_unicode_result(unicode, package_id)
-    aggregate_paths = sorted((receipt_root/'product-activation'/expected_sha/package_id).glob('*.json'))
-    require(len(aggregate_paths) <= 1024, 'activation receipt inventory exceeds its declared boundary')
-    matches = []
-    for path in aggregate_paths:
-        aggregate = load(path)
-        validate_package_binding(expected_sha, package_id, manifest, installation, aggregate)
-        require(path.stem == aggregate['result_sha256'], 'activation receipt address differs from its bytes')
-        if (aggregate.get('cluster_activation_receipt_sha256') != cluster_result['activation_receipt_sha256'] or
-                aggregate.get('unicode_activation_receipt_sha256') != unicode['receipt_sha256']):
-            continue  # A retained earlier activation is not the currently observed generation.
-        highway_path = receipt_root/('highway-committed-revalidation.json'
-            if aggregate['phase'] == activation.HIGHWAY_REVALIDATION_PHASE else 'highway-product-activation.json')
-        highway = load(highway_path)
-        runner.validate_highway_result(highway, package_id)
-        validate_native_activation_links(plan,cluster_result,unicode,highway)
-        require(aggregate.get('cluster_result') == str(evidence/'activation-result.json') and
-                aggregate.get('unicode_result') == str(unicode_path) and
-                aggregate.get('highway_result') == str(highway_path),
-                'terminal runner receipt paths differ from current native activation')
-        if not all(aggregate.get(k) == v for k,v in activation.highway_aggregate_fields(highway).items()):
-            continue
-        matches.append((path, aggregate, highway))
-    require(bool(matches), 'no successful runner activation receipt binds this main commit and current package')
-    highway = matches[0][2]
-    require(all(item[2] == highway for item in matches), 'current activation receipts disagree on Highway')
-    require(str(unicode.get('system_identifier')) == str(highway.get('system_identifier')) ==
-            str(cluster_result['system_identifier']), 'native activation cluster identities differ')
+    unicode, highway, matches, native_receipt_paths = observe_native_receipts(
+        receipt_root, expected_sha, package_id, manifest, installation, plan, cluster_result)
     loaded = cluster.observe_loaded_live(plan, cluster_contract, Path('/'))
     cluster.verify_loaded(plan, cluster_contract, loaded)
     require(str(loaded['system_identifier']) == str(cluster_result['system_identifier']),
@@ -216,7 +250,8 @@ def observe_activation(expected_sha: str, output: Path) -> dict:
         'release': str(release), 'cli': str(cli), 'cli_sha256': sha(cli),
         'manifest_path': str(manifest_path), 'manifest_sha256': sha(manifest_path),
         'manifest': manifest, 'installation': installation,
-        'runner_receipts': [{'path': str(p), 'document': d} for p,d,_ in matches],
+        'runner_receipts': [{'path': str(p), 'document': d} for p,d,_,_ in matches],
+        'native_receipt_paths': native_receipt_paths,
         'cluster_activation': cluster_result, 'unicode_activation': unicode,
         'highway_activation': highway, 'cluster_plan': plan, 'loaded': loaded}
     save(output, snapshot)
