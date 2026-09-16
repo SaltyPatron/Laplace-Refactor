@@ -2925,6 +2925,10 @@ if(LAPLACE_POSTGRES_ENABLED)
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/unicode_root_contract.sql"
         @ONLY)
     configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/postgres/product_cognition_retained_prompt_contract.sql"
+        "${CMAKE_CURRENT_BINARY_DIR}/postgres/product_cognition_retained_prompt_contract.sql"
+        @ONLY)
+    configure_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/postgres/highway_revalidation_bindings.sql.in"
         "${CMAKE_CURRENT_BINARY_DIR}/postgres/highway_revalidation_bindings.sql"
         @ONLY)
@@ -3316,6 +3320,7 @@ if(LAPLACE_POSTGRES_ENABLED)
         NAME postgres.highway-committed-revalidation-contract
         COMMAND "${CMAKE_COMMAND}" -E env
             "LAPLACE_UNICODE_SOURCE_ROOT=${LAPLACE_UNICODE_SOURCE_ROOT}"
+            "LAPLACE_COGNITION_FIRMWARE_COMPILER=$<TARGET_FILE:laplace_cognition_firmware_compile>"
             "${LAPLACE_BASH_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/postgres/run_spi_test.sh"
             unicode-root
@@ -3647,6 +3652,13 @@ if(UNIX)
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/chess_dependency_tests.py")
     set_tests_properties(dependencies.chess-source-tools PROPERTIES
         LABELS "implementation;package;dependencies;chess;mutation")
+
+    add_test(
+        NAME dependencies.chess-gui-session
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/chess_gui_session_tests.py")
+    set_tests_properties(dependencies.chess-gui-session PROPERTIES
+        LABELS "implementation;dependencies;chess;gui;mutation"
+        TIMEOUT 30)
 
     add_test(
         NAME dependencies.chess-benchmark-receipts

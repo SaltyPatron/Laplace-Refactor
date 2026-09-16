@@ -88,9 +88,42 @@ class CustomStackQaTests(unittest.TestCase):
                 self.assertNotIn(name, plan["core_tests"])
                 self.assertFalse(plan["source_acceptance_authorized"])
                 self.assertNotIn(name, plan["manual_source_acceptance_tests"])
-                self.assertEqual(plan["required_physical_receipts"], ["highway_committed_revalidation"])
+                self.assertEqual(plan["required_physical_receipts"],
+                                 ["highway_committed_revalidation", "product_cognition_retained_prompt"])
                 self.assertEqual(plan["required_physical_receipts_by_test"],
-                                 {name: ["highway_committed_revalidation"]})
+                                 {name: ["highway_committed_revalidation", "product_cognition_retained_prompt"]})
+
+    def test_product_candidate_changes_require_actual_persisted_prompt_replay(self) -> None:
+        owner = "postgres.highway-committed-revalidation-contract"
+        name = "product_cognition_retained_prompt"
+        expected = {
+            "schema": "laplace.product-cognition-retained-prompt-test/v1",
+            "product_calls": 3, "durable_replay_calls": 2, "output_hex": "41",
+            "canonical_root_unchanged": True, "exact_warm_replay": True,
+            "evidence_lineage_counts_unchanged": True, "completed_steps": 2,
+            "replay_physical_provider_batches": 1, "replay_materialization_nodes": 1,
+        }
+        for path in (
+            "tests/postgres/product_cognition_retained_prompt_contract.sql",
+            "engine/src/cognition_observation_provider_set.inc",
+            "engine/src/cognition_observation_candidate_provider.inc",
+            "engine/src/cognition_prompt_structural_provider.inc",
+            "engine/src/cognition_firmware.cpp",
+            "integrations/postgresql/extension/src/cognition_product_pg.c",
+            "integrations/postgresql/extension/src/cognition_firmware_pg.c",
+            "integrations/postgresql/extension/src/observation_cognition_persisted_pg.c",
+            "integrations/postgresql/extension/src/prompt_admission_pg.c",
+            "tools/cognition_firmware_compile.cpp",
+        ):
+            with self.subTest(path=path):
+                plan = self.plan(path)
+                self.assertIn(owner, plan["selected_physical_tests"])
+                self.assertNotIn(owner, plan["core_tests"])
+                self.assertNotIn(owner, plan["manual_source_acceptance_tests"])
+                self.assertFalse(plan["source_acceptance_authorized"])
+                self.assertIn(name, plan["required_physical_receipts_by_test"][owner])
+                self.assertEqual(
+                    plan["required_physical_receipt_fields_by_test"][owner][name], expected)
 
     def test_perfcache_change_selects_hot_lookup_boundary_once(self) -> None:
         plan = self.plan("engine/src/perfcache.cpp")

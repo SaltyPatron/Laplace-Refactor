@@ -6,6 +6,14 @@ repository=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 export TMPDIR=/build/laplace/work TMP=/build/laplace/work TEMP=/build/laplace/work
 [[ -d "$TMPDIR" ]] || { echo "Required build scratch is missing: $TMPDIR" >&2; exit 1; }
 
+# GUI selection also provisions the X11 runtime used by actual window acceptance.
+for argument in "$@"; do
+    if [[ "$argument" == --cutechess-gui ]]; then
+        timeout --signal=TERM --kill-after=10s 300s bash "$repository/scripts/provision-chess-x11.sh"
+        break
+    fi
+done
+
 if [[ $EUID == 0 ]]; then
     command -v apt-get >/dev/null || { echo 'Install a C++17 compiler, make, CMake >=3.20, Python venv, and Qt platform libraries for this OS first.' >&2; exit 1; }
     apt-get update
