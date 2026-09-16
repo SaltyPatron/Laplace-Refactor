@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -123,7 +124,7 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self, workflow: str, activation: str, contract: str
     ) -> None:
         self.assertIn(
-            "  dev-bat-deployment:\n    needs: product-path\n",
+            "  dev-bat-deployment:\n    needs: [classify, product-path]\n",
             workflow,
         )
         start, end = self.job_boundary(workflow, "dev-bat-deployment")
@@ -131,6 +132,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertIn("      (!cancelled()) &&\n      github.event_name == 'push'", deployment)
         self.assertIn("github.ref == 'refs/heads/main'", deployment)
         self.assertIn("needs.product-path.result == 'success'", deployment)
+        self.assertIn("needs.classify.result == 'success'", deployment)
+        self.assertIn("needs.classify.outputs.audit_only != 'true'", deployment)
         self.assertIn("    uses: ./.github/workflows/product-activation.yml\n", deployment)
         self.assertIn("    with:\n      expected_sha: ${{ github.sha }}\n", deployment)
         self.assertNotIn("runs-on:", deployment)
@@ -307,8 +310,8 @@ class ProductPathGitStatusTests(unittest.TestCase):
     def test_deliberate_parallel_physical_orchestration_defect_is_detected(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         mutant = workflow.replace(
-            "      - custom-stack-proof\n    if: >-\n      (!cancelled()) &&\n      needs.classify.outputs.requires_postgresql_product",
-            "    if: >-\n      (!cancelled()) &&\n      needs.classify.outputs.requires_postgresql_product",
+            "      - custom-stack-proof\n    if: >-\n      needs.classify.outputs.audit_only != 'true' &&\n      (!cancelled()) &&\n      needs.classify.outputs.requires_postgresql_product",
+            "    if: >-\n      needs.classify.outputs.audit_only != 'true' &&\n      (!cancelled()) &&\n      needs.classify.outputs.requires_postgresql_product",
             1,
         )
         self.assertNotEqual(workflow, mutant)
@@ -440,6 +443,120 @@ class ProductPathGitStatusTests(unittest.TestCase):
         self.assertNotEqual(activation, mutant)
         with self.assertRaises(AssertionError):
             self.assert_main_push_deployment_boundary(workflow, mutant, contract)
+
+
+    def assert_audit_only_boundaries(self, workflow: str, clean_room: str) -> None:
+        inputs = clean_room[:clean_room.index("\njobs:")]
+        self.assertIn("      run_native:\n", inputs)
+        self.assertIn("        type: boolean\n", inputs)
+        self.assertIn("        default: true\n", inputs)
+        self.assertNotIn("        default: false\n", inputs)
+        start, end = self.job_boundary(workflow, "hosted-proof")
+        caller = workflow[start:end]
+        self.assertIn("    needs: classify\n", caller)
+        self.assertIn("run_native: ${{ needs.classify.outputs.audit_only != 'true' }}", caller)
+        self.assertIn("audit_base_sha: ${{ needs.classify.outputs.base_sha }}", caller)
+        self.assertIn("audit_head_sha: ${{ needs.classify.outputs.head_sha }}", caller)
+        self.assertNotIn("    if:", caller)
+        start, end = self.job_boundary(clean_room, "native")
+        native = clean_room[start:end]
+        header = native[:native.index("    steps:")]
+        self.assertNotIn("    if:", header, "job-level skipping drops protected matrix contexts")
+        self.assertNotIn("    name:", header, "protected native context names must remain stable")
+        self.assertIn("          - linux-dev\n          - linux-sanitize\n", header)
+        steps = re.split(r"(?m)^      - ", native[native.index("    steps:"):])[1:]
+        self.assertGreaterEqual(len(steps), 15)
+        self.assertTrue(steps[0].startswith("uses: actions/checkout@"))
+        self.assertIn("          fetch-depth: 0\n", steps[0])
+        policy = [step for step in steps if step.startswith(
+            "name: Verify current-source audit-only classification\n")]
+        self.assertEqual(len(policy), 1)
+        self.assertIn("        if: ${{ !inputs.run_native }}\n", policy[0])
+        self.assertIn('test "$AUDIT_HEAD_SHA" = "$EVENT_HEAD_SHA"', policy[0])
+        self.assertIn("github.event.pull_request.head.sha || github.sha", policy[0])
+        self.assertIn("product_path.py verify-audit-only", policy[0])
+        self.assertIn('--base "$AUDIT_BASE_SHA" --head "$AUDIT_HEAD_SHA"', policy[0])
+        self.assertIn('--expected-checkout "$GITHUB_SHA"', policy[0])
+        self.assertIn("set -euo pipefail", policy[0])
+        self.assertIn("Native builds and tests did not execute.", policy[0])
+        for step in steps[1:]:
+            if step == policy[0]:
+                continue
+            always = (step.startswith("name: Report compiler object cache\n")
+                      or step.startswith("name: Retain exact "))
+            expected = "        if: always() && inputs.run_native\n" if always else "        if: inputs.run_native\n"
+            self.assertIn(expected, step, f"unguarded native step: {step.splitlines()[0]}")
+            self.assertEqual(len(re.findall(r"(?m)^        if:", step)), 1)
+        for command in ("cmake --build", "ctest --test-dir", "verify-registry.sh"):
+            self.assertIn(command, native)
+        for job in ("publication-recovery", "custom-stack-proof", "candidate-chess-calibration",
+                    "postgresql-product-proof", "package-product-proof", "dev-bat-deployment",
+                    "deployed-chess-calibration", "deployed-stockfish-corpus", "dev-bat-live-substrate"):
+            start, end = self.job_boundary(workflow, job)
+            block = workflow[start:end]
+            self.assertIn("needs.classify.outputs.audit_only != 'true'", block, job)
+            self.assertIn("classify", block[:block.index("    if:")], job)
+        self.assertNotIn("api.github.com/repos", native)
+        self.assertNotIn("actions: write", clean_room)
+        self.assertNotIn("checks: write", clean_room)
+        self.assertNotIn("/statuses/", clean_room)
+
+    def test_audit_only_keeps_both_real_protected_matrix_contexts_and_all_heavy_guards(self) -> None:
+        self.assert_audit_only_boundaries(WORKFLOW_PATH.read_text(), CLEAN_ROOM_PATH.read_text())
+
+    def test_audit_only_default_or_caller_bypass_is_detected(self) -> None:
+        workflow, clean_room = WORKFLOW_PATH.read_text(), CLEAN_ROOM_PATH.read_text()
+        mutants = [
+            (workflow, clean_room.replace("        default: true\n", "        default: false\n", 1)),
+            (workflow.replace("needs.classify.outputs.audit_only != 'true' }}", "false }}", 1), clean_room),
+            (workflow.replace("audit_head_sha: ${{ needs.classify.outputs.head_sha }}",
+                              "audit_head_sha: unrelated", 1), clean_room),
+            (workflow, clean_room.replace("  native:\n", "  native:\n    if: inputs.run_native\n", 1)),
+            (workflow, clean_room.replace("          - linux-sanitize\n", "", 1)),
+            (workflow, clean_room.replace("product_path.py verify-audit-only", "product_path.py classify", 1)),
+            (workflow, clean_room.replace('test "$AUDIT_HEAD_SHA" = "$EVENT_HEAD_SHA"', "true", 1)),
+        ]
+        for index, (mutant_workflow, mutant_ci) in enumerate(mutants):
+            with self.subTest(index=index), self.assertRaises(AssertionError):
+                self.assert_audit_only_boundaries(mutant_workflow, mutant_ci)
+
+    def test_every_heavy_native_step_requires_the_run_native_input(self) -> None:
+        workflow, clean_room = WORKFLOW_PATH.read_text(), CLEAN_ROOM_PATH.read_text()
+        for match in re.finditer(r"(?m)^        if: (?:always\(\) && )?inputs.run_native\n", clean_room):
+            mutant = clean_room[:match.start()] + clean_room[match.end():]
+            with self.subTest(offset=match.start()), self.assertRaises(AssertionError):
+                self.assert_audit_only_boundaries(workflow, mutant)
+
+    def test_every_physical_and_deployment_audit_guard_is_enforced(self) -> None:
+        workflow, clean_room = WORKFLOW_PATH.read_text(), CLEAN_ROOM_PATH.read_text()
+        for job in ("publication-recovery", "custom-stack-proof", "candidate-chess-calibration",
+                    "postgresql-product-proof", "package-product-proof", "dev-bat-deployment",
+                    "deployed-chess-calibration", "deployed-stockfish-corpus", "dev-bat-live-substrate"):
+            start, end = self.job_boundary(workflow, job)
+            block = workflow[start:end].replace("needs.classify.outputs.audit_only != 'true' &&", "")
+            mutant = workflow[:start] + block + workflow[end:]
+            with self.subTest(job=job), self.assertRaises(AssertionError):
+                self.assert_audit_only_boundaries(mutant, clean_room)
+
+    def test_aggregate_still_rejects_failed_or_cancelled_current_hosted_proof(self) -> None:
+        workflow = WORKFLOW_PATH.read_text()
+        start, end = self.job_boundary(workflow, "product-path")
+        block = workflow[start:end]
+        self.assertIn("    if: always()\n", block)
+        command = block.split("        run: |\n", 1)[1]
+        command = "\n".join(line[10:] for line in command.splitlines())
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = dict(os.environ, CLASSIFY_RESULT="success", HOSTED_RESULT="success",
+                PUBLICATION_RECOVERY_RESULT="skipped", CUSTOM_RESULT="skipped",
+                CHESS_RESULT="skipped", POSTGRESQL_RESULT="skipped", PACKAGE_RESULT="skipped",
+                REQUIRES_CUSTOM="false", REQUIRES_POSTGRESQL="false", REQUIRES_PACKAGE="false",
+                REQUIRES_CANDIDATE_CHESS="false", BLOCKED="false", REQUIRED_EVIDENCE='["hosted"]',
+                UNIMPLEMENTED_EVIDENCE="[]", GITHUB_STEP_SUMMARY=str(Path(temporary) / "summary"))
+            for status in ("success", "failure", "cancelled", "skipped", ""):
+                with self.subTest(status=status):
+                    execution = subprocess.run(["bash", "-c", command],
+                        env=dict(environment, HOSTED_RESULT=status), capture_output=True, timeout=10)
+                    self.assertEqual(execution.returncode == 0, status == "success")
 
 
 if __name__ == "__main__":
