@@ -5,8 +5,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
+import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -20,6 +22,7 @@ if SPEC is None or SPEC.loader is None:
 proof = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = proof
 SPEC.loader.exec_module(proof)
+import repository_inputs as inputs
 
 
 class PackageProductProofTests(unittest.TestCase):
@@ -256,6 +259,163 @@ class PackageProductProofTests(unittest.TestCase):
         self.assertIn('-DLAPLACE_PG_CONFIG="$pg_config"', workflow)
         self.assertIn('-DLAPLACE_PG_PHYSICAL_ROOT="$pg_physical_root"', workflow)
         self.assertNotIn('-DLAPLACE_PG_CONFIG=/opt/laplace/pgsql-18/bin/pg_config', workflow)
+
+
+
+class ImmutableRepositoryInputsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="laplace-immutable-inputs-")
+        self.addCleanup(temporary.cleanup)
+        self.repository = Path(temporary.name)
+        self.git("init", "--quiet")
+        self.git("config", "user.name", "Repository Input Test")
+        self.git("config", "user.email", "repository-inputs@example.invalid")
+        self.git("config", "core.filemode", "true")
+        (self.repository / ".github/workflows").mkdir(parents=True)
+        (self.repository / ".github/workflows/check.yml").write_text("name: first\n")
+        (self.repository / ".gitignore").write_text("ignored.tmp\n")
+        (self.repository / "binary.dat").write_bytes(bytes(range(256)) + b"\0\n")
+        (self.repository / "α source.txt").write_text("Unicode source: 猫\n", encoding="utf-8")
+        (self.repository / "tab\tline\n.dat").write_bytes(b"header\n\0tail")
+        (self.repository / "run.sh").write_bytes(b"#!/bin/sh\nexit 0\n")
+        (self.repository / "run.sh").chmod(0o755)
+        (self.repository / "source-link").symlink_to("α source.txt")
+        self.first = self.commit("first")
+        self.original = inputs.repository_build_fingerprint(self.repository)
+
+    def git(self, *arguments: str, data: bytes | None = None) -> bytes:
+        return subprocess.run(
+            ["git", "-C", str(self.repository), *arguments],
+            input=data, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=10,
+        ).stdout
+
+    def commit(self, message: str) -> str:
+        self.git("add", "-A")
+        self.git("commit", "--quiet", "--allow-empty", "-m", message)
+        return self.git("rev-parse", "HEAD").decode("ascii").strip()
+
+    def immutable(self, commit: str | None = None) -> str:
+        return inputs.repository_build_fingerprint_at_commit(self.repository, commit or self.first)
+
+    def state(self) -> tuple[bytes, bytes, bytes]:
+        return (
+            self.git("show-ref"),
+            self.git("status", "--porcelain=v1", "-z", "--untracked-files=all"),
+            (self.repository / ".git/index").read_bytes(),
+        )
+
+    def test_committed_binary_unicode_symlink_and_executable_equal_worktree_owner(self) -> None:
+        before = self.state()
+        self.assertEqual(self.immutable(), self.original)
+        self.assertEqual(self.state(), before)
+
+    def test_identical_tree_and_workflow_only_successors_preserve_original_package_provenance(self) -> None:
+        successor = self.commit("another commit with identical content")
+        self.assertNotEqual(successor, self.first)
+        self.assertEqual(self.immutable(successor), self.original)
+        (self.repository / ".github/workflows/check.yml").write_text("name: changed\n")
+        workflow_commit = self.commit("workflow-only change")
+        self.assertNotEqual(self.git("rev-parse", self.first + "^{tree}"),
+                            self.git("rev-parse", workflow_commit + "^{tree}"))
+        self.assertEqual(self.immutable(workflow_commit), self.original)
+        self.assertEqual(inputs.repository_build_fingerprint(self.repository), self.original)
+        manifest = {"laplace": {
+            "repository_commit": self.first,
+            "repository_tree": self.git("rev-parse", self.first + "^{tree}").decode().strip(),
+            "repository_build_fingerprint": self.original,
+        }}
+        proof.validate_manifest_source(manifest, workflow_commit,
+            self.git("rev-parse", workflow_commit + "^{tree}").decode().strip(),
+            self.immutable(workflow_commit))
+        self.assertEqual(manifest["laplace"]["repository_commit"], self.first)
+
+    def test_substantive_bytes_and_executable_mode_change_identity(self) -> None:
+        (self.repository / "binary.dat").write_bytes(b"different native input\0")
+        changed = self.commit("substantive input")
+        changed_identity = self.immutable(changed)
+        self.assertNotEqual(changed_identity, self.original)
+        self.assertEqual(changed_identity, inputs.repository_build_fingerprint(self.repository))
+        (self.repository / "run.sh").chmod(0o644)
+        mode_commit = self.commit("remove executable bit")
+        self.assertNotEqual(self.immutable(mode_commit), changed_identity)
+        self.assertEqual(self.immutable(mode_commit), inputs.repository_build_fingerprint(self.repository))
+        self.assertEqual(self.immutable(), self.original)
+
+    def test_dirty_untracked_ignored_and_deleted_worktree_do_not_change_requested_commit(self) -> None:
+        (self.repository / "ignored.tmp").write_text("excluded by existing owner\n")
+        self.assertEqual(inputs.repository_build_fingerprint(self.repository), self.original)
+        (self.repository / "untracked.txt").write_text("included by worktree owner\n")
+        untracked = inputs.repository_build_fingerprint(self.repository)
+        self.assertNotEqual(untracked, self.original)
+        (self.repository / "α source.txt").write_text("dirty tracked source\n")
+        dirty = inputs.repository_build_fingerprint(self.repository)
+        self.assertNotEqual(dirty, untracked)
+        (self.repository / "binary.dat").unlink()
+        deleted = inputs.repository_build_fingerprint(self.repository)
+        self.assertNotEqual(deleted, dirty)
+        before = self.state()
+        self.assertEqual(self.immutable(), self.original)
+        self.assertEqual(self.state(), before)
+        self.assertEqual(inputs.repository_build_fingerprint(self.repository), deleted)
+
+    def test_exact_commit_refuses_revisions_missing_objects_trees_and_blobs(self) -> None:
+        for identity in (
+            "HEAD", self.first[:12], self.first.upper(), "0" * 40, None,
+            self.git("rev-parse", self.first + "^{tree}").decode().strip(),
+            self.git("rev-parse", self.first + ":binary.dat").decode().strip(),
+        ):
+            with self.subTest(identity=identity), self.assertRaises(ValueError):
+                inputs.repository_build_fingerprint_at_commit(self.repository, identity)
+
+    def test_submodule_input_is_rejected_without_checkout_or_ref_mutation(self) -> None:
+        self.git("update-index", "--add", "--cacheinfo", "160000," + self.first + ",vendor/module")
+        self.git("commit", "--quiet", "-m", "gitlink input")
+        commit = self.git("rev-parse", "HEAD").decode().strip()
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, "Unsupported committed"):
+            self.immutable(commit)
+        self.assertEqual(self.state(), before)
+
+    def test_unexpected_raw_tree_mode_is_rejected(self) -> None:
+        blob = self.git("rev-parse", self.first + ":binary.dat").decode().strip()
+        malformed_tree = self.git("hash-object", "-t", "tree", "--literally", "-w", "--stdin",
+            data=b"100664 invalid-mode\0" + bytes.fromhex(blob)).decode().strip()
+        commit_bytes = (
+            "tree " + malformed_tree + "\n"
+            "author Repository Input Test <repository-inputs@example.invalid> 1 +0000\n"
+            "committer Repository Input Test <repository-inputs@example.invalid> 1 +0000\n"
+            "\nunexpected tree mode\n"
+        ).encode()
+        malformed_commit = self.git("hash-object", "-t", "commit", "--literally", "-w", "--stdin",
+            data=commit_bytes).decode().strip()
+        before = self.state()
+        with self.assertRaises(ValueError):
+            self.immutable(malformed_commit)
+        self.assertEqual(self.state(), before)
+
+    def test_git_replacement_ref_cannot_redirect_the_requested_commit(self) -> None:
+        (self.repository / "binary.dat").write_bytes(b"replacement content")
+        newer = self.commit("replacement candidate")
+        self.assertNotEqual(self.immutable(newer), self.original)
+        self.git("replace", self.first, newer)
+        before = self.state()
+        self.assertEqual(self.immutable(self.first), self.original)
+        self.assertEqual(self.state(), before)
+
+
+    def test_inherited_repository_overrides_cannot_redirect_commit_reads(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="laplace-other-repository-") as temporary:
+            other = Path(temporary)
+            self.git("-C", str(other), "init", "--quiet")
+            with mock.patch.dict(os.environ, {
+                "GIT_DIR": str(other / ".git"), "GIT_WORK_TREE": str(other),
+                "GIT_COMMON_DIR": str(other / ".git"),
+                "GIT_OBJECT_DIRECTORY": str(other / ".git/objects"),
+                "GIT_ALTERNATE_OBJECT_DIRECTORIES": str(other / ".git/objects"),
+            }):
+                self.assertEqual(self.immutable(), self.original)
+
 
 
 if __name__ == "__main__":

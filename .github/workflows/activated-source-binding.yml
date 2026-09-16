@@ -1,0 +1,117 @@
+name: qualify-activated-source-binding
+on:
+  push:
+    branches:
+      - verify/activated-source-binding-hosted
+      - verify/activated-source-binding-installed
+permissions:
+  contents: read
+jobs:
+  source-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Exercise immutable source and installed observer controls
+        run: |
+          python3 tests/package_product_proof_tests.py
+          python3 tests/stockfish_corpus_acceptance_tests.py
+          python3 tests/product_host_tests.py
+          python3 tests/product_activation_runner_tests.py
+          python3 tests/product_activation_gateway_tests.py
+          python3 tests/product_gateway_contract_tests.py
+  installed-proof:
+    if: github.ref == 'refs/heads/verify/activated-source-binding-installed'
+    needs: source-controls
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Verify and restart the exact activated package and exercise its public surfaces
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/activated-source-binding-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -m 0700 "$output"
+          export BINDING_OUTPUT="$output"
+          timeout --signal=TERM --kill-after=10s 540s python3 - <<'PY'
+          import hashlib,json,os,re,subprocess,sys,time,uuid
+          from pathlib import Path
+          sys.path.insert(0,str(Path.cwd()/"tools"))
+          from sources import stockfish_corpus_acceptance as acceptance
+          expected="e5fb773c3c5758679eb13c3dd228a0ba2aab27af"
+          package="a4888efa3798fda28ce4ca91d56ef17e12dcd71b57fc82040d502ac2612e1cc5"
+          output=Path(os.environ["BINDING_OUTPUT"])
+          subprocess.run(["git","merge-base","--is-ancestor",expected,"HEAD"],check=True,timeout=10)
+          approved={"tools/sources/stockfish_corpus_acceptance.py":"f2a752bba888c57b7f2df18f9150a55d10b3fbe9","tests/stockfish_corpus_acceptance_tests.py":"75a8b78e07e3c62b67741977865575a205ba35eb","tools/product/repository_inputs.py":"22a5e001a2645bffc6f55b6df70eb6f68e1e38ad","tests/package_product_proof_tests.py":"02e1a56a4d08bab5ad1fb68557981dc2bd045128"}
+          changed=set(subprocess.check_output(["git","diff","--name-only",expected,"HEAD"],timeout=10,text=True).splitlines())
+          assert changed==set(approved)|{".github/workflows/activated-source-binding.yml"}
+          for path,blob in approved.items():
+              assert subprocess.check_output(["git","hash-object",path],timeout=10,text=True).strip()==blob
+          report={"schema":"laplace.activated-source-binding-proof/v1","status":"running","expected_repository_commit":expected,"package_id":package,"original_main_conclusion":"failure","completed_phases":[]}
+          def save():
+              acceptance.save(output/"result.json",report)
+          def command(name,args,timeout=120):
+              start=time.monotonic()
+              with (output/(name+".stdout")).open("xb") as out,(output/(name+".stderr")).open("xb") as err:
+                  result=subprocess.run(args,stdout=out,stderr=err,timeout=timeout)
+              report[name]={"exit_code":result.returncode,"elapsed_seconds":time.monotonic()-start}
+              save()
+              if result.returncode:raise RuntimeError(name+" returned "+str(result.returncode))
+              report["completed_phases"].append(name);save()
+          before=None
+          save()
+          try:
+              before=acceptance.observe_activation(expected,output/"activation-before.json")
+              assert before["package_id"]==package and before["manifest_sha256"]=="7adbaffdaecaf6bceb8d28f983dd399c50599a592cf0275f7ab62268a32d8129"
+              report["original_build_commit"]=before["manifest"]["laplace"]["repository_commit"]
+              report["original_build_tree"]=before["manifest"]["laplace"]["repository_tree"]
+              report["repository_build_fingerprint"]=before["repository_build_fingerprint"]
+              report["completed_phases"].append("exact_installed_source");save()
+              command("service",["python3","tools/delivery/product_cognition_service.py","restart","--expected-uid",str(os.getuid()),"--expected-sha",expected,"--output",str(output/"service")])
+              command("http-readiness",["python3","tools/delivery/product_gateway_live_proof.py","--readiness-only","--package-id",package,"--product-receipt","/build/laplace/runner/product/build/944f81b8a2508307e2688c209a7670c018a9aafaa99f87af048c31c185372b40/package-receipt.json","--output",str(output/"http-readiness.json")],60)
+              client="/opt/laplace/runtime/refactor/bin/laplace-cognition"
+              command("explicit", [client,"--relations","constituent","--json","AA"],45)
+              explicit=json.loads((output/"explicit.stdout").read_text())
+              assert explicit["status"]==0 and explicit["output_utf8"]=="A" and explicit["execution_route"]=="explicit-firmware"
+              session="source-binding-"+uuid.uuid4().hex
+              base=[client,"--session",session,"--state-root",str(output/"client-state"),"--json"]
+              command("automatic-first",base+["--reset-session","AA"],45)
+              command("automatic-second",base+["AA"],45)
+              first=json.loads((output/"automatic-first.stdout").read_text())
+              second=json.loads((output/"automatic-second.stdout").read_text())
+              for ordinal,value in enumerate((first,second)):
+                  assert value["status"]==0 and value["mode"]=="auto" and value["execution_route"]=="automatic-firmware"
+                  assert value["turn_ordinal"]==ordinal and value["continued"] is bool(ordinal)
+                  assert re.fullmatch("[0-9a-f]{64}",value["next_checkpoint_fingerprint"])
+              assert first["next_checkpoint_fingerprint"]!=second["next_checkpoint_fingerprint"]
+              command("gateway",["python3","tools/delivery/product_gateway_live_proof.py","--package-id",package,"--output",str(output/"gateway.json")],180)
+              gateway=json.loads((output/"gateway.json").read_text())
+              assert gateway["status"]=="passed" and gateway["package_id"]==package
+              report["gateway"]={"status":gateway["status"],"completed_phases":gateway["completed_phases"],"mcp_query_schema":gateway["mcp"]["query_schema"],"openai_stream_done":gateway["openai_chat"]["streaming"]["done"]}
+              report["status"]="passed"
+          except BaseException as error:
+              report["status"]="failed";report["failure"]={"type":type(error).__name__,"message":str(error)[:2000]}
+              raise
+          finally:
+              if before is not None:
+                  try:
+                      after=acceptance.observe_activation(expected,output/"activation-after.json")
+                      report["activation_unchanged"]=acceptance.stable_activation(before)==acceptance.stable_activation(after)
+                      if not report["activation_unchanged"]:report["status"]="failed";raise RuntimeError("activated package changed")
+                  except BaseException as error:
+                      report["status"]="failed";report["postflight_failure"]={"type":type(error).__name__,"message":str(error)[:2000]}
+                      save();raise
+              save()
+              print(json.dumps(report,sort_keys=True))
+          PY
+      - name: Retain successful or failed installed execution evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: activated-source-binding-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/activated-source-binding-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 30
