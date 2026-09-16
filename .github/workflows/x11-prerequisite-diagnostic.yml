@@ -1,0 +1,45 @@
+name: Observe X11 prerequisites
+on:
+  push:
+    branches: [diag/refactor-x11-prerequisites-20260916]
+    paths: [.github/workflows/x11-prerequisite-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  observe:
+    if: github.repository == 'SaltyPatron/Laplace-Refactor' && github.ref == 'refs/heads/diag/refactor-x11-prerequisites-20260916'
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 5
+    steps:
+      - name: Observe only installed packages and existing apt candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 125s python3 - <<'PYTHON'
+          import json, os, platform, shutil, subprocess, time
+          from pathlib import Path
+          packages = ["xvfb","xauth","xdotool","x11-utils","fonts-dejavu-core","libx11-xcb1","libxcb1","libxcb-cursor0","libxcb-icccm4","libxcb-image0","libxcb-keysyms1","libxcb-render-util0","libxcb-render0","libxcb-randr0","libxcb-shape0","libxcb-shm0","libxcb-sync1","libxcb-xfixes0","libxcb-xinerama0","libxcb-xinput0","libxcb-xkb1","libxcb-glx0","libxkbcommon-x11-0","libxrender1","libxext6","libsm6","libice6","libfontconfig1","libfreetype6"]
+          started = time.monotonic()
+          def run(argv):
+              result = subprocess.run(argv, capture_output=True, text=True, timeout=min(20, max(1, 120 - (time.monotonic()-started))))
+              return {"returncode": result.returncode, "stdout": result.stdout[:65536], "stderr": result.stderr[:4096]}
+          package_rows = run(["dpkg-query", "-W", "-f=" + "${binary:Package}\\t${db:Status-Status}\\t${Version}\\t${Architecture}\\n", *packages])
+          installed = {}
+          for line in package_rows["stdout"].splitlines():
+              fields = line.split("\t")
+              if len(fields) == 4:
+                  installed[fields[0].split(":")[0]] = {"state": fields[1], "version": fields[2], "architecture": fields[3]}
+          missing = [name for name in packages if installed.get(name, {}).get("state") != "installed"]
+          candidates = run(["apt-cache", "policy", *missing]) if missing else None
+          tools = {name: shutil.which(name) for name in ["Xvfb", "xauth", "xdotool", "xprop", "xwininfo", "xkbcomp", "apt-get", "apt-cache", "dpkg-deb"]}
+          paths = {name: Path(name).exists() for name in ["/usr/share/X11/xkb", "/usr/bin/xkbcomp", "/usr/share/fonts/truetype/dejavu", "/usr/share/keyrings/ubuntu-archive-keyring.gpg", "/usr/share/keyrings/debian-archive-keyring.gpg"]}
+          release = {}
+          for line in Path("/etc/os-release").read_text().splitlines():
+              if "=" in line:
+                  key, value = line.split("=", 1)
+                  if key in {"ID", "VERSION_ID", "VERSION_CODENAME"}:
+                      release[key] = value.strip('"')
+          document = {"schema": "laplace.x11-prerequisite-observation/v1", "selected_product_commit": "c657a9139665a20ecf2e56b7eea554a2740222c2", "workflow_commit": os.environ.get("GITHUB_SHA"), "run_id": os.environ.get("GITHUB_RUN_ID"), "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "uid": os.getuid(), "architecture": platform.machine(), "os": release, "packages": installed, "missing_packages": missing, "package_query": package_rows, "missing_candidates": candidates, "tools": tools, "existing_resource_paths": paths, "elapsed_seconds": time.monotonic()-started}
+          print(json.dumps(document, indent=2, sort_keys=True))
+          
+          PYTHON
