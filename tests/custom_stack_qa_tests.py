@@ -132,6 +132,8 @@ class CustomStackQaTests(unittest.TestCase):
             "engine/src/tree_sitter_grammar.cpp", "engine/src/decomposition_composition.cpp",
             "integrations/postgresql/extension/src/source_admission_pg.c",
             "integrations/postgresql/extension/src/materialization_pg.c",
+            "integrations/postgresql/extension/src/materialization_pg.h",
+            "integrations/postgresql/extension/tests/materialization_provider_pg.c",
             "integrations/postgresql/extension/source_observation_profile.sql.in",
             "tests/postgres/verified_cpp_source_contract.sql",
             ".github/workflows/ci.yml", ".github/workflows/custom-stack.yml",
@@ -439,13 +441,16 @@ raise SystemExit(exit_code)
         expected = {"schema": "laplace.verified-cpp-source-acceptance/v1",
                     "negative_controls": 13, "reconciliation_controls": 2,
                     "profile_schema_controls": 6, "reference_rule_array_controls": 2,
-                    "physicality_binding_controls": 4, "same_content_physicality_selection": True}
+                    "physicality_binding_controls": 4, "prefetch_ambiguity_controls": 1,
+                    "same_content_physicality_selection": True}
         self.assertEqual(generated["required_physical_receipt_fields_by_test"][owner][name], expected)
         changes = [(None, None), ("profile_schema_controls", None),
                    ("reference_rule_array_controls", None), ("reference_rule_array_controls", 1),
                    ("reference_rule_array_controls", 2.0), ("reference_rule_array_controls", True),
                    ("physicality_binding_controls", None), ("physicality_binding_controls", 3),
                    ("physicality_binding_controls", 4.0), ("physicality_binding_controls", True),
+                   ("prefetch_ambiguity_controls", None), ("prefetch_ambiguity_controls", 0),
+                   ("prefetch_ambiguity_controls", 1.0), ("prefetch_ambiguity_controls", True),
                    ("same_content_physicality_selection", None), ("same_content_physicality_selection", False),
                    ("same_content_physicality_selection", 1), ("same_content_physicality_selection", "true"),
                    ("negative_controls", 12), ("reconciliation_controls", 1),
@@ -512,6 +517,76 @@ raise SystemExit(exit_code)
         row["required_receipt_fields"] = {"unrequired-proof": {"count": 6}}
         with self.assertRaisesRegex(qa.QaError, "required receipt fields"):
             qa.validate_contract(contract, ROOT)
+
+    def test_reflection_changes_require_their_own_completed_native_receipt(self) -> None:
+        owner = "postgres.verified-cpp-source-contract"
+        name = "physicality_entity_reflection"
+        expected = {"schema": "laplace.physicality-entity-contract/v1",
+            "capacity_refusals": 5, "corruption_refusals": 10, "content_binding_refusals": 7,
+            "native_rle_interval_split_replay_verified": True,
+            "complete_interval_cold_backend_verified": True,
+            "interval_corruption_refusals": 4,
+            "same_entity_distinct_native_forms": 3,
+            "transparent_singleton_public_sink_verified": True,
+            "distinct_physicality_rle_intervals_verified": True,
+            "same_entity_batch_single_replay_verified": True,
+            "same_entity_cold_receipt_and_content_parity": True,
+            "singleton_constructor_refusals": 3,
+            "original_physicality_selected_reads": 4,
+            "original_physicality_owner_refusals": 1,
+            "canonical_and_original_atom_cold_reads": 2,
+            "canonical_atom_owner_read_verified": True,
+            "original_atom_owner_read_verified": True,
+            "cross_epoch_source_view_verified": True,
+            "original_same_entity_rle_nodes": 5,
+            "original_same_entity_rle_carriers": 4,
+            "same_physicality_distinct_observation_replay": True,
+            "singleton_mixed_batch_scope_identity_verified": True,
+            "unrelated_batch_neighbor_physicality_change_verified": True,
+            "read_only_context_refusal_verified": True,
+            "mixed_batch_replay_new_rollback_verified": True,
+            "shared_owner_candidate_selection_verified": True,
+            "cold_backend_verified": True, "canonical_physicalities_unchanged": True}
+        for path in ("contracts/physicality-entity-reflection.json",
+            "engine/include/laplace/physicality_entity.h", "engine/src/physicality_entity.cpp",
+            "engine/include/laplace/physicality_occurrence_binding.h", "engine/src/physicality_occurrence_binding.cpp",
+            "engine/include/laplace/content_reference_view.h", "engine/src/content_reference_view.cpp",
+            "engine/src/canonical_composition_plan.hpp",
+            "integrations/postgresql/extension/src/physicality_entity_pg.c",
+            "integrations/postgresql/extension/src/content_materialization_pg.c",
+            "integrations/postgresql/extension/physicality_entity.sql.in",
+            "tests/postgres/physicality_entity_contract.sql"):
+            with self.subTest(path=path):
+                generated = self.plan(path)
+                self.assertIn(owner, generated["selected_physical_tests"])
+                self.assertIn(name, generated["required_physical_receipts_by_test"][owner])
+                self.assertEqual(generated["required_physical_receipt_fields_by_test"][owner][name], expected)
+        cases = [(None, None)] + [(key, None) for key in expected]
+        cases += [("capacity_refusals", 4), ("corruption_refusals", 9),
+                  ("content_binding_refusals", 5), ("corruption_refusals", 10.0),
+                  ("cold_backend_verified", 1), ("canonical_physicalities_unchanged", False),
+                  ("cross_epoch_source_view_verified", False),
+                  ("cross_epoch_source_view_verified", 1),
+                  ("cross_epoch_source_view_verified", "true")]
+        for field, value in cases:
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                receipt = dict(expected)
+                if field and value is None:
+                    receipt.pop(field)
+                elif field:
+                    receipt[field] = value
+                marker = "LAPLACE_QA_RECEIPT " + name + " " + json.dumps(receipt)
+                fake = self._fake_ctest(root, inventory=[owner], output="",
+                    junit='<testsuite><testcase name="' + owner + '"><system-out><![CDATA[' +
+                          marker + ']]></system-out></testcase></testsuite>')
+                plan = {"schema": qa.PLAN_SCHEMA, "core_tests": [],
+                    "selected_physical_tests": [owner], "required_physical_receipts": [name],
+                    "required_physical_receipts_by_test": {owner: [name]},
+                    "required_physical_receipt_fields_by_test": {owner: {name: expected}}}
+                path = root / "result.json"
+                self.assertEqual(qa.execute_plan(plan, root / "build", root / "qa", path, str(fake)),
+                    qa.EVIDENCE_RECEIPT_EXIT if field else 0)
 
     def test_same_named_receipts_keep_distinct_testcase_observations(self) -> None:
         for second_count in (18, 19):

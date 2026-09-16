@@ -132,6 +132,8 @@ bool ProviderValid(const laplace_cognition_materialization_provider_v1& provider
         provider.resolve_node != nullptr &&
         provider.read_trajectory != nullptr &&
         !DigestZero(provider.provider_fingerprint) &&
+        (provider.abi_minor < 2U ||
+            ((provider.select_reference == nullptr) == (provider.resolve_selected == nullptr))) &&
         provider.flags == 0U && provider.reserved == 0U;
 }
 
@@ -141,7 +143,7 @@ bool ReservedZero(const laplace_cognition_materialization_node& node) {
 
 laplace_cognition_materialization_status ValidateNode(
     const laplace_cognition_materialization_node& node,
-    const laplace_id128& requested) {
+    const laplace_id128& requested, const bool selected) {
     if (!SameId(node.entity_id, requested) ||
         std::memcmp(node.entity_id.bytes, node.identity_witness.bytes,
                     sizeof(node.entity_id.bytes)) != 0 ||
@@ -153,7 +155,7 @@ laplace_cognition_materialization_status ValidateNode(
         if (node.tier_floor != 0U || node.logical_count != 1U ||
             node.carrier_count != 0U ||
             node.atom > LAPLACE_UNICODE_POSITION_MAXIMUM ||
-            !DigestZero(node.physicality_id) ||
+            (!selected && !DigestZero(node.physicality_id)) ||
             !DigestZero(node.trajectory_fingerprint)) {
             return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
         }
@@ -161,7 +163,7 @@ laplace_cognition_materialization_status ValidateNode(
     }
 
     if (node.kind == LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION) {
-        if (node.tier_floor == 0U || node.logical_count <= 1U ||
+        if ((node.tier_floor == 0U && node.logical_count != 1U) || node.logical_count == 0U ||
             node.carrier_count == 0U || node.atom != 0U ||
             DigestZero(node.physicality_id) ||
             DigestZero(node.trajectory_fingerprint)) {
@@ -199,15 +201,16 @@ struct Context final {
     const laplace_cognition_materialization_request* request{};
     const laplace_cognition_materialization_provider_v1* provider{};
     std::vector<std::uint8_t>* output{};
-    std::vector<laplace_id128> active{};
+    std::vector<laplace_digest256> active{};
     struct ValidatedSlice final {
         std::size_t first{};
         std::size_t bytes{};
         std::uint64_t codepoints{};
         std::uint32_t height{};
         std::uint8_t tier{};
+        laplace_digest256 identity_witness{};
     };
-    std::map<std::array<std::uint8_t, 16>, ValidatedSlice> validated;
+    std::map<std::array<std::uint8_t, 48>, ValidatedSlice> validated;
     std::uint32_t output_encoding{LAPLACE_COGNITION_OUTPUT_UTF8};
     Counters counters{};
     blake3_hasher readset{};
@@ -323,18 +326,62 @@ laplace_cognition_materialization_status RepeatMaterializedSlice(
     return AddCodepoints(context, extra_codepoints);
 }
 
-bool ActiveContains(const Context& context, const laplace_id128& entity) {
+bool ActiveContains(const Context& context, const laplace_digest256& physicality) {
     return std::any_of(
         context.active.begin(), context.active.end(),
-        [&](const laplace_id128& current) { return SameId(current, entity); });
+        [&](const laplace_digest256& current) { return SameDigest(current, physicality); });
+}
+
+laplace_cognition_materialization_status SelectReference(
+    Context& context, const laplace_cognition_materialization_reference& reference,
+    laplace_cognition_materialization_selection* selection) {
+    *selection = {};
+    selection->contiguous_run_length = reference.occurrence.run_length;
+    if (context.provider->abi_minor < 2U || context.provider->select_reference == nullptr)
+        return LAPLACE_COGNITION_MATERIALIZATION_OK;
+    if (context.provider->select_reference(context.provider->state, &reference, selection) != 0)
+        return LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_FAILURE;
+    const bool bound = !DigestZero(selection->physicality_id);
+    if (selection->contiguous_run_length == 0U ||
+        selection->contiguous_run_length > reference.occurrence.run_length ||
+        bound == DigestZero(selection->binding_receipt_id) ||
+        (!bound && selection->contiguous_run_length != reference.occurrence.run_length))
+        return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
+    if (bound) {
+        constexpr char domain[] = "laplace-content-materialization-occurrence-binding-v1";
+        blake3_hasher_update(&context.readset, domain, sizeof(domain)-1U);
+        HashDigest(&context.readset, reference.parent_physicality_id);
+        HashId(&context.readset, reference.occurrence.entity_id);
+        HashU64(&context.readset, reference.occurrence.logical_ordinal);
+        HashU64(&context.readset, reference.occurrence.metadata);
+        HashU64(&context.readset, selection->contiguous_run_length);
+        HashDigest(&context.readset, selection->physicality_id);
+#ifndef LAPLACE_TEST_MATERIALIZATION_DROP_OCCURRENCE_BINDING_RECEIPT
+        HashDigest(&context.readset, selection->binding_receipt_id);
+#endif
+    }
+    return LAPLACE_COGNITION_MATERIALIZATION_OK;
+}
+
+bool RequiredWitnessMatches(const laplace_digest256* required,
+    const laplace_digest256& actual) {
+#ifdef LAPLACE_TEST_MATERIALIZATION_DROP_SINGLETON_WITNESS
+    (void)required;
+    (void)actual;
+    return true;
+#else
+    return required == nullptr || SameDigest(*required, actual);
+#endif
 }
 
 laplace_cognition_materialization_status MaterializeEntity(
     Context& context,
     const laplace_id128& entity,
+    const laplace_digest256& selected_physicality,
     const std::uint32_t depth,
     const bool has_expected_tier,
     const std::uint8_t expected_tier,
+    const laplace_digest256* const required_witness,
     std::uint32_t* const height) {
     *height = 0U;
     if (depth > context.request->maximum_depth) {
@@ -343,14 +390,16 @@ laplace_cognition_materialization_status MaterializeEntity(
     context.counters.maximum_depth =
         std::max(context.counters.maximum_depth, depth);
 
-    if (ActiveContains(context, entity)) {
-        return LAPLACE_COGNITION_MATERIALIZATION_CYCLE;
-    }
-    std::array<std::uint8_t, 16> key{};
+    std::array<std::uint8_t, 48> key{};
     std::copy(std::begin(entity.bytes), std::end(entity.bytes), key.begin());
+#ifndef LAPLACE_TEST_MATERIALIZATION_COLLAPSE_PHYSICALITY_CACHE
+    std::copy(std::begin(selected_physicality.bytes), std::end(selected_physicality.bytes), key.begin()+16);
+#endif
     const auto cached = context.validated.find(key);
     if (cached != context.validated.end()) {
         const auto& slice = cached->second;
+        if (!RequiredWitnessMatches(required_witness, slice.identity_witness))
+            return LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH;
         if (has_expected_tier && slice.tier != expected_tier) {
             return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
         }
@@ -368,16 +417,26 @@ laplace_cognition_materialization_status MaterializeEntity(
     }
 
     laplace_cognition_materialization_node node{};
-    if (context.provider->resolve_node(
-            context.provider->state, &entity, &node) != 0) {
+    const bool bound = !DigestZero(selected_physicality);
+    const int resolved = bound
+        ? context.provider->resolve_selected(context.provider->state, &entity, &selected_physicality, &node)
+        : context.provider->resolve_node(context.provider->state, &entity, &node);
+    if (resolved != 0) {
         return LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_FAILURE;
     }
     ++context.counters.nodes;
 
-    const auto node_status = ValidateNode(node, entity);
+    const auto node_status = ValidateNode(node, entity, bound);
     if (node_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
         return node_status;
     }
+    if (bound && !SameDigest(selected_physicality, node.physicality_id))
+        return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
+    if (!RequiredWitnessMatches(required_witness, node.identity_witness))
+        return LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH;
+    if (node.kind == LAPLACE_COGNITION_MATERIALIZATION_NODE_COMPOSITION &&
+        ActiveContains(context, node.physicality_id))
+        return LAPLACE_COGNITION_MATERIALIZATION_CYCLE;
     if (has_expected_tier && node.tier_floor != expected_tier) {
         return LAPLACE_COGNITION_MATERIALIZATION_NODE_INVALID;
     }
@@ -397,7 +456,8 @@ laplace_cognition_materialization_status MaterializeEntity(
         const auto status = AppendAtomRun(context, node.atom, 1U);
         if (status == LAPLACE_COGNITION_MATERIALIZATION_OK) {
             context.validated.emplace(key, Context::ValidatedSlice{
-                subtree_first, context.output->size() - subtree_first, 1U, 0U, 0U});
+                subtree_first, context.output->size() - subtree_first, 1U, 0U, 0U,
+                node.identity_witness});
         }
         return status;
     }
@@ -461,10 +521,14 @@ laplace_cognition_materialization_status MaterializeEntity(
         return LAPLACE_COGNITION_MATERIALIZATION_MEMORY_FAILURE;
     }
 
+    std::uint8_t maximum_child_tier = 0U;
     for (const auto& occurrence : occurrences) {
-        if (occurrence.run_length == 0U || occurrence.tier >= node.tier_floor) {
+        if (occurrence.run_length == 0U ||
+            (node.logical_count == 1U ? occurrence.tier != node.tier_floor
+                                     : occurrence.tier >= node.tier_floor)) {
             return LAPLACE_COGNITION_MATERIALIZATION_TRAJECTORY_INVALID;
         }
+        maximum_child_tier = std::max(maximum_child_tier, occurrence.tier);
         const auto occurrence_count =
             static_cast<std::uint64_t>(occurrence.run_length);
         if (!runs.empty() && SameId(runs.back().id, occurrence.entity_id)) {
@@ -477,12 +541,18 @@ laplace_cognition_materialization_status MaterializeEntity(
             runs.push_back(laplace_id_run{occurrence.entity_id, occurrence_count});
         }
     }
+    /* Tier describes canonical content. A transparent singleton physical form
+     * retains its child's tier; physical descent remains depth/P-cycle bounded. */
+    if (node.logical_count != 1U &&
+        (maximum_child_tier == UINT8_MAX || node.tier_floor != maximum_child_tier + 1U))
+        return LAPLACE_COGNITION_MATERIALIZATION_TRAJECTORY_INVALID;
 
     std::uint64_t identity_logical_count = 0U;
     laplace_id128 reconstructed_id{};
     laplace_digest256 reconstructed_witness{};
     if (laplace_identity_composite_runs_witness(
-            runs.data(), runs.size(), nullptr, &identity_logical_count,
+            runs.data(), runs.size(), node.logical_count == 1U ? &node.identity_witness : nullptr,
+            &identity_logical_count,
             &reconstructed_id, &reconstructed_witness) != LAPLACE_IDENTITY_OK ||
         identity_logical_count != node.logical_count ||
         !SameId(reconstructed_id, node.entity_id) ||
@@ -490,9 +560,25 @@ laplace_cognition_materialization_status MaterializeEntity(
         return LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH;
     }
 
-    context.active.push_back(node.entity_id);
-    for (const auto& occurrence : occurrences) {
-        if (occurrence.has_atom != 0U) {
+    context.active.push_back(node.physicality_id);
+    for (const auto& stored_occurrence : occurrences) {
+      std::uint16_t consumed = 0U;
+      while (consumed < stored_occurrence.run_length) {
+        auto occurrence = stored_occurrence;
+        occurrence.logical_ordinal += consumed;
+        occurrence.run_length = static_cast<std::uint16_t>(stored_occurrence.run_length-consumed);
+        laplace_cognition_materialization_reference reference{};
+        reference.parent_physicality_id = node.physicality_id;
+        reference.occurrence = occurrence;
+        laplace_cognition_materialization_selection selection{};
+        const auto selection_status = SelectReference(context, reference, &selection);
+        if (selection_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
+            context.active.pop_back();
+            return selection_status;
+        }
+        occurrence.run_length = static_cast<std::uint16_t>(selection.contiguous_run_length);
+        consumed = static_cast<std::uint16_t>(consumed + occurrence.run_length);
+        if (occurrence.has_atom != 0U && DigestZero(selection.physicality_id)) {
             if (occurrence.tier != 0U ||
                 depth == std::numeric_limits<std::uint32_t>::max() ||
                 depth + 1U > context.request->maximum_depth) {
@@ -505,7 +591,8 @@ laplace_cognition_materialization_status MaterializeEntity(
             if (laplace_identity_codepoint_witness(
                     occurrence.atom, &expected_id, &expected_witness) !=
                     LAPLACE_IDENTITY_OK ||
-                !SameId(expected_id, occurrence.entity_id)) {
+                !SameId(expected_id, occurrence.entity_id) ||
+                (node.logical_count == 1U && !SameDigest(expected_witness, node.identity_witness))) {
                 context.active.pop_back();
                 return LAPLACE_COGNITION_MATERIALIZATION_IDENTITY_MISMATCH;
             }
@@ -532,8 +619,8 @@ laplace_cognition_materialization_status MaterializeEntity(
         const std::uint64_t codepoints_before = context.counters.codepoints;
         std::uint32_t child_height = 0U;
         const auto child_status = MaterializeEntity(
-            context, occurrence.entity_id, depth + 1U, true, occurrence.tier,
-            &child_height);
+            context, occurrence.entity_id, selection.physicality_id, depth + 1U, true, occurrence.tier,
+            node.logical_count == 1U ? &node.identity_witness : nullptr, &child_height);
         if (child_status != LAPLACE_COGNITION_MATERIALIZATION_OK) {
             context.active.pop_back();
             return child_status;
@@ -555,11 +642,13 @@ laplace_cognition_materialization_status MaterializeEntity(
             context.active.pop_back();
             return repeat_status;
         }
+      }
     }
     context.active.pop_back();
     context.validated.emplace(key, Context::ValidatedSlice{
         subtree_first, context.output->size() - subtree_first,
-        context.counters.codepoints - subtree_codepoints, *height, node.tier_floor});
+        context.counters.codepoints - subtree_codepoints, *height, node.tier_floor,
+        node.identity_witness});
     return LAPLACE_COGNITION_MATERIALIZATION_OK;
 }
 
@@ -661,8 +750,30 @@ static laplace_cognition_materialization_status MaterializeBoundContent(
     std::uint32_t height = 0U;
     laplace_cognition_materialization_status status;
     try {
-        status = MaterializeEntity(
-            context, *root_content_id, 0U, false, 0U, &height);
+        if (provider->abi_minor >= 1U && provider->begin_read != nullptr) {
+            laplace_digest256 scope{};
+            if (provider->begin_read(provider->state, root_content_id,
+                    source_receipt_id, source_recipe_id, &scope) != 0) {
+                return LAPLACE_COGNITION_MATERIALIZATION_PROVIDER_FAILURE;
+            }
+#ifndef LAPLACE_TEST_MATERIALIZATION_DROP_SCOPE_RECEIPT
+            if (!DigestZero(scope)) {
+                constexpr char scope_domain[] =
+                    "laplace-content-materialization-root-scope-v1";
+                blake3_hasher_update(&context.readset, scope_domain,
+                                    sizeof(scope_domain) - 1U);
+                HashDigest(&context.readset, scope);
+            }
+#endif
+        }
+        laplace_cognition_materialization_reference root_reference{};
+        root_reference.occurrence.entity_id = *root_content_id;
+        root_reference.occurrence.run_length = 1U;
+        laplace_cognition_materialization_selection root_selection{};
+        status = SelectReference(context, root_reference, &root_selection);
+        if (status == LAPLACE_COGNITION_MATERIALIZATION_OK)
+            status = MaterializeEntity(context, *root_content_id,
+                root_selection.physicality_id, 0U, false, 0U, nullptr, &height);
     } catch (const std::length_error&) {
         return LAPLACE_COGNITION_MATERIALIZATION_LIMIT;
     } catch (const std::bad_alloc&) {

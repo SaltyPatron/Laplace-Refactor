@@ -1,0 +1,39 @@
+{
+  "schema": "laplace.test-registry/v1",
+  "tests": [
+    {
+      "ctest_name": "physicality-occurrence.pg-helper-native-contract",
+      "profiles": [
+        "postgres",
+        "custom-stack"
+      ],
+      "evidence_targets": [
+        "LP-TEST-IDENTITY-NEGATIVE",
+        "LP-TEST-IDENTITY-CROSS-ROUTE",
+        "LP-TEST-OCCURRENCE-PRESERVATION",
+        "LP-TEST-BULK-DETERMINISM"
+      ],
+      "covered_dimensions": [
+        "actual native physicality descriptor and common composition retain distinct selected physicalities for original Unicode zero and the pinned numeral zero through the production generated occurrence helper",
+        "production sparse scope index follows an authenticated singleton P to a distinct same-E P and retains complete reachable intervals",
+        "unrelated mixed batch neighbors do not alter a source scope receipt; index generation reuse preserves root isolation",
+        "whole and split intervals for the same selected P have distinct scope receipts while descriptor entity full witness and physicality remain identical",
+        "atomic sources have explicit empty historical interval scopes",
+        "PostgreSQL allocation and error shims exercise native helper boundaries only; SQL SPI deposition and durable readback remain host acceptance work",
+        "actual production reference preparation and descriptor calculation select pinned canonical geometry for every entity-valued field while retaining the exact original source tuple",
+        "transparent singleton content tier remains identical to the independently validated noncollapsed entity; complete native closure reconstructs ordinary reference views",
+        "reference results share the existing finite node owner, retain explicit recipe and geometry epoch, and preserve owner recipe independently",
+        "destroyed native plans reconstruct identical per-view and generated binding receipts from scoped source inputs",
+        "a historical parent P can exactly equal the generated reference P while same-E same-centroid child recipe variants require different selected-P intervals; both authenticated maps remain separate evidence",
+        "a separate authenticated canonical known frontier excludes alternate historical atom physicalities and retains exactly the pinned atom E/P/witness/tier tuple for direct canonical root resolution"
+      ],
+      "defect_controls": [
+        "re-resolving a generated operand by first matching entity loses the pinned numeral physicality selection",
+        "reusing the entire batch receipt as a source scope ID makes unrelated neighbors affect that source",
+        "dropping generated reference nodes prevents exact finite indexed reconstruction",
+        "replacing canonical external reference geometry with the historical source form violates canonical descriptor operand selections",
+        "using singleton wrapper depth as canonical content tier is rejected"
+      ]
+    }
+  ]
+}

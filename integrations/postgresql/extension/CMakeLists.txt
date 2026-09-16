@@ -148,6 +148,7 @@ set(laplace_postgresql_module_sources
     src/cognition_materialization_route_pg.c
     src/composition_pg.c
     src/content_admission_pg.c
+    src/content_materialization_pg.c
     src/evidence_lineage_pg.c
     src/evidence_testimony_pg.c
     src/standing_calculation_pg.c
@@ -160,7 +161,9 @@ set(laplace_postgresql_module_sources
     src/prompt_admission_pg.c
     src/semantic_cognition_pg.c
     src/persistence_pg.c
+    src/persistence_entities_pg.c
     src/persistence_rows_pg.c
+    src/physicality_entity_pg.c
     src/perfcache_pg.c
     src/reference_topology_pg.c
     src/reference_mapping_pg.c
@@ -203,9 +206,25 @@ set_target_properties(laplace_pg PROPERTIES
     INSTALL_RPATH_USE_LINK_PATH FALSE)
 
 if(BUILD_TESTING)
+    include("${CMAKE_SOURCE_DIR}/tests/postgres/persistence_entities.cmake")
+    include("${CMAKE_SOURCE_DIR}/tests/postgres/physicality_occurrence_native.cmake")
+    file(READ "${CMAKE_SOURCE_DIR}/contracts/framework.json" physicality_test_framework_contract)
+    string(JSON physicality_test_geometry_slot GET "${physicality_test_framework_contract}" epoch_slots geometry)
+    string(JSON physicality_test_evidence_slot GET "${physicality_test_framework_contract}" epoch_slots evidence)
+    math(EXPR LAPLACE_PHYSICALITY_TEST_GEOMETRY_INDEX "${physicality_test_geometry_slot} + 1")
+    math(EXPR LAPLACE_PHYSICALITY_TEST_EVIDENCE_INDEX "${physicality_test_evidence_slot} + 1")
+    if(NOT DEFINED LAPLACE_FRAMEWORK_CONTEXT_READ_ONLY)
+        message(FATAL_ERROR "Physicality SQL fixture lacks its generated read-only context flag")
+    endif()
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/tests/postgres/physicality_entity_contract.sql"
+        "${CMAKE_BINARY_DIR}/tests/postgres/physicality_entity_contract.sql"
+        @ONLY)
     target_compile_definitions(laplace_pg PRIVATE
         LAPLACE_POSTGRES_TESTING=1)
-    target_sources(laplace_pg PRIVATE tests/cognition_firmware_provider_pg.c)
+    target_sources(laplace_pg PRIVATE
+        tests/cognition_firmware_provider_pg.c
+        tests/materialization_provider_pg.c)
 
     if(NOT DEFINED LAPLACE_FRAMEWORK_EPOCH_FIRMWARE)
         message(FATAL_ERROR "Firmware SQL context binding lacks its generated epoch slot")
@@ -424,19 +443,45 @@ configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/source_structural_witness_1_0_2_to_1_0_3.sql.in"
     "${structural_witness_103_upgrade_sql}"
     @ONLY)
-set(current_extension_sql
+set(extension_103_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.3.sql")
-file(WRITE "${current_extension_sql}"
+file(WRITE "${extension_103_sql}"
     "${current_base_schema}\n${persisted_cognition_delta}\n${product_cognition_delta}\n${source_observation_profile_sql}\n${source_grammar_admission_sql}\n${source_readback_sql}")
 file(APPEND "${structural_witness_103_upgrade_sql}"
     "\n${source_observation_profile_sql}\n${source_grammar_admission_sql}\n${source_readback_sql}")
 
+# Physicality descriptors are a new finite derived-view capability. Keep all
+# predecessor install and upgrade scripts intact and publish a separate delta.
+file(READ "${CMAKE_SOURCE_DIR}/contracts/persistence.json"
+    physicality_entity_persistence_contract)
+string(JSON LAPLACE_PG_PERSISTENCE_PHYSICALITY_COMPOSITION GET
+    "${physicality_entity_persistence_contract}" semantic_enums physicality_type composition)
+string(JSON LAPLACE_PG_PERSISTENCE_VERTEX_TRAJECTORY_CARRIER GET
+    "${physicality_entity_persistence_contract}" semantic_enums vertex_class trajectory_carrier)
+string(JSON LAPLACE_PG_PERSISTENCE_STRUCTURAL_ORDERED_COMPOSITION GET
+    "${physicality_entity_persistence_contract}" semantic_enums structural_form ordered_composition)
+string(JSON LAPLACE_PG_PERSISTENCE_PHYSICALITY_FLAGS_NONE GET
+    "${physicality_entity_persistence_contract}" semantic_enums physicality_flags none)
+set(physicality_entity_upgrade_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.3--1.0.4.sql")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/physicality_entity.sql.in"
+    "${physicality_entity_upgrade_sql}" @ONLY)
+file(READ "${physicality_entity_upgrade_sql}" physicality_entity_delta)
+file(READ "${extension_103_sql}" extension_103_base)
+set(current_extension_sql
+    "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.4.sql")
+file(WRITE "${current_extension_sql}" "${extension_103_base}\n${physicality_entity_delta}\n")
+# Top-level CMake appends this canonical fragment to the current install script.
+# Preserve the exact same historical suffix for the newly retained 1.0.3 script.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/cognition.sql" predecessor_cognition_sql)
+file(APPEND "${extension_103_sql}" "\n${predecessor_cognition_sql}\n")
+
 install(TARGETS laplace_pg
     LIBRARY DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/lib")
 install(FILES "${extension_control}" "${extension_sql}"
-    "${extension_101_sql}" "${extension_102_sql}" "${current_extension_sql}"
+    "${extension_101_sql}" "${extension_102_sql}" "${extension_103_sql}" "${current_extension_sql}"
     "${persisted_cognition_upgrade_sql}" "${product_cognition_upgrade_sql}"
-    "${structural_witness_103_upgrade_sql}"
+    "${structural_witness_103_upgrade_sql}" "${physicality_entity_upgrade_sql}"
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace-public-readback.sql"
     DESTINATION "pgsql-${LAPLACE_POSTGRES_MAJOR}/share/extension")
 

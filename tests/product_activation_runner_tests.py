@@ -4,12 +4,17 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import importlib.util
 import json
 import re
 import shutil
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -232,6 +237,83 @@ class ProductActivationRunnerTests(unittest.TestCase):
         self.assertIn("restart-after-highway-activation", highway)
         self.assertIn('plan["commands"]["stop_candidate"]', provider)
         self.assertIn('plan["commands"]["start_candidate"]', provider)
+
+
+class IndexedCognitionSuccessorReconciliationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "laplace_indexed_successor_reconcile_tests", RECONCILER)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load actual product reconciliation owner")
+        cls.owner = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = cls.owner
+        spec.loader.exec_module(cls.owner)
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="laplace-indexed-successor-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        relative = "pgsql-18/share/extension/laplace--1.0.0--1.0.1.sql"
+        self.migration = self.root / relative
+        self.migration.parent.mkdir(parents=True)
+        self.migration.write_bytes((ROOT / "integrations/postgresql/extension/observation_cognition_persisted.sql.in").read_bytes())
+        self.package = {"package_id": "42" * 32, "files": [{
+            "path": relative, "kind": "file",
+            "sha256": hashlib.sha256(self.migration.read_bytes()).hexdigest()}]}
+        self.plan = {"postgresql_major": 18, "package_root": str(self.root)}
+        self.contract = {"instance": {"admin_role": "laplace_admin"}}
+
+    def observations(self, version: str) -> list:
+        return [({"version": version, "owner": "laplace_admin"}, {}), ({
+            "schema": "laplace.indexed-cognition-upgrade/v1", "version": version,
+            "owner": "laplace_admin", "native_bindings": 2, "ready_indexes": 2},
+            {"fixture": "acknowledged server verification"})]
+
+    def test_supported_successors_verify_inherited_native_bindings_without_downgrade(self) -> None:
+        for version in ("1.0.2", "1.0.3", "1.0.4"):
+            with self.subTest(version=version), mock.patch.object(
+                self.owner.runner, "runner_sql", side_effect=self.observations(version)
+            ) as sql, mock.patch.object(self.owner, "fresh_reconcile_indexed_cognition") as predecessor:
+                receipt = self.owner.reconcile_indexed_cognition_after_generation_upgrade(
+                    self.plan, self.contract, self.package)
+                predecessor.assert_not_called()
+                self.assertEqual(sql.call_count, 2)
+                self.assertEqual(receipt["version"], version)
+                self.assertEqual(receipt["script_sha256"], self.package["files"][0]["sha256"])
+                self.assertEqual(receipt["package_id"], self.package["package_id"])
+                self.assertEqual(receipt["receipt_sha256"],
+                    self.owner.runner.document_identity(receipt, "receipt_sha256"))
+
+    def test_new_successor_refuses_changed_package_migration_before_database_reconciliation(self) -> None:
+        self.migration.write_bytes(self.migration.read_bytes() + b"\n-- changed package bytes\n")
+        with mock.patch.object(self.owner.runner, "runner_sql",
+                side_effect=self.observations("1.0.4")) as sql:
+            with self.assertRaisesRegex(self.owner.runner.RunnerActivationError, "migration bytes differ"):
+                self.owner.reconcile_indexed_cognition_after_generation_upgrade(
+                    self.plan, self.contract, self.package)
+            self.assertEqual(sql.call_count, 1)
+
+    def test_new_successor_refuses_version_or_native_proof_drift(self) -> None:
+        for field, changed in (("version", "1.0.5"), ("owner", "other_role"),
+                ("native_bindings", 1), ("ready_indexes", 1)):
+            observed = self.observations("1.0.4")
+            observed[1][0][field] = changed
+            with self.subTest(field=field), mock.patch.object(
+                self.owner.runner, "runner_sql", side_effect=observed):
+                with self.assertRaisesRegex(self.owner.runner.RunnerActivationError, "result differs"):
+                    self.owner.reconcile_indexed_cognition_after_generation_upgrade(
+                        self.plan, self.contract, self.package)
+
+    def test_unknown_version_uses_existing_version_admission_owner(self) -> None:
+        with mock.patch.object(self.owner.runner, "runner_sql",
+                return_value=({"version": "1.0.5"}, {})) as sql, mock.patch.object(
+                self.owner, "fresh_reconcile_indexed_cognition", return_value={"deferred": True}) as predecessor:
+            result = self.owner.reconcile_indexed_cognition_after_generation_upgrade(
+                self.plan, self.contract, self.package)
+            predecessor.assert_called_once_with(self.plan, self.contract, self.package)
+            self.assertEqual(sql.call_count, 1)
+            self.assertEqual(result, {"deferred": True})
 
 
 if __name__ == "__main__":
