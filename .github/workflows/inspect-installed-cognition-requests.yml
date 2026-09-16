@@ -16,12 +16,12 @@ jobs:
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           test "$(id -un)" = laplace-runner
-          git merge-base --is-ancestor ce65a8f69f284113a724b9fc37c06aa9c0cee694 HEAD
+          git merge-base --is-ancestor b25d107ec9fdea3b125937790aa1045a0e3ac129 HEAD
           test "$(git hash-object tools/sources/stockfish_corpus_acceptance.py)" = ff0c3264a4d9f615d54e827a19e6e0b1066e4b32
           test "$(git hash-object tests/stockfish_corpus_acceptance_tests.py)" = b83e48c918da95df6dfb77bb1512dcd2ff6d2776
-          test "$(git diff --name-only ce65a8f69f284113a724b9fc37c06aa9c0cee694 HEAD)" = .github/workflows/inspect-installed-cognition-requests.yml
+          test "$(git diff --name-only b25d107ec9fdea3b125937790aa1045a0e3ac129 HEAD)" = .github/workflows/inspect-installed-cognition-requests.yml
           python3 - <<'PY'
-          import hashlib,json,os,subprocess,sys,time
+          import hashlib,json,os,re,subprocess,sys,time
           from pathlib import Path
           sys.path.insert(0,str(Path.cwd()/"tools"))
           from sources.stockfish_corpus_acceptance import observe_activation,stable_activation
@@ -85,25 +85,41 @@ jobs:
                   "stdout_bytes":len(stdout),"stderr_bytes":len(stderr)}
               report["commands"].append(item)
               print(json.dumps(item,sort_keys=True))
-              if label!="http" or code!=0:
-                  print(label+" STDOUT: "+stdout[-16000:].decode(errors="replace"))
+              if code!=0:
                   print(label+" STDERR: "+stderr[-8000:].decode(errors="replace"))
           after=observe_activation(expected,output/"activation-after.json")
           report["activation_unchanged"]=stable_activation(before)==stable_activation(after)
-          assert report["activation_unchanged"]
           report["status"]="failed"
-          if all(item["exit_code"]==0 for item in report["commands"]):
+          try:
+              assert report["activation_unchanged"], "activated package/native binding changed"
+              assert all(item["exit_code"]==0 for item in report["commands"]), "request command failed"
               explicit=json.loads((output/"explicit.stdout").read_text())
               first=json.loads((output/"automatic.stdout").read_text())
               second=json.loads((output/"continued.stdout").read_text())
               assert explicit["status"]==0 and explicit["output_utf8"]=="A" and explicit["execution_route"]=="explicit-firmware"
+              assert explicit["relations"]==["constituent"]
+              for name,response in (("explicit",explicit),("automatic",first),("continued",second)):
+                  assert response["package_id"]==before["package_id"]
+                  assert response["execution"]["native_status"]==0
+                  assert response["output_utf8"]=="A"
+                  assert isinstance(response["checkpoint_hex"],str) and response["checkpoint_hex"]
+                  assert re.fullmatch("[0-9a-f]{64}",response["next_checkpoint_fingerprint"])
+                  assert re.fullmatch(r"\\x[0-9a-f]{64}",response["execution"]["execution_receipt_id"])
+                  report[name]={key:response[key] for key in
+                      ("package_id","execution_route","mode","status","output_utf8","turn_ordinal",
+                       "continued","program_id","next_checkpoint_fingerprint")}
+                  report[name]["native_status"]=response["execution"]["native_status"]
+                  report[name]["execution_receipt_id"]=response["execution"]["execution_receipt_id"]
               assert first["status"]==second["status"]==0 and first["mode"]==second["mode"]=="auto"
-              assert first["execution_route"]==second["execution_route"]=="native-conversation"
+              assert first["execution_route"]==second["execution_route"]=="automatic-firmware"
               assert first["turn_ordinal"]==0 and first["continued"] is False
               assert second["turn_ordinal"]==1 and second["continued"] is True
+              assert first["program_id"]==second["program_id"]
               assert first["next_checkpoint_fingerprint"]!=second["next_checkpoint_fingerprint"]
               assert json.loads((output/"http-readiness.json").read_text())["status"]=="passed"
               report["status"]="passed"
+          except (AssertionError,KeyError,TypeError,ValueError) as error:
+              report["error"]=str(error) or type(error).__name__
           (output/"requests.json").write_text(json.dumps(report,sort_keys=True,indent=2)+"\n")
           print(json.dumps(report,sort_keys=True))
           if report["status"]!="passed": raise SystemExit(1)
