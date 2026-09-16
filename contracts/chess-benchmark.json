@@ -4,14 +4,16 @@
   "execution": "explicit-manual-or-user-authorized-chess-change-candidate-and-deployment-calibration",
   "profiles": {
     "stockfish": "upstream built-in fixed-depth bench; bind benchmark.cpp, source revision, executable, NNUE, options and actual variable node workload",
-    "cutechess": "paired-color Stockfish self-play with ponder disabled, fixed game depth and maximum moves; bind PGN and process identities"
+    "cutechess": "paired-color Stockfish self-play from the standard initial position, ponder disabled and explicit fixed game depth/time control, with no default move cap; independent locked provider legally replays every PGN and requires a matching normal terminal outcome",
+    "capped_diagnostic": "explicit --diagnostic with --max-moves only; maximum-length episodes retain diagnostic episode and ply rates, never normal-game capacity recommendations"
   },
   "resources": {
     "cpu": "minimum of caller affinity and every visible ancestor CPU quota; preserve fractional CPU equivalence",
     "memory": "minimum of MemAvailable and every visible ancestor memory.max minus memory.current",
     "game_cpu": "concurrency times threads per active engine with ponder off",
     "game_memory": "two resident engines per game times Hash plus explicit overhead estimate; enforce sampled RSS ceiling",
-    "hidden_ancestors": "unobservable; never claim whole physical host capacity"
+    "hidden_ancestors": "unobservable; never claim whole physical host capacity",
+    "time": "explicit finite per-case and whole-experiment wall budgets; timeout or incomplete games fail without a recommendation"
   },
   "receipts": [
     "raw transcripts",
@@ -21,7 +23,10 @@
     "child CPU and filesystem I/O",
     "cgroup throttling and pressure",
     "actual huge-page observations",
-    "completion and rejection reasons"
+    "completion and rejection reasons",
+    "exact external legal-PGN validator archive, runtime bytes and license",
+    "normal terminal outcome and complete legal move count for every credited full game",
+    "database recording and readback measured separately; absent from this external-tool calibration"
   ],
   "recommendation": "only best measured configuration for this input, execution environment and resource grant; elapsed-workload and aggregate-game throughput remain separate",
   "forbidden_claims": [
@@ -29,7 +34,9 @@
     "fixed-depth SMP does identical node work",
     "short smoke games prove strength",
     "compiled huge-page support proves actual allocation",
-    "tool availability proves Laplace chess or Lichess service capability"
+    "tool availability proves Laplace chess or Lichess service capability",
+    "move-capped adjudicated episodes prove full-game capacity",
+    "external engine generation rate proves database-recorded game throughput"
   ],
   "deployment_calibration": {
     "authorization": "User-requested complete chess dependency setup and measured configuration on the actual deployment host. This chess-only calibration does not change unrelated benchmark-suite scheduling.",
@@ -47,7 +54,8 @@
       ".github/workflows/chess-calibration.yml",
       "tools/dependencies/ensure-locked-git.sh",
       "tools/dependencies/prepare-source-parents.sh",
-      "tools/dependencies/source_estate.py"
+      "tools/dependencies/source_estate.py",
+      "tools/dependencies/chess_pgn.py"
     ],
     "focused_locks": {
       "dependencies/lock.json": {
@@ -59,7 +67,10 @@
       },
       "dependencies/artifact-lock.json": {
         "collection": "artifacts",
-        "prefix": "stockfish-"
+        "prefix": "stockfish-",
+        "names": [
+          "chess-pgn-validator"
+        ]
       }
     }
   },

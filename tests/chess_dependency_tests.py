@@ -15,7 +15,9 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 
@@ -29,6 +31,12 @@ spec.loader.exec_module(TOOLS)
 source_spec = importlib.util.spec_from_file_location("source_estate", ROOT / "tools/dependencies/source_estate.py")
 ESTATE = importlib.util.module_from_spec(source_spec)
 source_spec.loader.exec_module(ESTATE)
+
+sys.path.insert(0, str(ROOT / "tools/dependencies"))
+pgn_spec = importlib.util.spec_from_file_location("chess_pgn", ROOT / "tools/dependencies/chess_pgn.py")
+assert pgn_spec and pgn_spec.loader
+PGN = importlib.util.module_from_spec(pgn_spec)
+pgn_spec.loader.exec_module(PGN)
 
 
 class ChessDependencies(unittest.TestCase):
@@ -636,6 +644,192 @@ class ChessDependencies(unittest.TestCase):
         with patch.object(sys, "argv", ["chess_tools.py", "check", "--prefix", str(self.directory)]), contextlib.redirect_stdout(stream):
             self.assertEqual(TOOLS.main(), 1)
         self.assertIn(str(self.directory / "current.json"), json.loads(stream.getvalue())["error"])
+
+
+class ChessPgnProvider(unittest.TestCase):
+    """Real pinned rules execution, with independent archive/import refusals."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.artifact = PGN.tools.json_read(ROOT / "dependencies/artifact-lock.json")["artifacts"]["chess-pgn-validator"]
+        cache = Path(os.environ.get("LAPLACE_CHESS_PGN_TEST_CACHE", "/build/laplace/work/chess-pgn-provider-test-cache"))
+        cls.archive = PGN.tools.acquire(cls.artifact, cache, os.environ.get("LAPLACE_CHESS_PGN_OFFLINE") == "1")
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.directory = Path(self.temporary.name)
+        self.cache = self.directory / "provider"
+        self.cache.mkdir()
+        shutil.copyfile(self.archive, self.cache / self.artifact["filename"])
+        self.previous = {key: value for key, value in sys.modules.items()
+                         if key == "chess" or key.startswith("chess.")}
+        for key in self.previous:
+            del sys.modules[key]
+
+    def tearDown(self) -> None:
+        for key in list(sys.modules):
+            if key == "chess" or key.startswith("chess."):
+                del sys.modules[key]
+        sys.modules.update(self.previous)
+        self.temporary.cleanup()
+
+    def load(self):
+        return PGN.load_provider(self.cache, offline=True)
+
+    def test_real_rules_parse_legal_checkmate_and_refuse_illegal_san(self) -> None:
+        chess, pgn, receipt = self.load()
+        game = pgn.read_game(io.StringIO('[Result "0-1"]\n\n1. f3 e5 2. g4 Qh4# 0-1\n'))
+        self.assertEqual(game.errors, [])
+        board = game.end().board()
+        self.assertEqual(board.outcome().termination, chess.Termination.CHECKMATE)
+        self.assertEqual(board.result(), "0-1")
+        self.assertEqual(game.end().ply(), 4)
+        with self.assertLogs("chess.pgn", level="ERROR"):
+            illegal = pgn.read_game(io.StringIO('[Result "0-1"]\n\n1. e5 0-1\n'))
+        self.assertTrue(illegal.errors)
+        self.assertIsNone(illegal.end().board().outcome())
+        self.assertEqual(receipt["archive"]["sha256"], self.artifact["sha256"])
+        self.assertEqual(receipt["version"], "1.11.2")
+        self.assertEqual(len(receipt["files"]), 10)
+        self.assertEqual(len(receipt["modules"]), 8)
+        self.assertTrue(Path(receipt["license"]["path"]).read_text().startswith("                    GNU GENERAL PUBLIC LICENSE"))
+        self.assertFalse(list(self.cache.rglob("*.pyc")))
+
+    def test_exact_cache_and_modules_reuse_without_download(self) -> None:
+        chess, pgn, receipt = self.load()
+        with patch.object(PGN.tools.urllib.request, "urlopen", side_effect=AssertionError("offline reuse tried a download")):
+            repeated = self.load()
+        self.assertIs(repeated[0], chess)
+        self.assertIs(repeated[1], pgn)
+        self.assertEqual(repeated[2], receipt)
+
+    def test_corrupt_or_missing_archive_is_refused_before_import(self) -> None:
+        archive = self.cache / self.artifact["filename"]
+        data = archive.read_bytes()
+        archive.write_bytes(bytes([data[0] ^ 1]) + data[1:])
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "SHA-256 mismatch"):
+            self.load()
+        self.assertNotIn("chess", sys.modules)
+        archive.write_bytes(data[:-1])
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "size mismatch"):
+            self.load()
+        archive.unlink()
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "offline artifact missing"):
+            self.load()
+
+    def test_every_runtime_file_and_license_is_reverified_on_reuse(self) -> None:
+        _, _, receipt = self.load()
+        root = Path(receipt["runtime_root"])
+        for item in receipt["files"]:
+            with self.subTest(path=item["path"]):
+                path = root / item["path"]
+                original = path.read_bytes()
+                path.write_bytes(original + b"\n# deliberate runtime mutation\n")
+                with self.assertRaisesRegex(PGN.tools.ChessToolError, "runtime bytes differ"):
+                    self.load()
+                path.write_bytes(original)
+        (root / "chess/pgn.py").unlink()
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "inventory is incomplete"):
+            self.load()
+
+    def test_extra_importable_files_and_bytecode_directories_are_refused(self) -> None:
+        self.load()
+        root = self.cache / "runtime/chess"
+        for name in ("extra.py", "extra.pyc", "extra.so"):
+            with self.subTest(name=name):
+                path = root / name
+                path.write_bytes(b"untrusted extra")
+                with self.assertRaisesRegex(PGN.tools.ChessToolError, "extra or nonregular"):
+                    self.load()
+                path.unlink()
+        (root / "__pycache__").mkdir()
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "extra.*directory"):
+            self.load()
+
+    def test_runtime_and_archive_links_are_refused_even_for_identical_bytes(self) -> None:
+        self.load()
+        for relative in ("runtime/chess/pgn.py", self.artifact["filename"]):
+            with self.subTest(path=relative):
+                path = self.cache / relative
+                original = path.read_bytes()
+                outside = self.directory / "outside"
+                outside.write_bytes(original)
+                path.unlink()
+                path.symlink_to(outside)
+                with self.assertRaisesRegex(PGN.tools.ChessToolError, "link|physical regular"):
+                    self.load()
+                path.unlink()
+                os.link(outside, path)
+                with self.assertRaisesRegex(PGN.tools.ChessToolError, "nonregular|physical regular"):
+                    self.load()
+                path.unlink()
+                outside.unlink()
+                path.write_bytes(original)
+
+    def test_ambient_module_is_not_replaced_or_used(self) -> None:
+        substitute = types.ModuleType("chess")
+        substitute.__version__ = "1.11.2"
+        sys.modules["chess"] = substitute
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "module inventory differs"):
+            self.load()
+        self.assertIs(sys.modules["chess"], substitute)
+
+    def test_cache_and_runtime_directory_symlinks_are_refused(self) -> None:
+        self.load()
+        alias = self.directory / "alias"
+        alias.symlink_to(self.cache, target_is_directory=True)
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "cache must not be a symlink"):
+            PGN.load_provider(alias, offline=True)
+        runtime = self.cache / "runtime"
+        outside = self.directory / "original-runtime"
+        runtime.rename(outside)
+        runtime.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "runtime must be a physical directory"):
+            self.load()
+
+    def test_loaded_module_version_origin_and_identity_substitutions_are_refused(self) -> None:
+        chess, pgn, _ = self.load()
+        for owner, attribute, value, message in (
+                (chess, "__version__", "substituted", "version differs"),
+                (pgn, "__file__", "/ambient/chess/pgn.py", "origin differs"),
+                (pgn.__spec__, "origin", "/ambient/chess/pgn.py", "origin differs"),
+                (chess, "__path__", ["/ambient/chess"], "search path differs"),
+                (pgn, "chess", types.ModuleType("chess"), "absolute import substitution"),
+                (chess, "pgn", types.ModuleType("chess.pgn"), "package module substitution")):
+            with self.subTest(attribute=attribute):
+                previous = getattr(owner, attribute)
+                setattr(owner, attribute, value)
+                with self.assertRaisesRegex(PGN.tools.ChessToolError, message):
+                    self.load()
+                setattr(owner, attribute, previous)
+        sys.modules["chess.pgn"] = types.ModuleType("chess.pgn")
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "module substitution"):
+            self.load()
+
+    def test_unsafe_tar_paths_links_and_duplicate_names_are_refused(self) -> None:
+        # These archives test extraction rejection only; game validation always
+        # uses the exact official artifact acquired in setUpClass.
+        cases = [("../escape.py", tarfile.REGTYPE), ("/escape.py", tarfile.REGTYPE),
+                 ("chess-1.11.2/chess/../escape.py", tarfile.REGTYPE),
+                 ("chess-1.11.2/chess\\escape.py", tarfile.REGTYPE),
+                 ("chess-1.11.2/chess/pgn.py", tarfile.SYMTYPE),
+                 ("chess-1.11.2/chess/pgn.py", tarfile.LNKTYPE)]
+        for index, (name, kind) in enumerate(cases):
+            with self.subTest(name=name, kind=kind):
+                path = self.directory / f"unsafe-{index}.tar.gz"
+                with tarfile.open(path, "w:gz") as archive:
+                    member = tarfile.TarInfo(name)
+                    member.type = kind
+                    member.linkname = "/outside"
+                    archive.addfile(member, io.BytesIO(b""))
+                with self.assertRaisesRegex(PGN.tools.ChessToolError, "unsafe|links or special"):
+                    PGN._runtime_files(path, "1.11.2")
+        path = self.directory / "duplicate.tar.gz"
+        with tarfile.open(path, "w:gz") as archive:
+            for _ in range(2):
+                archive.addfile(tarfile.TarInfo("chess-1.11.2/chess/pgn.py"), io.BytesIO(b""))
+        with self.assertRaisesRegex(PGN.tools.ChessToolError, "duplicate"):
+            PGN._runtime_files(path, "1.11.2")
 
 
 if __name__ == "__main__":

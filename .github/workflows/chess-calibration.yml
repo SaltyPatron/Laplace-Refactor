@@ -62,7 +62,7 @@ jobs:
           python3 tools/dependencies/chess_benchmark.py run \
             --output "$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/measurements" \
             --hash-mib 16,64,256 --depth 12 --samples 3 --warmups 1 \
-            --games 16 --game-depth 8 --max-moves 12 --timeout 120 "${limits[@]}"
+            --games 16 --game-depth 8 --game-time-control 60 --timeout 600 --overall-timeout 1800 "${limits[@]}"
       - name: Retain exact execution context separately from product activation
         if: always()
         run: |
@@ -75,7 +75,7 @@ jobs:
           import subprocess
           output = Path(os.environ["RUNNER_TEMP"]) / f"chess-calibration-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
           output.mkdir(parents=True, exist_ok=True)
-          paths = ["dependencies/lock.json", "dependencies/artifact-lock.json", "dependencies/chess-release-selection.json", "tools/dependencies/chess_tools.py", "tools/dependencies/git_checkout.py", "tools/dependencies/chess_benchmark.py", "tools/dependencies/source_estate.py"]
+          paths = ["dependencies/lock.json", "dependencies/artifact-lock.json", "dependencies/chess-release-selection.json", "tools/dependencies/chess_tools.py", "tools/dependencies/git_checkout.py", "tools/dependencies/chess_benchmark.py", "tools/dependencies/chess_pgn.py", "tools/dependencies/source_estate.py"]
           context = {
               "schema": "laplace.chess-calibration-execution-context/v1",
               "scope": os.environ["CHESS_EVIDENCE_CONTEXT"],

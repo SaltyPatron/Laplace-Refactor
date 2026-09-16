@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Failure controls for resource admission and measured chess receipts."""
 import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
+import re
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -19,6 +23,20 @@ spec.loader.exec_module(BENCH)
 
 
 class ChessBenchmarks(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cache = Path(os.environ.get("LAPLACE_CHESS_VALIDATION_CACHE", "/build/laplace/work/chess-pgn-provider-test-cache"))
+        cls.provider = BENCH.chess_pgn.load_provider(cache)
+        # Real checkmate corpus from the same verified upstream archive. Only
+        # player labels are changed to match the benchmark's two engine slots.
+        with tarfile.open(cls.provider[2]["archive"]["path"], "r:gz") as archive:
+            fixture = archive.extractfile(f'chess-{cls.provider[2]["version"]}/data/pgn/molinari-bordais-1979.pgn')
+            assert fixture is not None
+            cls.upstream_pgn = fixture.read().decode("utf-8")
+
+    def validate(self, text, games=2, **kwargs):
+        return BENCH.validate_pgn(text, games, provider=self.provider, **kwargs)
+
     def test_measured_process_retains_selected_child_runtime(self):
         with tempfile.TemporaryDirectory() as temporary:
             transcript = Path(temporary) / "runtime.log"
@@ -219,24 +237,157 @@ class ChessBenchmarks(unittest.TestCase):
             BENCH.parse_bench(text.replace("Nodes searched : 1000\n", ""))
 
     def pgn(self):
-        return '\n'.join(f'[Event "Probe"]\n[White "{white}"]\n[Black "{black}"]\n[Result "1/2-1/2"]\n\n1. e4 e5 2. Nf3 Nc6 1/2-1/2\n' for white, black in [("Source-A", "Source-B"), ("Source-B", "Source-A")])
+        return '\n'.join(re.sub(r'^\[Black "[^"\n]+"\]$', f'[Black "{black}"]',
+                                re.sub(r'^\[White "[^"\n]+"\]$', f'[White "{white}"]', self.upstream_pgn, flags=re.M), flags=re.M)
+                         for white, black in [("Source-A", "Source-B"), ("Source-B", "Source-A")])
+
+    def capped_pgn(self):
+        return '\n'.join(f'[Event "Diagnostic"]\n[White "{white}"]\n[Black "{black}"]\n[Result "1/2-1/2"]\n'
+                         '[Termination "adjudication"]\n[PlyCount "4"]\n\n'
+                         '1. e4 e5 2. Nf3 Nc6 {Draw by adjudication: maximal game length} 1/2-1/2\n'
+                         for white, black in [("Source-A", "Source-B"), ("Source-B", "Source-A")])
 
     def test_pgn_counts_plies_and_rejects_unbalanced_colors(self):
-        self.assertEqual(BENCH.validate_pgn(self.pgn(), 2)["plies"], 8)
+        result = self.validate(self.pgn())
+        self.assertEqual(result["plies"], 20)
+        self.assertEqual(result["normal_completed_games"], 2)
+        self.assertEqual(result["capped_diagnostic_games"], 0)
+        self.assertTrue(result["legal_moves_validated"])
+        self.assertEqual({record["board_outcome"] for record in result["records"]}, {"CHECKMATE"})
         with self.assertRaisesRegex(BENCH.tools.ChessToolError, "pairing"):
-            BENCH.validate_pgn(self.pgn().replace('[White "Source-B"]', '[White "Source-A"]'), 2)
+            self.validate(self.pgn().replace('[White "Source-B"]', '[White "Source-A"]'))
 
     def test_crashed_and_unfinished_games_cannot_pass(self):
         with self.assertRaisesRegex(BENCH.tools.ChessToolError, "unfinished"):
-            BENCH.validate_pgn(self.pgn().replace('[Result "1/2-1/2"]', '[Result "*"]'), 2)
+            self.validate(self.pgn().replace('[Result "0-1"]', '[Result "*"]'))
         with self.assertRaisesRegex(BENCH.tools.ChessToolError, "failure"):
-            BENCH.validate_pgn(self.pgn() + "{Engine disconnected}", 2)
+            self.validate(self.pgn() + "{Engine disconnected}")
+
+    def test_declared_result_without_legal_terminal_position_is_refused(self):
+        unfinished = self.capped_pgn().replace('[Termination "adjudication"]\n', '').replace('{Draw by adjudication: maximal game length}', '')
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, "terminal outcome"):
+            self.validate(unfinished)
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, "terminal outcome"):
+            self.validate(self.pgn().replace('0-1', '1-0'))
+
+    def test_legal_draw_claim_is_validated_from_complete_history(self):
+        text = '\n'.join(f'[Event "Repetition"]\n[White "{white}"]\n[Black "{black}"]\n[Result "1/2-1/2"]\n\n'
+                         '1. Nf3 Nf6 2. Ng1 Ng8 3. Nf3 Nf6 4. Ng1 Ng8 1/2-1/2\n'
+                         for white, black in [("Source-A", "Source-B"), ("Source-B", "Source-A")])
+        result = self.validate(text)
+        self.assertEqual(result["normal_completed_games"], 2)
+        self.assertEqual({record["board_outcome"] for record in result["records"]}, {"THREEFOLD_REPETITION"})
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, "terminal outcome"):
+            self.validate(text.replace('3. Nf3 Nf6 4. Ng1 Ng8 ', ''))
+
+    def test_illegal_null_and_unaccounted_moves_cannot_pass(self):
+        for old, new in [('1. e4', '1. e5'), ('1. e4', '1. --'), ('1. e4', '1. e4garbage'), ('1. e4', '1. e4 garbage')]:
+            with self.subTest(new=new), self.assertRaises(BENCH.tools.ChessToolError):
+                self.validate(self.pgn().replace(old, new))
+        with self.assertRaises(BENCH.tools.ChessToolError):
+            self.validate(self.pgn().replace('Nd3# 0-1', 'Nd3# 6. Kg2 0-1'))
+
+    def test_result_marker_and_exact_ply_count_are_bound(self):
+        for changed in [self.pgn().replace('Nd3# 0-1', 'Nd3# 1-0'), self.pgn().replace('Nd3# 0-1', 'Nd3#'),
+                        self.pgn().replace('[PlyCount "10"]', '[PlyCount "9"]'),
+                        self.pgn().replace('[Result "0-1"]', '[Result "0-1"]\n[Result "0-1"]')]:
+            with self.subTest(changed=changed[:100]), self.assertRaises(BENCH.tools.ChessToolError):
+                self.validate(changed)
+
+    def test_terminal_fen_does_not_impersonate_standard_start_game(self):
+        text = '[Event "Truncated"]\n[White "Source-A"]\n[Black "Source-B"]\n[Result "0-1"]\n[SetUp "1"]\n[FEN "8/8/8/8/8/5k2/6q1/7K w - - 0 1"]\n\n0-1\n'
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, "standard initial position"):
+            self.validate(text)
+
+    def test_cap_is_accepted_only_as_explicit_exact_diagnostic(self):
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, "non-normal"):
+            self.validate(self.capped_pgn())
+        result = self.validate(self.capped_pgn(), diagnostic=True, max_moves=2)
+        self.assertEqual((result["normal_completed_games"], result["capped_diagnostic_games"], result["plies"]), (0, 2, 8))
+        for changed, cap in [(self.capped_pgn(), 3), (self.capped_pgn().replace('maximal game length', 'evaluation'), 2),
+                             (self.capped_pgn().replace('1. e4', '1. e5'), 2)]:
+            with self.subTest(cap=cap), self.assertRaises(BENCH.tools.ChessToolError):
+                self.validate(changed, diagnostic=True, max_moves=cap)
+
+    def test_normal_command_is_uncapped_and_retains_search_and_time_controls(self):
+        arguments = BENCH.argument_parser().parse_args(['run', '--output', '/unused'])
+        configuration = {"threads": 1, "hash_mib": 16, "concurrency": 1}
+        command = BENCH.cutechess_command(arguments, configuration, '/cutechess', '/stockfish', Path('/game.pgn'))
+        self.assertIsNone(arguments.max_moves)
+        self.assertNotIn('-maxmoves', command)
+        self.assertNotIn('-resign', command)
+        self.assertNotIn('-draw', command)
+        self.assertIn(f'depth={arguments.game_depth}', command)
+        self.assertIn('tc=60', command)
+        arguments.max_moves = 2
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, '--diagnostic'):
+            BENCH.cutechess_command(arguments, configuration, '/cutechess', '/stockfish', Path('/game.pgn'))
+        arguments.diagnostic = True
+        command = BENCH.cutechess_command(arguments, configuration, '/cutechess', '/stockfish', Path('/game.pgn'))
+        self.assertEqual(command[command.index('-maxmoves') + 1], '2')
+
+    def test_diagnostic_rates_never_supply_full_game_recommendation(self):
+        arguments = BENCH.argument_parser().parse_args(['run', '--output', '/unused', '--diagnostic', '--max-moves', '2'])
+        validation = self.validate(self.capped_pgn(), diagnostic=True, max_moves=2)
+        rates = BENCH.game_rates(validation, 2, True)
+        self.assertEqual(rates, {"diagnostic_episodes_per_second": 1, "plies_per_second": 4})
+        with self.assertRaisesRegex(BENCH.tools.ChessToolError, "full-game throughput"):
+            BENCH.game_rates(validation, 2, False)
+        recommendation = BENCH.recommendations([{"wall_seconds_median": 1}], [{"median_diagnostic_episodes_per_second": 99}], BENCH.game_workload(arguments))
+        self.assertIsNone(recommendation['aggregate_game_throughput'])
+        self.assertFalse(recommendation['database_recording_capacity_measured'])
+        self.assertIsNone(recommendation['game_workload']['database_recording']['recorded_games'])
+        full = BENCH.game_rates(self.validate(self.pgn()), 2, False)
+        self.assertEqual(full, {"normal_completed_games_per_second": 1, "plies_per_second": 10})
+
+    def test_overall_budget_limits_each_case_and_refuses_another_after_expiry(self):
+        with patch.object(BENCH.time, 'monotonic', return_value=90):
+            self.assertEqual(BENCH.remaining_timeout(100, 600), 10)
+            self.assertEqual(BENCH.remaining_timeout(100, 5), 5)
+        with patch.object(BENCH.time, 'monotonic', return_value=100), self.assertRaisesRegex(BENCH.tools.ChessToolError, 'overall benchmark timeout'):
+            BENCH.remaining_timeout(100, 600)
+
+    def test_actual_timed_out_child_retains_failed_case_metrics_and_no_recommendation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'src').mkdir()
+            (root / 'src/benchmark.cpp').write_text('failure-control fixture\n')
+            installation = {'tools': {'stockfish': {'executable': sys.executable, 'source': str(root)},
+                                      'cutechess': {'executable': sys.executable}}}
+            output = root / 'result'
+            argv = ['chess_benchmark.py', 'run', '--output', str(output), '--samples', '2', '--warmups', '0',
+                    '--games', '2', '--threads', '1', '--hash-mib', '16', '--concurrency', '1',
+                    '--cpu-budget', '1', '--memory-mib', '1024', '--timeout', '0.15', '--overall-timeout', '5']
+            actual_measurement = BENCH.measured_process
+            def timed_out_child(command, transcript, host, timeout, memory, *args, **kwargs):
+                return actual_measurement([sys.executable, '-c', 'import time; time.sleep(10)'],
+                                          transcript, host, timeout, memory)
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(patch.object(sys, 'argv', argv))
+                stack.enter_context(patch.object(BENCH, 'host_observation', return_value=self.host()))
+                stack.enter_context(patch.object(BENCH.tools, 'verify_installation', return_value=installation))
+                stack.enter_context(patch.object(BENCH.tools, 'execute', return_value='option name Threads type spin default 1 min 1 max 8\noption name Hash type spin default 16 min 1 max 1024\nuciok\nreadyok\n'))
+                stack.enter_context(patch.object(BENCH.chess_pgn, 'load_provider', return_value=self.provider))
+                stack.enter_context(patch.object(BENCH, 'measured_process', side_effect=timed_out_child))
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                self.assertEqual(BENCH.main(), 1)
+            receipt = json.loads((output / 'receipt.json').read_text())
+            self.assertIsNone(receipt['recommendations'])
+            self.assertEqual(receipt['failed_case']['profile'], 'stockfish')
+            self.assertEqual(receipt['failed_case']['measurement']['completion'], 'timeout')
+            self.assertGreater(receipt['failed_case']['measurement']['wall_seconds'], 0)
+            self.assertNotEqual(receipt['failed_case']['measurement']['exit_code'], 0)
+            self.assertTrue(Path(receipt['failed_case']['measurement']['transcript']).is_file())
+            self.assertEqual(receipt['stockfish_samples'], [])
 
     def test_warmups_do_not_affect_summary(self):
-        sample = {"configuration": {"threads": 1}, "sampled_peak": {"rss_bytes": 100}, "user_cpu_seconds": 1, "system_cpu_seconds": 0, "wall_seconds": 1}
+        sample = {"configuration": {"threads": 1}, "sampled_peak": {"rss_bytes": 100}, "user_cpu_seconds": 1, "system_cpu_seconds": 0, "wall_seconds": 1,
+                  "games": 2, "normal_completed_games": 2, "capped_diagnostic_games": 0, "plies": 20}
         values = [{**sample, "warmup": True, "rate": 1000000}, {**sample, "warmup": False, "rate": 2}, {**sample, "warmup": False, "rate": 4}]
         result = BENCH.aggregates(values, "median_rate", "rate")[0]
         self.assertEqual((result["samples"], result["median_rate"]), (2, 3))
+        self.assertEqual((result["total_games"], result["total_normal_completed_games"], result["total_capped_diagnostic_games"], result["total_plies"], result["total_wall_seconds"]), (4, 4, 0, 40, 2))
 
     def test_timeout_kills_measured_process_group(self):
         with tempfile.TemporaryDirectory() as temporary:
