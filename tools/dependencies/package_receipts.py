@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
 import stat
 import subprocess
+import sys
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
@@ -61,11 +63,91 @@ def path_is_within(path: Path, prefix: Path) -> bool:
     return True
 
 
+COMPOSED_TOOLCHAIN_SCHEMA = "laplace.toolchain-package-receipt/v2"
+COMPOSED_MANIFEST_SCHEMA = "laplace.toolchain-consumer-manifest/v2"
+RETAINED_TOOLCHAIN_SCHEMA = "laplace.published-toolchain-inputs/v2"
+
+
+def authenticate_composed_toolchain(
+    receipt: dict[str, Any], receipt_path: Path
+) -> dict[str, Any]:
+    """Delegate component qualification and immutable-root proof to its owner."""
+    owner_path = Path(__file__).resolve().parents[1] / "toolchain/build-package.py"
+    name = "laplace_composed_toolchain_receipt_owner"
+    owner = sys.modules.get(name)
+    if owner is None:
+        specification = importlib.util.spec_from_file_location(name, owner_path)
+        if specification is None or specification.loader is None:
+            raise ReceiptError("canonical toolchain receipt verifier is unavailable")
+        owner = importlib.util.module_from_spec(specification)
+        sys.modules[name] = owner
+        try:
+            specification.loader.exec_module(owner)
+        except BaseException:
+            sys.modules.pop(name, None)
+            raise
+    try:
+        return owner.verify_composed_toolchain_receipt(receipt, receipt_path)
+    except (RuntimeError, ValueError, OSError, KeyError, TypeError) as error:
+        raise ReceiptError(f"composed toolchain authentication failed: {error}") from error
+
+
+def toolchain_provider_prefixes(selection: Mapping[str, Any]) -> list[str]:
+    """CMake wins implicit lookup; the unchanged base still owns binutils."""
+    roots = selection.get("provider_roots")
+    if roots is None and selection.get("schema") != COMPOSED_TOOLCHAIN_SCHEMA:
+        return [require_string(selection.get("prefix"), "toolchain.prefix")]
+    if not isinstance(roots, dict) or set(roots) != {"base", "cmake"}:
+        raise ReceiptError("composed toolchain must retain exactly base and cmake roots")
+    prefixes = [
+        require_string(roots[name].get("prefix"), f"toolchain.provider_roots.{name}.prefix")
+        for name in ("cmake", "base")
+    ]
+    if selection.get("prefix") != roots["base"]["prefix"]:
+        raise ReceiptError("composed toolchain binutils prefix differs from its base")
+    return prefixes
+
+
+def verify_retained_toolchain(
+    published: Mapping[str, Any], selected: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Reauthenticate in-place providers; publication copies only receipt bytes."""
+    if not isinstance(selected, Mapping):
+        raise ReceiptError("selected toolchain provider record is absent")
+    if published.get("schema") != RETAINED_TOOLCHAIN_SCHEMA:
+        raise ReceiptError("retained toolchain provider schema differs")
+    receipt_path = Path(require_string(published.get("source_receipt"), "toolchain.source_receipt"))
+    digest = require_string(published.get("source_receipt_sha256"), "toolchain.source_receipt_sha256")
+    if (not receipt_path.is_absolute() or receipt_path.is_symlink()
+            or not receipt_path.is_file() or not re.fullmatch(r"[0-9a-f]{64}", digest)
+            or sha256_file(receipt_path) != digest):
+        raise ReceiptError("retained toolchain receipt bytes differ")
+    receipt = read_json(receipt_path)
+    manifest = authenticate_composed_toolchain(receipt, receipt_path)
+    if (selected.get("schema") != COMPOSED_TOOLCHAIN_SCHEMA
+            or selected.get("build_input_id") != receipt.get("build_input_id")
+            or selected.get("receipt_sha256") != digest
+            or published.get("provider_roots") != manifest["provider_roots"]
+            or selected.get("provider_roots") != manifest["provider_roots"]
+            or selected.get("prefix") != manifest["provider_roots"]["base"]["prefix"]):
+        raise ReceiptError("retained toolchain differs from the selected provider roots")
+    tools = selected.get("tools")
+    if not isinstance(tools, dict) or not tools:
+        raise ReceiptError("retained toolchain omits selected tools")
+    for name, tool in tools.items():
+        if tool != manifest["tools"].get(name):
+            raise ReceiptError(f"retained toolchain selected tool differs: {name}")
+    return manifest
+
+
 def verify_toolchain_package_receipt(
     expected: Mapping[str, Any], receipt_path: Path
 ) -> dict[str, Any]:
     receipt = read_json(receipt_path)
-    if receipt.get("schema") != expected.get("receipt_schema"):
+    composed = receipt.get("schema") == COMPOSED_TOOLCHAIN_SCHEMA
+    if composed:
+        authenticate_composed_toolchain(receipt, receipt_path)
+    if not composed and receipt.get("schema") != expected.get("receipt_schema"):
         raise ReceiptError("toolchain receipt schema mismatch")
     build_input_id = require_string(receipt.get("build_input_id"), "toolchain.build_input_id")
     if not re.fullmatch(r"[0-9a-f]{64}", build_input_id):
@@ -77,16 +159,20 @@ def verify_toolchain_package_receipt(
         raise ReceiptError(
             "toolchain receipt package, consumer_manifest, and activation are required"
         )
-    prefix = Path(require_string(package.get("prefix"), "toolchain.package.prefix"))
+    roots = manifest["provider_roots"] if composed else None
+    prefix = Path(require_string(
+        roots["base"]["prefix"] if composed else package.get("prefix"), "toolchain.package.prefix"
+    ))
     if not prefix.is_absolute() or not prefix.is_dir() or prefix.is_symlink():
         raise ReceiptError(
             "toolchain package prefix must be an existing physical absolute directory"
         )
-    if manifest.get("schema") != expected.get("consumer_manifest_schema"):
+    manifest_schema = COMPOSED_MANIFEST_SCHEMA if composed else expected.get("consumer_manifest_schema")
+    if manifest.get("schema") != manifest_schema:
         raise ReceiptError("toolchain consumer manifest schema mismatch")
     if manifest.get("build_input_id") != build_input_id:
         raise ReceiptError("toolchain receipt and consumer manifest build_input_id differ")
-    if manifest.get("prefix") != str(prefix):
+    if not composed and manifest.get("prefix") != str(prefix):
         raise ReceiptError("toolchain receipt and consumer manifest prefix differ")
     if activation.get("scope") != "build-toolchain-only":
         raise ReceiptError("toolchain activation scope must be build-toolchain-only")
@@ -106,13 +192,16 @@ def verify_toolchain_package_receipt(
         path = Path(require_string(tool.get("path"), f"toolchain.tools.{name}.path"))
         digest = require_string(tool.get("sha256"), f"toolchain.tools.{name}.sha256")
         version = require_string(tool.get("version"), f"toolchain.tools.{name}.version")
-        if not path.is_absolute() or not path_is_within(path, prefix):
+        provider_prefix = Path(roots[tool["provider_root"]]["prefix"]) if composed else prefix
+        if not path.is_absolute() or not path_is_within(path, provider_prefix):
             raise ReceiptError(f"toolchain tool is outside its package prefix: {name}")
         if not path.is_file() or not os.access(path, os.X_OK):
             raise ReceiptError(f"toolchain tool is not executable: {name}")
         if not re.fullmatch(r"[0-9a-f]{64}", digest) or sha256_file(path) != digest:
             raise ReceiptError(f"toolchain tool digest mismatch: {name}")
         selected[name] = {"path": str(path), "sha256": digest, "version": version}
+        if composed:
+            selected[name]["provider_root"] = tool["provider_root"]
     modules = manifest.get("perl_modules", {})
     required_modules = expected.get("required_perl_modules", {})
     if not isinstance(modules, dict) or not isinstance(required_modules, dict):
@@ -312,6 +401,7 @@ def verify_toolchain_package_receipt(
             for index, alias in enumerate(aliases)
         ]
     return {
+        **({"schema": COMPOSED_TOOLCHAIN_SCHEMA, "provider_roots": roots} if composed else {}),
         "receipt_path": str(receipt_path.resolve()),
         "receipt_sha256": sha256_file(receipt_path),
         "build_input_id": build_input_id,

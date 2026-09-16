@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from postgresql_build_tests import composed_consumer_fixture
+
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPOSITORY / "tools/product/build-package.py"
@@ -44,6 +46,57 @@ class ProductPackageTests(unittest.TestCase):
             "sha256": PACKAGE.sha256_file(source),
             "soname": soname,
         }
+
+    def composed_product_inputs(self) -> tuple[dict, dict, dict]:
+        receipt_path, _, manifest, selected = composed_consumer_fixture(self.root / "composition")
+        copied_receipt = self.root / "published-toolchain-receipt.json"
+        copied_receipt.write_bytes(receipt_path.read_bytes())
+        publication = {"toolchain": {
+            "schema": PACKAGE.toolchain_receipts.RETAINED_TOOLCHAIN_SCHEMA,
+            "provider_roots": manifest["provider_roots"],
+            "source_receipt": str(copied_receipt),
+            "source_receipt_sha256": PACKAGE.sha256_file(copied_receipt),
+        }}
+        return {"build_toolchain": selected}, publication, manifest
+
+    def test_composed_product_uses_exact_retained_paths_and_readonly_mounts(self) -> None:
+        postgresql, publication, manifest = self.composed_product_inputs()
+        selected = PACKAGE.verify_product_toolchain(postgresql, publication)
+        self.assertEqual(selected["provider_roots"], manifest["provider_roots"])
+        for name, record in selected["tools"].items():
+            self.assertEqual(record, manifest["tools"][name])
+        self.assertEqual(
+            PACKAGE.toolchain_receipts.toolchain_provider_prefixes(selected),
+            [manifest["provider_roots"][name]["prefix"] for name in ("cmake", "base")],
+        )
+        plan = {
+            "repository_root": str(REPOSITORY), "product_toolchain": selected,
+            "build_directory": str(self.root / "build"),
+            "stage_directory": str(self.root / "stage"),
+            "host_build_provider": {"roots": [{"path": "/usr"}], "files": []},
+            "build_input_roots": {}, "build_input_files": {},
+        }
+        command = [selected["tools"]["cmake"]["path"], "--version"]
+        sandbox = PACKAGE.sandboxed_build_command(self.contract, plan, command, REPOSITORY)
+        mounts = [sandbox[index:index + 3] for index in range(len(sandbox) - 2)]
+        for record in manifest["provider_roots"].values():
+            self.assertIn(["--ro-bind", record["prefix"], record["prefix"]], mounts)
+            self.assertNotIn(["--bind", record["prefix"], record["prefix"]], mounts)
+        self.assertEqual(sandbox[-len(command):], command)
+
+    def test_composed_product_rejects_changed_root_binding(self) -> None:
+        postgresql, publication, _ = self.composed_product_inputs()
+        publication = copy.deepcopy(publication)
+        publication["toolchain"]["provider_roots"]["cmake"]["prefix"] = str(self.root / "redirected")
+        with self.assertRaisesRegex(PACKAGE.ProductPackageError, "selected provider roots"):
+            PACKAGE.verify_product_toolchain(postgresql, publication)
+
+    def test_composed_product_rechecks_original_cmake_bytes(self) -> None:
+        postgresql, publication, manifest = self.composed_product_inputs()
+        tool = Path(manifest["tools"]["cmake"]["path"])
+        tool.write_bytes(tool.read_bytes() + b"\n# changed after publication\n")
+        with self.assertRaises(PACKAGE.ProductPackageError):
+            PACKAGE.verify_product_toolchain(postgresql, publication)
 
     def test_current_contract_is_exact(self) -> None:
         PACKAGE.validate_contract(self.contract)
