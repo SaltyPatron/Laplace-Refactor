@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import pwd
 import subprocess
 from pathlib import Path
 import sys
@@ -289,6 +290,206 @@ class PackageTests(unittest.TestCase):
                 subject.retain_activation(source,self.commit,store)
             self.assertEqual(target.read_text(),'conflict')
 
+
+
+class NativeReceiptEstateTests(unittest.TestCase):
+    """Actual receipt files/moves and validators; no installed PostgreSQL claim."""
+    def setUp(self):
+        self.temporary=tempfile.TemporaryDirectory(dir=SCRATCH)
+        self.addCleanup(self.temporary.cleanup)
+        self.root=Path(self.temporary.name)/'receipts/postgresql/refactor'
+        self.root.mkdir(parents=True)
+        binding=PackageTests();binding.setUp()
+        for key in ('commit','package','manifest','installation','aggregate'):
+            setattr(self,key,copy.deepcopy(getattr(binding,key)))
+        self.plan={'plan_sha256':'3'*64}
+        self.cluster={'plan_sha256':self.plan['plan_sha256'],
+            'activation_receipt_sha256':'4'*64,'system_identifier':'123456789'}
+        self.unicode={'schema':subject.runner.unicodectl.RECEIPT_SCHEMA,'phase':'product-activated',
+            'package_id':self.package,'restart_proven':True,'cold_public_readback_proven':True,
+            'reverse_inversion_proven':True,'system_identifier':self.cluster['system_identifier'],
+            'cluster_plan_sha256':self.plan['plan_sha256'],
+            'cluster_activation_receipt_sha256':self.cluster['activation_receipt_sha256']}
+        self.unicode['receipt_sha256']=subject.runner.unicodectl.document_identity(
+            self.unicode,'receipt_sha256')
+        self.highway={'schema':subject.runner.highwayctl.RECEIPT_SCHEMA,'phase':'product-activated',
+            'package_id':self.package,'restart_proven':True,'cold_application_readback_proven':True,
+            'system_identifier':self.cluster['system_identifier'],
+            'cluster_plan_sha256':self.plan['plan_sha256'],
+            'cluster_activation_receipt_sha256':self.cluster['activation_receipt_sha256'],
+            'unicode_activation_receipt_sha256':self.unicode['receipt_sha256']}
+        self.highway['receipt_sha256']=subject.runner.unicodectl.document_identity(
+            self.highway,'receipt_sha256')
+        self.write_generation()
+
+    def write(self,path,document):
+        path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_bytes(json.dumps(document,indent=3).encode()+b'\n')
+
+    def write_generation(self):
+        self.highway_name=('highway-committed-revalidation.json'
+            if self.highway['schema']==subject.activation.HIGHWAY_REVALIDATION_SCHEMA
+            else 'highway-product-activation.json')
+        self.write(self.root/'unicode-product-activation.json',self.unicode)
+        self.write(self.root/self.highway_name,self.highway)
+        self.aggregate.update(subject.activation.highway_aggregate_fields(self.highway))
+        self.aggregate.update({
+            'cluster_activation_receipt_sha256':self.cluster['activation_receipt_sha256'],
+            'unicode_activation_receipt_sha256':self.unicode['receipt_sha256'],
+            'cluster_result':str(self.root/'cluster-activation'/self.package/'activation-result.json'),
+            'unicode_result':str(self.root/'unicode-product-activation.json'),
+            'highway_result':str(self.root/self.highway_name)})
+        self.write_aggregate()
+
+    def write_aggregate(self):
+        aggregate_root=self.root/'product-activation'/self.commit/self.package
+        if aggregate_root.exists():
+            for path in aggregate_root.glob('*.json'):path.unlink()
+        self.aggregate['result_sha256']=subject.runner.document_identity(self.aggregate,'result_sha256')
+        self.aggregate_path=aggregate_root/(self.aggregate['result_sha256']+'.json')
+        self.write(self.aggregate_path,self.aggregate)
+
+    def observe(self):
+        return subject.observe_native_receipts(self.root,self.commit,self.package,
+            self.manifest,self.installation,self.plan,self.cluster)
+
+    def converge(self):
+        from delivery import receipt_estate_runner
+        # The production owner still performs every real filesystem operation;
+        # only the expected account name is mapped to this test process account.
+        with mock.patch.object(receipt_estate_runner,'RUNNER_USER',pwd.getpwuid(os.geteuid()).pw_name):
+            return receipt_estate_runner.converge({'instance':{'receipt_directory':str(self.root)}})
+
+    def test_real_runner_convergence_preserves_exact_authenticated_observation(self):
+        original=self.aggregate_path.read_bytes()
+        before=self.observe()
+        unicode_bytes=(self.root/'unicode-product-activation.json').read_bytes()
+        highway_bytes=(self.root/self.highway_name).read_bytes()
+        migrated=self.converge()
+        after=self.observe()
+        generation=self.root/'cluster-activation'/self.package
+        self.assertEqual(migrated['migration_count'],2)
+        self.assertFalse((self.root/'unicode-product-activation.json').exists())
+        self.assertFalse((self.root/self.highway_name).exists())
+        self.assertEqual((generation/'unicode-product-activation.json').read_bytes(),unicode_bytes)
+        self.assertEqual((generation/self.highway_name).read_bytes(),highway_bytes)
+        self.assertEqual(before[:2],after[:2])
+        self.assertEqual(after[2][0][1],self.aggregate)
+        self.assertEqual(after[2][0][0],self.aggregate_path)
+        self.assertEqual(self.aggregate_path.read_bytes(),original)
+        self.assertEqual(after[3],{'unicode':str(generation/'unicode-product-activation.json'),
+            'highway':str(generation/self.highway_name)})
+        self.assertEqual(self.converge()['migration_count'],0)
+        self.assertEqual(self.observe(),after)
+
+    def test_identical_dual_copies_are_accepted_but_even_whitespace_conflict_is_rejected(self):
+        source=self.root/'unicode-product-activation.json'
+        target=self.root/'cluster-activation'/self.package/source.name
+        target.parent.mkdir(parents=True)
+        target.write_bytes(source.read_bytes())
+        self.assertEqual(self.observe()[3]['unicode'],str(target))
+        target.write_bytes(target.read_bytes()+b' ')
+        with self.assertRaisesRegex(ValueError,'bytes conflict'):self.observe()
+        self.assertTrue(source.is_file());self.assertTrue(target.is_file())
+
+    def test_unsafe_or_malformed_present_copy_cannot_fall_back_to_valid_copy(self):
+        source=self.root/'unicode-product-activation.json'
+        target=self.root/'cluster-activation'/self.package/source.name
+        target.parent.mkdir(parents=True)
+        data=source.read_bytes()
+        for bad,good in ((source,target),(target,source)):
+            for kind in ('symlink','malformed','wrong-package'):
+                with self.subTest(path=bad,kind=kind):
+                    for path in (source,target):
+                        if path.exists() or path.is_symlink():path.unlink()
+                    good.write_bytes(data)
+                    if kind=='symlink':bad.symlink_to(good)
+                    elif kind=='malformed':bad.write_bytes(b'{broken')
+                    else:
+                        other=copy.deepcopy(self.unicode);other['package_id']='9'*64
+                        self.write(bad,other)
+                    with self.assertRaises((ValueError,json.JSONDecodeError)):self.observe()
+        for path in (source,target):
+            if path.exists() or path.is_symlink():path.unlink()
+        source.write_bytes(data)
+        target.parent.rmdir()
+        outside=Path(self.temporary.name)/'outside';outside.mkdir()
+        (outside/source.name).write_bytes(data)
+        target.parent.symlink_to(outside,target_is_directory=True)
+        with self.assertRaisesRegex(ValueError,'directory is unsafe'):self.observe()
+
+    def test_canonical_native_digest_and_cluster_links_remain_required(self):
+        self.converge()
+        target=self.root/'cluster-activation'/self.package/'unicode-product-activation.json'
+        for kind in ('digest','cluster-link'):
+            with self.subTest(kind=kind):
+                value=copy.deepcopy(self.unicode)
+                if kind=='digest':value['receipt_sha256']='9'*64
+                else:
+                    value['cluster_activation_receipt_sha256']='9'*64
+                    value['receipt_sha256']=subject.runner.unicodectl.document_identity(value,'receipt_sha256')
+                    self.aggregate['unicode_activation_receipt_sha256']=value['receipt_sha256']
+                    self.highway['unicode_activation_receipt_sha256']=value['receipt_sha256']
+                    self.highway['receipt_sha256']=subject.runner.unicodectl.document_identity(
+                        self.highway,'receipt_sha256')
+                    self.aggregate.update(subject.activation.highway_aggregate_fields(self.highway))
+                    self.write_aggregate()
+                    self.write(target.parent/self.highway_name,self.highway)
+                self.write(target,value)
+                with self.assertRaises((ValueError,subject.runner.RunnerActivationError)):self.observe()
+
+    def test_authenticated_aggregate_keeps_original_paths_and_digest_after_move(self):
+        self.converge()
+        original=copy.deepcopy(self.aggregate)
+        for field in ('cluster_result','unicode_result','highway_result'):
+            with self.subTest(field=field):
+                self.aggregate=copy.deepcopy(original)
+                self.aggregate[field]=str(self.root/'cluster-activation'/self.package/Path(original[field]).name
+                    if field!='cluster_result' else self.root/'activation-result.json')
+                self.write_aggregate()
+                with self.assertRaisesRegex(ValueError,'receipt paths differ'):self.observe()
+        self.aggregate=copy.deepcopy(original);self.write_aggregate()
+        forged=copy.deepcopy(self.aggregate);forged['result_sha256']='8'*64
+        self.write(self.aggregate_path,forged)
+        with self.assertRaises(ValueError):self.observe()
+        self.write(self.aggregate_path,self.aggregate)
+        wrong_address=self.aggregate_path.with_name('9'*64+'.json')
+        self.aggregate_path.rename(wrong_address)
+        with self.assertRaisesRegex(ValueError,'address differs'):self.observe()
+
+    def test_mixed_and_fully_converged_revalidation_use_unchanged_producer_proof(self):
+        import product_activation_runtime_adapter_tests as recovery_fixture
+        highway=recovery_fixture.producer_revalidation(self)
+        self.cluster['system_identifier']=highway['system_identifier']
+        self.unicode['system_identifier']=highway['system_identifier']
+        self.unicode['receipt_sha256']=subject.runner.unicodectl.document_identity(
+            self.unicode,'receipt_sha256')
+        links={'package_id':self.package,'cluster_plan_sha256':self.plan['plan_sha256'],
+            'cluster_activation_receipt_sha256':self.cluster['activation_receipt_sha256'],
+            'unicode_activation_receipt_sha256':self.unicode['receipt_sha256']}
+        highway.update(links);highway['revalidation_request'].update(links)
+        recovery_fixture.resign_revalidation(highway)
+        (self.root/self.highway_name).unlink()
+        self.aggregate.pop('highway_activation_receipt_sha256')
+        self.highway=highway;self.write_generation()
+        original=self.aggregate_path.read_bytes()
+        before=self.observe()
+        # Construct an actual partial migration explicitly. The ordinary runner
+        # now converges both Unicode and committed revalidation in one call.
+        moved=[]
+        subject.receipt_estate.migrate_singleton_product_receipt(
+            self.root/'unicode-product-activation.json', self.root/'cluster-activation',
+            'unicode-product-activation.json',os.geteuid(),os.getegid(),False,moved)
+        self.assertEqual(len(moved),1)
+        mixed=self.observe()
+        self.assertEqual(mixed[:2],before[:2])
+        self.assertEqual(mixed[3]['highway'],str(self.root/self.highway_name))
+        self.assertEqual(self.converge()['migration_count'],1)
+        after=self.observe()
+        self.assertEqual(after[:2],before[:2])
+        self.assertEqual(after[3]['highway'],str(self.root/'cluster-activation'/self.package/self.highway_name))
+        self.assertEqual(after[2][0][1],self.aggregate)
+        self.assertEqual(self.aggregate_path.read_bytes(),original)
 
 class LoadedPlanTests(unittest.TestCase):
     def test_runtime_selection_uses_activated_build_receipt_independent_of_stockfish_location(self):

@@ -2,7 +2,7 @@
 """Converge runner-owned package evidence after recurring product activation.
 
 Recurring activation collapses package-specific evidence into the existing
-`cluster-activation/<package-id>` generation. It also absorbs historical root-level
+`cluster-activation/<package-id>` generation. With --package-id, only that package\nmay move; other package entries remain uninspected and are reported as preserved.\nWithout a selection it also absorbs historical root-level
 `packages` and `plans` when those roots are actually readable/writable by the runner.
 The obsolete `deployments` directory is removed with atomic `rmdir` only when it is a
 physical empty child of the writable receipt parent. Inaccessible, nonempty, unknown,
@@ -54,7 +54,13 @@ def accessible_directory(path: Path) -> bool:
     )
 
 
-def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
+def converge(
+    cluster_contract: dict[str, Any], *, package_id: str | None = None
+) -> dict[str, Any]:
+    if package_id is not None and (
+        not isinstance(package_id, str) or estate.HEX_256.fullmatch(package_id) is None
+    ):
+        raise RunnerReceiptEstateError("selected package identity must be 64 lowercase hexadecimal characters")
     expected = pwd.getpwnam(RUNNER_USER)
     if os.geteuid() != expected.pw_uid:
         actual = pwd.getpwuid(os.geteuid()).pw_name
@@ -94,6 +100,7 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
                 migrated,
                 preserved,
                 removed,
+                selected_package_id=package_id,
             )
         else:
             preserved.append(str(packages))
@@ -111,6 +118,7 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
                 migrated,
                 preserved,
                 removed,
+                selected_package_id=package_id,
             )
         else:
             preserved.append(str(plans))
@@ -125,6 +133,7 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
         migrated,
         preserved,
         removed,
+        selected_package_id=package_id,
     )
     estate.migrate_named_package_leaf(
         instance_root / "release-capacity",
@@ -137,6 +146,7 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
         migrated,
         preserved,
         removed,
+        selected_package_id=package_id,
     )
     estate.migrate_named_package_leaf(
         instance_root / "product-cognition",
@@ -149,6 +159,7 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
         migrated,
         preserved,
         removed,
+        selected_package_id=package_id,
     )
     estate.migrate_singleton_product_receipt(
         instance_root / "unicode-product-activation.json",
@@ -158,6 +169,7 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
         expected.pw_gid,
         False,
         migrated,
+        selected_package_id=package_id,
     )
     estate.migrate_singleton_product_receipt(
         instance_root / "highway-product-activation.json",
@@ -167,11 +179,23 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
         expected.pw_gid,
         False,
         migrated,
+        selected_package_id=package_id,
+    )
+
+    estate.migrate_singleton_product_receipt(
+        instance_root / "highway-committed-revalidation.json",
+        canonical_root,
+        "highway-committed-revalidation.json",
+        expected.pw_uid,
+        expected.pw_gid,
+        False,
+        migrated,
+        selected_package_id=package_id,
     )
 
     deployments = receipt_root / "deployments"
     if deployments.exists() or deployments.is_symlink():
-        if deployments.is_symlink() or not deployments.is_dir():
+        if package_id is not None or deployments.is_symlink() or not deployments.is_dir():
             preserved.append(str(deployments))
         else:
             try:
@@ -185,6 +209,12 @@ def converge(cluster_contract: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schema": "laplace.runner-receipt-estate-convergence/v1",
         "canonical_package_evidence_root": str(canonical_root),
+        "scope": "selected-package" if package_id is not None else "entire-estate",
+        "selected_package_id": package_id,
+        "preservation_scope": (
+            "Unselected package entries remain uninspected and unchanged; selected conflicts still fail."
+            if package_id is not None else "All accessible package entries are considered."
+        ),
         "migrated": migrated,
         "removed_empty_legacy_roots": removed,
         "preserved_unknown_or_conflicting": sorted(set(preserved)),
@@ -199,13 +229,16 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--cluster-contract", default="contracts/postgresql-cluster.json"
     )
+    parser.add_argument("--package-id", default=None,
+                        help="converge only this package; preserve other package evidence without inspecting it")
     parser.add_argument("--output", default="-")
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str]) -> int:
     arguments = parse_args(argv)
-    result = converge(estate.load_json(Path(arguments.cluster_contract)))
+    result = converge(estate.load_json(Path(arguments.cluster_contract)),
+                      package_id=arguments.package_id)
     content = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if arguments.output == "-":
         sys.stdout.write(content)

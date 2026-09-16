@@ -59,9 +59,12 @@ BEGIN
        OR array_position(positions,NULL) IS NOT NULL
        OR (SELECT count(DISTINCT position) FROM unnest(positions) position) <> cardinality(positions)
     THEN RAISE EXCEPTION 'chess atom request is empty, duplicate or unbounded'; END IF;
-    SELECT laplace.unicode_tier0_resolve_batch(
-        c.activation_epoch_id,c.epoch_fingerprint,positions)
-    INTO STRICT resolved FROM chess_line_contract.context c;
+    -- Expand the native composite into columns once, rather than assigning
+    -- its serialized whole row to the first integer[] field of resolved.
+    SELECT native_row.* INTO STRICT resolved
+    FROM chess_line_contract.context c
+    CROSS JOIN LATERAL laplace.unicode_tier0_resolve_batch(
+        c.activation_epoch_id,c.epoch_fingerprint,positions) native_row;
     IF resolved.codepoint_positions IS DISTINCT FROM positions
        OR cardinality(resolved.found) IS DISTINCT FROM cardinality(positions)
        OR array_position(resolved.found,false) IS NOT NULL
@@ -198,7 +201,7 @@ BEGIN
     INTO requests FROM jsonb_array_elements(plan->'requests') WITH ORDINALITY a(entry,ordinal);
     IF EXISTS (SELECT 1 FROM unnest(requests) r WHERE r.flags<>0)
     THEN RAISE EXCEPTION 'chess qualification cannot manufacture occurrence evidence'; END IF;
-    SELECT c.value INTO STRICT context FROM chess_line_contract.context c;
+    SELECT (c.value).* INTO STRICT context FROM chess_line_contract.context c;
     before:=chess_line_contract.counts();
     result:=laplace.composition_deposit_batch(context,source,decode(plan->>'recipe_fingerprint','hex'),
         known,operands,requests,65536::numeric);
@@ -258,4 +261,45 @@ BEGIN
     END LOOP;
     RETURN 3;
 END $body$;
+-- Exercise PostgreSQL's actual typed-row assignment and the selected active
+-- atom provider before launching the native carrier. The deliberately unexpanded
+-- projections reproduce the original failure; no synthetic atom floor is used.
+DO $composite_contract$
+DECLARE projected laplace.execution_context;
+    broken_context laplace.execution_context;
+    broken_atoms laplace.unicode_tier0_batch_result;
+    atom_values jsonb; returned_positions text[];
+    rejected_context boolean:=false; rejected_atoms boolean:=false;
+BEGIN
+    PERFORM chess_line_contract.require_active();
+    SELECT (c.value).* INTO STRICT projected FROM chess_line_contract.context c;
+    IF to_jsonb(projected) IS DISTINCT FROM
+       (SELECT to_jsonb(c.value) FROM chess_line_contract.context c)
+    THEN RAISE EXCEPTION 'chess expanded execution context changed a native field'; END IF;
+
+    atom_values:=chess_line_contract.atom_json(ARRAY[110,117,109]);
+    SELECT array_agg(entry->>'atom' ORDER BY ordinal) INTO returned_positions
+    FROM jsonb_array_elements(atom_values) WITH ORDINALITY a(entry,ordinal);
+    IF returned_positions IS DISTINCT FROM ARRAY['110','117','109']::text[]
+    THEN RAISE EXCEPTION 'chess expanded native atom result lost ordered tuples'; END IF;
+
+    BEGIN
+        SELECT c.value INTO STRICT broken_context FROM chess_line_contract.context c;
+    EXCEPTION WHEN invalid_text_representation THEN rejected_context:=true;
+    END;
+    BEGIN
+        SELECT laplace.unicode_tier0_resolve_batch(
+            c.activation_epoch_id,c.epoch_fingerprint,ARRAY[110,117,109])
+        INTO STRICT broken_atoms FROM chess_line_contract.context c;
+    EXCEPTION WHEN invalid_text_representation THEN rejected_atoms:=true;
+    END;
+    IF NOT rejected_context OR NOT rejected_atoms
+    THEN RAISE EXCEPTION 'chess unexpanded-composite defect control was not rejected'; END IF;
+    RAISE NOTICE 'LAPLACE_CHESS_COMPOSITE_ASSIGNMENT_RECEIPT %',jsonb_build_object(
+        'schema','laplace.chess-postgres-composite-assignment/v1',
+        'status','passed','active_atom_positions',returned_positions,
+        'expanded_context_exact',true,'active_atom_tuples_verified',true,
+        'unexpanded_context_rejected',rejected_context,
+        'unexpanded_native_atoms_rejected',rejected_atoms);
+END $composite_contract$;
 \echo LAPLACE_CHESS_LINE_POSTGRES_SETUP_OK
