@@ -226,7 +226,7 @@ BEGIN
        OR (after_state->>'physicalities')::bigint-(before->>'physicalities')::bigint<>result.physicality_inserted
        OR after_state->'attestations' IS DISTINCT FROM before->'attestations'
        OR (after_state->>'canonical_deposits')::bigint-(before->>'canonical_deposits')::bigint
-          <> CASE WHEN result.producer_receipt IS NULL THEN 0 ELSE 1 END
+          <> (CASE WHEN result.producer_receipt IS NULL THEN 0 ELSE 1 END)
     THEN RAISE EXCEPTION 'chess inserted counters disagree with canonical durable state'; END IF;
     RETURN jsonb_build_object('result',to_jsonb(result),'readback',checked,
         'before',before,'after',after_state);
