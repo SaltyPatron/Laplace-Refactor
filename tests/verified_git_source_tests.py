@@ -328,6 +328,52 @@ class VerifiedGitSourceTests(unittest.TestCase):
         self.assertEqual(config.read_bytes(), original)
 
 
+    @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
+    def test_grammar_build_resolves_parent_alias_once_and_checks_exact_shared_source(self):
+        output = self.root / 'parent-alias-provider'
+        self.build_fixture(b'int fixture_value(void) { return 29; }\n', output)
+        locked = self.source_lock()
+        linked_parent = self.root / 'source-parent'
+        linked_parent.symlink_to(self.root, target_is_directory=True)
+        selected = linked_parent / self.checkout.name
+        environment, config, original = self.ownership_environment()
+        with patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(Q.verify_source(selected, locked)['revision'], self.head)
+            Q.acquire(selected, self.root / 'grammar.json', 'fixture')
+            receipt_path = Q.build(selected, selected, self.root / 'grammar.json',
+                                   self.root / 'runtime.json', 'fixture', output)
+            receipt = json.loads(receipt_path.read_bytes())
+            self.assertEqual(receipt['grammar']['git_archive_sha256'],
+                             locked['git_archive_sha256'])
+            self.assertEqual(ctypes.CDLL(receipt['library']['path']).fixture_value(), 29)
+            self.assertFalse(receipt['canonical_corpus_admission_completed'])
+            (self.checkout / 'src/main.h').write_text('constexpr int fixture = 29;\n')
+            with self.assertRaises(V.GitCorpusError):
+                Q.verify_source(selected, locked)
+            with self.assertRaises(V.GitCorpusError):
+                Q.build(selected, selected, self.root / 'grammar.json',
+                        self.root / 'runtime.json', 'fixture', self.root / 'changed-provider')
+        self.assertFalse((self.root / 'changed-provider').exists())
+        self.assertEqual(config.read_bytes(), original)
+
+    def test_grammar_boundaries_still_reject_direct_checkout_links(self):
+        output = self.root / 'linked-provider'
+        self.build_fixture(b'int fixture_value(void) { return 31; }\n', output)
+        linked = self.root / 'linked-source'
+        linked.symlink_to(self.checkout, target_is_directory=True)
+        for invoke in (
+            lambda: Q.verify_source(linked, self.source_lock()),
+            lambda: Q.acquire(linked, self.root / 'grammar.json', 'fixture'),
+            lambda: Q.build(linked, self.checkout, self.root / 'grammar.json',
+                            self.root / 'runtime.json', 'fixture', output),
+            lambda: Q.build(self.checkout, linked, self.root / 'grammar.json',
+                            self.root / 'runtime.json', 'fixture', output),
+        ):
+            with self.assertRaisesRegex(V.GitCorpusError, 'non-symlink'):
+                invoke()
+        self.assertFalse(output.exists())
+
+
 class CommittedSourceReceiptTests(unittest.TestCase):
     def execute(self, committed):
         initial = {'schema':'laplace.admit-source/v1','persisted_profile':None,
