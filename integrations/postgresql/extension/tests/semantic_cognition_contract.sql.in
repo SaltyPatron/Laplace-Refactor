@@ -262,7 +262,8 @@ END
 $contract$;
 
 -- A second independently selected mapping fits the same admitted row/evidence
--- closure. One candidate slot must observe the second row as an overflow
+-- closure at a distinct source/row occurrence, preserving the unique profile,
+-- artifact and row key. One candidate slot must observe the second row as an overflow
 -- sentinel and publish no prefix; two slots must execute both selected rows.
 SET session_replication_role = replica;
 INSERT INTO laplace.reference_mapping_proposition(
@@ -281,7 +282,7 @@ SELECT decode(repeat('63',32),'hex'),decode(repeat('64',32),'hex'),
        decode(repeat('32',32),'hex'),boundary_id,source_profile_id,
        left_reference_id,decode(repeat('77',32),'hex'),row_entity_id,
        left_field_entity_id,left_value_entity_id,right_field_entity_id,
-       decode(repeat('13',16),'hex'),source_ordinal,artifact_ordinal,row_ordinal,
+       decode(repeat('13',16),'hex'),source_ordinal+1,artifact_ordinal,row_ordinal+1,
        left_disposition,right_disposition,disposition
 FROM laplace.reference_mapping_occurrence
 WHERE mapping_id = decode(repeat('61',32),'hex');
