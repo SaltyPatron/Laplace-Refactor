@@ -255,6 +255,79 @@ class VerifiedGitSourceTests(unittest.TestCase):
         self.assertFalse(receipt['canonical_corpus_admission_completed'])
 
 
+    def ownership_environment(self):
+        # Git's own t0033 uses this switch to exercise real ownership checks
+        # without chown/root. Keep all persistent configuration private and exact.
+        config = self.root / 'ownership.gitconfig'
+        config.write_bytes(b'[user]\n\tname = Ownership fixture\n')
+        environment = {key: value for key, value in os.environ.items()
+                       if not key.startswith('GIT_')}
+        environment.update({'GIT_TEST_ASSUME_DIFFERENT_OWNER': '1',
+                            'GIT_CONFIG_NOSYSTEM': '1',
+                            'GIT_CONFIG_GLOBAL': str(config)})
+        return environment, config, config.read_bytes()
+
+    def test_shared_checkout_uses_only_invocation_local_ownership_exception(self):
+        locked = self.source_lock()
+        environment, config, original = self.ownership_environment()
+        with patch.dict(os.environ, environment, clear=True):
+            refused = subprocess.run(['git', '-C', str(self.checkout), 'status', '--porcelain'],
+                                     capture_output=True, check=False)
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn(b'dubious ownership', refused.stderr)
+            self.assertEqual(Q.verify_source(self.checkout, locked)['revision'], self.head)
+            manifest, files = self.observe()
+            self.assertEqual(manifest['commit'], self.head)
+            self.assertEqual(files['src/main.h'], (self.checkout / 'src/main.h').read_bytes())
+            again = subprocess.run(['git', '-C', str(self.checkout), 'status', '--porcelain'],
+                                   capture_output=True, check=False)
+            self.assertNotEqual(again.returncode, 0)
+            self.assertIn(b'dubious ownership', again.stderr)
+        self.assertEqual(config.read_bytes(), original)
+
+    def test_ownership_exception_does_not_trust_another_checkout(self):
+        other = self.root / 'other'
+        other.mkdir()
+        subprocess.run(['git', '-C', str(other), 'init', '-q'], check=True)
+        environment, config, original = self.ownership_environment()
+        with patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(V.git(self.checkout, 'rev-parse', 'HEAD').decode().strip(), self.head)
+            with self.assertRaisesRegex(V.GitCorpusError, 'dubious ownership'):
+                V.git(self.checkout, '-C', str(other), 'status', '--porcelain')
+        self.assertEqual(config.read_bytes(), original)
+
+    def test_git_owner_refuses_linked_checkout_and_linked_parent(self):
+        linked_checkout = self.root / 'linked-checkout'
+        linked_checkout.symlink_to(self.checkout, target_is_directory=True)
+        linked_parent = self.root / 'linked-parent'
+        linked_parent.symlink_to(self.root, target_is_directory=True)
+        for selected in (linked_checkout, linked_parent / self.checkout.name,
+                         Path('relative-checkout')):
+            with self.subTest(path=str(selected)), self.assertRaisesRegex(
+                    V.GitCorpusError, 'absolute physical directory'):
+                V.git(selected, 'rev-parse', 'HEAD')
+
+    @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
+    def test_shared_imported_grammar_build_keeps_exact_source_verification(self):
+        output = self.root / 'shared-imported-provider'
+        build = self.build_fixture(b'int fixture_value(void) { return 23; }\n', output)
+        origin = str(self.root / 'verified-shared-import')
+        self.command('remote', 'set-url', 'origin', origin)
+        locked = self.source_lock()
+        self.command('update-index', '--assume-unchanged', 'src/main.h')
+        environment, config, original = self.ownership_environment()
+        with patch.dict(os.environ, environment, clear=True):
+            receipt = json.loads(build().read_bytes())
+            self.assertEqual(receipt['grammar']['checkout_origin'], origin)
+            self.assertEqual(receipt['runtime']['checkout_origin'], origin)
+            self.assertEqual(ctypes.CDLL(receipt['library']['path']).fixture_value(), 23)
+            self.assertFalse(receipt['canonical_corpus_admission_completed'])
+            (self.checkout / 'src/main.h').write_text('constexpr int fixture = 23;\n')
+            with self.assertRaises(V.GitCorpusError):
+                Q.verify_source(self.checkout, locked)
+        self.assertEqual(config.read_bytes(), original)
+
+
 class CommittedSourceReceiptTests(unittest.TestCase):
     def execute(self, committed):
         initial = {'schema':'laplace.admit-source/v1','persisted_profile':None,

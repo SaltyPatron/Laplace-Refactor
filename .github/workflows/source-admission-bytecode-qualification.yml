@@ -1,119 +1,94 @@
-name: Read retained installed candidate failure
+name: Qualify shared source verification
 on:
   push:
     branches: [verify/source-admission-bytecode-20260916]
 permissions:
   contents: read
-  actions: read
 jobs:
-  inspect:
+  qualify:
     if: github.repository == 'SaltyPatron/Laplace-Refactor'
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
-      - name: Authenticate the exact retained failure and print bounded diagnostic fields
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source and execute Git and PostgreSQL source controls
         shell: bash
         run: |
-          python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, urllib.error, urllib.parse, urllib.request, zipfile
-          API = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
-          EXPECTED_HEAD = "36964101d350cf05d58fbfe4c770fee9d5c41607"
-          EXPECTED_ZIP = "af96d0ded656252c97c189c92cfeb4665dcd955151fe2adb983e23a2eb5bde2f"
-          EXPECTED_RESULT = "d76789e3fb4714dcecfebdbfa6a6e7bf4d14ef3eb841fe477ba81d68f1551aca"
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self, request, fp, code, msg, headers, newurl):
-                  return None
-          opener = urllib.request.build_opener(NoRedirect)
-          def bounded(response, maximum):
-              value = response.read(maximum + 1)
-              if len(value) > maximum:
-                  raise RuntimeError("response exceeds diagnostic bound")
-              return value
-          def api(path):
-              return urllib.request.Request(API + path, headers={
-                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
-                  "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28"})
-          with opener.open(api("/actions/runs/35141112986"), timeout=30) as response:
-              run = json.loads(bounded(response, 1048576))
-          if (run["id"] != 35141112986 or run["head_sha"] != EXPECTED_HEAD
-                  or run["head_branch"] != "verify/source-admission-bytecode-20260916"
-                  or run["status"] != "completed" or run["conclusion"] != "failure"):
-              raise RuntimeError("retained run identity or terminal result differs")
-          with opener.open(api("/actions/artifacts/10465506726"), timeout=30) as response:
-              artifact = json.loads(bounded(response, 1048576))
-          if (artifact["id"] != 10465506726 or artifact["expired"]
-                  or artifact["name"] != "installed-full-stockfish-source-35141112986-1"
-                  or artifact["size_in_bytes"] != 997023
-                  or artifact["workflow_run"]["id"] != 35141112986
-                  or artifact["workflow_run"]["head_sha"] != EXPECTED_HEAD
-                  or artifact.get("digest") != "sha256:" + EXPECTED_ZIP):
-              raise RuntimeError("retained artifact identity differs")
-          try:
-              opener.open(api("/actions/artifacts/10465506726/zip"), timeout=30)
-              raise RuntimeError("archive endpoint did not return its expected redirect")
-          except urllib.error.HTTPError as error:
-              if error.code != 302:
-                  raise
-              target = error.headers["Location"]
-              error.close()
-          parsed = urllib.parse.urlparse(target)
-          if (parsed.scheme != "https" or parsed.username or parsed.password
-                  or not parsed.hostname
-                  or not (parsed.hostname.endswith(".blob.core.windows.net")
-                          or parsed.hostname.endswith(".actions.githubusercontent.com"))):
-              raise RuntimeError("artifact redirect host is not the supported storage owner")
-          with opener.open(urllib.request.Request(target), timeout=30) as response:
-              raw = bounded(response, 2097152)
-          if len(raw) != 997023 or hashlib.sha256(raw).hexdigest() != EXPECTED_ZIP:
-              raise RuntimeError("archive digest or length differs")
-          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-              entries = archive.infolist()
-              names = [entry.filename for entry in entries]
-              if len(entries) != 122 or len(set(names)) != len(names):
-                  raise RuntimeError("archive member count or uniqueness differs")
-              if sum(entry.file_size for entry in entries) > 67108864:
-                  raise RuntimeError("archive expansion exceeds diagnostic bound")
-              for entry in entries:
-                  path = pathlib.PurePosixPath(entry.filename)
-                  if (path.is_absolute() or ".." in path.parts or entry.flag_bits & 1
-                          or entry.file_size > 2097152):
-                      raise RuntimeError("invalid archive member")
-              result_raw = archive.read("corpus/result.json")
-              if hashlib.sha256(result_raw).hexdigest() != EXPECTED_RESULT:
-                  raise RuntimeError("retained corpus result digest differs")
-              result = json.loads(result_raw)
-              if (result["status"] != "failed"
-                      or result["expected_repository_commit"] != "6347401133605adada0b3ebad06ef0051082e76a"
-                      or result["database_mutation_outcome"] != "admission-not-submitted"
-                      or result["canonical_corpus_admission_completed"] is not False):
-                  raise RuntimeError("retained failure scope differs")
-              selected = [entry for entry in result["commands"] if entry["name"] == "grammar-qualification"]
-              if len(selected) != 1 or selected[0]["status"] != "failed" or selected[0]["exit_code"] == 0:
-                  raise RuntimeError("grammar failure receipt differs")
-              projection = {"name": selected[0]["name"], "status": selected[0]["status"],
-                            "exit_code": selected[0]["exit_code"]}
-              for stream in ("stdout","stderr"):
-                  name = "corpus/grammar-qualification." + stream + ".log"
-                  entry = archive.getinfo(name)
-                  if entry.file_size > 131072:
-                      raise RuntimeError("grammar diagnostic exceeds declared bound")
-                  raw = archive.read(name)
-                  digest = hashlib.sha256(raw).hexdigest()
-                  if digest != selected[0][stream+"_sha256"]:
-                      raise RuntimeError("grammar stream digest differs")
-                  projection[stream+"_sha256"] = digest
-                  projection[stream+"_bytes"] = len(raw)
-                  projection[stream+"_tail"] = raw.decode("utf-8", errors="replace")[-12000:]
-              print(json.dumps({
-                  "schema": "laplace.retained-grammar-failure-readback/v1",
-                  "run_id": 35141112986, "head_sha": EXPECTED_HEAD,
-                  "artifact_id": 10465506726, "archive_sha256": EXPECTED_ZIP,
-                  "result_sha256": EXPECTED_RESULT, "grammar_failure": projection,
-                  "members": [{"name": x.filename, "bytes": x.file_size} for x in entries
-                              if x.filename.startswith("corpus/") and
-                              ("qualification" in x.filename or x.filename.endswith("result.json"))],
-                  "host_actions": False}, sort_keys=True))
+          python3 -B - <<'PY'
+          import ast, hashlib, json, os, pathlib, re, subprocess, time
+          root = pathlib.Path.cwd()
+          expected = {"tests/postgresql_build_tests.py":"be4a19e6f2ba523a40bd60496cca8e94d7b9f3cc","tests/postgresql_package_publication_tests.py":"d1b6e69091481b8cc0d471207d63c384d3129e7f","tests/product_package_tests.py":"933a5bc9d14f659e718e971a94c77e836ea0ef9f","tests/toolchain_build_tests.py":"e9d45a97bf38ae4a43be86c16fc39a0cca5b5b58","tools/delivery/postgresql_package_publication.py":"0ba44f5a15894ac7fe26d2d1706ab5759e4704a5","tools/dependencies/build-runtime-graph.py":"dd134acfe31b505e39f0c642f5d17810dbc66d13","tools/dependencies/package_receipts.py":"29fbc5bd51e849cdef3fd77d2c70044959aa71ec","tools/postgresql/build-package.py":"58c8cd0d8942444d978cd1d5d8a86a250a66fbb1","tools/product/build-package.py":"5db4d8905bbf881b6b6cb63f2153db3e1b7ade5f","tools/toolchain/build-package.py":"bc41dc94e22a93cf2d5514e5bca43555741a9fdb","tests/product_build_workspace_retention_tests.py":"a40d2c1cb5bf7efcbcf62488609ea781da1b47d0","tests/product_gateway_contract_tests.py":"1a699c3d1ec8116e1ea5afe3506fbb835e1abec4","tests/stockfish_corpus_acceptance_tests.py":"6c56ef37d82b4291986082afbc04e038b8fb8fe8","tools/delivery/product_gateway_live_proof.py":"b17c5ce2a5f4e3e3a62b7dd7e340e5e0f832b0da","tools/product/build_workspace_retention.py":"b4096647685940393d8880fd1e0bdcc6bf900196","tools/sources/stockfish_corpus_acceptance.py":"b00543ad24b0d6e22624c6ed2b4a2adfc8cb910a","docs/delivery/CHESS_DEPENDENCIES.md":"6ba8f534d4c2a07cae8a51c181665f2aa42d5a77",".github/workflows/product-path.yml":"7fbe68e2d7ff112a8d0d78df064df1595e3c6aa4","tests/product_path_status_tests.py":"66f72233ccd1df114db40cad36398633c2d9a71b",".github/workflows/stockfish-corpus-acceptance.yml":"317c69a359d2f8da0fef98a5885a29c7ac29c3da","tests/verified_git_source_tests.py":"c4316dd173030b634c183048b571260684359b27","tools/sources/verified_git.py":"87683bb0091e2dbb790488d2f95d9361189c706e"}
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "shared-source-verification-controls"
+          output.mkdir()
+          observed = {}
+          for name, blob in expected.items():
+              path = root / name
+              raw = path.read_bytes()
+              value = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+              if path.is_symlink() or value != blob:
+                  raise RuntimeError("qualified candidate source differs: " + name)
+              if name.endswith(".py"):
+                  ast.parse(raw, filename=name)
+              observed[name] = {"git_blob": blob, "sha256": hashlib.sha256(raw).hexdigest()}
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", "--no-renames",
+               "6347401133605adada0b3ebad06ef0051082e76a", "HEAD"], text=True).splitlines()
+          if set(changed) != set(expected) | {".github/workflows/source-admission-bytecode-qualification.yml"}:
+              raise RuntimeError("cumulative qualification delta differs")
+          if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], text=True):
+              raise RuntimeError("qualification checkout is dirty")
+          report = {"schema": "laplace.shared-source-verification-controls/v1",
+              "head": os.environ["GITHUB_SHA"], "base": "6347401133605adada0b3ebad06ef0051082e76a",
+              "source": observed, "status": "running", "suites": [],
+              "host_execution": False, "consumer_installed": False}
+          result = output / "result.json"
+          def save():
+              result.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          save()
+          for filename, expected_count in (
+                  ("verified_git_source_tests.py", 29),
+                  ("postgresql_build_tests.py", 59)):
+              started = time.monotonic()
+              entry = {"suite": filename, "expected_controls": expected_count, "status": "running"}
+              report["suites"].append(entry)
+              save()
+              target = output / (filename + ".log")
+              with target.open("xb") as log:
+                  try:
+                      completed = subprocess.run(["python3", "-B", "tests/" + filename],
+                          stdout=log, stderr=subprocess.STDOUT, timeout=180, check=False)
+                      entry["exit_code"] = completed.returncode
+                  except subprocess.TimeoutExpired:
+                      entry["exit_code"] = 124
+                      entry["status"] = "timed-out"
+              raw = target.read_bytes()
+              text = raw.decode("utf-8", errors="replace")
+              counts = re.findall(r"^Ran (\d+) tests? in ", text, re.M)
+              entry.update({"seconds": time.monotonic() - started,
+                  "log_sha256": hashlib.sha256(raw).hexdigest(),
+                  "actual_controls": int(counts[-1]) if counts else None})
+              if entry["status"] != "timed-out":
+                  entry["status"] = ("passed" if entry["exit_code"] == 0
+                      and entry["actual_controls"] == expected_count
+                      and not re.search(r"skipped=|skipped '", text) else "failed")
+              print(filename + "\n" + text, flush=True)
+              save()
+          report["status"] = "passed" if all(x["status"] == "passed" for x in report["suites"]) else "failed"
+          report["actual_controls"] = sum(x["actual_controls"] or 0 for x in report["suites"])
+          save()
+          print(json.dumps(report, sort_keys=True), flush=True)
+          raise SystemExit(0 if report["status"] == "passed" else 1)
           PY
+      - name: Retain actual control output and source identity
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: shared-source-verification-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shared-source-verification-controls/
+          if-no-files-found: error
+          retention-days: 30
