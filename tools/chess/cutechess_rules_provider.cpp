@@ -177,6 +177,9 @@ QJsonObject Trace(const QJsonObject& request, bool strict, std::uint64_t& total_
     Require(!initial.isEmpty() && initial.size() <= 256,
             "invalid_request", "setup FEN is outside the declared envelope");
     Require(board.setFenString(initial), "invalid_position", "upstream provider refused setup FEN");
+    Require(!board.hasProviderEnPassant() ||
+            board.consistentEnPassantSquare(board.providerEnPassantSquare()),
+            "invalid_position", "upstream setup retains structurally inconsistent en-passant state");
     Require(request.value("san").isArray(), "invalid_request", "ordered SAN array is required");
     const auto spellings = request.value("san").toArray();
     Require(spellings.size() <= 1024, "resource_exhausted", "trace exceeds the ply envelope");

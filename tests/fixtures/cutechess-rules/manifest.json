@@ -1705,6 +1705,54 @@
         "kind": "declared-resource-counterexample",
         "basis": "The qualification request permits at most 32 traces; refusing the complete oversized request precedes board execution."
       }
+    },
+    {
+      "id": "invalid-occupied-en-passant-target",
+      "request": {
+        "notation_policy": "strict-san",
+        "traces": [
+          {
+            "fen": "k7/8/3n4/3pP3/8/8/8/4K3 w - d6 0 1",
+            "san": []
+          }
+        ]
+      },
+      "expected": {
+        "status": "refused",
+        "refusal": "invalid_position"
+      },
+      "source_attribution": {
+        "kind": "independent-counterexample",
+        "basis": "The selected upstream FEN parser accepts this inconsistent EP setup. The shared structural consistency guard refuses it before executing legalMoves; no alternate move generator is used.",
+        "repository": "https://github.com/cutechess/cutechess",
+        "revision": "45e923949e43570886c0ad3392f514e743839c6b",
+        "path": "projects/lib/src/board/westernboard.cpp",
+        "section": "vSetFenString and vMakeMove"
+      }
+    },
+    {
+      "id": "invalid-missing-en-passant-pawn",
+      "request": {
+        "notation_policy": "strict-san",
+        "traces": [
+          {
+            "fen": "k7/8/8/4P3/8/8/8/4K3 w - d6 0 1",
+            "san": []
+          }
+        ]
+      },
+      "expected": {
+        "status": "refused",
+        "refusal": "invalid_position"
+      },
+      "source_attribution": {
+        "kind": "independent-counterexample",
+        "basis": "The selected upstream FEN parser accepts this inconsistent EP setup. The shared structural consistency guard refuses it before executing legalMoves; no alternate move generator is used.",
+        "repository": "https://github.com/cutechess/cutechess",
+        "revision": "45e923949e43570886c0ad3392f514e743839c6b",
+        "path": "projects/lib/src/board/westernboard.cpp",
+        "section": "vSetFenString and vMakeMove"
+      }
     }
   ],
   "defect_control": {

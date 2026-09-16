@@ -147,7 +147,18 @@ TEST(ChessLine, BatchReusesExactContentWithoutManufacturingOccurrences) {
     laplace_composition_working_set_summary summary{};
     ASSERT_EQ(laplace_composition_working_set_summary_get(executed.value, &summary), LAPLACE_COMPOSITION_OK);
     EXPECT_EQ(summary.occurrence_count, 0U);
-    EXPECT_EQ(summary.logical_occurrence_count, 0U);
+    // Logical occurrences count ordered children within physicalities, not
+    // independent PLAYING/evidence records. Repeating existing content keeps
+    // that structure unchanged while occurrence_count above remains zero.
+    SetOwner once; Execute(a, once); ASSERT_NE(once.value, nullptr);
+    laplace_composition_working_set_summary single_summary{};
+    ASSERT_EQ(laplace_composition_working_set_summary_get(once.value, &single_summary),
+        LAPLACE_COMPOSITION_OK);
+    EXPECT_GT(summary.logical_occurrence_count, 0U);
+    EXPECT_EQ(summary.logical_occurrence_count, single_summary.logical_occurrence_count);
+    EXPECT_EQ(summary.unique_entity_count, single_summary.unique_entity_count);
+    EXPECT_EQ(summary.unique_physicality_count, single_summary.unique_physicality_count);
+    EXPECT_EQ(summary.trajectory_vertex_count, single_summary.trajectory_vertex_count);
     EXPECT_EQ(summary.semantic_calculation_count, b.request_count);
 }
 
