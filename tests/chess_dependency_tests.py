@@ -39,6 +39,75 @@ PGN = importlib.util.module_from_spec(pgn_spec)
 pgn_spec.loader.exec_module(PGN)
 
 
+class GitHubReleaseRequests(unittest.TestCase):
+    def test_fixed_api_origin_uses_optional_token_and_preserves_release_selection(self) -> None:
+        selected = {"releases": {"cutechess": {"repository": "cutechess/cutechess", "tag": "v1.5.1"}}}
+        observed = {"draft": False, "prerelease": False, "tag_name": "v1.5.1",
+                    "html_url": "https://github.com/cutechess/cutechess/releases/tag/v1.5.1"}
+        calls = []
+        def receive(request, timeout):
+            self.assertEqual(request.full_url, "https://api.github.com/repos/cutechess/cutechess/releases/latest")
+            self.assertEqual(timeout, 30)
+            calls.append(request.get_header("Authorization"))
+            return io.BytesIO(json.dumps(observed).encode())
+        with patch.object(TOOLS.urllib.request, "urlopen", side_effect=receive):
+            with patch.dict(os.environ, {"GITHUB_TOKEN": "fixture-token"}):
+                actual = TOOLS.upstream_versions(selected)
+            with patch.dict(os.environ, {"GITHUB_TOKEN": ""}):
+                anonymous = TOOLS.upstream_versions(selected)
+        self.assertEqual(calls, ["Bearer fixture-token", None])
+        self.assertEqual(actual, anonymous)
+        self.assertEqual(actual["cutechess"], {"selected": "v1.5.1", "latest": "v1.5.1",
+                                             "current": True, "url": observed["html_url"]})
+
+    def test_redirects_never_receive_api_authorization(self) -> None:
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "fixture-token"}):
+            request = TOOLS.github_release_request("cutechess/cutechess")
+        self.assertEqual(request.get_header("Authorization"), "Bearer fixture-token")
+        handler = TOOLS.urllib.request.HTTPRedirectHandler()
+        for location in ("https://api.github.com/redirected",
+                         "https://github.com/cutechess/cutechess/releases",
+                         "https://objects.githubusercontent.com/fixture",
+                         "https://example.invalid/fixture"):
+            for status in (301, 302, 303, 307, 308):
+                with self.subTest(location=location, status=status):
+                    redirected = handler.redirect_request(request, None, status, "redirect", {}, location)
+                    self.assertIsNotNone(redirected)
+                    self.assertIsNone(redirected.get_header("Authorization"))
+                    self.assertNotIn("fixture-token", repr(redirected.header_items()))
+
+    def test_repository_input_cannot_redirect_initial_credential(self) -> None:
+        for repository in ("https://example.invalid/a", "a/b?redirect=x", "a/b#fragment",
+                           "a/b/c", "a@evil.invalid/b", "a/b\nInjected: value", ""):
+            with self.subTest(repository=repository), patch.dict(os.environ, {"GITHUB_TOKEN": "fixture-token"}):
+                with self.assertRaisesRegex(TOOLS.ChessToolError, "invalid GitHub release repository"):
+                    TOOLS.github_release_request(repository)
+
+    def test_http_failure_is_not_masked_and_artifact_download_stays_unauthenticated(self) -> None:
+        failure = TOOLS.urllib.error.HTTPError(
+            "https://api.github.com/repos/cutechess/cutechess/releases/latest",
+            403, "rate limit exceeded", {}, None)
+        selected = {"releases": {"cutechess": {"repository": "cutechess/cutechess", "tag": "v1.5.1"}}}
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "fixture-token"}), \
+             patch.object(TOOLS.urllib.request, "urlopen", side_effect=failure):
+            with self.assertRaises(TOOLS.urllib.error.HTTPError) as caught:
+                TOOLS.upstream_versions(selected)
+        self.assertIs(caught.exception, failure)
+        payload = b"bounded fixture artifact"
+        artifact = {"filename": "fixture.bin", "url": "https://objects.githubusercontent.com/fixture",
+                    "size": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}
+        def receive(request, timeout):
+            self.assertEqual(request.full_url, artifact["url"])
+            self.assertIsNone(request.get_header("Authorization"))
+            self.assertEqual(timeout, 60)
+            return io.BytesIO(payload)
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.dict(os.environ, {"GITHUB_TOKEN": "fixture-token"}), \
+             patch.object(TOOLS.urllib.request, "urlopen", side_effect=receive):
+            acquired = TOOLS.acquire(artifact, Path(directory), False)
+            self.assertEqual(acquired.read_bytes(), payload)
+
+
 class ChessDependencies(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()

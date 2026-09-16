@@ -47,6 +47,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build and verify official chess sources in the configured dependency estate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           output="$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           mkdir -p "$output"

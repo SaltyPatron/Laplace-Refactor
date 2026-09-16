@@ -200,9 +200,10 @@ class ReadbackTests(unittest.TestCase):
 
 class PackageTests(unittest.TestCase):
     def setUp(self):
-        self.commit='1'*40; self.package='2'*64
+        self.commit='1'*40; self.package='2'*64; self.fingerprint='a'*64
         self.manifest={'package_id':self.package,'root':'/opt/laplace/releases/'+self.package,
-            'laplace':{'repository_commit':self.commit}}
+            'laplace':{'repository_commit':self.commit,'repository_tree':'3'*40,
+                'repository_build_fingerprint':self.fingerprint}}
         self.gateway={'product':{'package_release_root':'/opt/laplace/releases',
             'package_installation_schema':'laplace.product-package-installation-receipt/v1'}}
         self.installation={'schema':'laplace.product-package-installation-receipt/v1','phase':'installed',
@@ -222,13 +223,47 @@ class PackageTests(unittest.TestCase):
     def sign(self): self.aggregate['result_sha256']=subject.runner.document_identity(self.aggregate,'result_sha256')
 
     def validate(self):
-        subject.validate_package_binding(self.commit,self.package,self.manifest,self.installation,self.aggregate)
+        subject.validate_package_binding(self.commit,self.package,self.manifest,self.installation,self.aggregate,
+            self.fingerprint)
 
     def test_exact_source_package_activation_is_accepted(self): self.validate()
 
     def test_stale_manifest_even_with_current_activation_claim_is_rejected(self):
-        self.manifest['laplace']['repository_commit']='9'*40
+        self.manifest['laplace']['repository_build_fingerprint']='9'*64
         with self.assertRaisesRegex(ValueError,'stale'): self.validate()
+
+    def test_equal_package_inputs_preserve_original_build_provenance(self):
+        self.manifest['laplace']['repository_commit']='8'*40
+        self.manifest['laplace']['repository_tree']='9'*40
+        self.installation['package_manifest_sha256']=subject.runner.clusterctl.sha256_bytes(
+            subject.runner.clusterctl.canonical_bytes(self.manifest))
+        self.installation['installation_receipt_sha256']=subject.runner.document_identity(
+            self.installation,'installation_receipt_sha256')
+        self.aggregate['package_installation_receipt_sha256']=self.installation['installation_receipt_sha256']
+        self.sign()
+        before=copy.deepcopy((self.manifest,self.installation,self.aggregate))
+        self.validate()
+        self.assertEqual((self.manifest,self.installation,self.aggregate),before)
+        self.assertEqual(self.aggregate['repository_commit'],self.commit)
+
+    def test_missing_or_malformed_original_provenance_is_rejected(self):
+        original=copy.deepcopy(self.manifest['laplace'])
+        for field in ('repository_commit','repository_tree','repository_build_fingerprint'):
+            for value in (None,'','not-an-identity'):
+                with self.subTest(field=field,value=value):
+                    self.manifest['laplace']=copy.deepcopy(original)
+                    if value is None: del self.manifest['laplace'][field]
+                    else: self.manifest['laplace'][field]=value
+                    with self.assertRaisesRegex(ValueError,'provenance'):self.validate()
+
+    def test_installed_observer_resolves_requested_immutable_commit_before_host_reads(self):
+        sentinel=RuntimeError('expected immutable source boundary')
+        with mock.patch.object(subject.runner,'require_runner'), \
+             mock.patch.object(subject.repository_inputs,'repository_build_fingerprint_at_commit',
+                               side_effect=sentinel) as fingerprint:
+            with self.assertRaisesRegex(RuntimeError,'immutable source boundary'):
+                subject.observe_activation(self.commit,Path('unused-result.json'))
+        fingerprint.assert_called_once_with(subject.ROOT,self.commit)
 
     def test_stale_activation_even_with_current_package_is_rejected(self):
         self.aggregate['repository_commit']='9'*40;self.sign()
@@ -300,7 +335,7 @@ class NativeReceiptEstateTests(unittest.TestCase):
         self.root=Path(self.temporary.name)/'receipts/postgresql/refactor'
         self.root.mkdir(parents=True)
         binding=PackageTests();binding.setUp()
-        for key in ('commit','package','manifest','installation','aggregate'):
+        for key in ('commit','package','manifest','installation','aggregate','fingerprint'):
             setattr(self,key,copy.deepcopy(getattr(binding,key)))
         self.plan={'plan_sha256':'3'*64}
         self.cluster={'plan_sha256':self.plan['plan_sha256'],
@@ -351,7 +386,7 @@ class NativeReceiptEstateTests(unittest.TestCase):
 
     def observe(self):
         return subject.observe_native_receipts(self.root,self.commit,self.package,
-            self.manifest,self.installation,self.plan,self.cluster)
+            self.manifest,self.installation,self.plan,self.cluster,self.fingerprint)
 
     def converge(self):
         from delivery import receipt_estate_runner

@@ -28,6 +28,7 @@ from sources import verified_git
 from delivery import product_activation as activation
 from delivery import product_activation_runner as runner
 from delivery import receipt_estate
+from product import repository_inputs
 import admit_source_guard
 
 SCHEMA = 'laplace.stockfish-corpus-acceptance/v1'
@@ -81,15 +82,25 @@ def number(value: object, label: str, minimum: int = 0) -> int:
 
 
 def validate_package_binding(expected_sha: str, package_id: str, manifest: dict,
-                             installation: dict, aggregate: dict) -> None:
+                             installation: dict, aggregate: dict,
+                             expected_build_fingerprint: str) -> None:
     require(re.fullmatch(r'[0-9a-f]{40}', expected_sha) is not None,
             'expected SHA must identify one exact main commit')
     require(HEX.fullmatch(package_id) is not None, 'invalid active package identity')
     require(manifest.get('package_id') == installation.get('package_id') ==
             aggregate.get('package_id') == package_id, 'activation/package identities differ')
-    require(manifest.get('laplace', {}).get('repository_commit') == expected_sha and
+    # Package reuse preserves its original build commit/tree. Deployment keeps
+    # the requested commit, while the existing package-input owner binds content.
+    source = manifest.get('laplace', {})
+    require(isinstance(source, dict) and
+            re.fullmatch(r'[0-9a-f]{40}', str(source.get('repository_commit'))) is not None and
+            re.fullmatch(r'[0-9a-f]{40}', str(source.get('repository_tree'))) is not None and
+            HEX.fullmatch(str(source.get('repository_build_fingerprint'))) is not None and
+            HEX.fullmatch(str(expected_build_fingerprint)) is not None,
+            'activated package source provenance is missing or malformed')
+    require(source['repository_build_fingerprint'] == expected_build_fingerprint and
             aggregate.get('repository_commit') == expected_sha,
-            'activated package is stale or belongs to another source commit')
+            'activated package is stale or belongs to different source inputs or deployment')
     require(aggregate.get('schema') == runner.RESULT_SCHEMA and
             aggregate.get('result_sha256') == runner.document_identity(aggregate, 'result_sha256'),
             'runner terminal receipt identity differs')
@@ -160,7 +171,8 @@ def resolve_activation_receipt(receipt_root: Path, package_id: str, name: str) -
 
 def observe_native_receipts(receipt_root: Path, expected_sha: str, package_id: str,
                             manifest: dict, installation: dict, plan: dict,
-                            cluster_result: dict) -> tuple[dict, dict, list, dict]:
+                            cluster_result: dict,
+                            expected_build_fingerprint: str) -> tuple[dict, dict, list, dict]:
     """Bind retained native bytes to unchanged authenticated producer paths."""
     evidence = receipt_root/'cluster-activation'/package_id
     unicode_path = receipt_root/'unicode-product-activation.json'
@@ -171,7 +183,8 @@ def observe_native_receipts(receipt_root: Path, expected_sha: str, package_id: s
     matches = []
     for path in aggregate_paths:
         aggregate = load(path)
-        validate_package_binding(expected_sha, package_id, manifest, installation, aggregate)
+        validate_package_binding(expected_sha, package_id, manifest, installation, aggregate,
+                                 expected_build_fingerprint)
         require(path.stem == aggregate['result_sha256'], 'activation receipt address differs from its bytes')
         if (aggregate.get('cluster_activation_receipt_sha256') != cluster_result['activation_receipt_sha256'] or
                 aggregate.get('unicode_activation_receipt_sha256') != unicode['receipt_sha256']):
@@ -198,6 +211,7 @@ def observe_native_receipts(receipt_root: Path, expected_sha: str, package_id: s
 
 def observe_activation(expected_sha: str, output: Path) -> dict:
     runner.require_runner()
+    expected_build_fingerprint = repository_inputs.repository_build_fingerprint_at_commit(ROOT, expected_sha)
     gateway = load(ROOT/'contracts/product-activation-gateway.json')
     cluster_contract = load(ROOT/'contracts/postgresql-cluster.json')
     cluster = runner.clusterctl
@@ -235,7 +249,8 @@ def observe_activation(expected_sha: str, output: Path) -> dict:
             plan['package_manifest_sha256'] and plan['package_id'] == package_id,
             'installed package/activation plan manifest differs')
     unicode, highway, matches, native_receipt_paths = observe_native_receipts(
-        receipt_root, expected_sha, package_id, manifest, installation, plan, cluster_result)
+        receipt_root, expected_sha, package_id, manifest, installation, plan, cluster_result,
+        expected_build_fingerprint)
     loaded = cluster.observe_loaded_live(plan, cluster_contract, Path('/'))
     cluster.verify_loaded(plan, cluster_contract, loaded)
     require(str(loaded['system_identifier']) == str(cluster_result['system_identifier']),
@@ -247,6 +262,7 @@ def observe_activation(expected_sha: str, output: Path) -> dict:
     require(cli.is_file() and not cli.is_symlink() and os.access(cli, os.X_OK),
             'installed generic source admission CLI is unavailable')
     snapshot = {'package_id': package_id, 'repository_commit': expected_sha,
+        'repository_build_fingerprint': expected_build_fingerprint,
         'release': str(release), 'cli': str(cli), 'cli_sha256': sha(cli),
         'manifest_path': str(manifest_path), 'manifest_sha256': sha(manifest_path),
         'manifest': manifest, 'installation': installation,
