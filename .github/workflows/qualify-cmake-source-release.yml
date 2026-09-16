@@ -1,0 +1,76 @@
+name: Qualify CMake source release contract
+on:
+  push:
+    branches: [qualify/cmake-source-443-20260916]
+permissions:
+  contents: read
+jobs:
+  source-contract:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      TMPDIR: ${{ github.workspace }}/.cmake-source-qualification/work
+      TMP: ${{ github.workspace }}/.cmake-source-qualification/work
+      TEMP: ${{ github.workspace }}/.cmake-source-qualification/work
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prepare owned scratch
+        shell: bash
+        run: mkdir -p "$TMPDIR" .cmake-source-qualification/evidence
+      - name: Verify exact authenticated source selection and immutable generation
+        shell: bash
+        run: |
+          python3 - <<'PY' > .cmake-source-qualification/evidence/source-selection.json
+          import hashlib, importlib.util, json
+          from pathlib import Path
+          path = Path("dependencies/release-lock.json")
+          raw = path.read_bytes()
+          lock = json.loads(raw)
+          contract = json.loads(Path("contracts/toolchain-build.json").read_text())
+          entry = lock["archives"]["cmake"]
+          expected = {
+              "version": "4.4.3", "filename": "cmake-4.4.3.tar.gz",
+              "url": "https://github.com/Kitware/CMake/releases/download/v4.4.3/cmake-4.4.3.tar.gz",
+              "sha256": "c46400618b4f1f2b43507f24fb22f3ae830c3416cf23b776e16e1d413aa892f0",
+              "size_bytes": 13288228, "top_directory": "cmake-4.4.3",
+              "member_count": 33095, "regular_file_count": 30265,
+              "uncompressed_bytes": 59749941,
+              "tree_sha256": "e351b47c5ec65bfbba3aeec58106df0b87fcf5b82d993094e739697d7b9e5671",
+              "licenses": [{"path": "cmake-4.4.3/LICENSE.rst", "sha256": "4382e7c1879ac90e3f101a395d23846fa4dbcaa1eed7265b43681e348754825d"}]
+          }
+          assert entry == expected
+          digest = hashlib.sha256(raw).hexdigest()
+          assert digest == "a06abef13eac752c8a69c7212b30961eeeccb8c174e50d33aef9e18751dcf1c7"
+          assert contract["logical_roots"]["source_generation"] == "/opt/laplace/external/release-generations/" + digest
+          assert contract["build"]["components"]["cmake"]["version"] == entry["version"]
+          spec = importlib.util.spec_from_file_location("toolchain_release_owner", "tools/toolchain/build-package.py")
+          owner = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(owner)
+          owner.validate_contract(contract, Path.cwd())
+          assert owner.EXPECTED_VERSIONS["cmake"] == entry["version"]
+          old = json.loads(json.dumps(contract))
+          old["build"]["components"]["cmake"]["version"] = "4.4.2"
+          try:
+              owner.validate_contract(old, Path.cwd())
+          except owner.ToolchainError:
+              pass
+          else:
+              raise AssertionError("old selected CMake version was accepted")
+          print(json.dumps({"scope": "source-contract-controls-only", "source_candidate": "211185c1125470172798e4e059b28bb624289173", "lock_sha256": digest, "entry": entry, "upstream_build_executed": False, "installation_executed": False}, sort_keys=True))
+          PY
+      - name: Run existing toolchain and archive-owner controls
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tests/toolchain_build_tests.py 2>&1 | tee .cmake-source-qualification/evidence/toolchain-controls.log
+          bash tests/release_assets_test.sh 2>&1 | tee .cmake-source-qualification/evidence/archive-controls.log
+          git diff --exit-code
+      - name: Retain exact source control evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cmake-source-443-contract-controls
+          path: .cmake-source-qualification/evidence/
+          if-no-files-found: error
+          retention-days: 90
