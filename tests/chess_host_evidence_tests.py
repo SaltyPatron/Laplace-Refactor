@@ -591,7 +591,7 @@ class HostEvidence(unittest.TestCase):
                      mock.patch.object(sys,'argv',['service_lifecycle.py','converge',
                          '--expected-sha','4'*40,'--output-directory',str(root/'convergence')]):
                     try: service.main()
-                    except (InterruptedError,KeyboardInterrupt): pass
+                    except (InterruptedError,KeyboardInterrupt) as error: cancellation=error
                     else: raise AssertionError('cancelled operation reported success')
                 report=json.loads((root/'convergence/result.json').read_text())
                 assert report['status']=='failed' and report['previous_owner_restored'] is True
@@ -600,6 +600,7 @@ class HostEvidence(unittest.TestCase):
                 assert signal.getsignal(signal.SIGINT)==prior_int
                 (root/'finished.json').write_text(json.dumps({
                     'restored':True,'handler_restored':True,'historical':historical['lifecycle_provider']}))
+                raise cancellation
             finally:
                 case.doCleanups()
         """)
