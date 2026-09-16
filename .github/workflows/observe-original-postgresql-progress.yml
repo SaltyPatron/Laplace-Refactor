@@ -1,0 +1,254 @@
+name: Observe installed Original PostgreSQL progress without shared-host work
+on:
+  push:
+    branches: ['diag/observe-original-db-f2-*']
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
+    steps:
+      - name: Observe exact source and read-only database activity twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=5s 65s python3 - <<'PY'
+          import datetime, hashlib, json, os, selectors, signal, stat, subprocess, tempfile, time
+          from pathlib import Path
+          EXPECTED_SHA, EXPECTED_TREE = "f2cbb5fc7305dfd20d9fa3a19003b60a06b457c0", "42167cb4cbef49382fd427e7e4f51b26eea2d7f4"
+          SESSION = Path("/build/laplace/work/ci-sessions/35104196613-1-product/session.json")
+          def deadline(signum, frame):
+              raise TimeoutError("bounded database observation deadline")
+          signal.signal(signal.SIGALRM, deadline)
+          signal.alarm(55)
+          os.environ.update(PGHOST="/var/run/postgresql", PGPORT="5432", PGUSER="laplace_admin",
+                            PGCONNECT_TIMEOUT="3", PGAPPNAME="laplace-readonly-progress-observer",
+                            PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=3000 -c lock_timeout=500")
+          for key in ("PGSERVICE", "PGSERVICEFILE"):
+              os.environ.pop(key, None)
+          
+          def bounded_query(database: str, sql_path: Path, timeout: int, max_bytes: int) -> bytes:
+              argv = ["psql", "-X", "-h", os.environ.get("PGHOST", "/var/run/postgresql"),
+                      "-p", os.environ.get("PGPORT", "5432"), "-U", os.environ.get("PGUSER", "laplace_admin"),
+                      "-d", database, "-v", "ON_ERROR_STOP=1", "-A", "-t", "-q", "-f", str(sql_path)]
+              process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              output, error = bytearray(), bytearray()
+              deadline = time.monotonic() + timeout + 10
+              try:
+                  with selectors.DefaultSelector() as selector:
+                      for stream, tag in ((process.stdout, "output"), (process.stderr, "error")):
+                          os.set_blocking(stream.fileno(), False)
+                          selector.register(stream, selectors.EVENT_READ, tag)
+                      while selector.get_map():
+                          remaining = deadline - time.monotonic()
+                          if remaining <= 0:
+                              raise RuntimeError("readback process deadline exceeded")
+                          for key, _ in selector.select(min(remaining, 1.0)):
+                              chunk = os.read(key.fd, 65536)
+                              if not chunk:
+                                  selector.unregister(key.fileobj)
+                                  continue
+                              target, bound = (output, max_bytes) if key.data == "output" else (error, 1 << 20)
+                              if len(target) + len(chunk) > bound:
+                                  raise RuntimeError(f"readback {key.data} exceeded declared byte envelope {bound}")
+                              target.extend(chunk)
+                  process.wait(timeout=max(0.01, deadline - time.monotonic()))
+                  if process.returncode:
+                      raise RuntimeError(f"read-only source query failed ({process.returncode}): "
+                                         + error.decode("utf-8", errors="replace"))
+                  return bytes(output)
+              finally:
+                  if process.poll() is None:
+                      process.kill()
+                      process.wait()
+                  process.stdout.close()
+                  process.stderr.close()
+          
+          PREVIOUS_PROCESSES = {}
+          
+          def bounded_proc(path, budget):
+              descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(descriptor, "rb") as stream:
+                  if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                      raise ValueError("process evidence is not regular")
+                  raw = stream.read(budget + 1)
+              if len(raw) > budget:
+                  raise ValueError("process evidence exceeded budget")
+              return raw.decode("ascii", errors="strict")
+          
+          def process_stat(pid):
+              raw = bounded_proc(f"/proc/{pid}/stat", 4096)
+              end = raw.rfind(")")
+              if end < 0 or raw.split(" ", 1)[0] != str(pid):
+                  raise ValueError("unexpected process stat identity")
+              fields = raw[end + 2:].split()
+              if len(fields) < 22:
+                  raise ValueError("incomplete process stat")
+              return {"processId": pid, "userTicks": int(fields[11]), "systemTicks": int(fields[12]),
+                      "threads": int(fields[17]), "startTicks": int(fields[19]),
+                      "virtualBytes": int(fields[20]), "residentPages": int(fields[21])}
+          
+          def process_snapshot(sample, source_bound):
+              result = {"observed": False, "scope": "Read-only process counters; no command line or environment."}
+              if not source_bound:
+                  return dict(result, unavailableReason="wrapper_source_unbound")
+              try:
+                  pid = sample.get("processId")
+                  if type(pid) is not int or not 0 < pid < 2147483648:
+                      raise ValueError("invalid progress process identity")
+                  started = sample.get("processStartedAt")
+                  if not isinstance(started, str):
+                      raise ValueError("progress process start time unavailable")
+                  expected = datetime.datetime.fromisoformat(started.replace("Z", "+00:00"))
+                  if expected.tzinfo is None:
+                      raise ValueError("progress process start time has no offset")
+                  tick_hz = os.sysconf("SC_CLK_TCK")
+                  page_bytes = os.sysconf("SC_PAGE_SIZE")
+                  before = process_stat(pid)
+                  boot_lines = bounded_proc("/proc/stat", 262144).splitlines()
+                  boot_values = [int(line.split()[1]) for line in boot_lines if line.startswith("btime ")]
+                  if len(boot_values) != 1 or tick_hz <= 0 or page_bytes <= 0:
+                      raise ValueError("kernel process clock unavailable")
+                  kernel_start = boot_values[0] + before["startTicks"] / tick_hz
+                  difference = abs(expected.timestamp() - kernel_start)
+                  if difference > 2:
+                      raise ValueError("kernel start time differs from recorded process")
+                  optional = {}
+                  try:
+                      status = bounded_proc(f"/proc/{pid}/status", 65536)
+                      wanted = {"VmRSS": "residentKiB", "VmHWM": "peakResidentKiB", "Threads": "threads",
+                                "voluntary_ctxt_switches": "voluntaryContextSwitches",
+                                "nonvoluntary_ctxt_switches": "involuntaryContextSwitches"}
+                      status_metrics = {}
+                      for line in status.splitlines():
+                          key, sep, value = line.partition(":")
+                          if sep and key in wanted:
+                              parts = value.split()
+                              if not parts or not parts[0].isdigit():
+                                  raise ValueError("invalid process status metric")
+                              if key in ("VmRSS", "VmHWM") and parts[1:] != ["kB"]:
+                                  raise ValueError("unexpected process memory unit")
+                              status_metrics[wanted[key]] = int(parts[0])
+                      optional["statusMetrics"] = status_metrics
+                  except (OSError, ValueError, UnicodeError) as error:
+                      optional["statusUnavailableErrorType"] = type(error).__name__
+                  try:
+                      io_text = bounded_proc(f"/proc/{pid}/io", 4096)
+                      wanted = {"read_bytes": "readBytes", "write_bytes": "writeBytes",
+                                "rchar": "readCharacters", "wchar": "writeCharacters",
+                                "syscr": "readSyscalls", "syscw": "writeSyscalls"}
+                      io_metrics = {}
+                      for line in io_text.splitlines():
+                          key, sep, value = line.partition(":")
+                          if sep and key in wanted:
+                              if not value.strip().isdigit():
+                                  raise ValueError("invalid process I/O metric")
+                              io_metrics[wanted[key]] = int(value)
+                      optional["ioMetrics"] = io_metrics
+                  except (OSError, ValueError, UnicodeError) as error:
+                      optional["ioUnavailableErrorType"] = type(error).__name__
+                  after = process_stat(pid)
+                  if (before["processId"], before["startTicks"]) != (after["processId"], after["startTicks"]):
+                      raise ValueError("process identity changed during observation")
+                  return dict(result, observed=True, processId=pid, startTicks=after["startTicks"],
+                              startTimeDifferenceSeconds=difference, startTimeToleranceSeconds=2,
+                              ticksPerSecond=tick_hz, userCpuSeconds=after["userTicks"] / tick_hz,
+                              systemCpuSeconds=after["systemTicks"] / tick_hz,
+                              residentBytes=after["residentPages"] * page_bytes,
+                              virtualBytes=after["virtualBytes"], threads=after["threads"],
+                              sampleMonotonicSeconds=time.monotonic(), **optional)
+              except (OSError, ValueError, TypeError, KeyError, UnicodeError) as error:
+                  return dict(result, unavailableErrorType=type(error).__name__)
+          
+          def process_delta(phase, current):
+              previous = PREVIOUS_PROCESSES.pop(phase, None)
+              if not current.get("observed"):
+                  return
+              PREVIOUS_PROCESSES[phase] = current.copy()
+              if previous is None:
+                  current["deltaUnavailableReason"] = "no_verified_prior_sample"
+                  return
+              if (current["processId"], current["startTicks"]) != (previous["processId"], previous["startTicks"]):
+                  current["deltaUnavailableReason"] = "process_identity_changed"
+                  return
+              elapsed = current["sampleMonotonicSeconds"] - previous["sampleMonotonicSeconds"]
+              user = current["userCpuSeconds"] - previous["userCpuSeconds"]
+              system = current["systemCpuSeconds"] - previous["systemCpuSeconds"]
+              if elapsed <= 0 or user < 0 or system < 0:
+                  current["deltaUnavailableReason"] = "non_monotonic_process_sample"
+                  return
+              current["delta"] = {"sampleSeconds": elapsed, "userCpuSeconds": user, "systemCpuSeconds": system,
+                                  "cpuCoreEquivalents": (user + system) / elapsed}
+              for key in ("readBytes", "writeBytes"):
+                  prior_value = previous.get("ioMetrics", {}).get(key)
+                  current_value = current.get("ioMetrics", {}).get(key)
+                  if type(prior_value) is int and type(current_value) is int and current_value >= prior_value:
+                      current["delta"][key] = current_value - prior_value
+          SQL = "BEGIN TRANSACTION READ ONLY;\nSET LOCAL statement_timeout = '3s';\nSET LOCAL lock_timeout = '500ms';\nSET LOCAL idle_in_transaction_session_timeout = '5s';\nWITH activity AS (\n  SELECT pid, backend_start, xact_start, query_start, state, wait_event_type, wait_event,\n         backend_type, backend_xid::text, backend_xmin::text, application_name,\n         pg_blocking_pids(pid) AS blockers\n  FROM pg_stat_activity\n  WHERE datname = current_database() AND pid <> pg_backend_pid()\n  ORDER BY pid LIMIT 128\n),\ndb AS (\n  SELECT datid, datname, numbackends, xact_commit, xact_rollback, blks_read, blks_hit,\n         tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted,\n         conflicts, temp_files, temp_bytes, deadlocks, stats_reset\n  FROM pg_stat_database WHERE datname = current_database()\n)\nSELECT jsonb_build_object(\n  'schema', 'laplace.postgresql-live-activity/v1',\n  'observedAt', clock_timestamp(),\n  'transactionReadOnly', current_setting('transaction_read_only'),\n  'serverVersionNumber', current_setting('server_version_num'),\n  'database', current_database(),\n  'currentUser', current_user,\n  'observerBackendPid', pg_backend_pid(),\n  'backendAttribution', 'Database-scoped; application name classes are not proof of a link to the Original CLI process.',\n  'databaseCounterScope', 'Cumulative whole-database counters include unrelated connections and this diagnostic; they are not game counts or application throughput.',\n  'activityTruncated', (SELECT count(*) > 128 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()),\n  'activity', COALESCE((SELECT jsonb_agg(jsonb_build_object(\n    'pid', pid, 'backendStart', backend_start, 'transactionStart', xact_start, 'queryStart', query_start,\n    'queryAgeSeconds', EXTRACT(EPOCH FROM clock_timestamp() - query_start),\n    'state', state, 'waitEventType', wait_event_type, 'waitEvent', wait_event,\n    'backendType', backend_type, 'backendXid', backend_xid, 'backendXmin', backend_xmin,\n    'applicationNameClass', CASE WHEN application_name = '' THEN 'empty'\n      WHEN application_name IN ('laplace', 'Laplace', 'laplace-api', 'laplace-ingest', 'laplace-cli')\n      THEN application_name ELSE 'other-unreported' END,\n    'blockingPids', (SELECT COALESCE(jsonb_agg(p), '[]'::jsonb) FROM (SELECT unnest(blockers) p LIMIT 32) b),\n    'blockingPidsTruncated', cardinality(blockers)>32\n  )) FROM activity), '[]'::jsonb),\n  'databaseCounters', (SELECT to_jsonb(db) FROM db),\n  'progressCopy', COALESCE((SELECT jsonb_agg(jsonb_build_object(\n    'pid', pid, 'relationId', relid, 'command', command, 'type', type,\n    'bytesProcessed', bytes_processed, 'bytesTotal', bytes_total,\n    'tuplesProcessed', tuples_processed, 'tuplesExcluded', tuples_excluded))\n    FROM (SELECT * FROM pg_stat_progress_copy WHERE datname=current_database() ORDER BY pid LIMIT 64) p), '[]'::jsonb),\n  'progressIndex', COALESCE((SELECT jsonb_agg(jsonb_build_object(\n    'pid', pid, 'relationId', relid, 'indexRelationId', index_relid, 'command', command, 'phase', phase,\n    'lockersTotal', lockers_total, 'lockersDone', lockers_done, 'currentLockerPid', current_locker_pid,\n    'blocksTotal', blocks_total, 'blocksDone', blocks_done, 'tuplesTotal', tuples_total, 'tuplesDone', tuples_done))\n    FROM (SELECT * FROM pg_stat_progress_create_index WHERE datname=current_database() ORDER BY pid LIMIT 64) p), '[]'::jsonb),\n  'progressVacuum', COALESCE((SELECT jsonb_agg(jsonb_build_object(\n    'pid', pid, 'relationId', relid, 'phase', phase,\n    'heapBlocksTotal', heap_blks_total, 'heapBlocksScanned', heap_blks_scanned, 'heapBlocksVacuumed', heap_blks_vacuumed))\n    FROM (SELECT * FROM pg_stat_progress_vacuum WHERE datname=current_database() ORDER BY pid LIMIT 64) p), '[]'::jsonb),\n  'progressAnalyze', COALESCE((SELECT jsonb_agg(jsonb_build_object(\n    'pid', pid, 'relationId', relid, 'phase', phase,\n    'sampleBlocksTotal', sample_blks_total, 'sampleBlocksScanned', sample_blks_scanned,\n    'extendedStatsTotal', ext_stats_total, 'extendedStatsComputed', ext_stats_computed))\n    FROM (SELECT * FROM pg_stat_progress_analyze WHERE datname=current_database() ORDER BY pid LIMIT 64) p), '[]'::jsonb)\n);\nROLLBACK;\n"
+          
+          def source_binding():
+              fd = os.open(SESSION, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+              with os.fdopen(fd, "rb") as stream:
+                  if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                      raise ValueError("session is not regular")
+                  raw = stream.read(65537)
+              if len(raw) > 65536:
+                  raise ValueError("session exceeds envelope")
+              data = json.loads(raw)
+              if data.get("schema") != "laplace.ci-session.v1" or data.get("source") != {"commit": EXPECTED_SHA, "tree": EXPECTED_TREE} or data.get("kind") != "product":
+                  raise ValueError("selected lifecycle identity differs")
+              active = data.get("active")
+              return {"source": EXPECTED_SHA, "receiptSha256": hashlib.sha256(raw).hexdigest(),
+                      "status": str(data.get("status", ""))[:80],
+                      "activePhase": str(active.get("phase", ""))[:80] if isinstance(active, dict) else None}
+          previous_database = None
+          def observe(sql_path):
+              global previous_database
+              result = {"schema": "laplace.postgresql-live-process-observation/v1", "source": EXPECTED_SHA,
+                        "observedUtc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "sqlSha256": hashlib.sha256(SQL.encode()).hexdigest(),
+                        "boundedQueryOwnerBlob": "5750337fb503deb62273a556e92a3fff32b8d0b8",
+                        "scope": "Read-only local installed database activity and matching backend processes. No query text, connection arguments, environment values, tokens, database or process mutation."}
+              try:
+                  result["lifecycle"] = source_binding()
+                  raw = bounded_query("laplace", sql_path, 5, 524288)
+                  data = json.loads(raw)
+                  if data.get("schema") != "laplace.postgresql-live-activity/v1" or data.get("transactionReadOnly") != "on" or data.get("database") != "laplace" or data.get("currentUser") != "laplace_admin":
+                      raise ValueError("read-only installed database identity differs")
+                  result["databaseObservation"] = data
+                  result["databaseReceiptBytes"] = len(raw)
+                  result["databaseReceiptSha256"] = hashlib.sha256(raw).hexdigest()
+                  activities = data.get("activity")
+                  if not isinstance(activities, list) or len(activities) > 128:
+                      raise ValueError("backend list exceeds envelope")
+                  result["backendProcesses"] = []
+                  for backend in activities:
+                      pid = backend.get("pid")
+                      observed = process_snapshot({"processId": pid, "processStartedAt": backend.get("backendStart")}, True)
+                      process_delta("backend:" + str(pid), observed)
+                      result["backendProcesses"].append({"backendPid": pid, "processObservation": observed})
+                  counters = data.get("databaseCounters")
+                  if isinstance(counters, dict):
+                      if previous_database is not None and counters.get("datid") == previous_database.get("datid") and counters.get("stats_reset") == previous_database.get("stats_reset"):
+                          deltas = {}
+                          for key in ("xact_commit", "xact_rollback", "blks_read", "blks_hit", "tup_returned", "tup_fetched",
+                                      "tup_inserted", "tup_updated", "tup_deleted", "conflicts", "temp_files", "temp_bytes", "deadlocks"):
+                              before, after = previous_database.get(key), counters.get(key)
+                              if type(before) is int and type(after) is int and after >= before:
+                                  deltas[key] = after - before
+                          result["databaseCounterDelta"] = deltas
+                      previous_database = counters
+                  result["readOnlyObservationSucceeded"] = True
+              except (OSError, ValueError, TypeError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
+                  result["readOnlyObservationSucceeded"] = False
+                  result["unavailableErrorType"] = type(error).__name__
+              print("POSTGRESQL_LIVE_OBSERVATION " + json.dumps(result, sort_keys=True, allow_nan=False), flush=True)
+          with tempfile.TemporaryDirectory(dir="/build/laplace/work", prefix="laplace-readonly-db-observation-") as directory:
+              sql_path = Path(directory) / "observation.sql"
+              sql_path.write_text(SQL)
+              observe(sql_path)
+              time.sleep(10)
+              observe(sql_path)
+          signal.alarm(0)
+          PY
