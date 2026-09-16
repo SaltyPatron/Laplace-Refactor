@@ -88,6 +88,7 @@ jobs:
             --games 16 --game-depth 8 --game-time-control 60 --timeout 600 --overall-timeout 1800 "${limits[@]}"
       - name: Retain exact execution context separately from product activation
         if: always()
+        shell: bash
         run: |
           python3 - <<'PYTHON'
           import hashlib
