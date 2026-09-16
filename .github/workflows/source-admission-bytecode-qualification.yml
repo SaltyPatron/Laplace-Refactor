@@ -50,7 +50,7 @@ jobs:
           target.mkdir(mode=0o700)
           PY
           git show "$GITHUB_SHA:.github/workflows/source-admission-bytecode-qualification.yml" > "$CORPUS_EVIDENCE/executed-workflow.yml"
-          git archive --format=tar HEAD tools/sources tools/product/build_workspace_retention.py tools/product/repository_inputs.py tools/admit_source_guard.py tools/dependencies/chess_tools.py tools/dependencies/git_checkout.py tools/host/run-exclusive.sh dependencies/lock.json dependencies/tree-sitter-grammars.lock.json .github/workflows/product-path.yml .github/workflows/stockfish-corpus-acceptance.yml > "$CORPUS_EVIDENCE/candidate-source.tar"
+          git archive --format=tar HEAD tools/sources tools/product/build_workspace_retention.py tools/product/repository_inputs.py tools/delivery/product_activation_runner.py tools/delivery/product_gateway_live_proof.py tools/postgresql/clusterctl.py tools/postgresql/cluster_core.py tools/admit_source_guard.py tools/dependencies/chess_tools.py tools/dependencies/git_checkout.py tools/host/run-exclusive.sh dependencies/lock.json dependencies/tree-sitter-grammars.lock.json .github/workflows/product-path.yml .github/workflows/stockfish-corpus-acceptance.yml > "$CORPUS_EVIDENCE/candidate-source.tar"
           cat > "$CORPUS_EVIDENCE/qualify.py" <<'PY'
           import hashlib, json, os, subprocess, sys, time
           from pathlib import Path
@@ -91,10 +91,84 @@ jobs:
               owner.require(result.returncode==0,name+" failed; exact stdout/stderr and owner receipt are retained")
               report["completed_phases"].append(name)
               save()
+          def recover_installed_cluster():
+              # Authenticate the committed package and plan before the existing
+              # runner owner may start its already initialized PostgreSQL cluster.
+              owner.runner.require_runner()
+              cluster=owner.runner.clusterctl
+              contract=owner.load(Path("contracts/postgresql-cluster.json"))
+              gateway=owner.load(Path("contracts/product-activation-gateway.json"))
+              active=Path(contract["package"]["active_link"])
+              release=Path(contract["package"]["release_root"])/package
+              owner.require(active.is_symlink() and os.readlink(active)=="releases/"+package
+                            and active.resolve(strict=True)==release,
+                            "recovery active package differs")
+              evidence=Path(contract["instance"]["receipt_directory"])/"cluster-activation"/package
+              installation=owner.load(evidence/"package-installation.json")
+              result=owner.load(evidence/"activation-result.json")
+              plan_path=owner.runner.validate_cluster_result(result,package)
+              plan=owner.load(plan_path)
+              cluster.validate_plan(plan,contract)
+              owner.require(plan["plan_sha256"]==result["plan_sha256"]
+                            and str(result["system_identifier"])=="7682119102860556519",
+                            "recovery plan or original cluster identity differs")
+              metadata=owner.resolve_installed_package_metadata(gateway["product"],installation,plan,package)
+              manifest=metadata["manifest"]
+              owner.runner.validate_package_installation(
+                  installation,manifest,Path(installation["source_physical_root"]))
+              status=cluster.verify_package(manifest,contract,Path("/"))
+              owner.require(status.verified,"recovery package bytes failed: "+status.reason)
+              owner.validate_loaded_plan(plan,manifest,contract,status.files,release)
+              runtime=Path(plan["runtime_link"])
+              owner.require(runtime.is_symlink() and os.readlink(runtime)=="../releases/"+package
+                            and runtime.resolve(strict=True)==release
+                            and status.manifest_sha256==installation["package_manifest_sha256"]
+                            ==plan["package_manifest_sha256"],"recovery runtime or manifest differs")
+              fingerprint=owner.repository_inputs.repository_build_fingerprint_at_commit(Path.cwd(),base)
+              _,_,matches,_=owner.observe_native_receipts(
+                  Path(contract["instance"]["receipt_directory"]),base,package,manifest,
+                  installation,plan,result,fingerprint)
+              owner.require(any(document.get("result_sha256")==aggregate
+                                for _,document,_,_ in matches),"recovery activation aggregate differs")
+              # Read the existing control identity before any startup; no initdb,
+              # package installation, source reseed or receipt replacement occurs.
+              data=Path(plan["instance"]["data_directory"])
+              owner.require(data.is_dir() and not data.is_symlink()
+                            and data.resolve(strict=True)==data and data.stat().st_uid==os.geteuid(),
+                            "preserved cluster directory is not the exact owned physical path")
+              control_command=[str(release/"pgsql-18/bin/pg_controldata"),"-D",str(data)]
+              probe=subprocess.run(control_command,
+                  cwd="/",env=cluster.activation_environment(),capture_output=True,
+                  text=True,timeout=30,check=False)
+              control=cluster.command_execution_receipt("read-preserved-control-identity",control_command,probe)
+              owner.require(probe.returncode==0,"preserved cluster control identity is unreadable")
+              identifiers=[line.split(":",1)[1].strip() for line in probe.stdout.splitlines()
+                           if line.startswith("Database system identifier:")]
+              owner.require(identifiers==[str(result["system_identifier"])],
+                            "preserved cluster control identity differs")
+              owner.save(out/"recovery-authority.json",{
+                  "package_id":package,"activation_aggregate":aggregate,
+                  "plan_path":str(plan_path),"plan_sha256":plan["plan_sha256"],
+                  "manifest_path":metadata["manifest_path"],"manifest_sha256":status.manifest_sha256,
+                  "system_identifier":identifiers[0],"control_identity_command":control})
+              report["active_phase"]="recover-installed-postgresql"
+              save()
+              observed=owner.runner.ensure_cluster_running(plan,contract,result)
+              owner.save(out/"recovered-loaded-postgresql.json",observed)
+              report["postgresql_recovery_verified"]=True
+              report["recovered_postmaster_pid"]=observed["postmaster_pid"]
+              report["completed_phases"].append("recover-installed-postgresql")
+              save()
           save()
           try:
+              recover_installed_cluster()
               before=checked_activation("activation-before")
               report["completed_phases"].append("activation-before")
+              command("gateway-readiness",[sys.executable,"-B","tools/delivery/product_gateway_live_proof.py",
+                  "--output",str(out/"gateway-readiness"),"--package-id",package,
+                  "--readiness-only","--product-receipt",before["package_metadata"]["receipt_path"]],120)
+              command("gateway-semantic-proof",[sys.executable,"-B","tools/delivery/product_gateway_live_proof.py",
+                  "--output",str(out/"gateway-semantic-proof"),"--package-id",package],180)
               # Extract and run the exact already-qualified four-row predicate.
               workflow=Path(".github/workflows/product-path.yml").read_text()
               block=workflow.split("\n  dev-bat-live-substrate:",1)[1]
@@ -188,7 +262,7 @@ jobs:
                           "source_estate","source_scope","owner_timeout_seconds","native_engine_rebuilt",
                           "service_restarted","completed_phases","active_phase","activation_unchanged",
                           "live_substrate_result_sha256","elapsed_seconds","error","activation_after_error",
-                          "retained_receipt_error","corpus"):
+                          "retained_receipt_error","corpus","postgresql_recovery_verified","recovered_postmaster_pid"):
                   if key in value:
                       result[key]=value[key]
           partial=evidence/"corpus/result.json"
