@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import itertools
 import json
 import math
@@ -20,6 +21,7 @@ import sys
 import time
 
 import chess_tools as tools
+import chess_pgn
 
 MIB = 1024 * 1024
 PROCESS_METRICS = ("rss_bytes", "pss_bytes", "anon_huge_bytes", "explicit_hugetlb_bytes", "processes", "threads", "smaps_unreadable_processes")
@@ -237,26 +239,118 @@ def parse_bench(transcript: str) -> dict:
     return result
 
 
-def validate_pgn(text: str, games: int) -> dict:
-    blocks = re.split(r"(?=\[Event )", text)
+def validate_pgn(text: str, games: int, *, provider: tuple | None = None,
+                 diagnostic: bool = False, max_moves: int | None = None) -> dict:
+    """Validate CuteChess's standard-start mainlines with the locked rules provider."""
+    tools.require(games > 0 and games % 2 == 0, "PGN game count must be positive and even")
+    tools.require(max_moves is None or (diagnostic and max_moves > 0), "move caps require explicit diagnostic mode")
+    chess, pgn, _ = provider or chess_pgn.load_provider(tools.SCRATCH / "chess-pgn-validation")
+    blocks = re.split(r"(?=^\[Event )", text, flags=re.M)
     records = []
     plies = 0
     for block in filter(lambda value: value.strip(), blocks):
-        tags = dict(re.findall(r'^\[(\w+) "([^"\n]*)"\]$', block, re.M))
+        tools.require(block.lstrip().startswith('[Event "'), "PGN has content outside a game")
+        tag_pattern = r'^\[(\w+) "((?:[^"\\\n]|\\.)*)"\][ \t]*$'
+        tag_rows = re.findall(tag_pattern, block, re.M)
+        tags = dict(tag_rows)
+        tools.require(len(tags) == len(tag_rows), "PGN has duplicate header tags")
         tools.require(tags.get("Result") in {"1-0", "0-1", "1/2-1/2"}, "PGN game is unfinished")
         tools.require(not re.search(r"(?:stall|crash|disconnect|illegal move|time forfeit)", block, re.I), "PGN records a process/protocol failure")
-        records.append({"white": tags.get("White"), "black": tags.get("Black"), "result": tags["Result"]})
-        movetext = re.sub(r"\{[^}]*\}|\[[^\]]*\]", " ", block)
-        tokens = re.sub(r"\d+\.(?:\.\.)?", " ", movetext).split()
-        game_plies = sum(token not in {"1-0", "0-1", "1/2-1/2", "*"} and not token.startswith("$") for token in tokens)
+        stream = io.StringIO(block)
+        game = pgn.read_game(stream)
+        tools.require(game is not None and not game.errors, f"PGN contains illegal or invalid moves: {getattr(game, 'errors', None)}")
+        tools.require(pgn.read_game(stream) is None, "PGN block contains more than one game")
+        board = game.board()
+        tools.require(type(board) is chess.Board and not board.chess960 and board.fen() == chess.STARTING_FEN,
+                      "benchmark PGN must start from the standard initial position")
+        tools.require(board.is_valid(), "PGN initial position is invalid")
+        # The upstream parser deliberately tolerates unknown text. For the plain
+        # mainlines emitted by CuteChess, account for every serialized SAN token
+        # and replay it through the same upstream rules provider as well.
+        movetext = re.sub(tag_pattern, " ", block, flags=re.M)
+        movetext = re.sub(r"\{[^{}]*\}|;[^\n]*", " ", movetext)
+        tokens = re.sub(r"(?<!\S)\d+\.(?:\.\.)?", " ", movetext).split()
+        tokens = [token for token in tokens if not re.fullmatch(r"\$\d+|[!?]+", token)]
+        tools.require(bool(tokens) and tokens[-1] == tags["Result"], "PGN movetext result is missing or disagrees with Result")
+        san_tokens = tokens[:-1]
+        moves = list(game.mainline_moves())
+        tools.require(len(san_tokens) == len(moves), "PGN contains unaccounted movetext or result markers")
+        for token, move in zip(san_tokens, moves):
+            tools.require(board.outcome(claim_draw=False) is None, "PGN continues after a terminal position")
+            try:
+                parsed = board.parse_san(re.sub(r"[!?]+$", "", token))
+            except ValueError as error:
+                raise tools.ChessToolError(f"PGN contains invalid SAN: {token}") from error
+            tools.require(bool(move) and parsed == move and board.is_legal(move), "PGN contains an illegal or null move")
+            board.push(move)
+        game_plies = len(moves)
         if "PlyCount" in tags:
             tools.require(int(tags["PlyCount"]) == game_plies, "PGN PlyCount disagrees with serialized moves")
+        termination = tags.get("Termination", "").lower()
+        outcome = board.outcome(claim_draw=True)
+        normal = termination in {"", "normal"} and not re.search(r"adjudicat|resign|maximal game length", block, re.I)
+        if normal:
+            tools.require(outcome is not None and outcome.result() == tags["Result"], "PGN result lacks a matching legal terminal outcome")
+        else:
+            tools.require(diagnostic and max_moves is not None and termination == "adjudication"
+                          and "Draw by adjudication: maximal game length" in block
+                          and tags["Result"] == "1/2-1/2" and game_plies == 2 * max_moves,
+                          "PGN non-normal termination is not an explicitly capped diagnostic")
+            tools.require(outcome is None or outcome.result() == tags["Result"], "PGN adjudication contradicts the legal terminal outcome")
+        if max_moves is not None:
+            tools.require(game_plies <= 2 * max_moves, "PGN exceeds the declared diagnostic move cap")
+        records.append({"white": tags.get("White"), "black": tags.get("Black"), "result": tags["Result"],
+                        "plies": game_plies, "termination": termination or "normal",
+                        "normal_completion": normal, "board_outcome": outcome.termination.name if outcome else None,
+                        "final_fen": board.fen(), "time_control": tags.get("TimeControl"),
+                        "moves_sha256": tools.hashlib.sha256(" ".join(move.uci() for move in moves).encode()).hexdigest()})
         plies += game_plies
     tools.require(len(records) == games, f"expected {games} PGNs; observed {len(records)}")
     expected = games // 2
     tools.require(sum(record["white"] == "Source-A" and record["black"] == "Source-B" for record in records) == expected, "PGN color pairing is unbalanced")
     tools.require(sum(record["white"] == "Source-B" and record["black"] == "Source-A" for record in records) == expected, "PGN reverse color pairing is unbalanced")
-    return {"games": games, "plies": plies, "records": records, "result_fingerprint": tools.hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()}
+    completed = sum(record["normal_completion"] for record in records)
+    return {"games": games, "normal_completed_games": completed, "capped_diagnostic_games": games - completed,
+            "plies": plies, "records": records, "legal_moves_validated": True,
+            "result_fingerprint": tools.hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()}
+
+
+def game_workload(arguments: argparse.Namespace) -> dict:
+    tools.require(arguments.max_moves is None or (arguments.diagnostic and arguments.max_moves > 0),
+                  "--max-moves requires --diagnostic and a positive move cap")
+    return {"mode": "diagnostic" if arguments.diagnostic else "complete-legal-games",
+            "search_limit": {"type": "depth", "depth": arguments.game_depth},
+            "time_control": arguments.game_time_control, "max_moves": arguments.max_moves,
+            "adjudication": "maximal game length" if arguments.max_moves is not None else "none",
+            "start_position": "standard", "draw_claims": True,
+            "throughput_scope": "capped/diagnostic episodes" if arguments.diagnostic else "legally completed game generation",
+            "database_recording": {"measured": False, "recorded_games": None, "games_per_second": None}}
+
+
+def cutechess_command(arguments: argparse.Namespace, configuration: dict, cc: str, sf: str, pgn: Path) -> list[str]:
+    game_workload(arguments)
+    command = [cc, "-engine", f"cmd={sf}", "name=Source-A", "-engine", f"cmd={sf}", "name=Source-B",
+               "-each", "proto=uci", f"tc={arguments.game_time_control}", f"depth={arguments.game_depth}",
+               f'option.Threads={configuration["threads"]}', f'option.Hash={configuration["hash_mib"]}',
+               "option.UCI_LimitStrength=false", "option.Skill Level=20", "option.MultiPV=1", "option.NumaPolicy=auto",
+               "-games", str(arguments.games), "-rounds", "1", "-repeat", "-concurrency", str(configuration["concurrency"])]
+    if arguments.max_moves is not None:
+        command += ["-maxmoves", str(arguments.max_moves)]
+    return command + ["-pgnout", str(pgn)]
+
+
+def game_rates(validation: dict, wall_seconds: float, diagnostic: bool) -> dict:
+    tools.require(wall_seconds > 0, "game measurement must have positive elapsed time")
+    key = "diagnostic_episodes_per_second" if diagnostic else "normal_completed_games_per_second"
+    if not diagnostic:
+        tools.require(validation["normal_completed_games"] == validation["games"], "incomplete games cannot supply full-game throughput")
+    return {key: validation["games"] / wall_seconds, "plies_per_second": validation["plies"] / wall_seconds}
+
+
+def remaining_timeout(deadline: float, per_case: float) -> float:
+    remaining = deadline - time.monotonic()
+    tools.require(remaining > 0, "overall benchmark timeout exhausted")
+    return min(per_case, remaining)
 
 
 def automatic_sweep_values(limit: int, physical_boundary: int | None) -> list[int]:
@@ -345,11 +439,15 @@ def aggregates(samples: list[dict], key: str, value: str) -> list[dict]:
         for metric in ("nodes", "engine_nodes_per_second", "engine_milliseconds", "plies_per_second"):
             if metric in selected[0]:
                 summary[f"median_{metric}"] = statistics.median(sample[metric] for sample in selected)
+        for metric in ("games", "normal_completed_games", "capped_diagnostic_games", "plies"):
+            if metric in selected[0]:
+                summary[f"total_{metric}"] = sum(sample[metric] for sample in selected)
+        summary["total_wall_seconds"] = sum(sample["wall_seconds"] for sample in selected)
         result.append(summary)
     return result
 
 
-def main() -> int:
+def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["observe", "run"])
     parser.add_argument("--prefix", type=Path, default=Path("/opt/laplace/tools/chess"))
@@ -367,24 +465,46 @@ def main() -> int:
     parser.add_argument("--depth", type=int, default=10)
     parser.add_argument("--games", type=int, default=8)
     parser.add_argument("--game-depth", type=int, default=6)
-    parser.add_argument("--max-moves", type=int, default=20)
+    parser.add_argument("--game-time-control", default="60", help="CuteChess time control, retained with the depth limit")
+    parser.add_argument("--diagnostic", action="store_true", help="diagnostic episodes only; never recommend full-game throughput")
+    parser.add_argument("--max-moves", type=int, help="explicit diagnostic move-pair cap; requires --diagnostic; normal games are uncapped")
     parser.add_argument("--game-threads", type=int, default=1)
     parser.add_argument("--game-hash-mib", type=int, default=16)
     parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument("--overall-timeout", type=float, default=1800, help="wall budget for the complete measured sweep, including warmups and validation")
     parser.add_argument("--seed", type=int, default=20260915)
     parser.add_argument("--syzygy-manifest", type=Path)
-    arguments = parser.parse_args()
-    report = {"schema": "laplace.chess-benchmark-receipt/v1", "completion": "initializing", "stockfish_samples": [], "cutechess_samples": [], "recommendations": None}
+    return parser
+
+
+def recommendations(serial: list[dict], games: list[dict], workload: dict) -> dict:
+    return {"scope": "provisional best measured configuration within this finite sweep",
+            "single_engine_fixed_depth_suite": min(serial, key=lambda value: value["wall_seconds_median"]),
+            "aggregate_game_throughput": None if workload["mode"] == "diagnostic" else max(games, key=lambda value: value["median_normal_completed_games_per_second"]),
+            "game_workload": workload, "different_node_work_caveat": True, "playing_strength_inferred": False,
+            "database_recording_capacity_measured": False}
+
+
+def main() -> int:
+    arguments = argument_parser().parse_args()
+    report = {"schema": "laplace.chess-benchmark-receipt/v2", "completion": "initializing", "stockfish_samples": [], "cutechess_samples": [], "recommendations": None,
+              "database_recording": {"measured": False, "recorded_games": None, "games_per_second": None}}
     output_created = False
     try:
         tools.require(arguments.samples >= 2 and arguments.warmups >= 0 and arguments.games > 0 and arguments.games % 2 == 0, "use at least two measured samples, nonnegative warmups, and a positive even game count")
-        tools.require(min(arguments.depth, arguments.game_depth, arguments.max_moves, arguments.game_threads, arguments.game_hash_mib, arguments.engine_overhead_mib) > 0 and arguments.timeout > 0 and arguments.reserve_memory_mib >= 0, "depth, moves, threads, Hash, overhead and timeout must be positive")
+        tools.require(min(arguments.depth, arguments.game_depth, arguments.game_threads, arguments.game_hash_mib, arguments.engine_overhead_mib) > 0 and arguments.timeout > 0 and arguments.overall_timeout > 0 and math.isfinite(arguments.timeout) and math.isfinite(arguments.overall_timeout) and arguments.reserve_memory_mib >= 0, "depth, threads, Hash, overhead and finite timeouts must be positive")
+        workload = game_workload(arguments)
+        report["game_workload"] = workload
         arguments.output.mkdir(parents=True, exist_ok=False)
         output_created = True
         arguments.output = arguments.output.resolve()
         host = host_observation()
         report["host"] = host
         selected, artifacts = tools.configuration()
+        provider = chess_pgn.load_provider(arguments.output / "validation-provider")
+        report["pgn_validation_provider"] = provider[2]
+        tools.json_write(arguments.output / "validation-provider.json", provider[2])
+        report["pgn_validation_provider_receipt_sha256"] = tools.digest(arguments.output / "validation-provider.json")
         installed = tools.verify_installation(arguments.prefix, selected, artifacts)
         report["tool_identity"] = installed
         sf = installed["tools"]["stockfish"]["executable"]
@@ -406,11 +526,12 @@ def main() -> int:
         report["profile_contract_sha256"] = tools.digest(tools.ROOT / "contracts/chess-benchmark.json")
         report["benchmark_implementation_sha256"] = tools.digest(Path(__file__))
         report["dependency_tool_implementation_sha256"] = tools.digest(Path(tools.__file__))
+        report["pgn_provider_implementation_sha256"] = tools.digest(Path(chess_pgn.__file__))
         report["upstream_bench_source_sha256"] = None if arguments.stockfish else tools.digest(Path(installed["tools"]["stockfish"]["source"]) / "src/benchmark.cpp")
         report["repository_commit"] = tools.git(tools.ROOT, "rev-parse", "HEAD")
         report["topology_resource_epoch_sha256"] = tools.hashlib.sha256(json.dumps(host, sort_keys=True).encode()).hexdigest()
         report["timing_boundary"] = "spawn through leader completion and owned process-group cleanup; engine's search-only milliseconds also recorded; warmups excluded from summaries"
-        report["limitations"] = ["Results belong to the recorded execution environment and granted resources.", "Fixed-depth SMP/hash configurations can visit different nodes and choose different moves; elapsed speedup is not identical-work scaling.", "A short finite sweep supports a provisional best measured setting, not universal tuning or playing strength/Elo.", "CuteChess games are deliberately move-limited self-play; games/s includes process and UCI lifecycle overhead.", "cgroup counters include unrelated workloads in the same cgroup; sampled RSS may double-count shared pages and miss short peaks; PSS is reported separately.", "CPU quota and memory headroom are observations, not reserved resources. No kernel, affinity or NUMA policy is changed."]
+        report["limitations"] = ["Results belong to the recorded execution environment and granted resources.", "Fixed-depth SMP/hash configurations can visit different nodes and choose different moves; elapsed speedup is not identical-work scaling.", "A finite sweep supports a provisional best measured setting, not universal tuning or playing strength/Elo.", "Game-generation rates include process and UCI lifecycle overhead; independent PGN validation runs after that measured interval.", "Database recording, persistence throughput and Laplace playing strength are unmeasured.", "Diagnostic episodes cannot establish complete-game throughput or recommend full-game capacity.", "cgroup counters include unrelated workloads in the same cgroup; sampled RSS may double-count shared pages and miss short peaks; PSS is reported separately.", "CPU quota and memory headroom are observations, not reserved resources. No kernel, affinity or NUMA policy is changed."]
         receipt = arguments.output / "receipt.json"
         report["completion"] = "capabilities-observed-benchmarks-not-run"
         tools.json_write(receipt, report)
@@ -418,6 +539,9 @@ def main() -> int:
             print(json.dumps({"receipt": str(receipt), "completion": report["completion"], "cpu_equivalents": host["effective_cpu_equivalents"], "memory_headroom_bytes": host["effective_memory_headroom_bytes"]}))
             return 0
         rng = random.Random(arguments.seed)
+        sweep_started = time.monotonic()
+        deadline = sweep_started + arguments.overall_timeout
+        report["overall_budget_seconds"] = arguments.overall_timeout
         for profile, configurations in (("stockfish", resource_plan["stockfish"]), ("cutechess", resource_plan["cutechess"])):
             for repetition in range(arguments.warmups + arguments.samples):
                 order = configurations.copy()
@@ -425,26 +549,44 @@ def main() -> int:
                 for configuration in order:
                     index = len(report[f"{profile}_samples"])
                     transcript = arguments.output / f"{profile}-{index:04d}.log"
+                    report["active_case"] = {"profile": profile, "configuration": configuration,
+                                             "repetition": repetition, "warmup": repetition < arguments.warmups,
+                                             "transcript": str(transcript), "measurement": None, "validation": "pending"}
+                    case_timeout = remaining_timeout(deadline, arguments.timeout)
+                    report["active_case"]["timeout_seconds"] = case_timeout
                     if profile == "stockfish":
                         input_text = f'setoption name NumaPolicy value auto\nsetoption name UCI_LimitStrength value false\nsetoption name Skill Level value 20\nsetoption name MultiPV value 1\nbench {configuration["hash_mib"]} {configuration["threads"]} {arguments.depth} default depth\nquit\n'
-                        measurement = measured_process([sf], transcript, host, arguments.timeout, resource_plan["memory_mib"] * MIB, input_text)
+                        report["active_case"]["command"] = [sf]
+                        measurement = measured_process([sf], transcript, host, case_timeout, resource_plan["memory_mib"] * MIB, input_text)
+                        report["active_case"]["measurement"] = measurement
                         tools.require(measurement["completion"] == "completed", f"Stockfish benchmark failed: {measurement}")
                         measurement.update(parse_bench(transcript.read_text()))
                         measurement["wall_nodes_per_second"] = measurement["nodes"] / measurement["wall_seconds"]
                     else:
                         pgn = arguments.output / f"cutechess-{index:04d}.pgn"
-                        command = [cc, "-engine", f"cmd={sf}", "name=Source-A", "-engine", f"cmd={sf}", "name=Source-B", "-each", "proto=uci", "tc=60", f"depth={arguments.game_depth}", f'option.Threads={configuration["threads"]}', f'option.Hash={configuration["hash_mib"]}', "option.UCI_LimitStrength=false", "option.Skill Level=20", "option.MultiPV=1", "option.NumaPolicy=auto", "-games", str(arguments.games), "-rounds", "1", "-repeat", "-concurrency", str(configuration["concurrency"]), "-maxmoves", str(arguments.max_moves), "-pgnout", str(pgn)]
-                        measurement = measured_process(command, transcript, host, arguments.timeout, resource_plan["memory_mib"] * MIB, environment=cc_environment)
+                        command = cutechess_command(arguments, configuration, cc, sf, pgn)
+                        report["active_case"].update({"command": command, "pgn": str(pgn), "workload": workload})
+                        measurement = measured_process(command, transcript, host, case_timeout, resource_plan["memory_mib"] * MIB, environment=cc_environment)
+                        report["active_case"]["measurement"] = measurement
+                        if pgn.is_file():
+                            report["active_case"]["pgn_sha256"] = tools.digest(pgn)
                         tools.require(measurement["completion"] == "completed" and "Finished match" in transcript.read_text(), f"CuteChess benchmark failed: {measurement}")
-                        measurement.update(validate_pgn(pgn.read_text(), arguments.games))
-                        measurement.update({"games_per_second": arguments.games / measurement["wall_seconds"], "plies_per_second": measurement["plies"] / measurement["wall_seconds"], "pgn": str(pgn), "pgn_sha256": tools.digest(pgn)})
+                        validation_started = time.monotonic()
+                        measurement.update(validate_pgn(pgn.read_text(), arguments.games, provider=provider, diagnostic=arguments.diagnostic, max_moves=arguments.max_moves))
+                        measurement["pgn_validation_wall_seconds"] = time.monotonic() - validation_started
+                        measurement.update(game_rates(measurement, measurement["wall_seconds"], arguments.diagnostic))
+                        measurement.update({"pgn": str(pgn), "pgn_sha256": tools.digest(pgn), "workload": workload})
                     measurement.update({"configuration": configuration, "warmup": repetition < arguments.warmups, "repetition": repetition})
                     report[f"{profile}_samples"].append(measurement)
+                    report.pop("active_case")
                     report["completion"] = "running"
                     tools.json_write(receipt, report)
                     print(json.dumps({"profile": profile, "configuration": configuration, "repetition": repetition, "warmup": measurement["warmup"], "wall_seconds": measurement["wall_seconds"]}), flush=True)
         serial = aggregates(report["stockfish_samples"], "median_wall_nodes_per_second", "wall_nodes_per_second")
-        games = aggregates(report["cutechess_samples"], "median_games_per_second", "games_per_second")
+        game_rate = "diagnostic_episodes_per_second" if arguments.diagnostic else "normal_completed_games_per_second"
+        games = aggregates(report["cutechess_samples"], f"median_{game_rate}", game_rate)
+        report["overall_sweep_wall_seconds"] = time.monotonic() - sweep_started
+        remaining_timeout(deadline, arguments.timeout)
         report["host_after"] = host_observation()
         report["executable_sha256_after"] = {path: tools.digest(Path(path)) for path in (sf, cc)}
         report["stability_failures"] = stability_failures(host, report["host_after"], report["executable_sha256_before"], report["executable_sha256_after"], resource_plan)
@@ -453,16 +595,16 @@ def main() -> int:
             baseline = next((value for value in serial if value["configuration"] == {"threads": 1, "hash_mib": item["configuration"]["hash_mib"]}), None)
             item["elapsed_speedup_vs_one_thread"] = baseline["wall_seconds_median"] / item["wall_seconds_median"] if baseline else None
             item["elapsed_parallel_efficiency"] = item["elapsed_speedup_vs_one_thread"] / item["configuration"]["threads"] if baseline else None
-        fastest = min(serial, key=lambda value: value["wall_seconds_median"])
-        throughput = max(games, key=lambda value: value["median_games_per_second"])
         report["summaries"] = {"stockfish": serial, "cutechess": games}
-        report["recommendations"] = {"scope": "provisional best measured configuration within this finite sweep", "single_engine_fixed_depth_suite": fastest, "aggregate_game_throughput": throughput, "different_node_work_caveat": True, "playing_strength_inferred": False}
+        report["recommendations"] = recommendations(serial, games, workload)
         report["completion"] = "completed-with-rejected-configurations" if resource_plan["rejected"] else "completed"
         tools.json_write(receipt, report)
         print(json.dumps({"receipt": str(receipt), "completion": report["completion"], "recommendations": report["recommendations"]}, indent=2))
         return 0
     except (tools.ChessToolError, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         report.update({"completion": "failed", "error": str(error), "recommendations": None})
+        if "active_case" in report:
+            report["failed_case"] = {**report.pop("active_case"), "error": str(error)}
         if output_created:
             tools.json_write(arguments.output / "receipt.json", report)
         print(json.dumps({"completion": "failed", "error": str(error)}), file=sys.stderr)
