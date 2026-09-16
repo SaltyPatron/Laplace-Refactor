@@ -1,0 +1,47 @@
+name: observe-activated-source-provenance
+on:
+  push:
+    branches: [diag/activated-source-provenance-20260916]
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
+    steps:
+      - name: Read exact activated package provenance
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          timeout --kill-after=2s 20s python3 - <<'PY'
+          import hashlib,json,os,stat
+          from pathlib import Path
+          package="a4888efa3798fda28ce4ca91d56ef17e12dcd71b57fc82040d502ac2612e1cc5"
+          expected="e5fb773c3c5758679eb13c3dd228a0ba2aab27af"
+          build=Path("/build/laplace/runner/product/build/944f81b8a2508307e2688c209a7670c018a9aafaa99f87af048c31c185372b40")
+          root=Path("/opt/laplace/receipts/postgresql/refactor")
+          def read(path):
+              fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+              try:
+                  st=os.fstat(fd)
+                  assert stat.S_ISREG(st.st_mode) and st.st_size<=32*1024*1024
+                  data=b""
+                  while True:
+                      part=os.read(fd,1024*1024)
+                      if not part: break
+                      data+=part
+                      assert len(data)<=32*1024*1024
+              finally: os.close(fd)
+              value=json.loads(data)
+              assert isinstance(value,dict)
+              return value,hashlib.sha256(data).hexdigest()
+          manifest,mhash=read(build/"package-manifest.json")
+          receipt,rhash=read(build/"package-receipt.json")
+          installation,ihash=read(root/"cluster-activation"/package/"package-installation.json")
+          aggregate,ahash=read(root/"product-activation"/expected/package/"04db12b8019005589382d3478352611091c69e831c9566a803e938c1698c915d.json")
+          assert manifest["package_id"]==receipt["package_id"]==installation["package_id"]==aggregate["package_id"]==package
+          assert mhash==receipt["manifest_sha256"]==installation["package_manifest_sha256"]
+          assert aggregate["repository_commit"]==expected
+          assert os.readlink("/opt/laplace/current")=="releases/"+package
+          assert os.readlink("/opt/laplace/runtime/refactor")=="../releases/"+package
+          print(json.dumps({"schema":"laplace.activated-source-provenance-observation/v1","package_id":package,"manifest_sha256":mhash,"package_receipt_sha256":rhash,"installation_file_sha256":ihash,"aggregate_file_sha256":ahash,"build_repository_commit":manifest["laplace"].get("repository_commit"),"build_repository_tree":manifest["laplace"].get("repository_tree"),"deployment_repository_commit":aggregate["repository_commit"],"source_physical_root":installation["source_physical_root"],"mutation_performed":False},sort_keys=True))
+          PY
