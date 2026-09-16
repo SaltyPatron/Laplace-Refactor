@@ -87,8 +87,9 @@ jobs:
                   selected = [job for job in jobs if job["name"] == name]
                   if len(selected) != 1 or selected[0]["conclusion"] != "success":
                       raise RuntimeError("required healthy proof has not completed: " + name)
-              if run["status"] != "in_progress":
+              if run["status"] not in ("in_progress", "queued", "waiting", "pending"):
                   raise RuntimeError("target is not an active main lifecycle")
+              receipt["initial_run_status"] = run["status"]
               receipt["completed_proofs"] = [{"id": job["id"], "name": job["name"],
                   "conclusion": job["conclusion"]} for job in jobs if job["conclusion"] == "success"]
               code, _ = api(f"/repos/{REPO}/actions/runs/{RUN}/cancel", "POST")
