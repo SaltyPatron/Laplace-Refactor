@@ -83,7 +83,8 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
         self.assertEqual(list(long_scratch.iterdir()), [])
         self.assertFalse((self.root / "initdb-arguments").exists())
 
-    def chess_harness(self, *, bootstrap_status: int = 0, stalled_probe: bool = False
+    def chess_harness(self, *, bootstrap_status: int = 0, stalled_probe: bool = False,
+                      wal_growth_bytes: int = 0
                       ) -> tuple[list[str], dict[str, str], Path]:
         """Protocol-only stand-ins; no canonical tuples or passing acceptance are fabricated."""
         binaries = self.root / "chess-pg"
@@ -127,6 +128,14 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
             "            value=next(value[len(prefix):] for value in args if value.startswith(prefix))\n"
             "            with open(value,'wb') as output: output.truncate(size)\n"
             "elif name=='chess-probe':\n"
+            "    wal_bytes=int(os.environ['LAPLACE_TEST_WAL_GROWTH_BYTES'])\n"
+            "    if wal_bytes:\n"
+            "        calls=[json.loads(line) for line in pathlib.Path(os.environ['LAPLACE_TEST_EVENTS']).read_text().splitlines()]\n"
+            "        initialization=next(call['args'] for call in calls if call['program']=='initdb')\n"
+            "        data=pathlib.Path(initialization[initialization.index('-D')+1])\n"
+            "        with open(data/'pg_wal'/'chess-probe-test-segment','wb') as output:\n"
+            "            output.write(os.urandom(wal_bytes)); output.flush(); os.fsync(output.fileno())\n"
+            "        time.sleep(30)\n"
             "    if os.environ['LAPLACE_TEST_STALL_PROBE']=='1': time.sleep(30)\n"
             "    # Zero exit deliberately supplies no native acceptance evidence.\n"
         )
@@ -140,6 +149,7 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
             "LAPLACE_TEST_CLIENT_LIBRARY": str(engine),
             "LAPLACE_TEST_BOOTSTRAP_STATUS": str(bootstrap_status),
             "LAPLACE_TEST_STALL_PROBE": "1" if stalled_probe else "0",
+            "LAPLACE_TEST_WAL_GROWTH_BYTES": str(wal_growth_bytes),
             "LAPLACE_UNICODE_SOURCE_ROOT": str(unicode_root),
             "LAPLACE_CHESS_LINE_MANIFEST": str(self.root / "manifest.json"),
             "LAPLACE_CHESS_LINE_PGN": str(self.root / "source.pgn"),
@@ -354,60 +364,35 @@ class PostgreSQLResourceGuardTests(unittest.TestCase):
         )
         self.assertNotIn("LAPLACE_POSTGRES_STATEMENT_TIMEOUT_MS:-180000", harness)
 
-    def test_deliberate_guard_omission_is_detected(self) -> None:
-        harness = RUN_SPI.read_text(encoding="utf-8")
-        phase_boundaries = {
-            "unicode-bootstrap": (
-                "    unicode_bootstrap_command=(",
-                "    psql_arguments+=(-v source_skip_unicode=1)",
-            ),
-            "source-setup": (
-                "    source_max_wall_seconds=${LAPLACE_POSTGRES_MAX_WALL_SECONDS:-60}",
-                '        -- "${psql_command[@]}"',
-            ),
-            "native-line-replay": (
-                "    chess_phase=native-line-replay",
-                "    chess_phase=evidence-validation",
-            ),
-        }
-        wal_bindings = {
-            "unicode-bootstrap": (
-                '--max-wal-bytes "${LAPLACE_POSTGRES_UNICODE_MAX_WAL_BYTES:-8589934592}"',
-            ),
-            "source-setup": (
-                "source_max_wal_bytes=${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}",
-                "source_max_wal_bytes=${LAPLACE_POSTGRES_UNICODE_MAX_WAL_BYTES:-8589934592}",
-                "source_max_wal_bytes=${LAPLACE_POSTGRES_SOURCE_SUITE_MAX_WAL_BYTES:-1610612736}",
-                '--max-wal-bytes "$source_max_wal_bytes"',
-            ),
-            "native-line-replay": (
-                '--max-wal-bytes "${LAPLACE_POSTGRES_MAX_WAL_BYTES:-536870912}"',
-            ),
-        }
-        phases = {}
-        for phase, (start, end) in phase_boundaries.items():
-            offset = harness.index(start)
-            phases[phase] = harness[offset:harness.index(end, offset)]
-
-        def assert_wal_bindings(candidate: dict[str, str]) -> None:
-            for phase, bindings in wal_bindings.items():
-                for binding in bindings:
-                    self.assertEqual(
-                        candidate[phase].count(binding), 1,
-                        f"{phase}: missing or repeated WAL binding {binding}",
-                    )
-
-        assert_wal_bindings(phases)
-        # Defaults shared by independent phases must not mask an omission.
-        for phase, bindings in wal_bindings.items():
-            for binding in bindings:
-                with self.subTest(phase=phase, omitted=binding):
-                    mutant = phases.copy()
-                    mutant[phase] = mutant[phase].replace(binding, "", 1)
-                    with self.assertRaisesRegex(AssertionError, phase):
-                        assert_wal_bindings(mutant)
-                    for other_phase in phases.keys() - {phase}:
-                        self.assertEqual(mutant[other_phase], phases[other_phase])
+    def test_chess_runner_forwards_wal_ceiling_to_native_probe(self) -> None:
+        command, environment, events = self.chess_harness(wal_growth_bytes=8192)
+        environment["LAPLACE_POSTGRES_MAX_WAL_BYTES"] = "4096"
+        environment["LAPLACE_POSTGRES_CHESS_LINE_MAX_WALL_SECONDS"] = "10"
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=25)
+        self.assertEqual(result.returncode, 90, result.stderr)
+        calls = [json.loads(line) for line in events.read_text().splitlines()]
+        self.assertEqual(sum(call["program"] == "chess-probe" for call in calls), 1)
+        self.assertTrue(any(call["program"] == "pg_ctl" and "stop" in call["args"] for call in calls))
+        directory, retained = self.chess_evidence()
+        self.assertEqual(retained["status"], "failed")
+        self.assertEqual(retained["exit_code"], 90)
+        self.assertEqual(retained["last_phase"], "native-line-replay")
+        for filename in ("unicode-resource-guard.json", "resource-guard.json"):
+            earlier = json.loads((directory / filename).read_text())
+            self.assertEqual(earlier["result"], "completed")
+            self.assertIsNone(earlier["breach"])
+            self.assertEqual(earlier["client_returncode"], 0)
+        guard = json.loads((directory / "chess-line-resource-guard.json").read_text())
+        self.assertEqual(guard["result"], "resource-ceiling-breached")
+        self.assertEqual(guard["ceilings"]["wal_bytes"], 4096)
+        self.assertEqual(guard["breach"]["dimension"], "wal_bytes")
+        self.assertEqual(guard["breach"]["ceiling"], 4096)
+        self.assertGreater(guard["breach"]["observed"], 4096)
+        self.assertGreater(guard["maxima"]["wal_bytes"], 4096)
+        self.assertNotEqual(guard["client_returncode"], 0)
+        self.assertNotIn("chess-line-receipt.json", retained["artifacts"])
+        self.assertNotIn("chess-line-observations.json", retained["artifacts"])
+        self.assertEqual(list((self.root / "scratch").iterdir()), [])
 
 
 if __name__ == "__main__":
