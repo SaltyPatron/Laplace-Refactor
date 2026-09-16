@@ -72,7 +72,8 @@ def main():
         require(fixtures["schema"] == "laplace.pgn-provider-fixtures/v1"
                 and fixtures["scope"] == "syntax-only", "invalid fixture scope")
         require(fixtures["upstream"]["revision"] == grammar["revision"], "fixtures target another grammar")
-        cases = fixtures["cases"]
+        # The common artifact graph requires unique names in bytewise order.
+        cases = sorted(fixtures["cases"], key=lambda case: case["path"])
         require(1 <= len(cases) <= 64, "fixture count is outside the native envelope")
         paths = []
         for case in cases:
