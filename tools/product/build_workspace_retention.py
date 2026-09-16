@@ -187,10 +187,31 @@ def _publish_metadata(
     manifest_bytes: bytes,
     summary: dict[str, Any],
 ) -> Path:
-    destination = retention_root / plan_id
-    destination.mkdir(mode=0o2770, exist_ok=True)
-    if destination.is_symlink() or not destination.is_dir():
-        raise RetentionError(f"execution-retention destination is unsafe: {destination}")
+    plan_destination = retention_root / plan_id
+    plan_destination.mkdir(mode=0o2770, exist_ok=True)
+    if plan_destination.is_symlink() or not plan_destination.is_dir():
+        raise RetentionError(
+            f"execution-retention destination is unsafe: {plan_destination}"
+        )
+
+    # A build plan identifies its inputs, not its execution metadata. Rebuilding
+    # the same plan can change the build log and therefore the package receipt
+    # while retaining the same package. Keep each exact receipt's evidence.
+    # Receipt validation already binds these bytes to the exact manifest.
+    receipt_id = sha256_bytes(receipt_bytes)
+    legacy_receipt = plan_destination / "package-receipt.json"
+    if (legacy_receipt.is_file() and not legacy_receipt.is_symlink()
+            and legacy_receipt.read_bytes() == receipt_bytes):
+        # Reuse an identical pre-versioning record without rewriting history.
+        # The common exact checks below still reject any changed companion.
+        destination = plan_destination
+    else:
+        destination = plan_destination / receipt_id
+        destination.mkdir(mode=0o2770, exist_ok=True)
+        if destination.is_symlink() or not destination.is_dir():
+            raise RetentionError(
+                f"execution-retention destination is unsafe: {destination}"
+            )
     documents = {
         "package-receipt.json": receipt_bytes,
         "package-manifest.json": manifest_bytes,
@@ -207,6 +228,8 @@ def _publish_metadata(
             stream.flush()
             os.fsync(stream.fileno())
     _fsync_directory(destination)
+    if destination != plan_destination:
+        _fsync_directory(plan_destination)
     _fsync_directory(retention_root)
     return destination
 

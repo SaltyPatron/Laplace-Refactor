@@ -496,7 +496,9 @@ jobs:
           package_id='${{ needs.compose-product.outputs.package_id }}'
           receipt_root=$(jq -er '.instance.receipt_directory' contracts/postgresql-cluster.json)
           proof="$receipt_root/cluster-activation/$package_id/installed-cognition-proof.json"
-          python3 tools/delivery/product_cognition_live_proof.py --output "$proof"
+          failure_artifact="$RUNNER_TEMP/installed-cognition-failure-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          python3 tools/delivery/product_cognition_live_proof.py \
+            --output "$proof" --failure-artifact "$failure_artifact"
           jq -e \
             --arg package_id "$package_id" '
             .schema == "laplace.installed-product-cognition-proof/v1" and
@@ -509,6 +511,15 @@ jobs:
             (.execution.execution_receipt_id | test("^\\\\x[0-9a-f]{64}$")) and
             (.proof_sha256 | test("^[0-9a-f]{64}$"))
           ' "$proof" >/dev/null
+
+      - name: Upload current installed cognition failure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: installed-cognition-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/installed-cognition-failure-${{ github.run_id }}-${{ github.run_attempt }}.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Converge runner-owned package receipt estate
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}

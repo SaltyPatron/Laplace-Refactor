@@ -653,6 +653,34 @@ Datum laplace_pg_cognition_product_execute(PG_FUNCTION_ARGS) {
         }
     }
 
+    /* A rejected whole program has no success receipt. Preserve the native
+     * refusal and physical work separately before releasing its providers; the
+     * existing result ABI and every completion guard remain unchanged. */
+    if (status != LAPLACE_COGNITION_FIRMWARE_OK) {
+        ereport(NOTICE,
+                (errmsg("LAPLACE_COGNITION_FAILURE "
+                        "{\"schema\":\"laplace.cognition-failure-diagnostic/v1\","
+                        "\"status\":%u,\"failed_step\":%u,\"native_status\":%u,"
+                        "\"native_disposition\":%u,\"physical_provider_rows\":%llu,"
+                        "\"physical_provider_batches\":%llu,\"semantic_provider_rows\":%llu,"
+                        "\"semantic_database_operations\":%llu,\"materialization_nodes\":%llu,"
+                        "\"materialization_trajectory_reads\":%llu,"
+                        "\"materialization_trajectory_bytes\":%llu,"
+                        "\"materialization_database_operations\":%llu}",
+                        (unsigned int)status,
+                        (unsigned int)firmware_error.step_index,
+                        (unsigned int)firmware_error.native_status,
+                        (unsigned int)firmware_error.native_disposition,
+                        (unsigned long long)cognition_report.rows_fetched,
+                        (unsigned long long)cognition_report.batch_count,
+                        (unsigned long long)cognition_report.semantic_rows_examined,
+                        (unsigned long long)cognition_report.semantic_database_operations,
+                        (unsigned long long)materialization_report.resolved_nodes,
+                        (unsigned long long)materialization_report.trajectory_reads,
+                        (unsigned long long)materialization_report.trajectory_bytes,
+                        (unsigned long long)materialization_report.database_operations)));
+    }
+
     values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         prompt_view.trunk_entity_id.bytes,
         sizeof(prompt_view.trunk_entity_id.bytes)));
