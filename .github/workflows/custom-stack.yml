@@ -289,9 +289,10 @@ jobs:
           retention-days: 30
       - name: Persist custom-stack terminal result by BLAKE3
         if: always()
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         run: |
           set -euo pipefail
+          umask 0002
           result="${LAPLACE_CUSTOM_STACK_QA_RESULT:-$RUNNER_TEMP/laplace-custom-stack-qa/result.json}"
           if [[ ! -s "$result" ]]; then
             echo 'No completed custom-stack terminal result exists for durable publication.' >> "$GITHUB_STEP_SUMMARY"
@@ -320,14 +321,20 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Verify custom-stack registry
         if: success()
+        shell: bash
         env:
           LAPLACE_TEST_PROFILE: custom-stack
-        run: ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"
-      - name: Publish measured perfcache receipt
-        if: always()
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
+          umask 0002
+          export TMPDIR=/build/laplace/work/refactor-scratch
+          ./tools/tests/verify-registry.sh "$LAPLACE_CI_BUILD_DIRECTORY"
+      - name: Publish measured perfcache receipt
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 0002
           receipt="${LAPLACE_CI_BUILD_DIRECTORY:-$RUNNER_TEMP/laplace-output/postgresql-native}/receipts/unicode-perfcache-hot.json"
           if [[ -f "$receipt" ]]; then
             {

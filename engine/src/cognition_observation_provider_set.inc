@@ -7,7 +7,7 @@ struct laplace_cognition_observation_candidate_provider_set {
 namespace laplace_cognition_observation_provider_set_detail {
 
 constexpr char ProviderSetDomain[] =
-    "laplace-cognition-observation-candidate-provider-set-v1";
+    "laplace-cognition-observation-candidate-provider-set-v2";
 
 using laplace_observation_query_detail::DigestZero;
 using laplace_observation_query_detail::Finish;
@@ -26,6 +26,108 @@ bool LessDigest(
     const laplace_digest256& left,
     const laplace_digest256& right) noexcept {
     return std::memcmp(left.bytes, right.bytes, sizeof(left.bytes)) < 0;
+}
+
+template <typename Value>
+int CompareValue(const Value left, const Value right) noexcept {
+    return left < right ? -1 : (right < left ? 1 : 0);
+}
+
+std::uint64_t DoubleBits(const double& value) noexcept {
+    std::uint64_t bits{};
+    static_assert(sizeof(bits) == sizeof(value));
+    std::memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+/*
+ * Observation fingerprints name different native witness classes in different
+ * planes. No P-only or endpoint-only key can identify a candidate across them.
+ * Reuse requires every typed field, including immutable standing payload, to
+ * agree. Compare member values rather than struct padding; float equality is
+ * exact representation equality, including signed zero.
+ */
+int CompareCandidate(
+    const laplace_cognition_observation_candidate& left,
+    const laplace_cognition_observation_candidate& right) noexcept {
+    if (const int order = std::memcmp(left.target_entity_id.bytes, right.target_entity_id.bytes,
+            sizeof(left.target_entity_id.bytes));
+        order != 0) return order;
+    if (const int order = std::memcmp(left.relation_id.bytes, right.relation_id.bytes,
+            sizeof(left.relation_id.bytes));
+        order != 0) return order;
+    if (const int order = std::memcmp(left.observation_fingerprint.bytes, right.observation_fingerprint.bytes,
+            sizeof(left.observation_fingerprint.bytes));
+        order != 0) return order;
+    if (const int order = std::memcmp(left.evidence_root_fingerprint.bytes, right.evidence_root_fingerprint.bytes,
+            sizeof(left.evidence_root_fingerprint.bytes));
+        order != 0) return order;
+    if (const int order = CompareValue(left.source_state_index, right.source_state_index);
+        order != 0) return order;
+    if (const int order = CompareValue(left.source_logical_ordinal, right.source_logical_ordinal);
+        order != 0) return order;
+    if (const int order = CompareValue(left.target_logical_ordinal, right.target_logical_ordinal);
+        order != 0) return order;
+    if (const int order = CompareValue(left.multiplicity, right.multiplicity);
+        order != 0) return order;
+    if (const int order = CompareValue(left.gap, right.gap);
+        order != 0) return order;
+    if (const int order = CompareValue(left.evidence_uncertainty_numerator, right.evidence_uncertainty_numerator);
+        order != 0) return order;
+    if (const int order = CompareValue(left.evidence_uncertainty_denominator, right.evidence_uncertainty_denominator);
+        order != 0) return order;
+    if (const int order = CompareValue(left.relation_family, right.relation_family);
+        order != 0) return order;
+    if (const int order = CompareValue(left.source_layer, right.source_layer);
+        order != 0) return order;
+    if (const int order = CompareValue(left.direction, right.direction);
+        order != 0) return order;
+    if (const int order = CompareValue(left.flags, right.flags);
+        order != 0) return order;
+    if (const int order = CompareValue(left.reserved, right.reserved);
+        order != 0) return order;
+    if (const int order = std::memcmp(left.standing.state_id.bytes, right.standing.state_id.bytes,
+            sizeof(left.standing.state_id.bytes));
+        order != 0) return order;
+    if (const int order = std::memcmp(left.standing.coordinate_id.bytes, right.standing.coordinate_id.bytes,
+            sizeof(left.standing.coordinate_id.bytes));
+        order != 0) return order;
+    if (const int order = std::memcmp(left.standing.arena_scope_id.bytes, right.standing.arena_scope_id.bytes,
+            sizeof(left.standing.arena_scope_id.bytes));
+        order != 0) return order;
+    if (const int order = std::memcmp(left.standing.prior_state_id.bytes, right.standing.prior_state_id.bytes,
+            sizeof(left.standing.prior_state_id.bytes));
+        order != 0) return order;
+    if (const int order = std::memcmp(left.standing.epoch_id.bytes, right.standing.epoch_id.bytes,
+            sizeof(left.standing.epoch_id.bytes));
+        order != 0) return order;
+    if (const int order = std::memcmp(left.standing.rating_recipe_id.bytes, right.standing.rating_recipe_id.bytes,
+            sizeof(left.standing.rating_recipe_id.bytes));
+        order != 0) return order;
+    if (const int order = CompareValue(DoubleBits(left.standing.rating),
+            DoubleBits(right.standing.rating));
+        order != 0) return order;
+    if (const int order = CompareValue(DoubleBits(left.standing.rating_deviation),
+            DoubleBits(right.standing.rating_deviation));
+        order != 0) return order;
+    if (const int order = CompareValue(DoubleBits(left.standing.volatility),
+            DoubleBits(right.standing.volatility));
+        order != 0) return order;
+    if (const int order = CompareValue(left.standing.eligible_match_count, right.standing.eligible_match_count);
+        order != 0) return order;
+    if (const int order = CompareValue(left.standing.period_ordinal, right.standing.period_ordinal);
+        order != 0) return order;
+    if (const int order = CompareValue(left.standing.rating_recipe_version, right.standing.rating_recipe_version);
+        order != 0) return order;
+    if (const int order = CompareValue(left.standing.flags, right.standing.flags);
+        order != 0) return order;
+    return 0;
+}
+
+bool CandidateLess(
+    const laplace_cognition_observation_candidate& left,
+    const laplace_cognition_observation_candidate& right) noexcept {
+    return CompareCandidate(left, right) < 0;
 }
 
 bool AddChecked(
@@ -168,13 +270,40 @@ int EnumerateCompositeCandidates(
                 return 0;
             }
 
-            if (child_count > candidate_capacity - *candidate_count) {
-                aggregate_capacity_exceeded = true;
-            } else if (!aggregate_capacity_exceeded) {
-                std::copy_n(
-                    staged.data(), child_count,
-                    candidates + *candidate_count);
-                *candidate_count += child_count;
+            if (!aggregate_capacity_exceeded) {
+                /*
+                 * Union complete witnessed contributions, not provider copies.
+                 * Raw row bounds and work accounting above are never deduplicated.
+                 * Sort only the bounded child batch, search the already sorted
+                 * aggregate prefix, then sort the enlarged aggregate once. This
+                 * uses the existing scratch batch and O(capacity log capacity)
+                 * comparisons per child, without a corpus-sized identity index.
+                 */
+                std::sort(staged.data(), staged.data() + child_count, CandidateLess);
+                const std::size_t prior_count = *candidate_count;
+                for (std::size_t offset = 0U; offset < child_count; ++offset) {
+                    const auto& candidate = staged[offset];
+                    if (offset != 0U &&
+                        CompareCandidate(staged[offset - 1U], candidate) == 0) {
+                        continue;
+                    }
+                    const auto* found = std::lower_bound(
+                        candidates, candidates + prior_count,
+                        candidate, CandidateLess);
+                    if (found != candidates + prior_count &&
+                        CompareCandidate(*found, candidate) == 0) {
+                        continue;
+                    }
+                    if (*candidate_count == candidate_capacity) {
+                        aggregate_capacity_exceeded = true;
+                        break;
+                    }
+                    candidates[(*candidate_count)++] = candidate;
+                }
+                if (!aggregate_capacity_exceeded) {
+                    std::sort(
+                        candidates, candidates + *candidate_count, CandidateLess);
+                }
             }
 
             if (child_usage.limiting_disposition != 0U) {
