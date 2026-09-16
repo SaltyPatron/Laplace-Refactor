@@ -1,0 +1,29 @@
+{
+  "schema": "laplace.test-registry-fragment/v1",
+  "tests": [
+    {
+      "ctest_name": "chess.native-rules-provider-contract",
+      "profiles": [
+        "chess-rules"
+      ],
+      "evidence_targets": [
+        "LP-TEST-DEPENDENCY-INTENT",
+        "LP-TEST-DEPENDENCY-INSTALLED-PROVIDER"
+      ],
+      "covered_dimensions": [
+        "selected official CuteChess StandardBoard native legality mechanism",
+        "typed piece/castling/effective-en-passant transitions and complete supplied history",
+        "strict SAN canonicality separate from provider legality",
+        "source-built linked provider and actual selected Qt runtime identity",
+        "upstream adjudication distinct from forced no-legal-move outcome and canonical admission"
+      ],
+      "defect_controls": [
+        "compiled bypass of strict SAN qualification",
+        "illegal move and invalid position refusal",
+        "pinned imported en passant versus effective legal en passant",
+        "provider repetition history reset",
+        "canonical content/database/recorded-rate claims remain absent"
+      ]
+    }
+  ]
+}
