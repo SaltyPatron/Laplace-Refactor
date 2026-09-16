@@ -481,21 +481,32 @@ END $limits$;
 
 -- The grant is checked before each real statement/plan preparation. Measure a
 -- warm exact replay, then remove one operation and require atomic refusal.
+-- A new backend's first successful replay prepares the two retained deposit
+-- receipt plans. Those real cold operations must not become a warm grant.
 DO $operation_boundary$
-DECLARE actual record; rejected boolean:=false;
+DECLARE actual record; repeated record; limited_operations bigint; rejected boolean:=false;
     before jsonb:=physicality_entity_contract.counts();
 BEGIN
+    PERFORM physicality_entity_contract.admit();
     SELECT * INTO STRICT actual FROM physicality_entity_contract.admit();
-    IF actual.batch_database_operations<=1 THEN
-        RAISE EXCEPTION 'descriptor operation accounting omitted its real database work';
+    SELECT * INTO STRICT repeated FROM physicality_entity_contract.admit();
+    IF actual.batch_database_operations IS NULL OR actual.batch_database_operations<=1
+       OR repeated.batch_database_operations IS DISTINCT FROM actual.batch_database_operations THEN
+        RAISE EXCEPTION 'descriptor warm operation accounting is absent or unstable: measured=%, repeated=%',
+            actual.batch_database_operations,repeated.batch_database_operations;
+    END IF;
+    IF physicality_entity_contract.counts() IS DISTINCT FROM before THEN
+        RAISE EXCEPTION 'warming descriptor replay changed canonical or retained observation state';
     END IF;
     BEGIN
-        PERFORM physicality_entity_contract.admit(1,4096,16384,4096,1048576,
+        SELECT batch_database_operations INTO STRICT limited_operations FROM physicality_entity_contract.admit(1,4096,16384,4096,1048576,
             actual.batch_database_operations-1);
     EXCEPTION WHEN program_limit_exceeded THEN rejected:=true;
     END;
     IF NOT rejected OR physicality_entity_contract.counts() IS DISTINCT FROM before THEN
-        RAISE EXCEPTION 'descriptor operation boundary did not refuse atomically';
+        RAISE EXCEPTION 'descriptor operation boundary did not refuse atomically: measured=%, grant=%, returned=%, rejected=%, before=%, after=%',
+            actual.batch_database_operations,actual.batch_database_operations-1,
+            limited_operations,rejected,before,physicality_entity_contract.counts();
     END IF;
 END $operation_boundary$;
 

@@ -26,6 +26,9 @@ static MemoryContextData caller, scratch, procedures[4];
 static MemoryContext previous[4];
 static unsigned depth;
 static unsigned failure;
+static unsigned prepare_calls, keepplan_calls, execute_calls;
+static int last_error_code;
+static uint64_t budget_used;
 static SPITupleTable table;
 static HeapTuple rows[1];
 static struct { MemoryContext owner; void* bytes; size_t size; } allocations[1024];
@@ -66,7 +69,7 @@ int SPI_finish(void) {
 void pg_re_throw(void) { CHECK(PG_exception_stack != NULL); siglongjmp(*PG_exception_stack,1); }
 bool errstart(int level,const char* domain) { (void)level;(void)domain;return true; }
 bool errstart_cold(int level,const char* domain) { return errstart(level,domain); }
-int errcode(int code) { return code; }
+int errcode(int code) { last_error_code=code;return code; }
 int errmsg(const char* format,...) { (void)format;return 0; }
 int errdetail(const char* format,...) { (void)format;return 0; }
 void errfinish(const char* file,int line,const char* function) {
@@ -90,12 +93,15 @@ const char* GetConfigOption(const char* name,bool missing,bool restricted) {
     (void)name;(void)missing;(void)restricted;CHECK(false);return NULL;
 }
 SPIPlanPtr SPI_prepare(const char* sql,int count,Oid* types) {
-    (void)sql;(void)count;(void)types;CHECK(false);return NULL;
+    (void)sql;(void)types;CHECK(depth>0);++prepare_calls;
+    if(failure==8) pg_re_throw();
+    CHECK(count==5 || count==10 || count==0 || count==3);
+    return (SPIPlanPtr)(uintptr_t)(count==5?1:count==10?2:count==0?3:4);
 }
-int SPI_keepplan(SPIPlanPtr plan) { (void)plan;CHECK(false);return -1; }
+int SPI_keepplan(SPIPlanPtr plan) { CHECK(plan!=NULL);++keepplan_calls;return 0; }
 int SPI_execute_plan(SPIPlanPtr plan,Datum* values,const char* nulls,bool readonly,long count) {
     (void)values;(void)nulls;(void)readonly;CHECK(count==1);CHECK(depth==2);
-    current_plan=plan;CurrentMemoryContext=&procedures[depth-1];
+    ++execute_calls;current_plan=plan;CurrentMemoryContext=&procedures[depth-1];
     if(failure==2) pg_re_throw();
     SPI_processed=failure==1?0:1;table.vals=rows;SPI_tuptable=&table;
     return SPI_OK_SELECT;
@@ -193,6 +199,7 @@ static void begin_case(unsigned mode) {
     CurrentMemoryContext=&caller;CHECK(SPI_connect()==SPI_OK_CONNECT);
     MemoryContextSwitchTo(&scratch);failure=mode;
     manifest_closed=prepared_discarded=pin_calls=forgotten=0;
+    prepare_calls=keepplan_calls=execute_calls=0;last_error_code=0;budget_used=0;
 }
 static void end_case(void) {
     CHECK(depth==1);CHECK(CurrentMemoryContext==&scratch);
@@ -202,7 +209,7 @@ static void catalog_case(unsigned mode) {
     laplace_pg_perfcache_epoch epoch={0};laplace_digest256 manifest={{0}},receipt={{0}};
     uint64 sequence=0;bool active=false;volatile bool caught=false;
     begin_case(mode);
-    PG_TRY();{synchronize_read_catalog(&epoch,&manifest,&receipt,&sequence,&active);CHECK(mode==0);}
+    PG_TRY();{synchronize_read_catalog(&epoch,&manifest,&receipt,&sequence,&active,NULL);CHECK(mode==0);}
     PG_CATCH();{caught=true;CHECK(mode!=0);}PG_END_TRY();
     CHECK(caught==(mode!=0));if(mode==0) {CHECK(sequence==17);CHECK(active);}
     end_case();
@@ -221,7 +228,7 @@ static void native_case(unsigned mode,bool registered) {
         perfcache_owners()[0].generation_index=0;perfcache_generations()[0].reader_count=1;
     }
     PG_TRY(); {
-        status=registered?pin_native_generation(owned):native_pin_epoch(&epoch,&manifest,&pin);
+        status=registered?pin_native_generation(owned,NULL):native_pin_epoch(&epoch,&manifest,&pin,NULL);
         CHECK(!raises);
     } PG_CATCH();{caught=true;CHECK(raises);} PG_END_TRY();
     CHECK(caught==raises);
@@ -234,6 +241,133 @@ static void native_case(unsigned mode,bool registered) {
         CHECK(perfcache_generations()[0].reader_count==(raises?0u:1u));
         if(!raises) {CHECK(owned->held==1);release_pin_internal(owned);pfree(owned);}
     }
+    end_case();
+}
+/* These controls execute the production owners with a caller-owned meter.
+ * SPI/provider boundaries are controlled, so these are explicit-call counts,
+ * not PostgreSQL execution timings or backend-I/O measurements. */
+static void set_catalog_plans(bool present) {
+    perfcache_generation_plan=present?(SPIPlanPtr)(uintptr_t)1:NULL;
+    perfcache_active_update_plan=present?(SPIPlanPtr)(uintptr_t)2:NULL;
+    perfcache_active_select_plan=present?(SPIPlanPtr)(uintptr_t)3:NULL;
+    perfcache_manifest_select_plan=present?(SPIPlanPtr)(uintptr_t)4:NULL;
+}
+static void prepare_budget_case(unsigned limit) {
+    laplace_pg_spi_budget budget={&budget_used,limit};
+    volatile bool caught=false;
+    begin_case(0);set_catalog_plans(false);
+    PG_TRY();{ensure_catalog_plans(&budget);}
+    PG_CATCH();{caught=true;}PG_END_TRY();
+    CHECK(caught==(limit<4));CHECK(budget_used==limit);
+    CHECK(prepare_calls==limit);CHECK(keepplan_calls==limit);CHECK(execute_calls==0);
+    if(caught) CHECK(last_error_code==ERRCODE_PROGRAM_LIMIT_EXCEEDED);
+    CHECK((perfcache_generation_plan!=NULL)==(limit>=1));
+    CHECK((perfcache_active_update_plan!=NULL)==(limit>=2));
+    CHECK((perfcache_active_select_plan!=NULL)==(limit>=3));
+    CHECK((perfcache_manifest_select_plan!=NULL)==(limit>=4));
+    /* Retry retains each successful plan instead of preparing it again. */
+    budget.maximum=4;ensure_catalog_plans(&budget);
+    CHECK(budget_used==4);CHECK(prepare_calls==4);CHECK(keepplan_calls==4);
+    ensure_catalog_plans(&budget);
+    CHECK(budget_used==4);CHECK(prepare_calls==4);CHECK(keepplan_calls==4);
+    end_case();
+}
+static void prepare_error_case(void) {
+    laplace_pg_spi_budget budget={&budget_used,5};
+    volatile bool caught=false;
+    begin_case(8);set_catalog_plans(false);
+    PG_TRY();{ensure_catalog_plans(&budget);}
+    PG_CATCH();{caught=true;}PG_END_TRY();
+    CHECK(caught);CHECK(budget_used==1);CHECK(prepare_calls==1);
+    CHECK(keepplan_calls==0);CHECK(perfcache_generation_plan==NULL);
+    failure=0;ensure_catalog_plans(&budget);
+    CHECK(budget_used==5);CHECK(prepare_calls==5);CHECK(keepplan_calls==4);
+    end_case();
+}
+static void catalog_budget_case(unsigned mode,bool cold,unsigned limit) {
+    laplace_pg_perfcache_epoch epoch={0};laplace_digest256 manifest={{0}},receipt={{0}};
+    uint64 sequence=0;bool active=false;volatile bool caught=false;
+    laplace_pg_spi_budget budget={&budget_used,limit};
+    const unsigned required=cold?5u:1u;
+    const unsigned preparations=cold?(limit<4?limit:4u):0u;
+    const unsigned executions=limit>=required?1u:0u;
+    begin_case(mode);set_catalog_plans(!cold);
+    PG_TRY();{synchronize_read_catalog(&epoch,&manifest,&receipt,&sequence,&active,&budget);}
+    PG_CATCH();{caught=true;}PG_END_TRY();
+    CHECK(caught==(limit<required || mode!=0));
+    CHECK(prepare_calls==preparations);CHECK(keepplan_calls==preparations);
+    CHECK(execute_calls==executions);CHECK(budget_used==preparations+executions);
+    if(limit<required) CHECK(last_error_code==ERRCODE_PROGRAM_LIMIT_EXCEEDED);
+    if(!caught) {CHECK(sequence==17);CHECK(active);}
+    end_case();
+}
+static void native_budget_case(unsigned mode,bool registered,unsigned limit,bool warm) {
+    laplace_pg_perfcache_epoch epoch={0};laplace_digest256 manifest={{0}};
+    laplace_perfcache_pin pin={0};laplace_pg_perfcache_pin* volatile owned=NULL;
+    volatile bool caught=false;
+    volatile laplace_pg_perfcache_status status=LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
+    laplace_pg_spi_budget budget={&budget_used,limit};
+    const bool raises=!warm && (limit==0 || mode==2);
+    begin_case(mode);set_catalog_plans(true);
+    if(warm) pin_calls=1; /* The controlled registry already maps this epoch. */
+    if(registered) {
+        owned=palloc0(sizeof(*owned));owned->held=1;owned->owner_pid=MyProcPid;
+        owned->owner_proc_number=MyProcNumber;owned->generation_index=0;
+        owned->resource_owner=(ResourceOwner)&resource_token;
+        perfcache_owners()[0].pid=MyProcPid;perfcache_owners()[0].pin_depth=1;
+        perfcache_owners()[0].generation_index=0;perfcache_generations()[0].reader_count=1;
+    }
+    PG_TRY(); {
+        status=registered?pin_native_generation(owned,&budget):
+            native_pin_epoch(&epoch,&manifest,&pin,&budget);
+    } PG_CATCH();{caught=true;}PG_END_TRY();
+    CHECK(caught==raises);CHECK(prepare_calls==0);CHECK(keepplan_calls==0);
+    CHECK(budget_used==(!warm && limit>0?1u:0u));CHECK(execute_calls==budget_used);
+    CHECK(manifest_closed==(!warm && !raises?1u:0u));CHECK(prepared_discarded==0);
+    if(!warm && limit==0) CHECK(last_error_code==ERRCODE_PROGRAM_LIMIT_EXCEEDED);
+    if(!raises) CHECK(status==LAPLACE_PG_PERFCACHE_OK);
+    if(registered) {
+        CHECK(forgotten==(raises?1u:0u));
+        CHECK(perfcache_owners()[0].pin_depth==(raises?0u:1u));
+        CHECK(perfcache_generations()[0].reader_count==(raises?0u:1u));
+        if(!raises) {CHECK(owned->held==1);release_pin_internal(owned);pfree(owned);}
+    } else if(!raises) CHECK(laplace_perfcache_pin_release(&pin)==LAPLACE_PERFCACHE_REGISTRY_OK);
+    end_case();
+}
+static void combined_cold_budget_case(void) {
+    laplace_pg_perfcache_epoch epoch={0};laplace_digest256 manifest={{0}},receipt={{0}};
+    laplace_perfcache_pin pin={0};uint64 sequence=0;bool active=false;
+    laplace_pg_spi_budget budget={&budget_used,6};
+    volatile bool caught=false;
+    begin_case(0);set_catalog_plans(false);
+    synchronize_read_catalog(&epoch,&manifest,&receipt,&sequence,&active,&budget);
+    CHECK(budget_used==5);CHECK(prepare_calls==4);CHECK(execute_calls==1);
+    CHECK(native_pin_epoch(&epoch,&manifest,&pin,&budget)==LAPLACE_PG_PERFCACHE_OK);
+    CHECK(budget_used==6);CHECK(prepare_calls==4);CHECK(execute_calls==2);
+    CHECK(laplace_perfcache_pin_release(&pin)==LAPLACE_PERFCACHE_REGISTRY_OK);
+    /* Another synchronization has to reserve its own actual SELECT. */
+    PG_TRY();{synchronize_read_catalog(&epoch,&manifest,&receipt,&sequence,&active,&budget);}
+    PG_CATCH();{caught=true;}PG_END_TRY();
+    CHECK(caught);CHECK(last_error_code==ERRCODE_PROGRAM_LIMIT_EXCEEDED);
+    CHECK(budget_used==6);CHECK(prepare_calls==4);CHECK(execute_calls==2);
+    budget.maximum=7;
+    synchronize_read_catalog(&epoch,&manifest,&receipt,&sequence,&active,&budget);
+    CHECK(budget_used==7);CHECK(prepare_calls==4);CHECK(execute_calls==3);
+    end_case();
+}
+static void malformed_budget_case(void) {
+    laplace_pg_spi_budget budget={NULL,1};
+    volatile bool caught=false;
+    begin_case(0);
+    PG_TRY();{laplace_pg_spi_budget_charge(&budget);}
+    PG_CATCH();{caught=true;}PG_END_TRY();
+    CHECK(caught);CHECK(last_error_code==ERRCODE_INVALID_PARAMETER_VALUE);
+    caught=false;budget.used=&budget_used;budget.maximum=UINT64_MAX;budget_used=UINT64_MAX;
+    PG_TRY();{laplace_pg_spi_budget_charge(&budget);}
+    PG_CATCH();{caught=true;}PG_END_TRY();
+    CHECK(caught);CHECK(last_error_code==ERRCODE_PROGRAM_LIMIT_EXCEEDED);
+    CHECK(budget_used==UINT64_MAX);CHECK(prepare_calls==0);CHECK(execute_calls==0);
+    laplace_pg_spi_budget_charge(NULL);
     end_case();
 }
 int main(void) {
@@ -251,9 +385,21 @@ int main(void) {
     perfcache_generations()[0].state=LAPLACE_PG_PERFCACHE_GENERATION_ACTIVE;
     for(unsigned mode=0;mode<4;++mode) catalog_case(mode);
     for(unsigned mode=0;mode<8;++mode) {native_case(mode,false);native_case(mode,true);}
+    for(unsigned limit=0;limit<=4;++limit) prepare_budget_case(limit);
+    prepare_error_case();
+    for(unsigned limit=0;limit<=5;++limit) catalog_budget_case(0,true,limit);
+    catalog_budget_case(0,false,0);catalog_budget_case(0,false,1);
+    catalog_budget_case(2,false,1);catalog_budget_case(3,false,1);
+    for(unsigned registered=0;registered<2;++registered) {
+        native_budget_case(0,registered!=0,0,false);
+        native_budget_case(0,registered!=0,1,false);
+        native_budget_case(2,registered!=0,1,false);
+        native_budget_case(0,registered!=0,0,true);
+    }
+    combined_cold_budget_case();malformed_budget_case();
     CHECK(PG_exception_stack==NULL);CHECK(error_context_stack==NULL);
     for(size_t i=0;i<allocation_count;++i) free(allocations[i].bytes);
     free(perfcache_shared);
-    printf("{\"checks\":%u,\"catalog_cases\":4,\"native_cases\":16,\"sql_execution\":false}\n",checks);
+    printf("{\"checks\":%u,\"catalog_cases\":4,\"native_cases\":16,\"budget_cases\":26,\"sql_execution\":false}\n",checks);
     return 0;
 }

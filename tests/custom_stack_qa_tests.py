@@ -134,6 +134,7 @@ class CustomStackQaTests(unittest.TestCase):
             "integrations/postgresql/extension/src/materialization_pg.c",
             "integrations/postgresql/extension/src/materialization_pg.h",
             "integrations/postgresql/extension/src/spi_context_pg.h",
+            "integrations/postgresql/extension/src/spi_budget_pg.h",
             "integrations/postgresql/extension/tests/materialization_provider_pg.c",
             "integrations/postgresql/extension/source_observation_profile.sql.in",
             "tests/postgres/verified_cpp_source_contract.sql",

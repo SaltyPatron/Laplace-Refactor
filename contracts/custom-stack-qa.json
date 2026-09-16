@@ -161,6 +161,7 @@
         "integrations/postgresql/extension/src/source_readback*",
         "integrations/postgresql/extension/src/materialization_pg.*",
         "integrations/postgresql/extension/src/spi_context_pg.h",
+        "integrations/postgresql/extension/src/spi_budget_pg.h",
         "integrations/postgresql/extension/tests/materialization_provider_pg.c",
         "integrations/postgresql/extension/src/world_admission_pg.c",
         "integrations/postgresql/extension/source_grammar_admission.sql.in",

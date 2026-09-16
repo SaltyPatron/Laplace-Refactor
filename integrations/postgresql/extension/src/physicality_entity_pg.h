@@ -10,7 +10,11 @@
 /* Physical provider policy, not a statement about bytes per native operation.
  * One current grant byte admits at most one logical source-validation step.
  * All native allocations still use the independent checked memory estimator. */
-#define LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS UINT64_C(13)
+/* Thirteen set-wise frontier executions, including the two Unicode root reads,
+ * plus two pins each admitting at most four explicit prepares and two support
+ * SELECTs. This is an admission ceiling, not a charge: each actual operation
+ * consumes the caller's shared budget immediately before invocation. */
+#define LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS UINT64_C(25)
 #define LAPLACE_PG_PHYSICALITY_ENTITY_READ_LOGICAL_STEPS_PER_GRANT_BYTE UINT64_C(1)
 
 /* Finite, verified derived views. These physicalities are calculated from an

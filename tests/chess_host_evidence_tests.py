@@ -203,6 +203,42 @@ class HostEvidence(unittest.TestCase):
         self.assertEqual(network, ['dependencies/artifact-lock.json:stockfish-nnue'])
         self.assertEqual(REQUEST.select(['tools/dependencies/chess_tools.py'], policy, lambda _: {}, lambda _: {}), ['tools/dependencies/chess_tools.py'])
         self.assertEqual(REQUEST.select(['tools/dependencies/git_checkout.py'], policy, lambda _: {}, lambda _: {}), ['tools/dependencies/git_checkout.py'])
+        self.assertEqual(REQUEST.select(['tools/dependencies/chess_pgn.py'], policy, lambda _: {}, lambda _: {}), ['tools/dependencies/chess_pgn.py'])
+        provider = REQUEST.select(['dependencies/artifact-lock.json'], policy,
+            lambda _: {'artifacts': {'chess-pgn-validator': {'sha256': 'old'}}},
+            lambda _: {'artifacts': {'chess-pgn-validator': {'sha256': 'new'}}})
+        self.assertEqual(provider, ['dependencies/artifact-lock.json:chess-pgn-validator'])
+
+    def test_actual_calibration_command_requires_complete_games_and_finite_budgets(self):
+        workflow = (ROOT / '.github/workflows/chess-calibration.yml').read_text()
+        block = workflow.split('      - name: Measure the actual runner with bounded resource admission\n', 1)[1].split('      - name:', 1)[0]
+        command = textwrap.dedent(block.split('        run: |\n', 1)[1])
+
+        def captured(script):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                executable = root / 'python3'
+                executable.write_text(f'#!{sys.executable}\nimport json,os,sys\nopen(os.environ["CAPTURE"], "w").write(json.dumps(sys.argv[1:]))\n')
+                executable.chmod(0o750)
+                receipt = root / 'arguments.json'
+                environment = os.environ | {'PATH': str(root) + os.pathsep + os.environ['PATH'],
+                    'CAPTURE': str(receipt), 'RUNNER_TEMP': str(root), 'GITHUB_RUN_ID': '19',
+                    'GITHUB_RUN_ATTEMPT': '2', 'CPU_BUDGET': '4', 'MEMORY_MIB': '1024'}
+                subprocess.run(['bash', '-eu', '-c', script], env=environment, check=True, capture_output=True)
+                return json.loads(receipt.read_text())
+
+        def assert_full_profile(arguments):
+            self.assertEqual(arguments[:2], ['tools/dependencies/chess_benchmark.py', 'run'])
+            self.assertNotIn('--max-moves', arguments)
+            self.assertNotIn('--diagnostic', arguments)
+            for option, value in (('--game-depth', '8'), ('--game-time-control', '60'), ('--timeout', '600'),
+                                  ('--overall-timeout', '1800'), ('--cpu-budget', '4'), ('--memory-mib', '1024')):
+                self.assertEqual(arguments[arguments.index(option) + 1], value)
+
+        assert_full_profile(captured(command))
+        # Prove this check rejects the former capped workflow, not just new prose.
+        with self.assertRaises(AssertionError):
+            assert_full_profile(captured(command.replace('--games 16', '--diagnostic --max-moves 12 --games 16')))
 
     def test_deployment_calibration_is_gated_and_core_benchmark_policy_is_preserved(self):
         workflow = (ROOT / '.github/workflows/product-path.yml').read_text()

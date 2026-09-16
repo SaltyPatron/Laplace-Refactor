@@ -8,6 +8,7 @@
 #include "laplace/identity.h"
 #include "laplace/perfcache_registry.h"
 #include "laplace/types.h"
+#include "spi_budget_pg.h"
 
 #if defined(LAPLACE_TEST_SKIP_PG_PERFCACHE_EXPECTED_EPOCH)
 #define laplace_pg_perfcache_admit \
@@ -103,6 +104,19 @@ laplace_pg_perfcache_status laplace_pg_perfcache_pin_active(
 laplace_pg_perfcache_status laplace_pg_perfcache_pin_epoch(
     const laplace_pg_perfcache_epoch* expected_epoch,
     laplace_pg_perfcache_pin** pin);
+
+/* The optional budget counts actual explicit SPI preparations and executions,
+ * including cold control/manifest reads. The caller owns its counter. */
+laplace_pg_perfcache_status laplace_pg_perfcache_pin_active_metered(
+    uint32 has_expected_epoch,
+    const laplace_pg_perfcache_epoch* expected_epoch,
+    laplace_pg_perfcache_pin** pin,
+    laplace_pg_spi_budget* budget);
+
+laplace_pg_perfcache_status laplace_pg_perfcache_pin_epoch_metered(
+    const laplace_pg_perfcache_epoch* expected_epoch,
+    laplace_pg_perfcache_pin** pin,
+    laplace_pg_spi_budget* budget);
 
 void laplace_pg_perfcache_pin_release(laplace_pg_perfcache_pin** pin);
 

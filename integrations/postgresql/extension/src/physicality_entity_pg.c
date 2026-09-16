@@ -44,6 +44,7 @@ typedef struct reflection_budget {
     uint64_t memory_used;
     uint64_t operation_limit;
     uint64_t operations;
+    uint64_t* shared_operations;
     uint64_t logical_limit;
     uint64_t logical_used;
     bool read_only;
@@ -99,14 +100,22 @@ typedef struct reflection_calculation {
     "p.centroid_x,p.centroid_y,p.centroid_z,p.centroid_m,p.radius," \
     "p.logical_count,p.vertex_count)::" LAPLACE_PG_SCHEMA ".physicality_record"
 
+/* Readers publish attempted work directly into their caller-owned receipt, so
+ * a caught speculative error cannot erase operations already admitted. */
+static uint64_t* reflection_operation_counter(reflection_budget* budget) {
+    return budget->shared_operations != NULL ? budget->shared_operations : &budget->operations;
+}
+
 /* Keep each PG exception frame inside the transport boundary; callers retain
  * ordinary local-variable lifetimes while indirect SPI owners restore context. */
 static void reflection_resolve_unicode_atoms(
     const laplace_framework_context* context, const uint32_t* positions,
     size_t count, laplace_composition_known_entity* known,
-    laplace_pg_active_unicode_root* active) {
+    laplace_pg_active_unicode_root* active, reflection_budget* budget) {
+    laplace_pg_spi_budget operations = {reflection_operation_counter(budget), budget->operation_limit};
     LAPLACE_PG_PRESERVE_MEMORY_CONTEXT(
-        laplace_pg_resolve_active_unicode_atoms(context, positions, count, known, active));
+        laplace_pg_resolve_active_unicode_atoms_metered(
+            context, positions, count, known, active, &operations));
 }
 
 static void reflection_deposit_entities(
@@ -137,9 +146,8 @@ static void reflection_reserve(reflection_budget* budget, uint64_t count, uint64
 }
 
 static void reflection_query(reflection_budget* budget) {
-    if (budget->operations >= budget->operation_limit)
-        reflection_limit("database operation grant exhausted before SPI");
-    ++budget->operations;
+    laplace_pg_spi_budget operations = {reflection_operation_counter(budget), budget->operation_limit};
+    laplace_pg_spi_budget_charge(&operations);
     CHECK_FOR_INTERRUPTS();
 }
 
@@ -300,8 +308,8 @@ static reflection_source* reflection_known_validate(
     }
     if (atom_count != 0u) {
         laplace_pg_active_unicode_root active;
-        reflection_query(budget); /* mapped owner performs one durable-root SPI query */
-        reflection_resolve_unicode_atoms(context, atom_positions, atom_count, resolved_atoms, &active);
+        reflection_resolve_unicode_atoms(
+            context, atom_positions, atom_count, resolved_atoms, &active, budget);
     }
     for (size_t index = 0u; index < count; ++index) {
         const reflection_source* source = &sources[index];
@@ -444,8 +452,7 @@ static laplace_composition_known_entity* reflection_atoms(
     for (size_t index = 0u; index < cursor; ++index)
         if (unique == 0u || positions[unique - 1u] != positions[index]) positions[unique++] = positions[index];
     atoms = palloc0(unique * sizeof(*atoms));
-    reflection_query(budget);
-    reflection_resolve_unicode_atoms(context, positions, unique, atoms, &active);
+    reflection_resolve_unicode_atoms(context, positions, unique, atoms, &active, budget);
     *positions_out = positions;
     *count_out = unique;
     return atoms;
@@ -697,7 +704,7 @@ static void reflection_entities_publish(
         if (adapter_bytes == 0u) reflection_limit("entity producer buffer estimate overflow");
         options.reserved_memory_bytes = budget->memory_used;
         reflection_reserve(budget, 1u, adapter_bytes);
-        options.maximum_database_operations = budget->operation_limit - budget->operations;
+        options.maximum_database_operations = budget->operation_limit - *reflection_operation_counter(budget);
         options.inserted_entities = &inserted_output;
         reflection_deposit_entities(context, &source,
             &calculations[0].plan_view.recipe_fingerprint, records, unique,
@@ -708,7 +715,7 @@ static void reflection_entities_publish(
             result.summary.consensus_count != 0u || result.summary.logical_occurrence_count != 0u ||
             inserted_output.count != result.inserted[0] || inserted_output.count > unique)
             ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED), errmsg("Laplace descriptor entity producer result differs")));
-        budget->operations += result.database_operations;
+        *reflection_operation_counter(budget) += result.database_operations;
         *deposit_receipt = result.producer.stream.receipt_id;
         {
             Oid receipt_type = BYTEAOID;
@@ -2498,6 +2505,7 @@ static void reflection_read_views_connected(
     budget.memory_limit = maximum_memory_bytes < context->resource_grant.memory_bytes ? maximum_memory_bytes : context->resource_grant.memory_bytes;
     budget.logical_limit = budget.memory_limit * LAPLACE_PG_PHYSICALITY_ENTITY_READ_LOGICAL_STEPS_PER_GRANT_BYTE;
     budget.operation_limit = maximum_operations;
+    budget.shared_operations = operations;
     budget.read_only = true;
     reflection_reserve(&budget, entity_count, sizeof(Datum) + sizeof(bool) + 128u);
     reflection_reserve(&budget, maximum_rows + 1u, 256u);
@@ -2536,7 +2544,7 @@ static void reflection_read_views_connected(
     count = (size_t)SPI_processed;
     if (count == 0u) {
         SPI_freetuptable(SPI_tuptable);
-        *operations = budget.operations;
+        *operations = *reflection_operation_counter(&budget);
         return;
     }
     reflection_reserve(&budget, count, sizeof(*owners) + sizeof(*nodes) + sizeof(*view_ids) + sizeof(*result_indices));
@@ -2708,8 +2716,8 @@ static void reflection_read_views_connected(
     }
     for (size_t index = 0u; index < owner_count; ++index) reflection_destroy(&calculations[index]);
     *output_count = count;
-    *operations = budget.operations;
-    if (budget.operations > LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS)
+    *operations = *reflection_operation_counter(&budget);
+    if (*reflection_operation_counter(&budget) > LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS)
         ereport(ERROR, (errmsg("Laplace descriptor fixed database-operation contract drifted")));
 }
 

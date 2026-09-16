@@ -107,7 +107,7 @@ scripts/benchmark-chess.sh run \
   --threads 1,2,4,8 --hash-mib 16,64 \
   --samples 3 --warmups 1 --depth 10 \
   --concurrency 1,2,4,8 --game-threads 1 --game-hash-mib 16 \
-  --games 8 --game-depth 6 --max-moves 20 --timeout 120
+  --games 8 --game-depth 8 --game-time-control 60 --timeout 600 --overall-timeout 1800
 ```
 
 The numeric budget in the example must fit the machine on which it runs. Without
@@ -151,13 +151,23 @@ admission counts two resident engines per game, each with
 its Hash allocation plus an explicit `--engine-overhead-mib` estimate (default
 256 MiB). This estimate is distinguished from measured RSS/PSS. Every PGN must
 complete, preserve both color assignments and contain no recorded crash, illegal
-move or clock failure. Games/s and plies/s include process and UCI lifecycle cost.
-The maximum-move limit deliberately makes these functional throughput experiments,
-not playing-strength or Elo experiments.
+move or clock failure. The default has no maximum-move adjudication. An independent
+hash-locked `python-chess` provider replays every legal move from the standard
+initial position and requires the final board outcome to match the serialized
+result. Its exact source archive, imported runtime files and license are retained
+with the measurement. Normal games/second and plies/second include process and UCI
+lifecycle cost; they do not include database recording or readback.
+
+A capped process diagnostic requires explicit `--diagnostic --max-moves N`.
+It reports diagnostic episodes/second and never supplies a normal-game capacity
+recommendation. Historical 24-ply, maximum-length-adjudicated measurements remain
+capped diagnostics; their rates cannot establish full-game or recorded-game
+throughput. Per-case `--timeout` and `--overall-timeout` bound wall time without
+turning an incomplete game into a successful result.
 
 Warmups are excluded and measured order is deterministically shuffled to reduce
 order bias. Recommendations select the best observed median for the serial
-fixed-depth suite and aggregate game throughput separately, with the full range
+fixed-depth suite and complete normal-game throughput separately, with the full range
 and sample count retained. They are provisional settings for the measured
 environment and inputs; an experiment executed in a development container does
 not establish the right settings for a separate user host.

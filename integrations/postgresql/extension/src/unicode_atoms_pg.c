@@ -75,7 +75,8 @@ static void require_pinned_unicode_epoch(
 
 static void read_root_receipt_for_epoch(
     const laplace_pg_perfcache_epoch* epoch,
-    laplace_digest256* root_receipt) {
+    laplace_digest256* root_receipt,
+    laplace_pg_spi_budget* budget) {
     static const char root_sql[] =
         "SELECT root_receipt FROM " LAPLACE_PG_SCHEMA
         ".unicode_root_deposit_receipt WHERE activation_epoch_id=$1::"
@@ -98,6 +99,7 @@ static void read_root_receipt_for_epoch(
     }
     PG_TRY();
     {
+        laplace_pg_spi_budget_charge(budget);
         result = SPI_execute_with_args(
             root_sql, 2, types, values, NULL, true, 0);
         if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL) {
@@ -131,7 +133,8 @@ static void resolve_active_unicode_atoms_mapped(
     const uint32_t* positions,
     size_t count,
     laplace_composition_known_entity* known,
-    laplace_pg_active_unicode_root* active) {
+    laplace_pg_active_unicode_root* active,
+    laplace_pg_spi_budget* budget) {
     laplace_pg_perfcache_pin* pin = NULL;
     laplace_unicode_atom_record_view* atoms;
     uint8_t* found;
@@ -156,7 +159,7 @@ static void resolve_active_unicode_atoms_mapped(
     found = (uint8_t*)palloc0(count);
     memset(active, 0, sizeof(*active));
 
-    pin_status = laplace_pg_perfcache_pin_active(0u, NULL, &pin);
+    pin_status = laplace_pg_perfcache_pin_active_metered(0u, NULL, &pin, budget);
     if (pin_status != LAPLACE_PG_PERFCACHE_OK || pin == NULL) {
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -198,7 +201,7 @@ static void resolve_active_unicode_atoms_mapped(
         }
         active->activation_epoch_id = pin->epoch.activation_epoch_id;
         active->activation_epoch_fingerprint = pin->epoch.epoch_fingerprint;
-        read_root_receipt_for_epoch(&pin->epoch, &active->root_receipt);
+        read_root_receipt_for_epoch(&pin->epoch, &active->root_receipt, budget);
         laplace_pg_perfcache_pin_release(&pin);
     }
     PG_CATCH();
@@ -236,7 +239,8 @@ static void resolve_active_unicode_atoms_relational(
     const uint32_t* positions,
     size_t count,
     laplace_composition_known_entity* known,
-    laplace_pg_active_unicode_root* active) {
+    laplace_pg_active_unicode_root* active,
+    laplace_pg_spi_budget* budget) {
     static const char active_sql[] =
         "SELECT a.activation_epoch_id,a.epoch_fingerprint,d.root_receipt "
         "FROM " LAPLACE_PG_SCHEMA ".perfcache_active_control a JOIN "
@@ -287,6 +291,7 @@ static void resolve_active_unicode_atoms_relational(
     }
     PG_TRY();
     {
+        laplace_pg_spi_budget_charge(budget);
         result = SPI_execute(active_sql, true, 0);
         if (result != SPI_OK_SELECT || SPI_processed != 1u ||
             SPI_tuptable == NULL) {
@@ -324,6 +329,7 @@ static void resolve_active_unicode_atoms_relational(
             active->root_receipt.bytes, sizeof(active->root_receipt.bytes)));
         atom_values[2] = Int32GetDatum(
             (int32)LAPLACE_PERSISTENCE_ATTESTATION_SOURCE_TESTIMONY);
+        laplace_pg_spi_budget_charge(budget);
         result = SPI_execute_with_args(
             atoms_sql, 3, atom_types, atom_values, NULL, true, 0);
         if (result != SPI_OK_SELECT || SPI_processed != (uint64)count ||
@@ -389,15 +395,26 @@ static void resolve_active_unicode_atoms_relational(
 }
 #endif
 
+void laplace_pg_resolve_active_unicode_atoms_metered(
+    const laplace_framework_context* context,
+    const uint32_t* positions,
+    size_t count,
+    laplace_composition_known_entity* known,
+    laplace_pg_active_unicode_root* active,
+    laplace_pg_spi_budget* budget) {
+#if defined(LAPLACE_TEST_UNICODE_ATOM_RELATIONAL_LOOKUP)
+    resolve_active_unicode_atoms_relational(context, positions, count, known, active, budget);
+#else
+    resolve_active_unicode_atoms_mapped(context, positions, count, known, active, budget);
+#endif
+}
+
 void laplace_pg_resolve_active_unicode_atoms(
     const laplace_framework_context* context,
     const uint32_t* positions,
     size_t count,
     laplace_composition_known_entity* known,
     laplace_pg_active_unicode_root* active) {
-#if defined(LAPLACE_TEST_UNICODE_ATOM_RELATIONAL_LOOKUP)
-    resolve_active_unicode_atoms_relational(context, positions, count, known, active);
-#else
-    resolve_active_unicode_atoms_mapped(context, positions, count, known, active);
-#endif
+    laplace_pg_resolve_active_unicode_atoms_metered(
+        context, positions, count, known, active, NULL);
 }

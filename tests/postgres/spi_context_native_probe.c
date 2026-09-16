@@ -30,6 +30,7 @@ static MemoryContextData caller, scratch, procedures[4];
 static MemoryContext previous[4];
 static unsigned depth;
 static unsigned failure;
+static unsigned query_calls;
 static SPITupleTable table;
 static HeapTuple rows[1];
 static struct { MemoryContext owner; void* bytes; size_t size; } allocations[128];
@@ -80,6 +81,7 @@ int SPI_execute_with_args(const char* sql,int nargs,Oid* types,Datum* values,
     const char* nulls,bool read_only,long count) {
     (void)sql;(void)nargs;(void)types;(void)values;(void)nulls;(void)read_only;(void)count;
     CHECK(depth > 0u);
+    ++query_calls;
     /* PostgreSQL 18.6 spi.c: _SPI_end_call(true) calls _SPI_procmem(). */
     CurrentMemoryContext=&procedures[depth-1u];
     if(failure==2u) pg_re_throw();
@@ -136,7 +138,7 @@ static void unicode_connection(unsigned mode) {
     CurrentMemoryContext=&caller;CHECK(SPI_connect()==SPI_OK_CONNECT);
     MemoryContextSwitchTo(&scratch);failure=mode;
     PG_TRY();
-    { read_root_receipt_for_epoch(&epoch,&receipt);CHECK(mode==0u); }
+    { read_root_receipt_for_epoch(&epoch,&receipt,NULL);CHECK(mode==0u); }
     PG_CATCH();
     { caught=true;CHECK(mode!=0u); }
     PG_END_TRY();
@@ -145,12 +147,33 @@ static void unicode_connection(unsigned mode) {
     failure=0u;CHECK(SPI_finish()==SPI_OK_FINISH);CHECK(depth==0u);
 }
 
+static void unicode_budget(uint64_t maximum, unsigned mode) {
+    laplace_pg_perfcache_epoch epoch={0};laplace_digest256 receipt={{0}};
+    volatile uint64_t used=0u;
+    laplace_pg_spi_budget budget={(uint64_t*)&used,maximum};
+    volatile bool caught=false;
+    unsigned before=query_calls;
+    CurrentMemoryContext=&caller;CHECK(SPI_connect()==SPI_OK_CONNECT);
+    MemoryContextSwitchTo(&scratch);failure=mode;
+    PG_TRY();
+    { read_root_receipt_for_epoch(&epoch,&receipt,&budget); }
+    PG_CATCH();
+    { caught=true; }
+    PG_END_TRY();
+    CHECK(caught==(maximum==0u || mode!=0u));
+    CHECK(used==(maximum==0u ? 0u : 1u));
+    CHECK(query_calls-before==(maximum==0u ? 0u : 1u));
+    CHECK(depth==1u);CHECK(CurrentMemoryContext==&scratch);
+    failure=0u;CHECK(SPI_finish()==SPI_OK_FINISH);CHECK(depth==0u);
+}
+
 int main(void) {
     query_lifetime(&caller);query_lifetime(&scratch);query_error();
     indirect_lifetime(false);indirect_lifetime(true);
     for(unsigned mode=0u;mode<4u;++mode) unicode_connection(mode);
+    unicode_budget(0u,0u);unicode_budget(1u,0u);unicode_budget(1u,2u);
     CHECK(PG_exception_stack==NULL);CHECK(error_context_stack==NULL);
     for(size_t i=0;i<allocation_count;++i) free(allocations[i].bytes);
-    printf("{\"checks\":%u,\"query_contexts\":2,\"unicode_connection_cases\":4,\"sql_execution\":false}\n",checks);
+    printf("{\"checks\":%u,\"query_contexts\":2,\"unicode_connection_cases\":4,\"unicode_budget_cases\":3,\"sql_execution\":false}\n",checks);
     return 0;
 }

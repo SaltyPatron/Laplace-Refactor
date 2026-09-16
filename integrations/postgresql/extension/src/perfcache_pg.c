@@ -148,7 +148,7 @@ static SPIPlanPtr perfcache_active_update_plan = NULL;
 static SPIPlanPtr perfcache_active_select_plan = NULL;
 static SPIPlanPtr perfcache_manifest_select_plan = NULL;
 
-static void synchronize_from_catalog(void);
+static void synchronize_from_catalog(laplace_pg_spi_budget* budget);
 static void abort_native_pending(void);
 
 static void perfcache_relcache_invalidation(Datum argument, Oid relation_id) {
@@ -702,7 +702,7 @@ static Datum digest_datum(const uint8* bytes, Size length) {
     return PointerGetDatum(value);
 }
 
-static void ensure_catalog_plans(void) {
+static void ensure_catalog_plans(laplace_pg_spi_budget* budget) {
     static const char generation_sql[] =
         "WITH inserted AS (INSERT INTO " LAPLACE_PG_SCHEMA
         ".perfcache_generation("
@@ -756,6 +756,7 @@ static void ensure_catalog_plans(void) {
         INT8OID, BOOLOID, BYTEAOID, BYTEAOID, XIDOID};
     static Oid manifest_select_types[3] = {BYTEAOID, BYTEAOID, BYTEAOID};
     if (perfcache_generation_plan == NULL) {
+        laplace_pg_spi_budget_charge(budget);
         perfcache_generation_plan =
             SPI_prepare(generation_sql, 5, generation_types);
         if (perfcache_generation_plan == NULL ||
@@ -766,6 +767,7 @@ static void ensure_catalog_plans(void) {
         }
     }
     if (perfcache_active_update_plan == NULL) {
+        laplace_pg_spi_budget_charge(budget);
         perfcache_active_update_plan = SPI_prepare(update_sql, 10, update_types);
         if (perfcache_active_update_plan == NULL ||
             SPI_keepplan(perfcache_active_update_plan) != 0) {
@@ -775,6 +777,7 @@ static void ensure_catalog_plans(void) {
         }
     }
     if (perfcache_active_select_plan == NULL) {
+        laplace_pg_spi_budget_charge(budget);
         perfcache_active_select_plan = SPI_prepare(select_sql, 0, NULL);
         if (perfcache_active_select_plan == NULL ||
             SPI_keepplan(perfcache_active_select_plan) != 0) {
@@ -784,6 +787,7 @@ static void ensure_catalog_plans(void) {
         }
     }
     if (perfcache_manifest_select_plan == NULL) {
+        laplace_pg_spi_budget_charge(budget);
         perfcache_manifest_select_plan =
             SPI_prepare(manifest_select_sql, 3, manifest_select_types);
         if (perfcache_manifest_select_plan == NULL ||
@@ -835,7 +839,8 @@ static void native_pin_catalog_cleanup(native_pin_catalog_state* state) {
 static laplace_pg_perfcache_status native_pin_catalog_connected(
     const laplace_pg_perfcache_epoch* epoch,
     const laplace_digest256* manifest_fingerprint,
-    native_pin_catalog_state* state) {
+    native_pin_catalog_state* state,
+    laplace_pg_spi_budget* budget) {
     laplace_perfcache_registry_status registry_status;
     Datum values[3];
     char nulls[3] = {' ', ' ', ' '};
@@ -851,7 +856,7 @@ static laplace_pg_perfcache_status native_pin_catalog_connected(
     bytea* manifest_bytes;
     int result;
     laplace_pg_perfcache_status status;
-    ensure_catalog_plans();
+    ensure_catalog_plans(budget);
     values[0] = digest_datum(
         epoch->activation_epoch_id.bytes,
         sizeof(epoch->activation_epoch_id.bytes));
@@ -860,6 +865,7 @@ static laplace_pg_perfcache_status native_pin_catalog_connected(
         sizeof(epoch->epoch_fingerprint.bytes));
     values[2] = digest_datum(
         manifest_fingerprint->bytes, sizeof(manifest_fingerprint->bytes));
+    laplace_pg_spi_budget_charge(budget);
     result = SPI_execute_plan(
         perfcache_manifest_select_plan, values, nulls, true, 1);
     perfcache_manifest_select_count += 1u;
@@ -925,7 +931,8 @@ static laplace_pg_perfcache_status native_pin_catalog_connected(
 static laplace_pg_perfcache_status native_pin_epoch(
     const laplace_pg_perfcache_epoch* epoch,
     const laplace_digest256* manifest_fingerprint,
-    laplace_perfcache_pin* pin) {
+    laplace_perfcache_pin* pin,
+    laplace_pg_spi_budget* budget) {
     MemoryContext const caller = CurrentMemoryContext;
     laplace_perfcache_epoch native_epoch;
     laplace_perfcache_registry_status registry_status;
@@ -951,7 +958,7 @@ static laplace_pg_perfcache_status native_pin_epoch(
     }
     PG_TRY();
     {
-        status = native_pin_catalog_connected(epoch, manifest_fingerprint, state);
+        status = native_pin_catalog_connected(epoch, manifest_fingerprint, state, budget);
     }
     PG_CATCH();
     {
@@ -1078,11 +1085,11 @@ static laplace_pg_perfcache_status resolve_committing_reservation(void) {
                      : LAPLACE_PG_PERFCACHE_CAPACITY_EXHAUSTED;
 }
 
-static laplace_pg_perfcache_status ensure_control_ready(void) {
+static laplace_pg_perfcache_status ensure_control_ready(laplace_pg_spi_budget* budget) {
     laplace_pg_perfcache_status status;
     attach_shared_state();
     if (!perfcache_backend_synchronized) {
-        synchronize_from_catalog();
+        synchronize_from_catalog(budget);
     }
     status = resolve_committing_reservation();
     return status;
@@ -1108,7 +1115,8 @@ static void synchronize_read_catalog(
     laplace_pg_perfcache_epoch* epoch,
     laplace_digest256* manifest_fingerprint,
     laplace_digest256* admission_receipt_id,
-    uint64* sequence, bool* active_present) {
+    uint64* sequence, bool* active_present,
+    laplace_pg_spi_budget* budget) {
     MemoryContext const caller = CurrentMemoryContext;
     bool is_null = false;
     Datum datum;
@@ -1120,7 +1128,8 @@ static void synchronize_read_catalog(
     }
     PG_TRY();
     {
-        ensure_catalog_plans();
+        ensure_catalog_plans(budget);
+        laplace_pg_spi_budget_charge(budget);
         result = SPI_execute_plan(perfcache_active_select_plan, NULL, NULL, true, 1);
         perfcache_catalog_select_count += 1u;
         if (result != SPI_OK_SELECT || SPI_processed != 1u) {
@@ -1173,7 +1182,7 @@ static void synchronize_read_catalog(
     MemoryContextSwitchTo(caller);
 }
 
-static void synchronize_from_catalog(void) {
+static void synchronize_from_catalog(laplace_pg_spi_budget* budget) {
     laplace_pg_perfcache_epoch epoch;
     laplace_digest256 manifest_fingerprint;
     laplace_digest256 admission_receipt_id;
@@ -1185,7 +1194,8 @@ static void synchronize_from_catalog(void) {
         return;
     }
     synchronize_read_catalog(&epoch, &manifest_fingerprint,
-                             &admission_receipt_id, &sequence, &active_present);
+                             &admission_receipt_id, &sequence, &active_present,
+                             budget);
     attach_shared_state();
     LWLockAcquire(&perfcache_shared->lock, LW_EXCLUSIVE);
     reclaim_stale_owners_locked();
@@ -1244,7 +1254,7 @@ static laplace_pg_perfcache_status persist_admission(
     if (SPI_connect() != SPI_OK_CONNECT) {
         return LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
     }
-    ensure_catalog_plans();
+    ensure_catalog_plans(NULL);
     generation_values[0] = digest_datum(
         next_epoch->activation_epoch_id.bytes,
         sizeof(next_epoch->activation_epoch_id.bytes));
@@ -1498,7 +1508,7 @@ static laplace_pg_perfcache_status admit_epoch_metadata(
         return LAPLACE_PG_PERFCACHE_INVALID_ARGUMENT;
     }
     laplace_pg_perfcache_initialize();
-    persistence_status = ensure_control_ready();
+    persistence_status = ensure_control_ready(NULL);
     if (persistence_status != LAPLACE_PG_PERFCACHE_OK) {
         return persistence_status;
     }
@@ -1625,7 +1635,7 @@ static laplace_pg_perfcache_status perfcache_admit_core(
         ((has_expected_epoch != 0u) != (expected_epoch != NULL))) {
         return LAPLACE_PG_PERFCACHE_INVALID_ARGUMENT;
     }
-    status = ensure_control_ready();
+    status = ensure_control_ready(NULL);
     if (status != LAPLACE_PG_PERFCACHE_OK) {
         return status;
     }
@@ -1743,13 +1753,14 @@ static const ResourceOwnerDesc perfcache_pin_resource = {
  * resource owner. Release the already registered shared/native pin immediately
  * when the cold manifest provider fails. Normal successful ownership transfers
  * to the caller unchanged. */
-static laplace_pg_perfcache_status pin_native_generation(laplace_pg_perfcache_pin* pin) {
+static laplace_pg_perfcache_status pin_native_generation(
+    laplace_pg_perfcache_pin* pin, laplace_pg_spi_budget* budget) {
     MemoryContext const caller = CurrentMemoryContext;
     volatile laplace_pg_perfcache_status status = LAPLACE_PG_PERFCACHE_INTERNAL_ERROR;
     PG_TRY();
     {
         status = native_pin_epoch(&pin->epoch, &pin->manifest_fingerprint,
-                                  &pin->native_pin);
+                                  &pin->native_pin, budget);
     }
     PG_CATCH();
     {
@@ -1769,7 +1780,8 @@ static laplace_pg_perfcache_status pin_generation(
     bool exact_retained_epoch,
     uint32 has_expected_epoch,
     const laplace_pg_perfcache_epoch* expected_epoch,
-    laplace_pg_perfcache_pin** pin) {
+    laplace_pg_perfcache_pin** pin,
+    laplace_pg_spi_budget* budget) {
     laplace_pg_perfcache_owner_slot* owner;
     laplace_pg_perfcache_generation_slot* generation;
     laplace_pg_perfcache_pin* result;
@@ -1783,7 +1795,7 @@ static laplace_pg_perfcache_status pin_generation(
     }
     *pin = NULL;
     laplace_pg_perfcache_initialize();
-    status = ensure_control_ready();
+    status = ensure_control_ready(budget);
     if (status != LAPLACE_PG_PERFCACHE_OK) {
         return status;
     }
@@ -1845,7 +1857,7 @@ static laplace_pg_perfcache_status pin_generation(
     result->generation_index = generation_index;
     result->held = 1u;
     LWLockRelease(&perfcache_shared->lock);
-    status = pin_native_generation(result);
+    status = pin_native_generation(result, budget);
     if (status != LAPLACE_PG_PERFCACHE_OK) {
         release_pin_internal(result);
         ResourceOwnerForget(CurrentResourceOwner, PointerGetDatum(result),
@@ -1861,16 +1873,32 @@ laplace_pg_perfcache_status laplace_pg_perfcache_pin_active(
     uint32 has_expected_epoch,
     const laplace_pg_perfcache_epoch* expected_epoch,
     laplace_pg_perfcache_pin** pin) {
-    return pin_generation(false, has_expected_epoch, expected_epoch, pin);
+    return laplace_pg_perfcache_pin_active_metered(
+        has_expected_epoch, expected_epoch, pin, NULL);
+}
+
+laplace_pg_perfcache_status laplace_pg_perfcache_pin_active_metered(
+    uint32 has_expected_epoch,
+    const laplace_pg_perfcache_epoch* expected_epoch,
+    laplace_pg_perfcache_pin** pin,
+    laplace_pg_spi_budget* budget) {
+    return pin_generation(false, has_expected_epoch, expected_epoch, pin, budget);
 }
 
 laplace_pg_perfcache_status laplace_pg_perfcache_pin_epoch(
     const laplace_pg_perfcache_epoch* expected_epoch,
     laplace_pg_perfcache_pin** pin) {
+    return laplace_pg_perfcache_pin_epoch_metered(expected_epoch, pin, NULL);
+}
+
+laplace_pg_perfcache_status laplace_pg_perfcache_pin_epoch_metered(
+    const laplace_pg_perfcache_epoch* expected_epoch,
+    laplace_pg_perfcache_pin** pin,
+    laplace_pg_spi_budget* budget) {
     if (expected_epoch == NULL) {
         return LAPLACE_PG_PERFCACHE_INVALID_ARGUMENT;
     }
-    return pin_generation(true, 1u, expected_epoch, pin);
+    return pin_generation(true, 1u, expected_epoch, pin, budget);
 }
 
 void laplace_pg_perfcache_pin_release(laplace_pg_perfcache_pin** pin) {
@@ -1899,7 +1927,7 @@ laplace_pg_perfcache_status laplace_pg_perfcache_snapshot_get(
     memset(snapshot, 0, sizeof(*snapshot));
     laplace_pg_perfcache_initialize();
     {
-        laplace_pg_perfcache_status status = ensure_control_ready();
+        laplace_pg_perfcache_status status = ensure_control_ready(NULL);
         if (status != LAPLACE_PG_PERFCACHE_OK) {
             return status;
         }
@@ -2224,7 +2252,7 @@ Datum laplace_pg_test_perfcache_replay_committing(PG_FUNCTION_ARGS) {
     TransactionId committed_transaction_id = PG_GETARG_TRANSACTIONID(0);
     laplace_pg_perfcache_generation_slot* generation;
     laplace_pg_perfcache_reservation* reservation;
-    laplace_pg_perfcache_status status = ensure_control_ready();
+    laplace_pg_perfcache_status status = ensure_control_ready(NULL);
     if (status != LAPLACE_PG_PERFCACHE_OK ||
         !TransactionIdDidCommit(committed_transaction_id)) {
         ereport(ERROR,

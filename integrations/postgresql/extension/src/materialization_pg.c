@@ -23,6 +23,7 @@
 #include "perfcache_pg.h"
 #include "physicality_entity_pg.h"
 #include "spi_context_pg.h"
+#include "spi_budget_pg.h"
 
 typedef struct materialization_cache_key {
     laplace_id128 entity_id;
@@ -287,10 +288,11 @@ static void materialization_note_trajectory(
 
 static void materialization_require_active_perfcache(
     const laplace_pg_materialization_provider_state* state,
-    laplace_pg_perfcache_pin** pin) {
+    laplace_pg_perfcache_pin** pin,
+    laplace_pg_spi_budget* budget) {
     laplace_pg_perfcache_status status;
     LAPLACE_PG_PRESERVE_MEMORY_CONTEXT(
-        status = laplace_pg_perfcache_pin_active(0u, NULL, pin));
+        status = laplace_pg_perfcache_pin_active_metered(0u, NULL, pin, budget));
     if (status != LAPLACE_PG_PERFCACHE_OK || pin == NULL || *pin == NULL) {
         ereport(ERROR,
                 (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -540,7 +542,7 @@ static void materialization_resolve_derived(
     const laplace_digest256* explicit_selected, size_t count,
     laplace_pg_physicality_entity_view** views, size_t* view_count) {
     laplace_digest256* selected;
-    uint64_t operations = 0u;
+    volatile uint64_t operations = 0u;
     if (count > MaxAllocSize / sizeof(*selected) ||
         count > (UINT64_MAX - 1u) / 2u ||
         state->database_operations > UINT64_MAX - LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS)
@@ -553,24 +555,39 @@ static void materialization_resolve_derived(
         if (explicit_selected != NULL) selected[index] = explicit_selected[index];
         else if (selection != NULL) selected[index] = selection->physicality_id;
     }
-    laplace_pg_physicality_entity_resolve_scoped(&state->context, view_id, ids,
-        selected, count, (uint64_t)count * 2u + 1u, materialization_reflection_grant(state),
-        LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS, views, view_count, &operations);
-    state->database_operations += operations;
+    PG_TRY();
+    {
+        laplace_pg_physicality_entity_resolve_scoped(&state->context, view_id, ids,
+            selected, count, (uint64_t)count * 2u + 1u, materialization_reflection_grant(state),
+            LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS, views, view_count,
+            (uint64_t*)&operations);
+    }
+    PG_FINALLY();
+    {
+        state->database_operations += operations;
+    }
+    PG_END_TRY();
 }
 
 static void materialization_resolve_view_owner(
     laplace_pg_materialization_provider_state* state,
     const laplace_digest256* source,
     laplace_pg_physicality_entity_view** views, size_t* view_count) {
-    uint64_t operations = 0u;
+    volatile uint64_t operations = 0u;
     if (state->database_operations > UINT64_MAX - LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS)
         ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
             errmsg("Laplace materialization owner read exceeds its operation boundary")));
-    laplace_pg_physicality_entity_resolve_owner(&state->context, source,
-        materialization_reflection_grant(state), LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS,
-        views, view_count, &operations);
-    state->database_operations += operations;
+    PG_TRY();
+    {
+        laplace_pg_physicality_entity_resolve_owner(&state->context, source,
+            materialization_reflection_grant(state), LAPLACE_PG_PHYSICALITY_ENTITY_READ_MAX_OPERATIONS,
+            views, view_count, (uint64_t*)&operations);
+    }
+    PG_FINALLY();
+    {
+        state->database_operations += operations;
+    }
+    PG_END_TRY();
 }
 
 static bool materialization_same_physicality(
@@ -707,6 +724,10 @@ static void materialization_resolve_batch(
     int result;
     laplace_pg_perfcache_pin* pin = NULL;
     laplace_perfcache_registry_status cache_status;
+    laplace_pg_spi_budget operations;
+    /* Two frontier queries plus at most four preparations and two support
+     * queries in the single active-generation pin. Charge actual work only. */
+    const uint64_t maximum_frontier_operations = UINT64_C(8);
 
     if (state == NULL || requested == NULL || requested_count == 0u ||
         requested_count > (size_t)INT_MAX ||
@@ -734,6 +755,11 @@ static void materialization_resolve_batch(
     if (unique_count == 0u) {
         return;
     }
+    if (state->database_operations > UINT64_MAX - maximum_frontier_operations)
+        ereport(ERROR, (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+            errmsg("Laplace materialization database-operation accounting overflowed")));
+    operations.used = &state->database_operations;
+    operations.maximum = state->database_operations + maximum_frontier_operations;
 
     witnesses = (laplace_digest256*)palloc0(sizeof(*witnesses) * unique_count);
     selected_ids = (laplace_digest256*)palloc(sizeof(*selected_ids) * unique_count);
@@ -759,10 +785,10 @@ static void materialization_resolve_batch(
         state->context.epochs[LAPLACE_FRAMEWORK_EPOCH_GEOMETRY].bytes, 32u));
     entity_values[3] = PointerGetDatum(construct_array(retained_selections,
         (int)unique_count, BOOLOID, 1, true, TYPALIGN_CHAR));
+    laplace_pg_spi_budget_charge(&operations);
     result = laplace_pg_spi_execute_with_args(
         entity_sql, 4, entity_types, entity_values, NULL, true,
         (long)(unique_count + 1u));
-    ++state->database_operations;
     ++state->node_batch_count;
     if (result != SPI_OK_SELECT || SPI_tuptable == NULL ||
         SPI_processed != unique_count) {
@@ -805,7 +831,7 @@ static void materialization_resolve_batch(
     }
     SPI_freetuptable(SPI_tuptable);
 
-    materialization_require_active_perfcache(state, &pin);
+    materialization_require_active_perfcache(state, &pin, &operations);
     PG_TRY();
     {
         cache_status = laplace_perfcache_unicode_identity_reverse_resolve_batch(
@@ -920,10 +946,10 @@ static void materialization_resolve_batch(
             composition_retained[selected] = retained_selections[composition_source[selected]];
         physicality_values[4] = PointerGetDatum(construct_array(composition_retained,
             (int)composition_count, BOOLOID, 1, true, TYPALIGN_CHAR));
+        laplace_pg_spi_budget_charge(&operations);
         result = laplace_pg_spi_execute_with_args(
             physicality_sql, 5, physicality_types, physicality_values,
             NULL, true, row_limit);
-        ++state->database_operations;
         if (result != SPI_OK_SELECT || SPI_tuptable == NULL) {
             ereport(ERROR,
                     (errcode(ERRCODE_DATA_CORRUPTED),
