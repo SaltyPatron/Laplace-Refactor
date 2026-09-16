@@ -139,7 +139,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          proof="$RECEIPT_ROOT/cluster-activation/$PACKAGE_ID/installed-product-gateway-proof.json"
+          proof="$RECEIPT_ROOT/cluster-activation/$PACKAGE_ID/installed-product-gateway-proof-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
           source_args=()
           if [[ "$SOURCE_ACCEPTANCE" == true ]]; then source_args+=(--include-source-ingestion); fi
           python3 tools/delivery/product_gateway_live_proof.py "${source_args[@]}" \
