@@ -18,15 +18,19 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^2)" = 1295af748d6a5de594968c9e01e629135298b2fa
+          test "$(git rev-parse HEAD^2)" = 219fd0d750a3eb5436b32903ca83514c7f64c115
           test "$(git diff --name-only HEAD^2 HEAD)" = .github/workflows/source-admission-bytecode-qualification.yml
-          test "$(git hash-object '.github/workflows/ci.yml')" = 61a3f31a01f5a341efb382bdd1b9c0b759d5e662
+          test "$(git hash-object '.github/workflows/ci.yml')" = 75d47fb52f13bffc5c45f812323c90a4ca382940
           test "$(git hash-object '.github/workflows/product-path.yml')" = 461fce9ebb2826898fcdd7180d563e84279cbed3
           test "$(git hash-object 'contracts/product-path.json')" = 71a23b68ac00d6d7c03cfc756323809ff5db9395
           test "$(git hash-object 'tests/product_path_concurrency_tests.py')" = d36beb648338abc8a9d35f612f0b457bc411d2ed
           test "$(git hash-object 'tests/product_path_status_tests.py')" = ef5cc892906b9b43c227f7a529f12b3e754818f0
           test "$(git hash-object 'tests/product_path_tests.py')" = b588e45bad08087a74fefd4a049183e3bb403aad
           test "$(git hash-object 'tools/delivery/product_path.py')" = 46b83a4580e5e2e50cb21880c82ddc41019934a6
+          test "$(git hash-object 'tests/stockfish_corpus_acceptance_tests.py')" = 72e8cadfe5042ab8bbd9f7a98e6472564d670140
+          test "$(git hash-object 'tools/dependencies/chess_tools.py')" = 03aa08c2d67c013a873b65e9e94f7854035479df
+          test "$(git hash-object 'tests/chess_dependency_tests.py')" = 514861cd8309baa08c390e2fb37ad6e826c876e6
+          test "$(git hash-object 'docs/delivery/CHESS_DEPENDENCIES.md')" = d182875792b05e45f240882060c9c30e06343476
           root="/build/laplace/work/ci-execution-selection/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           test ! -e "$root"
           sudo install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$root"
@@ -35,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for suite in product_path_tests product_path_status_tests product_path_concurrency_tests hosted_ci_cache_contract_tests; do
+          for suite in product_path_tests product_path_status_tests product_path_concurrency_tests hosted_ci_cache_contract_tests stockfish_corpus_acceptance_tests chess_dependency_tests; do
             timeout --signal=TERM --kill-after=5s 120s python3 "tests/$suite.py" \
               2>&1 | tee "$QUALIFICATION_DIR/$suite.log"
           done
