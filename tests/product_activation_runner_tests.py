@@ -41,6 +41,164 @@ def load_module(relative_path: str):
 
 
 class ProductActivationRunnerTests(unittest.TestCase):
+    def cognition_failure_inputs(self):
+        identities = {name: "41" * 32 for name in (
+            "source_epoch", "identity_epoch", "geometry_epoch", "evidence_epoch",
+            "dependency_epoch", "database_epoch", "package_epoch", "numeric_epoch",
+            "authority_fingerprint", "request_fingerprint",
+        )}
+        runtime = {"perfcache_epoch": "42" * 32, "numeric_epoch": "43" * 32}
+        firmware = {"program_id": "44" * 32, "image_hex": "abcd"}
+        result = {"status": 9, "native_status": 2, "failed_step": 0,
+                  "physical_provider_rows": 2, "physical_provider_batches": 1,
+                  "output": "\\x", "program_id": "\\x" + firmware["program_id"]}
+        diagnostic = {
+            "schema": "laplace.cognition-failure-diagnostic/v1",
+            "status": 9, "failed_step": 0, "native_status": 2,
+            "native_disposition": 4, "physical_provider_rows": 2,
+            "physical_provider_batches": 1, "semantic_provider_rows": 0,
+            "semantic_database_operations": 0, "materialization_nodes": 0,
+            "materialization_trajectory_reads": 0, "materialization_trajectory_bytes": 0,
+            "materialization_database_operations": 0,
+        }
+        return identities, runtime, firmware, result, diagnostic
+
+    def test_installed_cognition_retains_actual_failure_before_raising(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        identities, runtime, firmware, result, diagnostic = self.cognition_failure_inputs()
+        stdout = json.dumps(result) + "\n"
+        stderr = "NOTICE:  LAPLACE_COGNITION_FAILURE " + json.dumps(diagnostic) + "\n"
+        provenance = {"package_id": "45" * 32, "postmaster_pid": 123}
+        captured_sql = []
+
+        def execute(*args, completed_observer):
+            sql = args[2]
+            captured_sql.append(sql)
+            self.assertTrue(sql.lstrip().startswith("SET client_min_messages = notice;"))
+            receipt = {"label": args[3], "exit_code": 0,
+                       "stdin_sha256": proof.u.sha256_bytes(sql.encode("utf-8"))}
+            completed_observer(subprocess.CompletedProcess(["psql"], 0, stdout, stderr), receipt)
+            return result, receipt
+
+        for label in ("installed-product-cognition-falsification",
+                      "installed-product-materialization-frontier-falsification"):
+            with self.subTest(label=label), tempfile.TemporaryDirectory(dir=ROOT) as directory:
+                output = Path(directory) / "installed-cognition-proof.json"
+                artifact = Path(directory) / "current-attempt" / "failure.json"
+                output.write_text('{"schema":"stale-success"}')
+                with mock.patch.object(proof.r, "runner_sql", side_effect=execute), \
+                     mock.patch("builtins.print"), \
+                     self.assertRaisesRegex(RuntimeError, "returned status 9"):
+                    proof.execute_product(
+                        {}, {"instance": {"admin_role": "laplace_admin"}}, identities,
+                        runtime, firmware, "AA", label,
+                        failure_output=output, failure_artifact=artifact,
+                        failure_provenance=provenance,
+                    )
+                self.assertEqual(artifact.read_bytes(), output.read_bytes())
+                document = json.loads(output.read_text())
+                self.assertEqual(document["schema"], "laplace.installed-product-cognition-failure/v1")
+                self.assertIs(document["success_receipt_issued"], False)
+                self.assertEqual(document["execution"], result)
+                self.assertEqual(document["native_failure"], {"state": "observed", "diagnostic": diagnostic})
+                self.assertEqual(document["provenance"], provenance)
+                self.assertEqual(document["program"], firmware)
+                self.assertEqual(document["prompt_utf8"], "AA")
+                self.assertEqual(document["label"], label)
+                self.assertEqual(document["request_sql_utf8"], captured_sql[-1])
+                self.assertEqual(document["request_sql_sha256"], document["command_receipt"]["stdin_sha256"])
+                self.assertNotIn("proof_sha256", document)
+                for name, raw in (("stdout", stdout), ("stderr", stderr)):
+                    self.assertEqual(bytes.fromhex(document["outputs"][name]["retained_hex"]).decode(), raw)
+                    self.assertIs(document["outputs"][name]["truncated"], False)
+                identity = document.pop("failure_sha256")
+                self.assertEqual(identity, proof.u.sha256_bytes(proof.u.canonical_bytes(document)))
+                retained = Path(directory) / f"installed-cognition-failure-{identity}.json"
+                self.assertEqual(json.loads(retained.read_text()), {**document, "failure_sha256": identity})
+
+    def test_installed_cognition_failure_diagnostics_are_bounded_and_not_inferred(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        _, _, _, result, diagnostic = self.cognition_failure_inputs()
+        marker = proof.NATIVE_FAILURE_MARKER
+        self.assertEqual(proof.native_failure_diagnostic("", result)["state"], "unavailable")
+        self.assertEqual(proof.native_failure_diagnostic(marker + "{", result)["state"], "invalid")
+        sentinel = {**diagnostic, "failed_step": (1 << 32) - 1}
+        observed = proof.native_failure_diagnostic(marker + json.dumps(sentinel),
+                                                  {**result, "failed_step": -1})
+        self.assertEqual(observed, {"state": "observed", "diagnostic": sentinel})
+        self.assertEqual(proof.native_failure_diagnostic(
+            marker + json.dumps(sentinel), {**result, "failed_step": -2})["state"], "mismatched")
+        for field in ("status", "failed_step", "native_status", "native_disposition"):
+            for value in (-1, True, 1 << 32):
+                with self.subTest(field=field, invalid=value):
+                    invalid = {**diagnostic, field: value}
+                    self.assertEqual(proof.native_failure_diagnostic(
+                        marker + json.dumps(invalid), result)["state"], "invalid")
+        for field in ("physical_provider_rows", "physical_provider_batches", "semantic_provider_rows",
+                      "semantic_database_operations", "materialization_nodes",
+                      "materialization_trajectory_reads", "materialization_trajectory_bytes",
+                      "materialization_database_operations"):
+            for value in (-1, True, 1 << 64):
+                with self.subTest(field=field, invalid=value):
+                    invalid = {**diagnostic, field: value}
+                    self.assertEqual(proof.native_failure_diagnostic(
+                        marker + json.dumps(invalid), result)["state"], "invalid")
+        for field, value in (("status", 10), ("failed_step", 1), ("native_status", 3)):
+            changed = {**diagnostic, field: value}
+            self.assertEqual(proof.native_failure_diagnostic(marker + json.dumps(changed), result)["state"],
+                             "mismatched")
+        for invalid in ({**diagnostic, "native_disposition": True},
+                        {**diagnostic, "native_disposition": -1},
+                        {key: value for key, value in diagnostic.items() if key != "native_disposition"}):
+            self.assertEqual(proof.native_failure_diagnostic(marker + json.dumps(invalid), result)["state"],
+                             "invalid")
+        line = marker + json.dumps(diagnostic)
+        self.assertEqual(proof.native_failure_diagnostic(line + "\n" + line, result)["state"], "invalid")
+        raw = "é" * (proof.MAX_FAILURE_OUTPUT_BYTES + 1)
+        captured = proof.bounded_output(raw)
+        self.assertIs(captured["truncated"], True)
+        self.assertEqual(captured["observed_bytes"], len(raw.encode("utf-8")))
+        self.assertEqual(captured["observed_sha256"], proof.u.sha256_bytes(raw.encode("utf-8")))
+        self.assertEqual(bytes.fromhex(captured["retained_hex"]),
+                         raw.encode("utf-8")[:proof.MAX_FAILURE_OUTPUT_BYTES])
+
+    def test_installed_cognition_retains_transport_failure_and_does_not_relabel_success(self) -> None:
+        proof = load_module("tools/delivery/product_cognition_live_proof.py")
+        identities, runtime, firmware, result, _ = self.cognition_failure_inputs()
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            output = Path(directory) / "proof.json"
+
+            def failed(*args, completed_observer):
+                completed_observer(subprocess.CompletedProcess(["psql"], 1, "", "ERROR: native failure"),
+                                   {"exit_code": 1})
+                raise RuntimeError("SQL transport failed")
+
+            with mock.patch.object(proof.r, "runner_sql", side_effect=failed), \
+                 self.assertRaisesRegex(RuntimeError, "SQL transport failed"):
+                proof.execute_product({}, {"instance": {"admin_role": "laplace_admin"}},
+                                      identities, runtime, firmware, "AA", "transport",
+                                      failure_output=output)
+            failure = json.loads(output.read_text())
+            self.assertIsNone(failure["execution"])
+            self.assertEqual(failure["native_failure"]["state"], "unavailable")
+            self.assertEqual(failure["command_receipt"]["exit_code"], 1)
+            self.assertEqual(bytes.fromhex(failure["outputs"]["stderr"]["retained_hex"]).decode(),
+                             "ERROR: native failure")
+            success = {**result, "status": 0, "native_status": 0}
+            success_output = Path(directory) / "success-proof.json"
+            success_artifact = Path(directory) / "success-attempt" / "failure.json"
+            with mock.patch.object(proof.r, "runner_sql", return_value=(success, {"exit_code": 0})), \
+                 mock.patch("builtins.print"):
+                observed, _ = proof.execute_product(
+                    {}, {"instance": {"admin_role": "laplace_admin"}}, identities,
+                    runtime, firmware, "AA", "success", failure_output=success_output,
+                    failure_artifact=success_artifact,
+                )
+            self.assertEqual(observed, success)
+            self.assertFalse(success_output.exists())
+            self.assertFalse(success_artifact.exists())
+            self.assertEqual(json.loads(output.read_text()), failure)
+
     def test_installed_cognition_request_declares_its_complete_structural_boundary(self) -> None:
         proof = load_module("tools/delivery/product_cognition_live_proof.py")
         multiturn = load_module("tools/delivery/product_cognition_multiturn_live_proof.py")

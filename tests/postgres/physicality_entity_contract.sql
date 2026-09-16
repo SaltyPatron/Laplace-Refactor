@@ -1442,7 +1442,7 @@ SELECT 'LAPLACE_QA_RECEIPT physicality_entity_reflection ' ||
     'read_only_context_refusal_verified',true,
     'mixed_batch_replay_new_rollback_verified',true,
     'shared_owner_candidate_selection_verified',true,
-    'cold_backend_verified',true,'canonical_physicalities_unchanged',true)
+    'cold_backend_verified',true,'canonical_physicalities_unchanged',true)::text
 FROM physicality_entity_contract.first first CROSS JOIN physicality_entity_contract.search search;
 
 DROP SCHEMA physicality_entity_contract CASCADE;
