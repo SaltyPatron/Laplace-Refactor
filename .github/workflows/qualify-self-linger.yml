@@ -1,0 +1,43 @@
+name: Qualify ordinary current-user persistent service manager
+on:
+  push:
+    branches: [diag/self-linger-419-20260916]
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 5
+    steps:
+      - name: Enable ordinary self-linger and verify the owned manager
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, pwd, stat, subprocess, time
+          uid=os.geteuid()
+          if pwd.getpwuid(uid).pw_name!="laplace-runner":
+              raise RuntimeError("self-linger must belong to the selected runner identity")
+          report={"schema":"laplace.self-linger-qualification/v1","uid":uid,"user":"laplace-runner","commands":[]}
+          def command(argv, env=None):
+              p=subprocess.run(argv,env=env,capture_output=True,text=True,check=False,timeout=15)
+              report["commands"].append({"argv":argv,"exit_code":p.returncode,"stdout":p.stdout[:8192],"stderr":p.stderr[:4096]})
+              return p
+          enabled=command(["loginctl","--no-ask-password","enable-linger","laplace-runner"])
+          if enabled.returncode:
+              print(json.dumps(report,sort_keys=True));raise SystemExit(enabled.returncode)
+          runtime=pathlib.Path("/run/user")/str(uid)
+          deadline=time.monotonic()+10
+          while not (runtime/"bus").exists() and time.monotonic()<deadline:
+              time.sleep(0.1)
+          if not runtime.is_dir() or runtime.is_symlink() or runtime.stat().st_uid!=uid:
+              raise RuntimeError("self-linger did not establish the exact user runtime")
+          env={**os.environ,"XDG_RUNTIME_DIR":str(runtime),"DBUS_SESSION_BUS_ADDRESS":"unix:path="+str(runtime/"bus")}
+          state=command(["loginctl","show-user",str(uid),"--property=Linger,RuntimePath,State"])
+          manager=command(["systemctl","--user","show","--property=Version,RuntimeWatchdogUSec"],env)
+          report["linger_enabled"]="Linger=yes" in state.stdout.splitlines()
+          report["user_manager_reachable"]=manager.returncode==0
+          report["runtime_directory"]={"path":str(runtime),"uid":runtime.stat().st_uid,"mode":oct(stat.S_IMODE(runtime.stat().st_mode))}
+          print(json.dumps(report,sort_keys=True))
+          if not report["linger_enabled"] or not report["user_manager_reachable"]:
+              raise SystemExit(1)
+          
+          PY
