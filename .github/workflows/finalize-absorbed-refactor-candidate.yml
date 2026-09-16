@@ -1,0 +1,176 @@
+name: Finalize absorbed Refactor candidate
+
+on:
+  push:
+    branches: [diag/cancel-absorbed-refactor-candidate-20260916]
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write
+
+jobs:
+  finalize-exact-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify retained replacement and cancel only the pre-QA candidate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, sys, time, urllib.request
+          REPO = 'SaltyPatron/Laplace-Refactor'
+          CANDIDATE = 35069845107
+          REPLACEMENT = 35070953157
+          HEAD = '5b9f0cc947a76065a33365da71daae7471572164'
+          MAIN = '419cbcb4fd4c569706ee3c253ab4775f5fcaebad'
+          TREE = 'c886cb789d024ca4ea6c6ff1f6f9b737f2b10dc7'
+          ARTIFACT = 10436266882
+          DIGEST = 'sha256:fc6e49b9af36e3f20ed24a29dc65395d9d3adb79596c012ea0c3d8ff52e185c4'
+          OUT = pathlib.Path('candidate-queue-cleanup.json')
+          deadline = time.monotonic() + 150
+          audit = {'schema': 'laplace.absorbed-candidate-finalization/v1',
+              'repository': REPO, 'candidate_run': CANDIDATE, 'candidate_head': HEAD,
+              'replacement_run': REPLACEMENT, 'replacement_main': MAIN, 'tree': TREE,
+              'retained_artifact_id': ARTIFACT, 'retained_artifact_digest': DIGEST,
+              'host_services_touched': False, 'application_state_touched': False,
+              'requests': [], 'phase': 'checking'}
+
+          def save():
+              document = dict(audit)
+              encoded = json.dumps(document, sort_keys=True, separators=(',', ':')).encode()
+              document['receipt_sha256'] = hashlib.sha256(encoded).hexdigest()
+              OUT.write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
+
+          def require(condition, message):
+              if not condition:
+                  raise ValueError(message)
+
+          def api(path, method='GET'):
+              require(path.startswith('/repos/' + REPO + '/'), 'API path outside exact repository')
+              require(method == 'GET' or
+                  (method == 'POST' and path == f'/repos/{REPO}/actions/runs/{CANDIDATE}/cancel'),
+                  'mutation outside exact cancellation')
+              remaining = deadline - time.monotonic()
+              require(remaining > 0, 'API deadline exhausted')
+              request = urllib.request.Request('https://api.github.com' + path,
+                  data=b'' if method == 'POST' else None, method=method,
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                    'Accept': 'application/vnd.github+json',
+                    'X-GitHub-Api-Version': '2022-11-28'})
+              with urllib.request.urlopen(request, timeout=min(20, remaining)) as response:
+                  raw = response.read(4 * 1024 * 1024 + 1)
+                  require(len(raw) <= 4 * 1024 * 1024, 'API response exceeds bound')
+                  status = response.status
+              audit['requests'].append({'method': method, 'path': path, 'status': status})
+              save()
+              return (json.loads(raw) if raw.strip() else None), status
+
+          def get(path):
+              return api('/repos/' + REPO + path)[0]
+
+          def jobs(run):
+              document = get(f'/actions/runs/{run}/jobs?per_page=100&filter=latest')
+              require(document['total_count'] == len(document['jobs']) <= 100,
+                      'job pagination exceeds exact inspected set')
+              return document['jobs']
+
+          def hosted_pass(rows):
+              for name in ('hosted-proof / requirements',
+                           'hosted-proof / native (linux-dev)',
+                           'hosted-proof / native (linux-sanitize)'):
+                  selected = [row for row in rows if row['name'] == name]
+                  require(len(selected) == 1 and selected[0]['status'] == 'completed' and
+                          selected[0]['conclusion'] == 'success', 'hosted proof missing or unsuccessful')
+
+          try:
+              require(os.environ['GITHUB_REPOSITORY'] == REPO and
+                      os.environ['GITHUB_REF'] == 'refs/heads/diag/cancel-absorbed-refactor-candidate-20260916' and
+                      os.environ['GITHUB_EVENT_NAME'] == 'push', 'unexpected helper execution context')
+              pr = get('/pulls/382')
+              require(pr['merged'] is True and pr['state'] == 'closed' and
+                      pr['head']['sha'] == HEAD and pr['merge_commit_sha'] == MAIN,
+                      'PR382 is not the exact absorbed candidate')
+              require(get('/git/ref/heads/main')['object']['sha'] == MAIN,
+                      'main moved away from exact replacement')
+              for commit in (HEAD, MAIN):
+                  require(get('/git/commits/' + commit)['tree']['sha'] == TREE,
+                          'candidate and replacement trees differ')
+              replacement = get(f'/actions/runs/{REPLACEMENT}')
+              require(replacement['repository']['full_name'] == REPO and
+                      replacement['head_sha'] == MAIN and replacement['event'] == 'push' and
+                      replacement['head_branch'] == 'main' and
+                      replacement['status'] in ('queued', 'pending', 'waiting', 'in_progress') and
+                      replacement['conclusion'] is None,
+                      'replacement main proof is not live')
+              hosted_pass(jobs(REPLACEMENT))
+              artifact = get(f'/actions/artifacts/{ARTIFACT}')
+              require(artifact['expired'] is False and artifact['digest'] == DIGEST and
+                      artifact['size_in_bytes'] == 8057455 and
+                      artifact['name'] == 'candidate-chess-dependencies-35069845107-1' and
+                      artifact['workflow_run']['id'] == CANDIDATE and
+                      artifact['workflow_run']['head_sha'] == HEAD,
+                      'retained current GUI/calibration artifact differs')
+              candidate = get(f'/actions/runs/{CANDIDATE}')
+              require(candidate['repository']['full_name'] == REPO and
+                      candidate['head_sha'] == HEAD and candidate['event'] == 'pull_request' and
+                      candidate['head_branch'] == 'fix/chess-source-selection-20260916' and
+                      candidate['status'] == 'in_progress' and candidate['conclusion'] is None,
+                      'candidate is not the exact active pull-request proof')
+              rows = jobs(CANDIDATE)
+              hosted_pass(rows)
+              gui = [row for row in rows if row['id'] == 104710904237]
+              require(len(gui) == 1 and gui[0]['status'] == 'completed' and
+                      gui[0]['conclusion'] == 'success', 'unique GUI proof is not retained and complete')
+              active = [row for row in rows if row['status'] != 'completed']
+              require(len(active) == 1 and active[0]['id'] == 104711239165 and
+                      active[0]['name'] == 'custom-stack-proof / postgresql-native' and
+                      active[0]['status'] == 'in_progress', 'another candidate job remains active')
+              steps = active[0]['steps']
+              qa = [step for step in steps if step['name'] == 'Execute selected custom-stack QA fail-fast']
+              require(len(qa) == 1 and qa[0]['status'] == 'pending' and
+                      qa[0].get('conclusion') is None and not qa[0].get('started_at'),
+                      'selected PostgreSQL QA has started')
+              running = [step for step in steps if step['status'] == 'in_progress']
+              allowed = {'Build and verify the locked C++ syntax provider',
+                         'Build and verify the locked PGN syntax provider',
+                         'Inventory and resolve physical source estate',
+                         'Configure outside the repository',
+                         'Build native engine PostgreSQL extension and managed bindings'}
+              require(len(running) == 1 and running[0]['name'] in allowed and
+                      running[0]['number'] < qa[0]['number'], 'active step is not an allowed pre-QA build')
+              require(all(step['status'] == 'pending' and step.get('conclusion') is None and
+                          not step.get('started_at') for step in steps if step['number'] >= qa[0]['number']),
+                      'a selected-QA or subsequent step has started')
+              require(all(row['conclusion'] == 'success' for row in rows if row['status'] == 'completed'),
+                      'candidate already contains an unsuccessful completed job')
+              audit.update({'phase': 'validated-pre-QA-candidate',
+                            'active_candidate_job': active[0]['id'],
+                            'active_candidate_step': running[0]['name'],
+                            'selected_qa_started': False})
+              save()
+              _, status = api(f'/repos/{REPO}/actions/runs/{CANDIDATE}/cancel', 'POST')
+              require(status == 202, 'cancellation was not accepted')
+              audit['phase'] = 'cancellation-request-accepted'
+              audit['cancellation_completed_observed'] = False
+          except Exception as error:
+              audit.update({'phase': 'refused-or-request-failed',
+                            'error_type': type(error).__name__, 'error': str(error)})
+              save()
+              print(json.dumps({'phase': audit['phase'], 'error_type': type(error).__name__}))
+              raise SystemExit(1)
+          save()
+          print(json.dumps({key: audit[key] for key in ('phase', 'candidate_run',
+                'replacement_run', 'active_candidate_step', 'selected_qa_started',
+                'cancellation_completed_observed')}))
+          PY
+      - name: Retain exact queue-cleanup audit receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: absorbed-refactor-candidate-cleanup-${{ github.run_id }}
+          path: candidate-queue-cleanup.json
+          if-no-files-found: error
+          retention-days: 30
