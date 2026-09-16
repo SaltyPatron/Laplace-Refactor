@@ -1,0 +1,406 @@
+name: Installed frontier read-only observation
+on:
+  push:
+    branches: [verify/source-admission-bytecode-20260916]
+permissions:
+  contents: read
+concurrency:
+  group: installed-frontier-readonly-observation
+  cancel-in-progress: false
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  FRONTIER_EVIDENCE: /build/laplace/work/installed-frontier-diagnostic/${{ github.run_id }}-${{ github.run_attempt }}
+jobs:
+  observe:
+    if: github.repository == 'SaltyPatron/Laplace-Refactor'
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 10
+    steps:
+      - name: Check out the exact installed source owner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: b8c023b950e4523f88ec8f57b37e79bcffe3e822
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify operational-only source and prepare private evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(id -un)" = laplace-runner
+          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
+          test "$GITHUB_REF" = refs/heads/verify/source-admission-bytecode-20260916
+          test "$(git rev-parse HEAD)" = b8c023b950e4523f88ec8f57b37e79bcffe3e822
+          test "$(git diff --name-only --no-renames HEAD "$GITHUB_SHA")" = .github/workflows/source-admission-bytecode-qualification.yml
+          test -z "$(git status --porcelain --untracked-files=no)"
+          python3 -B - <<'PY'
+          import os, stat
+          from pathlib import Path
+          target = Path(os.environ["FRONTIER_EVIDENCE"])
+          parent = target.parent
+          parent.mkdir(mode=0o700, exist_ok=True)
+          info = parent.lstat()
+          if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
+              raise SystemExit("diagnostic evidence parent is not a private owned directory")
+          target.mkdir(mode=0o700)
+          PY
+          cat > "$FRONTIER_EVIDENCE/diagnostic.sql" <<'SQL'
+          SET default_transaction_read_only = on;
+          SET statement_timeout = '15s';
+          SET lock_timeout = '2s';
+          SET idle_in_transaction_session_timeout = '20s';
+          SET application_name = 'laplace-installed-frontier-readonly-diagnostic';
+          BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+          
+          WITH
+          root_rows AS MATERIALIZED (
+              SELECT p.physicality_id, p.entity_id, p.recipe_version,
+                     p.recipe_fingerprint, p.geometry_epoch, p.trajectory_fingerprint,
+                     p.logical_count, p.vertex_count,
+                     octet_length(p.trajectory) AS trajectory_bytes,
+                     CASE WHEN p.logical_count = 2 AND p.vertex_count = 1
+                               AND octet_length(p.trajectory) = 32
+                          THEN laplace.trajectory_entity_ids(p.trajectory)
+                          ELSE ARRAY[]::bytea[]
+                     END AS child_ids
+              FROM laplace.physicality AS p
+              WHERE p.physicality_type = 1
+                AND p.entity_id = decode('7043ee24af19f09e5b2ee122ed257088', 'hex')
+              ORDER BY p.physicality_id
+              LIMIT 9
+          ),
+          children AS MATERIALIZED (
+              SELECT DISTINCT child_id
+              FROM root_rows AS r
+              CROSS JOIN LATERAL unnest(r.child_ids) AS c(child_id)
+              ORDER BY child_id
+              LIMIT 9
+          ),
+          root_state AS MATERIALIZED (
+              SELECT
+                  (SELECT count(*) FROM root_rows) AS rows_observed,
+                  (SELECT count(*) FROM children) AS children_observed,
+                  COALESCE((SELECT bool_and(
+                      logical_count = 2 AND vertex_count = 1 AND trajectory_bytes = 32
+                      AND cardinality(child_ids) = 1) FROM root_rows), false) AS all_shapes_exact
+          ),
+          frontier AS MATERIALIZED (
+              SELECT CASE
+                  WHEN rows_observed BETWEEN 1 AND 8
+                   AND children_observed = 1 AND all_shapes_exact
+                  THEN ARRAY(SELECT child_id FROM children ORDER BY child_id)
+                  ELSE ARRAY[]::bytea[]
+              END AS ids
+              FROM root_state
+          ),
+          stored_candidates AS MATERIALIZED (
+              SELECT p.physicality_id, p.entity_id, p.recipe_version,
+                     p.recipe_fingerprint, p.geometry_epoch, p.trajectory_fingerprint,
+                     p.logical_count, p.vertex_count,
+                     octet_length(p.trajectory) AS trajectory_bytes
+              FROM laplace.physicality AS p
+              CROSS JOIN frontier AS f
+              WHERE p.physicality_type = 1
+                AND laplace.trajectory_entity_ids(p.trajectory) && f.ids
+              ORDER BY p.physicality_id
+              LIMIT 65
+          )
+          SELECT jsonb_build_object(
+              'schema', 'laplace.installed-frontier-stored-candidates-diagnostic/v1',
+              'transaction_read_only', current_setting('transaction_read_only'),
+              'transaction_isolation', current_setting('transaction_isolation'),
+              'root_entity_id', '7043ee24af19f09e5b2ee122ed257088',
+              'root_rows_observed', s.rows_observed,
+              'root_rows_truncated', s.rows_observed = 9,
+              'root_children_observed', s.children_observed,
+              'root_shapes_exact', s.all_shapes_exact,
+              'frontier_evaluated', cardinality(f.ids) = 1,
+              'frontier_entity_ids', COALESCE(
+                  (SELECT jsonb_agg(encode(child_id, 'hex') ORDER BY child_id)
+                   FROM children), '[]'::jsonb),
+              'root_physicalities', COALESCE(
+                  (SELECT jsonb_agg(jsonb_build_object(
+                      'physicality_id', encode(r.physicality_id, 'hex'),
+                      'entity_id', encode(r.entity_id, 'hex'),
+                      'recipe_version', r.recipe_version,
+                      'recipe_fingerprint', encode(r.recipe_fingerprint, 'hex'),
+                      'geometry_epoch', encode(r.geometry_epoch, 'hex'),
+                      'trajectory_fingerprint', encode(r.trajectory_fingerprint, 'hex'),
+                      'logical_count', r.logical_count,
+                      'vertex_count', r.vertex_count,
+                      'trajectory_bytes', r.trajectory_bytes,
+                      'child_ids', ARRAY(
+                          SELECT encode(child_id, 'hex')
+                          FROM unnest(r.child_ids) AS x(child_id)
+                          ORDER BY child_id)
+                  ) ORDER BY r.physicality_id)
+                   FROM (SELECT * FROM root_rows ORDER BY physicality_id LIMIT 8) AS r),
+                  '[]'::jsonb),
+              'stored_candidate_rows_observed', (SELECT count(*) FROM stored_candidates),
+              'stored_candidate_rows_truncated', (SELECT count(*) = 65 FROM stored_candidates),
+              'stored_distinct_container_ids_observed',
+                  (SELECT count(DISTINCT entity_id) FROM stored_candidates),
+              'stored_containers', COALESCE(
+                  (SELECT jsonb_agg(jsonb_build_object(
+                      'physicality_id', encode(p.physicality_id, 'hex'),
+                      'entity_id', encode(p.entity_id, 'hex'),
+                      'is_prompt_root', p.entity_id = decode('7043ee24af19f09e5b2ee122ed257088', 'hex'),
+                      'recipe_version', p.recipe_version,
+                      'recipe_fingerprint', encode(p.recipe_fingerprint, 'hex'),
+                      'geometry_epoch', encode(p.geometry_epoch, 'hex'),
+                      'trajectory_fingerprint', encode(p.trajectory_fingerprint, 'hex'),
+                      'logical_count', p.logical_count,
+                      'vertex_count', p.vertex_count,
+                      'trajectory_bytes', p.trajectory_bytes
+                  ) ORDER BY p.physicality_id)
+                   FROM (SELECT * FROM stored_candidates ORDER BY physicality_id LIMIT 64) AS p),
+                  '[]'::jsonb),
+              'scope', 'stored-composition metadata projection only; no product execution, native candidate replay, or derived-view qualification'
+          )::text
+          FROM root_state AS s
+          CROSS JOIN frontier AS f;
+          
+          ROLLBACK;
+          SQL
+          test "$(git hash-object "$FRONTIER_EVIDENCE/diagnostic.sql")" = 3c0543b984ed97a2f8ff66aa9375515019831820
+          cat > "$FRONTIER_EVIDENCE/diagnose.py" <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import signal
+          import subprocess
+          import sys
+          import time
+          
+          os.umask(0o077)
+          ROOT = Path(os.environ["GITHUB_WORKSPACE"])
+          OUT = Path(os.environ["FRONTIER_EVIDENCE"])
+          sys.path.insert(0, str(ROOT / "tools"))
+          from sources import stockfish_corpus_acceptance as acceptance
+          from delivery import product_activation_runner as runner
+          
+          EXPECTED_COMMIT = "b8c023b950e4523f88ec8f57b37e79bcffe3e822"
+          EXPECTED_PACKAGE = "48a00562c1900089593a3333f8a5b0ad90b6f95aafa524a97740d21e490a3198"
+          EXPECTED_AGGREGATE = "602dd232d786b000356dcb38796b781200a19fea557726212b2d7eca1b867291"
+          EXPECTED_ROOT = "7043ee24af19f09e5b2ee122ed257088"
+          EXPECTED_SQL_BLOB = "3c0543b984ed97a2f8ff66aa9375515019831820"
+          MAX_RAW = 65536
+          started = time.monotonic()
+          report = {
+              "schema": "laplace.installed-frontier-readonly-observation/v1",
+              "status": "running",
+              "expected_repository_commit": EXPECTED_COMMIT,
+              "expected_package_id": EXPECTED_PACKAGE,
+              "expected_aggregate_sha256": EXPECTED_AGGREGATE,
+              "sql_blob": EXPECTED_SQL_BLOB,
+              "before_verified": False,
+              "after_verified": False,
+              "activation_unchanged": False,
+              "query_validated": False,
+          }
+          acceptance.save(OUT / "result.json", report)
+          
+          def require(condition, message):
+              if not condition:
+                  raise RuntimeError(message)
+          
+          def stopped(signum, frame):
+              raise TimeoutError("outer diagnostic deadline or cancellation")
+          
+          signal.signal(signal.SIGTERM, stopped)
+          signal.signal(signal.SIGINT, stopped)
+          
+          def retain_raw(name, content):
+              raw = content if isinstance(content, bytes) else (content or "").encode("utf-8")
+              retained = raw[:MAX_RAW]
+              with (OUT / (name + ".bin")).open("xb") as stream:
+                  stream.write(retained)
+                  stream.flush()
+                  os.fsync(stream.fileno())
+              return {
+                  "observed_bytes": len(raw),
+                  "observed_sha256": hashlib.sha256(raw).hexdigest(),
+                  "retained_bytes": len(retained),
+                  "retained_sha256": hashlib.sha256(retained).hexdigest(),
+                  "truncated": len(raw) > MAX_RAW,
+                  "encoding": "UTF-8 encoding of subprocess decoded text; timeout may supply bytes",
+              }
+          
+          def completed_observer(completed, receipt):
+              outputs = {name: retain_raw(name, getattr(completed, name))
+                         for name in ("stdout", "stderr")}
+              acceptance.save(OUT / "sql-command.json", {"command_receipt": receipt, "outputs": outputs})
+          
+          def verify_observation(snapshot):
+              require(snapshot["package_id"] == EXPECTED_PACKAGE, "selected package differs")
+              require(snapshot["repository_commit"] == EXPECTED_COMMIT, "deployment source differs")
+              receipts = snapshot["runner_receipts"]
+              require(any(item["document"].get("result_sha256") == EXPECTED_AGGREGATE
+                          for item in receipts), "expected activation aggregate is absent")
+          
+          def digest(value, width):
+              return isinstance(value, str) and re.fullmatch("[0-9a-f]{" + str(width) + "}", value) is not None
+          
+          def uint(value, maximum=(1 << 64) - 1):
+              return type(value) is int and 0 <= value <= maximum
+          
+          def validate_query(value):
+              scalar_fields = {
+                  "schema", "transaction_read_only", "transaction_isolation", "root_entity_id",
+                  "root_rows_observed", "root_rows_truncated", "root_children_observed",
+                  "root_shapes_exact", "frontier_evaluated", "frontier_entity_ids",
+                  "root_physicalities", "stored_candidate_rows_observed",
+                  "stored_candidate_rows_truncated", "stored_distinct_container_ids_observed",
+                  "stored_containers", "scope",
+              }
+              require(isinstance(value, dict) and set(value) == scalar_fields, "query fields differ")
+              require(value["schema"] == "laplace.installed-frontier-stored-candidates-diagnostic/v1"
+                      and value["transaction_read_only"] == "on"
+                      and value["transaction_isolation"] == "repeatable read"
+                      and value["root_entity_id"] == EXPECTED_ROOT, "query identity or transaction differs")
+              require(value["scope"] == "stored-composition metadata projection only; no product execution, native candidate replay, or derived-view qualification",
+                      "query scope differs")
+              for name, maximum in (("root_rows_observed", 9), ("root_children_observed", 9),
+                                    ("stored_candidate_rows_observed", 65),
+                                    ("stored_distinct_container_ids_observed", 65)):
+                  require(uint(value[name], maximum), "query count invalid: " + name)
+              for name in ("root_rows_truncated", "root_shapes_exact", "frontier_evaluated",
+                           "stored_candidate_rows_truncated"):
+                  require(type(value[name]) is bool, "query boolean invalid: " + name)
+              require(value["root_shapes_exact"] and value["frontier_evaluated"]
+                      and not value["root_rows_truncated"] and not value["stored_candidate_rows_truncated"],
+                      "query root is unresolved or bounded inventory is truncated")
+              frontier = value["frontier_entity_ids"]
+              require(isinstance(frontier, list) and len(frontier) == 1 and digest(frontier[0], 32),
+                      "query frontier identity differs")
+              require(value["root_children_observed"] == 1, "query frontier count differs")
+              common = {"physicality_id", "entity_id", "recipe_version", "recipe_fingerprint",
+                        "geometry_epoch", "trajectory_fingerprint", "logical_count",
+                        "vertex_count", "trajectory_bytes"}
+              for name, extra, maximum in (("root_physicalities", "child_ids", 8),
+                                            ("stored_containers", "is_prompt_root", 64)):
+                  rows = value[name]
+                  require(isinstance(rows, list) and len(rows) <= maximum, "query rows exceed bound")
+                  for row in rows:
+                      require(isinstance(row, dict) and set(row) == common | {extra}, "query row fields differ")
+                      for field in ("physicality_id", "recipe_fingerprint", "geometry_epoch", "trajectory_fingerprint"):
+                          require(digest(row[field], 64), "query row digest invalid")
+                      require(digest(row["entity_id"], 32), "query row entity invalid")
+                      for field in ("recipe_version", "logical_count", "vertex_count", "trajectory_bytes"):
+                          require(uint(row[field]), "query row count invalid")
+                      if extra == "child_ids":
+                          require(row["entity_id"] == EXPECTED_ROOT and row["child_ids"] == frontier
+                                  and row["logical_count"] == 2 and row["vertex_count"] == 1
+                                  and row["trajectory_bytes"] == 32, "query root projection differs")
+                      else:
+                          require(type(row[extra]) is bool
+                                  and row[extra] == (row["entity_id"] == EXPECTED_ROOT),
+                                  "query container identity relation differs")
+              require(0 < len(value["root_physicalities"]) == value["root_rows_observed"],
+                      "query root inventory count differs")
+              require(len(value["stored_containers"]) == value["stored_candidate_rows_observed"],
+                      "query stored inventory count differs")
+              require(len({row["entity_id"] for row in value["stored_containers"]})
+                      == value["stored_distinct_container_ids_observed"], "query distinct count differs")
+              return value
+          
+          before = None
+          errors = []
+          try:
+              runner.require_runner()
+              sql_path = OUT / "diagnostic.sql"
+              sql = sql_path.read_text(encoding="utf-8")
+              sql_blob = subprocess.run(["git", "hash-object", str(sql_path)], cwd=ROOT,
+                  text=True, capture_output=True, check=True, timeout=10).stdout.strip()
+              require(sql_blob == EXPECTED_SQL_BLOB, "diagnostic SQL bytes differ")
+              report["sql_sha256"] = hashlib.sha256(sql.encode("utf-8")).hexdigest()
+              before = acceptance.observe_activation(EXPECTED_COMMIT, OUT / "activation-before.json")
+              verify_observation(before)
+              report["before_verified"] = True
+              acceptance.save(OUT / "result.json", report)
+              contract = acceptance.load(ROOT / "contracts/postgresql-cluster.json")
+              query, command = runner.runner_sql(before["cluster_plan"], contract, sql,
+                  "installed-frontier-readonly-candidate-inventory", runner.RUNNER_USER,
+                  contract["instance"]["admin_role"], 30, completed_observer=completed_observer)
+              acceptance.save(OUT / "query-result.json", query)
+              report["query"] = validate_query(query)
+              report["query_validated"] = True
+              acceptance.save(OUT / "result.json", report)
+          except BaseException as error:
+              if isinstance(error, subprocess.TimeoutExpired):
+                  acceptance.save(OUT / "sql-timeout.json", {
+                      "timeout_seconds": error.timeout,
+                      "outputs": {name: retain_raw("timeout-" + name, content)
+                                  for name, content in (("stdout", error.stdout), ("stderr", error.stderr))}
+                  })
+              errors.append({"phase": "before-or-query", "type": type(error).__name__, "message": str(error)[:4096]})
+          finally:
+              if before is not None:
+                  try:
+                      after = acceptance.observe_activation(EXPECTED_COMMIT, OUT / "activation-after.json")
+                      verify_observation(after)
+                      report["after_verified"] = True
+                      require(acceptance.stable_activation(before) == acceptance.stable_activation(after)
+                              and before["cluster_plan"] == after["cluster_plan"],
+                              "activation changed during read-only query")
+                      report["activation_unchanged"] = True
+                  except BaseException as error:
+                      errors.append({"phase": "after", "type": type(error).__name__, "message": str(error)[:4096]})
+              report["elapsed_seconds"] = time.monotonic() - started
+              report["status"] = "observed" if not errors and all(report[name] for name in (
+                  "before_verified", "after_verified", "activation_unchanged", "query_validated")) else "failed"
+              report["failure_phases"] = [item["phase"] for item in errors]
+              acceptance.save(OUT / "errors.json", {"errors": errors})
+              acceptance.save(OUT / "result.json", report)
+          raise SystemExit(0 if report["status"] == "observed" else 1)
+          PY
+      - name: Observe the exact package and bounded stored frontier
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          set +e
+          timeout --signal=TERM --kill-after=10s 120s \
+            bash tools/host/run-exclusive.sh \
+            python3 -B "$FRONTIER_EVIDENCE/diagnose.py" \
+            > "$FRONTIER_EVIDENCE/operation.stdout" \
+            2> "$FRONTIER_EVIDENCE/operation.stderr"
+          status=$?
+          set -e
+          printf '%s\n' "OPERATION_EXIT=$status" >> "$GITHUB_ENV"
+          exit "$status"
+      - name: Print only validated diagnostic metadata
+        if: always()
+        shell: bash
+        run: |
+          python3 -B - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ["FRONTIER_EVIDENCE"])
+          path = root / "result.json"
+          visible = {"schema": "laplace.installed-frontier-readonly-console/v1",
+                     "result_present": path.is_file(), "operation_exit": os.environ.get("OPERATION_EXIT")}
+          if path.is_file():
+              if path.is_symlink() or path.stat().st_size > 131072:
+                  raise SystemExit("diagnostic result file invalid")
+              data = json.loads(path.read_text())
+              allowed = ("status", "expected_repository_commit", "expected_package_id",
+                  "expected_aggregate_sha256", "sql_blob", "sql_sha256", "before_verified",
+                  "after_verified", "activation_unchanged", "query_validated", "elapsed_seconds", "failure_phases")
+              visible.update({key: data[key] for key in allowed if key in data})
+              if data.get("query_validated") is True:
+                  visible["query"] = data["query"]
+              visible["result_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+          print(json.dumps(visible, sort_keys=True))
+          PY
+      - name: Retain exact source and partial diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installed-frontier-readonly-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.FRONTIER_EVIDENCE }}/
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 6
