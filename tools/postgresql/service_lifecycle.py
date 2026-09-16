@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import signal
 import stat
 import subprocess
 import sys
@@ -415,7 +416,16 @@ def main():
     parser.add_argument("--expected-sha", required=True)
     parser.add_argument("--output-directory", required=True, type=Path)
     args = parser.parse_args()
-    result = converge(args.expected_sha, args.output_directory)
+    previous_term = signal.getsignal(signal.SIGTERM)
+
+    def interrupted(_signum, _frame):
+        raise InterruptedError("PostgreSQL service convergence interrupted by SIGTERM")
+
+    signal.signal(signal.SIGTERM, interrupted)
+    try:
+        result = converge(args.expected_sha, args.output_directory)
+    finally:
+        signal.signal(signal.SIGTERM, previous_term)
     print(json.dumps({key: result[key] for key in (
         "schema", "status", "provider", "package_id", "repository_commit",
         "system_identifier", "cold_boot_proven", "receipt_sha256")}, sort_keys=True))

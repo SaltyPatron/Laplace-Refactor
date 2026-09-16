@@ -9,10 +9,12 @@ import importlib.util
 import json
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any
@@ -1661,6 +1663,93 @@ class PersistentPostgreSQLServiceOwnerTests(unittest.TestCase):
                     self.assertIn("controlled rollback refusal", report["rollback_error"])
                 else:
                     self.assertTrue((output / "loaded-rollback.json").is_file())
+
+    def test_real_sigterm_enters_retained_rollback_and_restores_cli_signal_handler(self):
+        # This child runs the real CLI/convergence exception path with explicit
+        # service/SQL protocol stand-ins. It never executes PostgreSQL/systemd.
+        ready = self.root / "child-ready"
+        output = self.root / "interrupted"
+        observed = self.root / "child-result.json"
+        child_source = r"""
+import importlib.util
+import json
+from pathlib import Path
+import signal
+import sys
+from unittest import mock
+
+spec = importlib.util.spec_from_file_location("service_signal_fixture", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+case = module.PersistentPostgreSQLServiceOwnerTests()
+case.setUp()
+try:
+    service = case.service
+    acceptance, owner, model, target, historical = case.convergence_fixture()
+    ready, output, observed = map(Path, sys.argv[2:5])
+    previous = signal.getsignal(signal.SIGTERM)
+    original_action = owner.action.side_effect
+    original_converge = service.converge
+
+    def pause_after_old_owner_stop(plan, label, kind, timeout):
+        if label == "start-system-postmaster":
+            assert model["pid"] == 0 and not model["managed"]
+            assert "stop-authenticated-unmanaged-postmaster" in model["actions"]
+            ready.write_text("old-owner-stopped\n")
+            signal.pause()
+            raise AssertionError("SIGTERM did not interrupt the real CLI")
+        return original_action(plan, label, kind, timeout)
+
+    owner.action.side_effect = pause_after_old_owner_stop
+    with mock.patch.object(service, "Owner", return_value=owner), \
+         mock.patch.object(service, "selection_path", return_value=target), \
+         mock.patch.object(service, "converge", side_effect=lambda sha, path:
+                           original_converge(sha, path, acceptance=acceptance)), \
+         mock.patch.object(sys, "argv", ["service_lifecycle.py", "converge",
+                                        "--expected-sha", "4" * 40,
+                                        "--output-directory", str(output)]):
+        try:
+            service.main()
+        except InterruptedError as error:
+            assert "SIGTERM" in str(error)
+        else:
+            raise AssertionError("interrupted convergence reported success")
+    assert signal.getsignal(signal.SIGTERM) == previous
+    assert not target.exists()
+    observed.write_text(json.dumps({"actions": model["actions"],
+        "restored_handler": True, "selection_published": False,
+        "historical_provider": historical["lifecycle_provider"]}))
+finally:
+    case.doCleanups()
+"""
+        child = subprocess.Popen([sys.executable, "-c", child_source, str(Path(__file__).resolve()),
+                                  str(ready), str(output), str(observed)],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 10
+            while not ready.exists() and child.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertTrue(ready.is_file(), "child did not reach the declared handoff boundary")
+            child.send_signal(signal.SIGTERM)
+            stdout, stderr = child.communicate(timeout=10)
+            self.assertEqual(child.returncode, 0, stdout + stderr)
+        finally:
+            if child.poll() is None:
+                child.kill()
+            child.communicate()
+        report = json.loads((output / "result.json").read_text())
+        completion = json.loads(observed.read_text())
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["error_type"], "InterruptedError")
+        self.assertEqual(report["phase"], "start-system-postmaster")
+        self.assertTrue(report["previous_owner_restored"])
+        self.assertFalse(report["successful_selection_published"])
+        self.assertFalse(report["cold_boot_proven"])
+        self.assertTrue((output / "loaded-rollback.json").is_file())
+        self.assertIn("restore-authenticated-unmanaged-postmaster", completion["actions"])
+        self.assertEqual(completion["historical_provider"], "pg_ctl")
+        self.assertTrue(completion["restored_handler"])
+        self.assertFalse(completion["selection_published"])
 
 
 if __name__ == "__main__":
