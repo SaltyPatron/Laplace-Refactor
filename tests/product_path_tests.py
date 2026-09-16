@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import json
+import os
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -228,6 +232,184 @@ class ProductPathTests(unittest.TestCase):
         )
         self.assertTrue(providers["package-product"]["implemented"])
         self.assertEqual(providers["package-product"]["check"], "package-product-proof")
+
+
+    def test_exact_audit_workflow_requests_policy_verification_without_native_work(self) -> None:
+        self.assertEqual(self.contract["audit_only_paths"],
+                         [".github/workflows/final-convergence-audit.yml"])
+        result = self.classify(*self.contract["audit_only_paths"])
+        self.assertTrue(result["audit_only"])
+        self.assertTrue(result["hosted_only"])
+        self.assertFalse(result["requires_native"])
+        self.assertEqual(result["required_evidence"], ["hosted"])
+        self.assertEqual(result["selected_evidence"], ["hosted"])
+        self.assertEqual(result["classes"], [])
+        self.assertFalse(result["blocked"])
+        for key in ("requires_custom_stack", "requires_postgresql_product", "requires_package_product"):
+            self.assertFalse(result[key])
+
+    def test_audit_exception_does_not_extend_to_mixed_or_other_paths(self) -> None:
+        audit = self.contract["audit_only_paths"][0]
+        for path in ("engine/src/composition.cpp", "tools/admit_source.py",
+                     ".github/workflows/ci.yml", ".github/workflows/product-path.yml",
+                     ".github/workflows/another-audit.yml", "README.md", "docs/audit.md",
+                     "unrecognized-surface"):
+            with self.subTest(path=path):
+                mixed = self.classify(audit, path)
+                self.assertFalse(mixed["audit_only"])
+                self.assertTrue(mixed["requires_native"])
+                self.assertTrue(mixed["requires_custom_stack"])
+        docs = self.classify("README.md")
+        self.assertTrue(docs["hosted_only"])
+        self.assertFalse(docs["audit_only"])
+        self.assertTrue(docs["requires_native"])
+
+    def test_audit_rename_and_copy_keep_both_sides_while_delete_is_exact(self) -> None:
+        audit = self.contract["audit_only_paths"][0]
+        for kind in ("A", "M", "D", "T"):
+            with self.subTest(kind=kind):
+                paths = product_path.parse_git_name_status_z(f"{kind}\0{audit}\0".encode())
+                self.assertTrue(product_path.classify(self.contract, paths)["audit_only"])
+        for kind in ("R100", "C100"):
+            for first, second in (("engine/source.cpp", audit), (audit, "docs/audit.md")):
+                with self.subTest(kind=kind, first=first):
+                    paths = product_path.parse_git_name_status_z(
+                        f"{kind}\0{first}\0{second}\0".encode())
+                    result = product_path.classify(self.contract, paths)
+                    self.assertFalse(result["audit_only"])
+                    self.assertTrue(result["requires_native"])
+
+    def test_audit_path_policy_cannot_use_globs_or_noncanonical_paths(self) -> None:
+        for value in ([".github/workflows/*.yml"], ["engine/file.yml"],
+                      [".github/workflows/../ci.yml"], [], [""]):
+            with self.subTest(value=value):
+                contract = copy.deepcopy(self.contract)
+                contract["audit_only_paths"] = value
+                with self.assertRaises(product_path.ProductPathError):
+                    product_path.validate_contract(contract)
+
+    def test_audit_still_requires_an_implemented_hosted_provider(self) -> None:
+        contract = copy.deepcopy(self.contract)
+        next(row for row in contract["evidence"] if row["id"] == "hosted")["implemented"] = False
+        result = product_path.classify(contract, contract["audit_only_paths"])
+        self.assertTrue(result["blocked"])
+        self.assertEqual(result["unimplemented_evidence"], ["hosted"])
+
+
+class AuditOnlyGitProofTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.contract = product_path.load_json(REPOSITORY / "contracts/product-path.json")
+        self.audit = self.root / self.contract["audit_only_paths"][0]
+        self.audit.parent.mkdir(parents=True)
+        self.audit.write_text("name: initial audit\n")
+        (self.root / "engine.cpp").write_text("initial semantic content\n")
+        self.git("init", "--quiet")
+        self.git("config", "user.name", "Product path fixture")
+        self.git("config", "user.email", "product-path@example.invalid")
+        self.base = self.commit()
+
+    def git(self, *arguments: str) -> str:
+        environment = {key: value for key, value in os.environ.items()
+                       if not key.startswith("GIT_")}
+        result = subprocess.run(["git", "-C", str(self.root), *arguments],
+                                check=True, capture_output=True, text=True,
+                                env=environment, timeout=10)
+        return result.stdout.strip()
+
+    def commit(self) -> str:
+        self.git("add", "-A")
+        self.git("commit", "--quiet", "-m", "fixture")
+        return self.git("rev-parse", "HEAD")
+
+    def audit_commit(self) -> str:
+        self.audit.write_text("name: revised audit\n")
+        return self.commit()
+
+    def verify(self, head: str, checkout: str | None = None) -> dict:
+        return product_path.verify_audit_only(self.contract, self.root, self.base,
+                                             head, checkout or head)
+
+    def test_actual_current_commit_and_cli_emit_unrequested_native_scope(self) -> None:
+        head = self.audit_commit()
+        result = self.verify(head)
+        self.assertEqual(result["checkout_sha"], head)
+        self.assertEqual(result["classification"]["paths"], self.contract["audit_only_paths"])
+        self.assertEqual(result["native_tests"], "not-requested")
+        execution = subprocess.run(
+            [sys.executable, str(MODULE_PATH), "verify-audit-only", "--contract",
+             str(REPOSITORY / "contracts/product-path.json"), "--repository", str(self.root),
+             "--base", self.base, "--head", head, "--expected-checkout", head],
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(execution.returncode, 0, execution.stderr)
+        self.assertEqual(json.loads(execution.stdout), result)
+
+    def test_real_mixed_diff_and_deleted_semantic_file_refuse(self) -> None:
+        self.audit.write_text("name: changed audit\n")
+        (self.root / "engine.cpp").unlink()
+        head = self.commit()
+        with self.assertRaisesRegex(product_path.ProductPathError, "requires native"):
+            self.verify(head)
+
+    def test_real_audit_deletion_remains_audit_only(self) -> None:
+        self.audit.unlink()
+        result = self.verify(self.commit())
+        self.assertTrue(result["classification"]["audit_only"])
+
+    def test_real_rename_into_audit_cannot_hide_semantic_source(self) -> None:
+        self.audit.unlink()
+        self.git("mv", "engine.cpp", self.contract["audit_only_paths"][0])
+        with self.assertRaisesRegex(product_path.ProductPathError, "requires native"):
+            self.verify(self.commit())
+
+    def test_stale_checkout_dirty_source_and_empty_delta_refuse(self) -> None:
+        head = self.audit_commit()
+        with self.assertRaisesRegex(product_path.ProductPathError, "checkout differs"):
+            self.verify(head, self.base)
+        self.audit.write_text("uncommitted changed policy\n")
+        with self.assertRaisesRegex(product_path.ProductPathError, "tracked modifications"):
+            self.verify(head)
+        self.git("checkout", "--", ".")
+        with self.assertRaises(product_path.ProductPathError):
+            product_path.verify_audit_only(self.contract, self.root, head, head, head)
+
+    def test_unknown_noncommit_symbolic_and_unrelated_head_refuse(self) -> None:
+        head = self.audit_commit()
+        blob = self.git("rev-parse", "HEAD:engine.cpp")
+        for bad in ("main", "0" * 40, blob, ""):
+            with self.subTest(bad=bad), self.assertRaises(product_path.ProductPathError):
+                self.verify(bad, head)
+        self.git("checkout", "--quiet", "--detach", self.base)
+        (self.root / "engine.cpp").write_text("different branch\n")
+        unrelated = self.commit()
+        self.git("checkout", "--quiet", "--detach", head)
+        with self.assertRaises(product_path.ProductPathError):
+            self.verify(unrelated, head)
+
+    def test_environment_and_replace_refs_cannot_select_a_different_delta(self) -> None:
+        audit_head = self.audit_commit()
+        with mock.patch.dict(os.environ, {"GIT_DIR": "/absent", "GIT_WORK_TREE": "/absent"}):
+            self.assertEqual(self.verify(audit_head)["checkout_sha"], audit_head)
+        self.git("checkout", "--quiet", "--detach", self.base)
+        (self.root / "engine.cpp").write_text("semantic change\n")
+        semantic = self.commit()
+        self.git("replace", semantic, audit_head)
+        with self.assertRaises(product_path.ProductPathError):
+            self.verify(semantic)
+
+    def test_failed_git_and_deadline_cannot_emit_success(self) -> None:
+        head = self.audit_commit()
+        with mock.patch.object(product_path.subprocess, "run",
+                               side_effect=subprocess.TimeoutExpired("git", 45)):
+            with self.assertRaisesRegex(product_path.ProductPathError, "verification failed"):
+                self.verify(head)
+        unavailable = copy.deepcopy(self.contract)
+        next(row for row in unavailable["evidence"] if row["id"] == "hosted")["implemented"] = False
+        with self.assertRaisesRegex(product_path.ProductPathError, "requires native"):
+            product_path.verify_audit_only(unavailable, self.root, self.base, head, head)
 
 
 if __name__ == "__main__":

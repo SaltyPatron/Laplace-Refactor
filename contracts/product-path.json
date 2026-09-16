@@ -1,7 +1,7 @@
 {
   "schema": "laplace.product-path/v1",
   "issue": 54,
-  "merge_policy": "Pull requests and ordinary main pushes execute hosted requirements and both native lanes plus every selected implemented physical PostgreSQL/custom-stack/package proof required by the changed paths. A green pull request cannot defer a selected provider and cannot claim code was proven when its owning physical product lane never compiled or executed it. Accepted-main product deployment additionally retains actual installation and live readback; merge success is still not release acceptance.",
+  "merge_policy": "Pull requests and ordinary main pushes execute hosted requirements and both native lanes plus every selected implemented physical PostgreSQL/custom-stack/package proof required by the changed paths. A green pull request cannot defer a selected provider and cannot claim code was proven when its owning physical product lane never compiled or executed it. Accepted-main product deployment additionally retains actual installation and live readback; merge success is still not release acceptance. Changes solely to an explicitly listed audit workflow run hosted requirements and current-source classification verification in both required native matrix contexts; native execution and physical product publication/deployment are not requested.",
   "purpose": "Select the exact proof surfaces required by a change without converting unavailable physical evidence into success.",
   "hosted_only_patterns": [
     ".gitattributes",
@@ -110,7 +110,7 @@
       "id": "hosted",
       "implemented": true,
       "check": "hosted-proof",
-      "meaning": "requirements, generated-contract drift, clean-room native builds, registered tests, and hosted mutation checks"
+      "meaning": "requirements and hosted mutation checks; ordinary changes additionally run generated-contract drift, clean-room native builds and registered tests, while sole explicitly listed audit-workflow changes verify the current-source classification in both native matrix contexts without claiming native execution"
     },
     {
       "id": "custom-stack",
@@ -135,5 +135,8 @@
     "unknown_path": "Treat as product-semantic and require hosted plus custom-stack evidence.",
     "missing_provider": "Fail product-path; an unimplemented required evidence provider cannot be interpreted as skipped success.",
     "runner_unavailable": "Remain queued or fail; physical runner loss cannot produce green semantic evidence."
-  }
+  },
+  "audit_only_paths": [
+    ".github/workflows/final-convergence-audit.yml"
+  ]
 }

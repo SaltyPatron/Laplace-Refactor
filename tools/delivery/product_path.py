@@ -6,6 +6,10 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import os
+import re
+import subprocess
+import time
 from pathlib import Path, PurePosixPath
 import sys
 from typing import Any, Iterable, Sequence
@@ -47,6 +51,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
     if contract.get("schema") != SCHEMA:
         raise ProductPathError("product-path schema differs")
     hosted = _strings(contract.get("hosted_only_patterns"), "hosted_only_patterns")
+    audit_paths = _strings(contract.get("audit_only_paths"), "audit_only_paths")
+    for path in audit_paths:
+        if (normalize_path(path) != path or any(token in path for token in "*?[")
+                or not path.startswith(".github/workflows/") or not path.endswith(".yml")):
+            raise ProductPathError("audit_only_paths must contain exact canonical workflow paths")
     default_class = contract.get("default_class")
     if not isinstance(default_class, str) or not default_class:
         raise ProductPathError("default_class is invalid")
@@ -150,7 +159,8 @@ def classify(contract: dict[str, Any], paths: Sequence[str], proof_profile: str 
         raise ProductPathError("product-path cannot classify an empty change set")
 
     hosted_patterns = contract["hosted_only_patterns"]
-    hosted_only = all(matches(path, hosted_patterns) for path in normalized)
+    audit_only = all(path in contract["audit_only_paths"] for path in normalized)
+    hosted_only = audit_only or all(matches(path, hosted_patterns) for path in normalized)
     classes: set[str] = set()
     required_evidence: set[str] = {"hosted"}
     unmatched_semantic: list[str] = []
@@ -189,6 +199,8 @@ def classify(contract: dict[str, Any], paths: Sequence[str], proof_profile: str 
         "deferred_evidence": deferred_evidence,
         "paths": normalized,
         "hosted_only": hosted_only,
+        "audit_only": audit_only,
+        "requires_native": not audit_only,
         "classes": sorted(classes),
         "required_evidence": sorted(required_evidence),
         "unimplemented_evidence": unimplemented,
@@ -218,6 +230,11 @@ def read_git_name_status_z(path: Path) -> list[str]:
         payload = path.read_bytes()
     except OSError as error:
         raise ProductPathError(f"cannot read changed path status: {error}") from error
+    return parse_git_name_status_z(payload)
+
+
+def parse_git_name_status_z(payload: bytes) -> list[str]:
+    """Parse both sides of actual Git rename/copy records."""
     if not payload or not payload.endswith(b"\0"):
         raise ProductPathError("changed path status is empty or not NUL terminated")
 
@@ -249,6 +266,63 @@ def read_git_name_status_z(path: Path) -> list[str]:
     return paths
 
 
+def verify_audit_only(
+    contract: dict[str, Any], repository: Path, base_sha: str, head_sha: str,
+    expected_checkout_sha: str,
+) -> dict[str, Any]:
+    """Prove this checkout's exact Git delta qualifies; never reuse a prior status."""
+    for value in (base_sha, head_sha, expected_checkout_sha):
+        if not re.fullmatch(r"[0-9a-f]{40}", value):
+            raise ProductPathError("audit verification requires exact commit SHAs")
+    deadline = time.monotonic() + 45
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith("GIT_")}
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment["GIT_CONFIG_GLOBAL"] = os.devnull
+
+    def git(*arguments: str) -> bytes:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ProductPathError("audit Git verification deadline exceeded")
+        try:
+            result = subprocess.run(
+                ["git", "--no-replace-objects", "-c", "core.fsmonitor=false",
+                 "-C", str(repository), *arguments],
+                env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=remaining, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise ProductPathError("audit Git verification failed") from error
+        if result.returncode:
+            raise ProductPathError("audit Git verification refused the requested source")
+        return result.stdout
+
+    for value in (base_sha, head_sha, expected_checkout_sha):
+        if git("cat-file", "-t", value).strip() != b"commit":
+            raise ProductPathError("audit source object is not a commit")
+    if git("rev-parse", "HEAD").decode("ascii").strip() != expected_checkout_sha:
+        raise ProductPathError("audit checkout differs from this workflow's source")
+    git("merge-base", "--is-ancestor", head_sha, expected_checkout_sha)
+    if git("status", "--porcelain", "--untracked-files=no"):
+        raise ProductPathError("audit checkout has tracked modifications")
+    paths = parse_git_name_status_z(git(
+        "diff", "--no-ext-diff", "--name-status", "-z", "-M",
+        "--diff-filter=ACMRTD", base_sha, head_sha,
+    ))
+    classification = classify(contract, paths)
+    if (not classification["audit_only"] or classification["blocked"]
+            or classification["required_evidence"] != ["hosted"]
+            or classification["requires_native"]):
+        raise ProductPathError("current source delta requires native or physical proof")
+    return {
+        "schema": "laplace.audit-only-proof/v1",
+        "base_sha": base_sha, "head_sha": head_sha,
+        "checkout_sha": expected_checkout_sha, "classification": classification,
+        "native_tests": "not-requested",
+        "scope": "Current-source audit-only classification verification; no native test execution.",
+    }
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -260,11 +334,22 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     path_input.add_argument("--git-name-status-z", type=Path)
     classify_parser.add_argument("--path", action="append", default=[])
     classify_parser.add_argument("--output", default="-")
+    verify_parser = subparsers.add_parser("verify-audit-only")
+    verify_parser.add_argument("--contract", default="contracts/product-path.json")
+    verify_parser.add_argument("--repository", type=Path, default=Path("."))
+    verify_parser.add_argument("--base", required=True)
+    verify_parser.add_argument("--head", required=True)
+    verify_parser.add_argument("--expected-checkout", required=True)
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(sys.argv[1:] if argv is None else argv)
+    if arguments.command == "verify-audit-only":
+        result = verify_audit_only(load_json(Path(arguments.contract)), arguments.repository,
+                                   arguments.base, arguments.head, arguments.expected_checkout)
+        sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        return 0
     if arguments.command != "classify":
         raise ProductPathError("unsupported product-path command")
     paths = list(arguments.path)
