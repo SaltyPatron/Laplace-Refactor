@@ -1,0 +1,42 @@
+name: Qualify permanent cognition service and receipt controls
+on:
+  push:
+    branches: [verify/cognition-permanent-controls-20260916]
+permissions:
+  contents: read
+jobs:
+  hosted-controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Verify reviewed source and execute permanent service controls
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess
+          expected = {".github/workflows/product-activation.yml":"62ca33a9229dc6d6d26adcdb32507a998231f89d","packaging/systemd/laplace-refactor-cognition.service":"5ad2d319b9f479dedabec20143792591c2dd89e7","packaging/systemd/user/laplace-refactor-cognition.service":"7e1898131e9f227e3a0d9d01b483f809b09bfe87","scripts/setup-host.sh":"db1ace80a0da7e659d2b21258474db227c0e5702","scripts/setup-product.sh":"2057e727e4e44fd3281199d99454a6dcff69709f","tests/product_activation_runner_tests.py":"ffdac49a91c09c914a02024971e1e18d1a89af7a","tests/product_host_tests.py":"9d2dd4ed7167ed14f7d0f2c9b6e59e7773d14314","tests/stockfish_corpus_acceptance_tests.py":"b83e48c918da95df6dfb77bb1512dcd2ff6d2776","tools/_openai_api_compat_pre_reconciliation.py":"31c9702aef6de4b0a9d0794a946d5e13ad41b28d","tools/delivery/product_cognition_live_proof.py":"5d290ca5d3ac99fe36a2f72d3f3213f34233f7b5","tools/delivery/product_cognition_service.py":"e3a19d4f7a9f69a8490d4713ce5035090fdda37b","tools/openai_api_compat.py":"fc23a1930195a89720eee3e9b0b96cd577671635","tools/sources/stockfish_corpus_acceptance.py":"ff0c3264a4d9f615d54e827a19e6e0b1066e4b32"}
+          changed = set(subprocess.check_output(["git","diff","--name-only",
+              "419cbcb4fd4c569706ee3c253ab4775f5fcaebad","HEAD"],text=True).splitlines())
+          if changed != set(expected) | {".github/workflows/verify-service-permanent-controls.yml"}:
+              raise RuntimeError("candidate includes unreviewed changes")
+          for path,digest in expected.items():
+              if subprocess.check_output(["git","hash-object",path],text=True).strip() != digest:
+                  raise RuntimeError("reviewed file differs: "+path)
+          PY
+          bash -n scripts/setup-host.sh
+          bash -n scripts/setup-product.sh
+          python3 tests/product_host_tests.py 2>&1 | tee "$RUNNER_TEMP/permanent-service-host-tests.log"
+          python3 tests/product_activation_runner_tests.py 2>&1 | tee "$RUNNER_TEMP/permanent-service-activation-tests.log"
+          python3 tests/product_gateway_contract_tests.py 2>&1 | tee "$RUNNER_TEMP/permanent-service-gateway-tests.log"
+          python3 tests/stockfish_corpus_acceptance_tests.py 2>&1 | tee "$RUNNER_TEMP/permanent-service-receipt-tests.log"
+      - name: Retain actual control output
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: permanent-service-controls-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/permanent-service-*-tests.log
+          if-no-files-found: error
+          retention-days: 7

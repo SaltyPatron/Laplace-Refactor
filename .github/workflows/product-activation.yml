@@ -225,7 +225,21 @@ jobs:
             .postgresql_initialized == false and
             .activation_gateway_installed == false
           ' "$bootstrap" >/dev/null
-          echo 'Laplace runner-owned host prerequisites verified.'
+          cognition_evidence="$RUNNER_TEMP/cognition-service-prerequisites-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -m 0700 "$cognition_evidence"
+          python3 tools/delivery/product_cognition_service.py ensure \
+            --expected-uid "$(id -u)" --output "$cognition_evidence/ensure"
+          python3 tools/delivery/product_cognition_service.py verify \
+            --expected-uid "$(id -u)" --output "$cognition_evidence/verify"
+          echo 'Laplace runner-owned host prerequisites and selected cognition service verified.'
+      - name: Retain selected cognition service prerequisites
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cognition-service-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cognition-service-prerequisites-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
 
   compose-product:
     needs: runner-authority
@@ -567,7 +581,9 @@ jobs:
           test -x "$client"
           test -d /opt/laplace/runtime
           test ! -L /opt/laplace/runtime
-          sudo -n /usr/bin/systemctl restart laplace-refactor-cognition.service
+          python3 tools/delivery/product_cognition_service.py restart \
+            --expected-uid "$(id -u)" --expected-sha '${{ inputs.expected_sha }}' \
+            --output "$RUNNER_TEMP/cognition-service-restart-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           for attempt in {1..30}; do
             if observed="$($client --relations constituent AA 2>/dev/null)" && [[ "$observed" == A ]]; then break; fi
             [[ "$attempt" != 30 ]] || { echo 'Installed cognition service did not become ready' >&2; exit 1; }
@@ -635,6 +651,14 @@ jobs:
             echo '- default caller: two sequential `laplace-cognition AA` turns executed the native prompt-conversation route'
             echo '- continuation: turn 1 consumed the durably deposited discourse frame from turn 0 and emitted a distinct successor frame'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain selected cognition service restart evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cognition-service-restart-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cognition-service-restart-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Retain installed HTTP readiness evidence
         if: always() && env.LAPLACE_INSTALLED_HTTP_READINESS != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
