@@ -1,4 +1,4 @@
-name: Qualify pointer-to-member C++ syntax
+name: Read authenticated pointer parser generation failure
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -6,41 +6,119 @@ permissions:
   contents: read
   actions: read
 jobs:
-  pointer-member:
+  read-pointer-generation:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    env:
-      QUALIFICATION_ROOT: ${{ github.workspace }}/laplace-pointer-${{ github.run_id }}-${{ github.run_attempt }}
+    timeout-minutes: 10
     steps:
-      - name: Read exact hosted experiment
+      - name: Authenticate retained experiment and expose bounded diagnostics
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib,os,pathlib,urllib.request
-          root=pathlib.Path(os.environ['QUALIFICATION_ROOT'])
-          root.mkdir(mode=0o700)
-          blob='ed62770dd304eeeca082f358d4934e15195b4f44'
-          req=urllib.request.Request('https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/'+blob,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github.raw+json'})
-          with urllib.request.urlopen(req,timeout=60) as response: data=response.read()
-          assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob
-          (root/'experiment.py').write_bytes(data)
-          (root/'evidence'/'inputs').mkdir(parents=True)
-          (root/'evidence'/'inputs'/'experiment.py').write_bytes(data)
-          compile(data,str(root/'experiment.py'),'exec')
-          print('AUTHENTICATED_POINTER_EXPERIMENT '+blob,flush=True)
+          import hashlib, io, json, os, pathlib, urllib.request, zipfile
+          repository = "SaltyPatron/Laplace-Refactor"
+          artifact_id = 10484580182
+          run_id = 35191784648
+          job_id = 105105759636
+          expected_size = 5489053
+          expected_sha = "0c7d61d3f719f2a4b71220df2bd6055bff68cc186d84f33a484a35caa3a2dab4"
+          api = "https://api.github.com/repos/" + repository
+          token = os.environ.pop("GH_TOKEN")
+          def get(url, limit):
+              request = urllib.request.Request(url, headers={
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "Laplace-authenticated-pointer-diagnostic-reader"})
+              request.add_unredirected_header("Authorization", "Bearer " + token)
+              with urllib.request.urlopen(request, timeout=90) as response:
+                  data = response.read(limit + 1)
+              if len(data) > limit:
+                  raise RuntimeError("response exceeds exact bounded reader limit")
+              return data
+          metadata = json.loads(get(api + "/actions/artifacts/" + str(artifact_id), 100000))
+          assert metadata["id"] == artifact_id and not metadata["expired"], metadata
+          assert metadata["size_in_bytes"] == expected_size, metadata
+          assert metadata["digest"] == "sha256:" + expected_sha, metadata
+          assert metadata["workflow_run"]["id"] == run_id, metadata
+          archive_data = get(api + "/actions/artifacts/" + str(artifact_id) + "/zip", expected_size)
+          assert len(archive_data) == expected_size
+          assert hashlib.sha256(archive_data).hexdigest() == expected_sha
+          print("POINTER_ARTIFACT_AUTHENTICATED " + json.dumps({
+              "repository": repository, "run_id": run_id, "job_id": job_id,
+              "artifact_id": artifact_id, "zip_bytes": len(archive_data),
+              "zip_sha256": expected_sha}), flush=True)
+          with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
+              entries = archive.infolist()
+              names = [entry.filename for entry in entries]
+              assert len(names) == len(set(names)), "duplicate ZIP names"
+              assert all(not pathlib.PurePosixPath(name).is_absolute() and
+                         ".." not in pathlib.PurePosixPath(name).parts for name in names)
+              assert "report.json" in names
+              def read_json(name):
+                  info = archive.getinfo(name)
+                  assert info.file_size <= 12000000, "oversize selected JSON"
+                  return json.loads(archive.read(name))
+              report = read_json("report.json")
+              assert report["schema"] == "laplace.hosted-cpp-pointer-member-experiment/v1"
+              assert str(report["runner"]["run_id"]) == str(run_id)
+              assert report["installed_provider_modified"] is False
+              assert report["canonical_lock_modified"] is False
+              assert report["executable_semantics_verified"] is False
+              print("POINTER_EXPERIMENT_SUMMARY " + json.dumps({
+                  "status": report["status"], "failures": report["failures"],
+                  "fatal_exception": report.get("fatal_exception"),
+                  "generator": {key: report.get("generator", {}).get(key) for key in
+                                ("actual_version", "source_commit", "retained_producer_run", "zip_sha256")},
+                  "inherited_c_corpus": report.get("inherited_c_corpus"),
+                  "variants": {name: {"generation_status": row.get("generation_status"),
+                                     "upstream_tests": row.get("upstream_tests")}
+                               for name, row in report["variants"].items()},
+                  "non_pointer_cst_parity": report.get("non_pointer_cst_parity")
+              }, sort_keys=True), flush=True)
+              commands = [row for row in report["commands"] if row["label"] == "pointer-candidate-generate"]
+              assert len(commands) == 1, "expected exact candidate generation command"
+              command = commands[0]
+              assert command["returncode"] != 0, "artifact is not the retained generation failure"
+              print("POINTER_GENERATION_COMMAND " + json.dumps({
+                  key: command.get(key) for key in
+                  ("label", "argv", "cwd", "returncode", "timed_out", "elapsed_seconds")
+              }, sort_keys=True), flush=True)
+              for stream in ("stdout", "stderr"):
+                  absolute = pathlib.PurePosixPath(command[stream])
+                  parts = absolute.parts
+                  assert "evidence" in parts
+                  relative = str(pathlib.PurePosixPath(*parts[parts.index("evidence") + 1:]))
+                  raw = archive.read(relative)
+                  identity = command[stream + "_identity"]
+                  assert len(raw) == identity["bytes"]
+                  assert hashlib.sha256(raw).hexdigest() == identity["sha256"]
+                  limit = 64000
+                  print("POINTER_GENERATION_" + stream.upper() + "_IDENTITY " +
+                        json.dumps({"zip_path": relative, "bytes": len(raw),
+                                    "sha256": identity["sha256"], "truncated": len(raw) > limit}), flush=True)
+                  print("POINTER_GENERATION_" + stream.upper() + "_BEGIN", flush=True)
+                  print(raw[:limit].decode("utf-8", errors="replace"), flush=True)
+                  print("POINTER_GENERATION_" + stream.upper() + "_END", flush=True)
+              baseline_path = "generated/three-rule-baseline/src/grammar.json"
+              candidate_path = "generated/pointer-candidate/src/grammar.json"
+              if baseline_path in names and candidate_path in names:
+                  baseline = read_json(baseline_path)
+                  candidate = read_json(candidate_path)
+                  changed = sorted(key for key in set(baseline["rules"]) | set(candidate["rules"])
+                                   if baseline["rules"].get(key) != candidate["rules"].get(key))
+                  print("POINTER_GENERATED_GRAMMAR_DELTA " + json.dumps({
+                      "changed_rules": changed,
+                      "other_properties_match": {k:v for k,v in baseline.items() if k != "rules"} ==
+                                                {k:v for k,v in candidate.items() if k != "rules"},
+                      "candidate_rule_count": len(candidate["rules"]),
+                      "candidate_rule_keys_present": {key: key in candidate["rules"] for key in
+                          ("_pointer_member_expression", "binary_expression", "field_expression",
+                           "_assignment_left_expression", "cast_expression")}
+                  }, sort_keys=True), flush=True)
+              else:
+                  print("POINTER_GENERATED_GRAMMAR_DELTA " + json.dumps({
+                      "baseline_json_retained": baseline_path in names,
+                      "candidate_json_retained": candidate_path in names}), flush=True)
+              print("POINTER_READER_COMPLETE", flush=True)
           PY
-      - name: Generate and execute actual C and C++ syntax controls
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: python3 "$QUALIFICATION_ROOT/experiment.py"
-      - name: Retain exact syntax experiment
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: pointer-member-experiment-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.QUALIFICATION_ROOT }}/evidence
-          if-no-files-found: error
-          retention-days: 30
