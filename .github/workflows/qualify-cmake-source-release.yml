@@ -1,188 +1,42 @@
-name: Read booted Original services and exact neutral consensus
+name: Release unstarted Refactor waiter for queued host observation
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-env:
-  PYTHONDONTWRITEBYTECODE: "1"
-  TMPDIR: /build/laplace/work
-  TMP: /build/laplace/work
-  TEMP: /build/laplace/work
-  PGCONNECT_TIMEOUT: "5"
-  PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
-  OBSERVER_SOURCE: |
-    import datetime,hashlib,json,os,pathlib,ssl,subprocess,urllib.request,urllib.error
-    def emit(label,value):print(label+" "+json.dumps(value,sort_keys=True),flush=True)
-    def run(args,timeout=15):
-     try:
-      p=subprocess.run(args,capture_output=True,text=True,timeout=timeout)
-      return p.returncode,p.stdout,p.stderr
-     except (OSError,subprocess.TimeoutExpired) as e:return None,"",type(e).__name__
-    def facts(path):
-     try:
-      p=pathlib.Path(path);r=p.resolve(strict=True);s=r.stat()
-      value={"path":str(p),"resolved":str(r),"device":s.st_dev,"inode":s.st_ino,"size":s.st_size}
-      if r.is_file() and s.st_size<=67108864:value["sha256"]=hashlib.sha256(r.read_bytes()).hexdigest()
-      return value
-     except OSError as e:return {"path":str(path),"errorType":type(e).__name__}
-    emit("CURRENT_SERVICE_SCOPE",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"readOnly":True,"restarts":False,"publication":False,"nativeRecordingRun":35174504991,"recordingOutcome":"failed_after_140_committed_readback_games"})
-    units={}
-    for role in ("api","mcp","lichess"):
-     fields=("MainPID","ActiveState","SubState","ExecMainStartTimestamp","User","Group","FragmentPath")
-     rc,out,err=run(["systemctl","show","laplace-"+role+".service",*[x for f in fields for x in ("--property",f)]])
-     row={"exitCode":rc,**dict(line.split("=",1) for line in out.splitlines() if "=" in line)}
-     units[role]=row
-     try:
-      pid=int(row.get("MainPID","0"));proc=pathlib.Path("/proc")/str(pid)
-      args=(proc/"cmdline").read_bytes().split(b"\0") if pid else []
-      allowed={"Laplace.Api.dll","Laplace.Endpoints.Uci.dll","Laplace.Endpoints.Mcp.dll","Laplace.Endpoints.Lichess.dll","Laplace.Web.dll"}
-      payload=[a.decode() for a in args if a and pathlib.Path(a.decode(errors="replace")).name in allowed]
-      row["recognizedPayloads"]=[facts(p) for p in payload if pathlib.Path(p).is_absolute()]
-      lines=(proc/"maps").read_text().splitlines() if pid else []
-      row["selectedNativeMappings"]=[s for s in lines if any(n in s for n in ("liblaplace_core","laplace_substrate","laplace_execution","laplace_geom","liblaplace_dynamic"))][:64]
-     except (OSError,ValueError) as e:row["processObservationError"]=type(e).__name__
-    emit("CURRENT_MANAGED_UNITS",units)
-    for role in ("mcp","lichess"):
-     rc,out,err=run(["sudo","-n","--","/usr/local/libexec/laplace-service-control",role,"status"],20)
-     row={"exitCode":rc}
-     try:
-      j=json.loads(out);row["status"]={k:v for k,v in j.items() if k in ("service","active","active_state","sub_state","pid","operator_stopped","unit")}
-     except ValueError:row["outputDisposition"]="not_json"
-     emit("CURRENT_MANAGED_CONTROL_"+role.upper(),row)
-    for role,port,route in (("mcpLive",5188,"/health/live"),("mcpReady",5188,"/health/ready"),("lichessLive",5189,"/health/live"),("lichessReady",5189,"/health/ready"),("lichessStatus",5189,"/status")):
-     row={"url":"http://127.0.0.1:"+str(port)+route}
-     try:
-      with urllib.request.urlopen(row["url"],timeout=8) as r:
-       row["httpStatus"]=r.status;j=json.loads(r.read(65536))
-       row["value"]={k:v for k,v in j.items() if k in ("service","live","ready","connected","accountConnected","eventStreamConnected","eventStreamRunning","configured") and isinstance(v,(str,bool,int,type(None)))}
-     except urllib.error.HTTPError as e:row["httpStatus"]=e.code
-     except Exception as e:row["errorType"]=type(e).__name__
-     emit("CURRENT_MANAGED_HEALTH_"+role,row)
-    ca="/opt/laplace/share/laplace/managed-services-ca.crt"
-    emit("CURRENT_PUBLIC_CA",facts(ca))
-    for route in ("/","/health/ready","/mcp"):
-     row={"url":"https://hart-server:8443"+route,"trustedCA":ca}
-     try:
-      with urllib.request.urlopen(row["url"],context=ssl.create_default_context(cafile=ca),timeout=8) as r:
-       row.update(httpStatus=r.status,contentType=r.headers.get("Content-Type"),observedBodyBytes=len(r.read(65536)))
-     except urllib.error.HTTPError as e:row["httpStatus"]=e.code
-     except Exception as e:row["errorType"]=type(e).__name__
-     emit("CURRENT_PUBLIC_ROUTE",row)
-    rc,out,err=run(["sudo","-n","--","/usr/local/libexec/laplace-managed-deploy","verify"],90)
-    emit("CURRENT_AUTHENTICATED_MANAGED_VERIFIER",{"exitCode":rc,"owner":facts("/usr/local/libexec/laplace-managed-deploy"),"outputBytes":len(out.encode()),"stderrBytes":len(err.encode()),"outputWithheld":True})
-    for path in ("/opt/laplace/app","/opt/laplace/app/laplace-uci","/opt/laplace/app/laplace-mcp","/opt/laplace/app/laplace-lichess","/opt/laplace/bin/laplace-cutechess","/opt/laplace/share/applications/laplace-cutechess.desktop"):
-     emit("CURRENT_PUBLIC_FILE",facts(path))
-    marker=pathlib.Path("/build/laplace/build/laplace-d32928234be8f570/.laplace-source-revision")
-    try:
-     value=marker.read_text().strip()
-     emit("CURRENT_BUILD_SOURCE_MARKER",{"path":str(marker),"source":value if len(value)==40 and all(c in "0123456789abcdef" for c in value) else "unrecognized","scope":"build marker only; does not independently authenticate every installed managed file"})
-    except OSError as e:emit("CURRENT_BUILD_SOURCE_MARKER",{"errorType":type(e).__name__})
-    foundation=["unicode","iso639","operational","cili","wordnet","verbnet","propbank","framenet","mapnet","wordframenet","semlink"]
-    emit("CANONICAL_FOUNDATION_ORDER",{"names":foundation,"count":len(foundation),"scope":"configured source order; latest journal states below, no estimated completion time"})
-    
-    import datetime,json,os,pathlib,subprocess
-    def emit(label,value):print(label+" "+json.dumps(value,sort_keys=True),flush=True)
-    emit("ORDINARY_LIFECYCLE_OBSERVATION",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"readOnly":True})
-    lock=pathlib.Path("/build/laplace/work/host-resource.lock")
-    st=None
-    try:
-     st=lock.stat()
-     key=f"{os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x}:{st.st_ino}"
-     entries=[line for line in pathlib.Path("/proc/locks").read_text().splitlines() if key in line]
-     emit("ORDINARY_HOST_RESERVATION",{"device":st.st_dev,"inode":st.st_ino,"entries":entries})
-    except OSError as error:emit("ORDINARY_HOST_RESERVATION",{"error":type(error).__name__})
-    recognized={"product-ci.sh","ensure-foundation.sh","ingest-source.sh","maintain-installed-database.sh",
-     "reconcile-highway-masks.sh","publish-applications.sh","managed-publish.sh","pipeline.sh","Laplace.Cli.dll",
-     "Laplace.Endpoints.Uci.dll","Laplace.Endpoints.Mcp.dll","Laplace.Endpoints.Lichess.dll","test-parallel.sh",
-     "cmake","ninja","ctest"}
-    for proc in pathlib.Path("/proc").iterdir():
-     if not proc.name.isdecimal():continue
-     try:
-      if proc.stat().st_uid!=os.getuid():continue
-      raw=(proc/"cmdline").read_bytes()
-      if len(raw)>131072:continue
-      arguments=[a.decode(errors="replace") for a in raw.split(b"\0") if a]
-      scripts=sorted({pathlib.Path(a).name for a in arguments if pathlib.Path(a).name in recognized})
-      if not scripts:continue
-      tail=(proc/"stat").read_text().rsplit(")",1)[1].split()
-      fds=[]
-      for descriptor in (proc/"fd").iterdir():
-       try:
-        current=descriptor.stat()
-        if st is not None and current.st_dev==st.st_dev and current.st_ino==st.st_ino:fds.append(int(descriptor.name))
-       except (OSError,ValueError):pass
-      emit("ORDINARY_PROCESS",{"pid":int(proc.name),"ppid":int(tail[1]),"startTicks":int(tail[19]),
-       "state":tail[0],"comm":(proc/"comm").read_text().strip(),"recognizedOwners":scripts,"hostReservationFDs":fds})
-     except (OSError,ValueError,IndexError):pass
-    sql="""SELECT coalesce(json_agg(row_to_json(j)), '[]'::json)::text FROM (
-     SELECT DISTINCT ON (source_name) source_name,status,files_done,files_total,
-     entities::text,attestations::text,started_at,ended_at
-     FROM laplace.ingest_run_journal ORDER BY source_name,started_at DESC LIMIT 32
-    ) j"""
-    env=dict(os.environ,PGHOST="/var/run/postgresql",PGPORT="5432",PGUSER="laplace_admin",PGDATABASE="laplace",
-     PGCONNECT_TIMEOUT="5",PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=10000")
-    try:
-     result=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-q","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],
-      env=env,capture_output=True,text=True,timeout=20)
-     value={"exitCode":result.returncode}
-     if result.returncode==0:value["latestSources"]=json.loads(result.stdout)
-     else:value["error"]=result.stderr[:2048]
-     emit("ORDINARY_FOUNDATION_JOURNAL",value)
-    except (OSError,ValueError,subprocess.TimeoutExpired) as error:emit("ORDINARY_FOUNDATION_JOURNAL",{"error":type(error).__name__})
-    
-    import datetime,json,os,subprocess
-    sql="BEGIN READ ONLY;\nSET LOCAL statement_timeout = '20s';\nSET LOCAL lock_timeout = '1s';\nWITH evidence AS MATERIALIZED (\n SELECT * FROM laplace.attestations\n WHERE type_id=decode('9229e864a12093d7327c0ccd2295abc7','hex')\n   AND subject_id=decode('1498082da2f8136492554265cfbb2fcd','hex')\n   AND object_id=decode('b82a04e7b1f172018e0bae7f2cadb673','hex')\n), fold AS (\n SELECT laplace.consensus_fold(false,NULL,NULL,NULL,\n     opponent_rating_fp1e9,opponent_rd_fp1e9,GREATEST(observation_count,1),\n     sum_score_fp1e9,consensus.glicko2_tau()\n     ORDER BY last_observed_at,id) AS value,\n     count(*) AS evidence_rows,max(last_observed_at) AS last_observed_at\n FROM evidence\n WHERE NOT EXISTS (SELECT 1 FROM evidence WHERE NOT fold_replayable)\n)\nSELECT jsonb_build_object(\n 'schema','laplace.exact-consensus-cell-neutral-preview/v1',\n 'database',current_database(),\n 'database_oid',(SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname=current_database()),\n 'system_identifier',(SELECT system_identifier::text FROM pg_catalog.pg_control_system()),\n 'cell_id','60386a133f597501dc75500739fe426b',\n 'evidence_rows',evidence_rows::text,\n 'rating',(value).rating::text,'rd',(value).rd::text,\n 'volatility',(value).volatility::text,'witness_count',(value).witness_count::text,\n 'last_observed_at',last_observed_at,\n 'all_fold_replayable',(SELECT bool_and(fold_replayable) FROM evidence))\nFROM fold;\nROLLBACK;\n"
-    env=dict(os.environ,PGHOST="/var/run/postgresql",PGPORT="5432",PGUSER="laplace_admin",PGDATABASE="laplace",PGCONNECT_TIMEOUT="5",PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=20000")
-    result=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-q","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],env=env,capture_output=True,text=True,timeout=30)
-    proof={"observedUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"exitCode":result.returncode,"sqlBlob":"0baaa6578a6e12f33faae15eff448ba7ad5f3191"}
-    if result.returncode==0:
-        assert len(result.stdout.encode())<4194304
-        proof["value"]=json.loads(result.stdout)
-    else:proof["error"]=result.stderr[:4096]
-    print("EXACT_NEUTRAL_CONSENSUS_PREVIEW "+json.dumps(proof,sort_keys=True),flush=True)
+  actions: write
 jobs:
-  validate:
-    runs-on: ubuntu-latest
+  cancel-unstarted-waiter:
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Authenticate and parse the bounded observation owner
+      - name: Revalidate exact unstarted candidate and request ordinary cancellation
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 - <<'PY'
-          import ast,hashlib,os
-          source=os.environ["OBSERVER_SOURCE"].encode()
-          identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
-          assert identity=="b7bb6af065befb75cab6f7e46b68d5f4a2e07d3f",identity
-          ast.parse(source)
-          print("Authenticated Original observer b7bb6af; Python syntax passed without host execution.")
+          import json,os,urllib.request
+          base="https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
+          def request(path,method="GET"):
+              req=urllib.request.Request(base+path,method=method,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  data=response.read()
+                  return response.status,json.loads(data) if data else None
+          _,run=request("/actions/runs/35176178856")
+          assert run["head_sha"]=="c23d17ab9997ed0e87dc8e9d0165b6208ae7db18", "candidate changed"
+          assert run["head_branch"]=="fix/ci-execution-owners-20260916", "branch changed"
+          assert run["run_attempt"]==1, "attempt changed"
+          if run["status"]=="completed":
+              print("EXACT_WAITER_ALREADY_TERMINAL "+json.dumps({"status":run["status"],"conclusion":run["conclusion"]}))
+          else:
+              _,job=request("/actions/jobs/105058994751")
+              assert job["run_id"]==35176178856 and job["status"]=="in_progress", "job changed"
+              steps={s["number"]:s for s in job["steps"]}
+              assert steps[3]["name"]=="Observe retained Highway admission evidence without database mutation" and steps[3]["status"]=="in_progress", "initial observation no longer active"
+              assert all(steps[n]["status"] in ("pending","queued") for n in (5,6,7,8,9,10,11,12,13,14,15)), "preparation or execution already started"
+              print("EXACT_UNSTARTED_WAITER "+json.dumps({"run":run["id"],"head":run["head_sha"],"job":job["id"],"step":steps[3],"preparationStarted":False,"privateCleanupCondition":"prepare_custom_stack.outputs.started == true","retry":"same cancelled PG job after observer; retain successful hosted checks"},sort_keys=True),flush=True)
+              status,body=request("/actions/runs/35176178856/cancel","POST")
+              assert status==202, status
+              print("ORDINARY_CANCELLATION_ACCEPTED "+json.dumps({"run":35176178856,"httpStatus":status,"force":False}),flush=True)
           PY
-  observe:
-    needs: validate
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 10
-    env:
-      EVIDENCE: /build/laplace/work/original-booted-services-observer-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - name: Observe booted services and exact neutral consensus without mutation
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          test "$(id -un)" = laplace-runner
-          mkdir "$EVIDENCE"
-          python3 - <<'PY'
-          import ast,hashlib,os
-          source=os.environ["OBSERVER_SOURCE"].encode()
-          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="b7bb6af065befb75cab6f7e46b68d5f4a2e07d3f"
-          ast.parse(source)
-          PY
-          timeout --signal=TERM --kill-after=5s 240s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
-      - name: Retain the bounded read-only observation
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: original-booted-services-observer-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.EVIDENCE }}/
-          if-no-files-found: error
-          retention-days: 30
