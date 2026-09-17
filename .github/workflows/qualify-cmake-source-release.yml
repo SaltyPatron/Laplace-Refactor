@@ -1,58 +1,196 @@
-name: Read retained private statistics experiment
+name: Qualify private PostgreSQL witness join candidate
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: read
 jobs:
-  retained-plan:
+  witness-statistics:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 35
+    env:
+      GIT_TERMINAL_PROMPT: "0"
+      QUAL_ROOT: /build/laplace/work/witness-stats-${{ github.run_id }}-${{ github.run_attempt }}
+      QUAL_BUILD: /build/laplace/build/witness-stats-${{ github.run_id }}-${{ github.run_attempt }}
+      TMPDIR: /build/laplace/work
+      TMP: /build/laplace/work
+      TEMP: /build/laplace/work
     steps:
-      - name: Authenticate bounded retained diagnostic members
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: df158f21bfecaf4045d065b10c21cd92464ce3ec
+          persist-credentials: false
+      - name: Authenticate the isolated fixture and source extraction
+        timeout-minutes: 5
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" /build/laplace/work /build/laplace/build
+          test ! -e "$QUAL_ROOT"
+          test ! -e "$QUAL_BUILD"
+          mkdir -p "$QUAL_ROOT/output" "$QUAL_ROOT/archives" "$QUAL_BUILD"
+          python3 - <<'PY'
+          import ast,base64,hashlib,json,os,pathlib,runpy,subprocess,urllib.request
+          base="df158f21bfecaf4045d065b10c21cd92464ce3ec"
+          fixture_sha="effa5c8077118b0954907e626df6bd6fabafab6a"
+          candidate_sha="fd43fb36329e13c0c9ca0065204c04d5ababd340"
+          if subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()!=base:
+              raise SystemExit("fixture source checkout differs")
+          root=pathlib.Path(os.environ["QUAL_ROOT"])
+          for selected_sha,filename in (
+              (fixture_sha,"stale_witness_plan_fixture.py"),
+              (candidate_sha,"candidate-source_structural_witness_pg.c")):
+              request=urllib.request.Request(
+                  "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+selected_sha,
+                  headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                           "Accept":"application/vnd.github+json",
+                           "X-GitHub-Api-Version":"2022-11-28"})
+              with urllib.request.urlopen(request,timeout=30) as response:
+                  document=json.load(response)
+              if document.get("sha")!=selected_sha or document.get("encoding")!="base64":
+                  raise SystemExit("selected blob response differs")
+              payload=base64.b64decode(document["content"])
+              actual=hashlib.sha1(b"blob "+str(len(payload)).encode()+b"\0"+payload).hexdigest()
+              if actual!=selected_sha:raise SystemExit("selected blob bytes differ")
+              (root/"output"/filename).write_bytes(payload)
+          fixture=root/"output"/"stale_witness_plan_fixture.py"
+          ast.parse(fixture.read_bytes(),filename=str(fixture))
+          module=runpy.run_path(str(fixture))
+          schema,parameterized,query=module["extract_sources"](pathlib.Path.cwd())
+          candidate_parameterized,candidate_query=module["extract_candidate"](
+              root/"output"/"candidate-source_structural_witness_pg.c")
+          source={"schema":"laplace.private-witness-candidate-source/v1",
+              "base_commit":base,"fixture_blob":fixture_sha,
+              "source_blobs":module["SOURCES"],"candidate_source_blob":candidate_sha,
+              "query_sha256":hashlib.sha256(parameterized.encode()).hexdigest(),
+              "candidate_query_sha256":hashlib.sha256(candidate_parameterized.encode()).hexdigest(),
+              "fixture_schema_sha256":hashlib.sha256(schema.encode()).hexdigest(),
+              "query_scope":"original and candidate full-profile v4 witness cursor",
+              "native_admission_performed":False,"native_C_verifier_executed":False,
+              "historical_cause_proven":False}
+          (root/"output"/"source-selection.json").write_text(json.dumps(source,indent=2)+"\n")
+          print("LAPLACE_WITNESS_CANDIDATE_SOURCE "+json.dumps(source,sort_keys=True))
+          PY
+          sudo apt-get update
+          sudo apt-get install --yes build-essential bison flex perl curl
+          {
+            uname -a
+            gcc --version
+            python3 --version
+          } > "$QUAL_ROOT/output/hosted-provider-versions.txt"
+      - name: Acquire the exact official PostgreSQL 18.6 source
+        timeout-minutes: 6
         shell: bash
         run: |
-          python3 -I - <<'PY'
-          import hashlib,io,json,os,pathlib,urllib.request,zipfile
-          ARTIFACT=10506537492;RUN=35243657318;SIZE=105005
-          SHA="7fb44f003f816c3932e91b54a2bc83de9791109805e08600b6ea49717231c01f"
-          HEAD="5d08016a427edf6f31965d9b0202886fa85b4f1e"
-          BASE="https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
-          def get(url,limit):
-              request=urllib.request.Request(url,headers={"Accept":"application/vnd.github+json"})
-              request.add_unredirected_header("Authorization","Bearer "+os.environ["GH_TOKEN"])
-              with urllib.request.urlopen(request,timeout=45) as response:raw=response.read(limit+1)
-              if len(raw)>limit:raise RuntimeError("response exceeded bound")
-              return raw
-          meta=json.loads(get(BASE+"/actions/artifacts/"+str(ARTIFACT),65536))
-          if meta["id"]!=ARTIFACT or meta["workflow_run"]["id"]!=RUN or meta["workflow_run"]["head_sha"]!=HEAD or meta["size_in_bytes"]!=SIZE or meta["digest"]!="sha256:"+SHA or meta["expired"]:raise RuntimeError("artifact binding differs")
-          raw=get(meta["archive_download_url"],SIZE)
-          if len(raw)!=SIZE or hashlib.sha256(raw).hexdigest()!=SHA:raise RuntimeError("ZIP differs")
-          result={"artifact":ARTIFACT,"run":RUN,"sha256":SHA,"members":{}}
-          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-              names=archive.namelist()
-              if len(names)!=len(set(names)) or any(pathlib.PurePosixPath(n).is_absolute() or ".." in pathlib.PurePosixPath(n).parts or "\\" in n for n in names):raise RuntimeError("unsafe artifact paths")
-              for name in ("fixture/report.json","fixture/final-counts.stdout","fixture/final-counts.stderr","fixture/stale.analyze.stderr","fixture/fresh.analyze.stderr"):
-                  matches=[n for n in names if n==name or n.endswith("/"+name)]
-                  if len(matches)>1:raise RuntimeError("ambiguous diagnostic member")
-                  if not matches:continue
-                  info=archive.getinfo(matches[0])
-                  if info.file_size>1048576:raise RuntimeError("diagnostic member exceeds bound")
-                  value=archive.read(info)
-                  result["members"][name]={"bytes":len(value),"sha256":hashlib.sha256(value).hexdigest(),"content":json.loads(value) if name.endswith(".json") else value.decode()}
-          pathlib.Path("stale-fixture-diagnostic.json").write_text(json.dumps(result,indent=2)+"\n")
-          report=result["members"]["fixture/report.json"]["content"]
-          summary={k:v for k,v in report.items() if k not in ("baseline_statistics","stale_statistics","fresh_statistics","source_blobs","stale","fresh")}
-          for key in ("stale","fresh"):
-              if key in report:summary[key]={phase:{k:v for k,v in details.items() if k!="explain"} for phase,details in report[key].items()}
-          print("STALE_FIXTURE_DIAGNOSTIC "+json.dumps({"summary":summary,"other_members":{k:v for k,v in result["members"].items() if k!="fixture/report.json"}},sort_keys=True))
-          
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib
+          source=json.loads(pathlib.Path("dependencies/release-lock.json").read_text())
+          entry=source["archives"]["postgresql"]
+          if entry["version"]!="18.6" or entry["sha256"]!="555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f":
+              raise SystemExit("selected PostgreSQL release differs")
+          target=pathlib.Path(os.environ["QUAL_ROOT"])/"output"/"postgresql-release-lock.json"
+          target.write_text(json.dumps({"schema":source["schema"],"archives":{"postgresql":entry}},indent=2)+"\n")
           PY
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          curl --fail --location --retry 3 --connect-timeout 20 --max-time 180 \
+            --output "$QUAL_ROOT/archives/postgresql-18.6.tar.bz2" \
+            https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2
+          python3 tools/dependencies/release-assets.py import \
+            --lock "$QUAL_ROOT/output/postgresql-release-lock.json" \
+            --archive-root "$QUAL_ROOT/archives" \
+            --destination "$QUAL_ROOT/release-source" \
+            | tee "$QUAL_ROOT/output/postgresql-source-verification.json"
+      - name: Build disposable PostgreSQL 18.6
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$QUAL_BUILD/postgresql"
+          cd "$QUAL_BUILD/postgresql"
+          "$QUAL_ROOT/release-source/postgresql/configure" \
+            --prefix="$QUAL_ROOT/pgsql-18" \
+            --without-readline --without-zlib --without-icu \
+            2>&1 | tee "$QUAL_ROOT/output/postgresql-configure.log"
+          make --jobs=2 2>&1 | tee "$QUAL_ROOT/output/postgresql-build.log"
+          make install 2>&1 | tee "$QUAL_ROOT/output/postgresql-install.log"
+          "$QUAL_ROOT/pgsql-18/bin/pg_config" --version \
+            | tee "$QUAL_ROOT/output/postgresql-version.txt"
+          test "$("$QUAL_ROOT/pgsql-18/bin/pg_config" --version)" = "PostgreSQL 18.6"
+      - name: Compare original and candidate full cursors and SQL corruption controls
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$QUAL_ROOT/output/stale_witness_plan_fixture.py" \
+            --repository "$GITHUB_WORKSPACE" \
+            --pg-bindir "$QUAL_ROOT/pgsql-18/bin" \
+            --candidate-source "$QUAL_ROOT/output/candidate-source_structural_witness_pg.c" \
+            --work-root /build/laplace/work \
+            --output "$QUAL_ROOT/output/fixture" \
+            2>&1 | tee "$QUAL_ROOT/output/fixture.log"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path(os.environ["QUAL_ROOT"])/"output"
+          report=json.loads((root/"fixture"/"report.json").read_text())
+          if report["status"]!="completed" or not report["cleanup"]["stopped"]:
+              raise SystemExit("private fixture did not complete and clean up")
+          if report["postgres"]["server_version_num"]!="180006":
+              raise SystemExit("private provider version differs")
+          if report["final_counts"]!={"canonical":571627,"execution":571627,"other_sessions":0}:
+              raise SystemExit("synthetic full-profile counts differ")
+          source=json.loads((root/"source-selection.json").read_text())
+          if report["source_blobs"]!=source["source_blobs"] or report["query_sha256"]!=source["query_sha256"]:
+              raise SystemExit("executed original source binding differs")
+          if report["candidate_source_blob"]!=source["candidate_source_blob"] or report["candidate_query_sha256"]!=source["candidate_query_sha256"]:
+              raise SystemExit("executed candidate source binding differs")
+          if report["healthy_ordered_comparison"].get("exact") is not True:
+              raise SystemExit("healthy ordered-row comparison differs")
+          summary={"schema":"laplace.private-witness-candidate-observation/v1",
+              "status":"completed","provider":"official PostgreSQL 18.6; hosted private cluster",
+              "native_admission_performed":False,"native_C_verifier_executed":False,
+              "historical_cause_proven":False,
+              "scope":"SQL planning, exact ordered healthy rows and NULL-required-field corruption controls",
+              "source":source,"old_profile_rows":report["old_profile_rows"],
+              "new_profile_rows":report["new_profile_rows"],"scenarios":{},
+              "healthy_ordered_comparison":report["healthy_ordered_comparison"],
+              "corruption_controls":report["corruption_controls"],"cleanup":report["cleanup"]}
+          for name in ("stale","fresh","candidate_stale","candidate_fresh"):
+              phase=report[name]
+              summary["scenarios"][name]={
+                  "estimated_nodes":phase["plan"]["nodes"],
+                  "execution_outcome":phase["analyze"]["outcome"],
+                  "elapsed_seconds":phase["analyze"]["elapsed_seconds"],
+                  "actual_nodes":phase["analyze"].get("nodes"),
+                  "server_statement_timeout_seconds":phase["analyze"]["server_statement_timeout_seconds"]}
+          if any(summary["scenarios"][name]["execution_outcome"]!="completed"
+                 for name in ("candidate_stale","candidate_fresh")):
+              raise SystemExit("candidate cursor failed its unchanged five-second bound")
+          manifest={}
+          for path in sorted(root.rglob("*")):
+              if path.is_file():
+                  payload=path.read_bytes()
+                  manifest[str(path.relative_to(root))]={"bytes":len(payload),
+                      "sha256":hashlib.sha256(payload).hexdigest()}
+          summary["evidence"]=manifest
+          (root/"observation.json").write_text(json.dumps(summary,indent=2)+"\n")
+          print("LAPLACE_WITNESS_CANDIDATE_OBSERVATION "+json.dumps(summary,sort_keys=True))
+          PY
+      - name: Retain configure diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$QUAL_ROOT/output"
+          if [[ -f "$QUAL_BUILD/postgresql/config.log" ]]; then
+            cp "$QUAL_BUILD/postgresql/config.log" "$QUAL_ROOT/output/postgresql-config.log"
+          fi
+      - name: Retain source binding and private PostgreSQL plans
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: retained-plan-${{ github.run_id }}
-          path: stale-fixture-diagnostic.json
+          name: witness-statistics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.QUAL_ROOT }}/output/
           if-no-files-found: error
+          retention-days: 30
