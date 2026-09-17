@@ -1,100 +1,47 @@
-name: Read bounded current Original lifecycle progress
+name: Cancel superseded completed-proof cleanup
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
-    paths: [".github/workflows/qualify-cmake-source-release.yml"]
 permissions:
   contents: read
-env:
-  PYTHONDONTWRITEBYTECODE: "1"
-  OBSERVER_SOURCE: |
-    #!/usr/bin/env python3
-    import datetime,json,os,pathlib,re,subprocess
-    result={"schema":"laplace.readonly-lifecycle-progress/v1","observedUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"requestedRun":35186758963,"expectedSource":"96a02adb064ad221e17ae275e076b11816b6a517"}
-    checkout="/var/lib/agents/laplace-runner/actions-runner/_work/Laplace/Laplace"
-    try:
-        done=subprocess.run(["git","-C",checkout,"rev-parse","HEAD"],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=5)
-        value=done.stdout.strip()
-        result["checkout"]={"path":checkout,"exitCode":done.returncode,"head":value if re.fullmatch("[0-9a-f]{40}",value) else None}
-    except (OSError,subprocess.SubprocessError) as error:result["checkout"]={"errorType":type(error).__name__}
-    lock=pathlib.Path("/build/laplace/work/host-resource.lock")
-    try:
-        identity=lock.stat();key="%02x:%02x:%s"%(os.major(identity.st_dev),os.minor(identity.st_dev),identity.st_ino)
-        lines=[line for line in pathlib.Path("/proc/locks").read_text().splitlines() if key in line.split()]
-        result["reservation"]={"device":identity.st_dev,"inode":identity.st_ino,"kernelEntries":lines}
-        owners=[]
-        for line in lines:
-            fields=line.split();index=fields.index(key)
-            if index>0 and fields[index-1].isdigit():owners.append(int(fields[index-1]))
-        processes=[];seen=set()
-        for first in owners:
-            pid=first
-            for depth in range(12):
-                if pid<=1 or pid in seen:break
-                seen.add(pid)
-                try:
-                    root=pathlib.Path("/proc")/str(pid);raw=(root/"stat").read_text();fields=raw[raw.rfind(")")+2:].split()
-                    parent=int(fields[1])
-                    processes.append({"pid":pid,"parentPid":parent,"comm":(root/"comm").read_text().strip(),"startTicks":int(fields[19]),"state":fields[0],"cwd":str((root/"cwd").resolve())})
-                    pid=parent
-                except (OSError,ValueError,IndexError) as error:
-                    processes.append({"pid":pid,"errorType":type(error).__name__});break
-        result["reservation"]["matchingEntryAncestorProcesses"]=processes
-    except OSError as error:result["reservation"]={"errorType":type(error).__name__}
-    sql="BEGIN READ ONLY;\nSET LOCAL statement_timeout='5s'; SET LOCAL lock_timeout='1s';\nWITH recent AS MATERIALIZED (\n SELECT source_name,status,started_at,units_attempted,units_applied,units_failed,entities,physicalities,attestations,files_done,files_total\n FROM laplace.ingest_run_journal ORDER BY started_at DESC LIMIT 16\n)\nSELECT jsonb_build_object('observed_at',clock_timestamp(),'database',current_database(),'postmaster_started',pg_postmaster_start_time(),\n'journal',COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY started_at DESC) FROM recent),'[]'::jsonb));\nROLLBACK;"
-    environment={key:value for key,value in os.environ.items() if not key.startswith("PG")}
-    environment["PGCONNECT_TIMEOUT"]="5"
-    environment["PGOPTIONS"]="-c default_transaction_read_only=on -c statement_timeout=5000 -c lock_timeout=1000"
-    try:
-        done=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-w","-qAt","-h","/var/run/postgresql","-p","5432","-U","laplace_admin","-d","laplace","-v","ON_ERROR_STOP=1","-c",sql],env=environment,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=15)
-        if done.returncode==0 and len(done.stdout)<=65536:
-            result["journal"]=json.loads(done.stdout)
-        else:result["journal"]={"exitCode":done.returncode,"stdoutBytes":len(done.stdout),"stderrBytes":len(done.stderr)}
-    except (OSError,ValueError,subprocess.SubprocessError) as error:result["journal"]={"errorType":type(error).__name__}
-    result["scope"]="Bounded read-only current checkout, kernel reservation entries and recent operational journal counters; no argv/environment output, no source or service change, no claimed run attribution from elapsed time."
-    print(json.dumps(result,sort_keys=True))
+  actions: write
 jobs:
-  validate:
+  cancel-superseded-cleanup:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Authenticate exact bounded read-only observer
+      - name: Revalidate exact supersession and request ordinary cancellation
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 - <<'PY'
-          import ast,hashlib,os
-          source=os.environ["OBSERVER_SOURCE"].encode()
-          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="a36ab8e19ee9c95b4dbe3e6c8bffd1b0b3e96a44"
-          ast.parse(source)
-          print("Exact Original observer a36ab8 authenticated; Python syntax passed.")
+          import json,os,urllib.request
+          base="https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
+          def request(path,method="GET"):
+              req=urllib.request.Request(base+path,method=method,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  body=response.read()
+                  return response.status,json.loads(body) if body else None
+          _,pr=request("/pulls/398")
+          assert pr["head"]["sha"]=="1c23fa0a7c8c044c26ef91da3656e8f08e8a3948", "current owner changed"
+          _,run=request("/actions/runs/35184451666")
+          assert run["head_sha"]=="727debeb4e72f4a6356c7c7980f8e16ad37d2df9"
+          assert run["head_branch"]=="fix/ci-execution-owners-20260916" and run["run_attempt"]==1
+          if run["status"]=="completed":
+              print("SUPERSEDED_PROOF_ALREADY_TERMINAL "+json.dumps({"run":run["id"],"conclusion":run["conclusion"]}))
+          else:
+              _,jobs=request("/actions/runs/35184451666/jobs?filter=latest&per_page=100")
+              active=[job for job in jobs["jobs"] if job["status"]!="completed"]
+              assert len(active)==1 and active[0]["id"]==105090702716, "active work changed"
+              job=active[0]
+              steps={step["number"]:step for step in job["steps"]}
+              assert steps[6]["name"]=="Prove exact current-change PostgreSQL 18.6 package runtime"
+              assert steps[6]["status"]=="completed" and steps[6]["conclusion"]=="success"
+              assert steps[8]["name"]=="Clean disposable PostgreSQL-product workspace" and steps[8]["status"]=="in_progress"
+              assert all(step["number"]==8 for step in job["steps"] if step["status"]=="in_progress")
+              print("EXACT_SUPERSEDED_PROOF "+json.dumps({"run":run["id"],"head":run["head_sha"],"replacement":pr["head"]["sha"],"job":job["id"],"completedProof":steps[6],"remainingCleanup":steps[8],"retention":"Existing successful QA artifacts and durable proof receipts preserved; no host or database mutation."},sort_keys=True),flush=True)
+              status,_=request("/actions/runs/35184451666/cancel","POST")
+              assert status==202,status
+              print("ORDINARY_CANCELLATION_ACCEPTED "+json.dumps({"run":35184451666,"httpStatus":status,"force":False}),flush=True)
           PY
-  observe:
-    needs: validate
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 3
-    env:
-      EVIDENCE: /build/laplace/work/original-lifecycle-observer-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - name: Read current checkout, reservation ownership and operational progress
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          test "$(id -un)" = laplace-runner
-          mkdir "$EVIDENCE"
-          python3 - <<'PY' | tee "$EVIDENCE/observer.log"
-          import ast,hashlib,os,subprocess,sys
-          source=os.environ["OBSERVER_SOURCE"].encode()
-          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="a36ab8e19ee9c95b4dbe3e6c8bffd1b0b3e96a44"
-          ast.parse(source)
-          result=subprocess.run([sys.executable,"-I","-u","-c",source.decode()],stdin=subprocess.DEVNULL,timeout=40)
-          raise SystemExit(result.returncode)
-          PY
-      - name: Retain bounded read-only lifecycle evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: original-lifecycle-observer-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.EVIDENCE }}/
-          if-no-files-found: error
-          retention-days: 30
