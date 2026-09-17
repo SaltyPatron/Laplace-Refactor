@@ -1,4 +1,4 @@
-name: Qualify browser origin and prefix paths
+name: Qualify browser prefix and authenticated event transport
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -18,7 +18,7 @@ jobs:
           import base64, hashlib, json, os, pathlib, urllib.request
           root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
           token = os.environ.pop('GH_TOKEN')
-          leaves = [{"path":"product/web/app.js","sha":"6fd4999c21d29de2150ca5c2731a60f72187f936"},{"path":"product/web/index.html","sha":"22d457e46142794fb7900184236ebf74ca322621"},{"path":"tests/browser_surface_paths_tests.cjs","sha":"1c1ba260359ff60ef19a2a598aa795f713b9d27d"}]
+          leaves = [{"path":"product/web/app.js","sha":"75aaedf6bfc44d2a250acda36618b3d031a18b40"},{"path":"product/web/index.html","sha":"22d457e46142794fb7900184236ebf74ca322621"},{"path":"tests/browser_surface_paths_tests.cjs","sha":"1920ad3b9cb326775252f9a1ce6dae1479b4f7bf"}]
           for leaf in leaves:
               request = urllib.request.Request('https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/' + leaf['sha'], headers={'Accept':'application/vnd.github+json','User-Agent':'Laplace-browser-path-controls'})
               request.add_unredirected_header('Authorization', 'Bearer ' + token)
