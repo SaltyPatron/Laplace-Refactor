@@ -1,156 +1,133 @@
-name: Read exact persisted Stockfish syntax diagnostics
+name: Read bounded Original PostgreSQL crash evidence
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: read
-concurrency:
-  group: laplace-cmake-component-qualification
-  cancel-in-progress: false
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  TMPDIR: /build/laplace/work
+  TMP: /build/laplace/work
+  TEMP: /build/laplace/work
+  PGCONNECT_TIMEOUT: "5"
+  PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
+  OBSERVER_SOURCE: |
+    import datetime,json,os,pathlib,re,subprocess
+    def emit(name,value):
+        print(name+" "+json.dumps(value,sort_keys=True),flush=True)
+    def run(command,timeout=20):
+        try:
+            result=subprocess.run(command,capture_output=True,text=True,timeout=timeout)
+            return {"exitCode":result.returncode,"stdout":result.stdout,"stderr":result.stderr}
+        except (OSError,subprocess.TimeoutExpired) as error:
+            return {"error":type(error).__name__}
+    emit("OBSERVATION",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"scope":"read-only provisional host state; no reservation or mutation"})
+    lock=pathlib.Path("/build/laplace/work/host-resource.lock")
+    try:
+        ls=lock.stat()
+        locks=pathlib.Path("/proc/locks").read_text().splitlines()
+        pattern=f"{os.major(ls.st_dev):02x}:{os.minor(ls.st_dev):02x}:{ls.st_ino}"
+        emit("HOST_LOCK",{"device":ls.st_dev,"inode":ls.st_ino,"entries":[x for x in locks if pattern in x]})
+    except OSError as error:
+        emit("HOST_LOCK",{"error":type(error).__name__})
+    known={"pipeline.sh","product-ci.sh","test-parallel.sh","ensure-foundation.sh","Laplace.Cli.dll","laplace-apply-queue","provision-postgresql.py","measure-installed-chess-corpus.py","managed-publish.sh","publish-applications.sh","laplace-managed-deploy","Stockfish","stockfish","cutechess-cli","ctest","cmake","ninja","dotnet","psql","postgres","VBCSCompiler.dll"}
+    for proc in pathlib.Path("/proc").iterdir():
+        if not proc.name.isdigit():continue
+        try:
+            if proc.stat().st_uid!=os.getuid():continue
+            command=(proc/"cmdline").read_bytes().split(b"\0")
+            names=sorted({pathlib.Path(x.decode("utf-8","replace")).name for x in command if x and b"\n" not in x and b" " not in x}.intersection(known))
+            fds=[]
+            if "ls" in globals():
+                for fd in (proc/"fd").iterdir():
+                    try:
+                        st=fd.stat()
+                        if st.st_dev==ls.st_dev and st.st_ino==ls.st_ino:fds.append(int(fd.name))
+                    except OSError:pass
+            if not names and not fds:continue
+            stat=(proc/"stat").read_text();tail=stat.rsplit(")",1)[1].split()
+            emit("RECOGNIZED_PROCESS",{"pid":int(proc.name),"ppid":int(tail[1]),"state":tail[0],"startTicks":int(tail[19]),"comm":(proc/"comm").read_text().strip(),"owners":names,"hostLockFds":fds})
+        except (OSError,ValueError):pass
+    psql="/opt/laplace/pgsql-18/bin/psql"
+    def sql(query):
+        command=[psql,"-X","-A","-t","-v","ON_ERROR_STOP=1","-h","/var/run/postgresql","-p","5432","-U","laplace_admin","-d","laplace","-c",query]
+        result=run(command)
+        if result.get("exitCode")==0:
+            try:return json.loads(result["stdout"])
+            except ValueError:return {"error":"non-JSON database response"}
+        return {"exitCode":result.get("exitCode"),"error":result.get("error","database observation unavailable"),"stderr":result.get("stderr","")[:2048]}
+    value=sql("""SELECT json_build_object(
+    'backendPid',pg_backend_pid(),'postmasterStarted',pg_postmaster_start_time(),
+    'serverVersion',current_setting('server_version'),'sharedPreloadLibraries',current_setting('shared_preload_libraries'),
+    'logPath',pg_current_logfile(),'maps',pg_read_file('/proc/self/maps'),
+    'extensions',(SELECT json_object_agg(extname,extversion) FROM pg_extension WHERE extname IN ('laplace_substrate','laplace_geom')))""")
+    maps=value.pop("maps","")
+    value["selectedNativeMappings"]=[x for x in maps.splitlines() if any(s in x for s in ("liblaplace_core","liblaplace_dynamics","laplace_substrate","laplace_execution","laplace_geom"))]
+    emit("ORIGINAL_POSTGRES",value)
+    for path in ("/opt/laplace/lib/liblaplace_core.so","/opt/laplace/lib/postgresql/18/laplace_substrate.so","/opt/laplace/lib/postgresql/18/laplace_geom.so"):
+        try:
+            p=pathlib.Path(path).resolve(strict=True);st=p.stat()
+            emit("INSTALLED_NATIVE_IDENTITY",{"selected":path,"resolved":str(p),"device":st.st_dev,"inode":st.st_ino,"bytes":st.st_size})
+        except OSError as error:emit("INSTALLED_NATIVE_IDENTITY",{"selected":path,"error":type(error).__name__})
+    log=sql("""SELECT json_build_object('path',pg_current_logfile(),'tail',CASE WHEN pg_current_logfile() IS NULL THEN '' ELSE pg_read_file(pg_current_logfile(),greatest((pg_stat_file(pg_current_logfile())).size-1048576,0),1048576,true) END)""")
+    tail=log.pop("tail","")
+    selected=[]
+    for line in tail.splitlines():
+        if re.search(r"\b(PANIC|FATAL|ERROR|LOG):",line) and re.search(r"terminated|signal|server process|out of memory|memory|shut|restart|reinitializ|database system|invalid|segmentation|checkpoint|could not",line,re.I):
+            selected.append(line[:4096])
+    log["selectedLines"]=selected[-160:]
+    emit("ORIGINAL_POSTGRES_LOG",log)
+    for unit in ("laplace-postgresql.service","laplace-api.service","laplace-mcp.service","laplace-lichess.service"):
+        result=run(["systemctl","show",unit,"--property=Id,ActiveState,SubState,MainPID,UnitFileState"])
+        result["properties"]=dict(x.split("=",1) for x in result.pop("stdout","").splitlines() if "=" in x);result.pop("stderr",None)
+        emit("SERVICE_STATE",{"unit":unit,**result})
+    kernel=run(["journalctl","-k","--since","2026-09-17 01:16:00 UTC","--until","2026-09-17 01:20:00 UTC","--no-pager","-o","short-iso"])
+    lines=[x[:4096] for x in kernel.pop("stdout","").splitlines() if re.search(r"oom|killed process|out of memory|segfault|trap|postgres",x,re.I)]
+    emit("KERNEL_WINDOW",{"exitCode":kernel.get("exitCode"),"error":kernel.get("error"),"access":kernel.get("stderr","")[:1024],"selectedLines":lines[-100:]})
+    core=run(["coredumpctl","--since","2026-09-17 01:16:00 UTC","--until","2026-09-17 01:20:00 UTC","--no-pager","list","postgres"])
+    emit("POSTGRES_COREDUMP_WINDOW",{"exitCode":core.get("exitCode"),"error":core.get("error"),"access":core.get("stderr","")[:1024],"lines":core.get("stdout","").splitlines()[-30:]})
 jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Validate the diagnostic extraction without database access
+      - name: Authenticate and parse the bounded observation owner
         shell: bash
         run: |
-          python3 - <<'LINT'
-          import ast,pathlib,re,subprocess,yaml
-          value=yaml.safe_load(pathlib.Path(".github/workflows/qualify-cmake-source-release.yml").read_text())
-          script=value["jobs"]["observe"]["steps"][1]["run"]
-          subprocess.run(["bash","-n"],input=script,text=True,check=True)
-          match=re.search(r"<<'PY'\n(.*?)\nPY(?:\n|$)",script,re.S)
-          assert match
-          ast.parse(match[1])
-          print("Read-only diagnostic SQL extraction Bash and Python parsed.")
-          LINT
+          python3 - <<'PY'
+          import ast,hashlib,os
+          source=os.environ["OBSERVER_SOURCE"].encode()
+          identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
+          assert identity=="84fa9212700b94567529a8131b73d8d731191eab",identity
+          ast.parse(source)
+          print("Authenticated Original observer84fa921; Python syntax passed without host execution.")
+          PY
   observe:
     needs: validate
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
     timeout-minutes: 5
     env:
-      TMPDIR: /build/laplace/work
-      TMP: /build/laplace/work
-      TEMP: /build/laplace/work
-      DIAGNOSTIC_EVIDENCE: /build/laplace/work/stockfish-syntax-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+      EVIDENCE: /build/laplace/work/original-pg-crash-observer-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: b042de4216e1d674effe5bd3e8ecf3ebc7aeddac
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Read the exact installed profile and authenticated frozen source context
+      - name: Read Original database, process, lock and crash evidence
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           umask 077
           test "$(id -un)" = laplace-runner
-          test "$(git rev-parse HEAD)" = b042de4216e1d674effe5bd3e8ecf3ebc7aeddac
-          python3 -B - <<'PY'
-          import hashlib, importlib.util, io, json, os, pathlib, subprocess, sys, time, urllib.request, zipfile
-          ROOT=pathlib.Path.cwd()
-          OUT=pathlib.Path(os.environ["DIAGNOSTIC_EVIDENCE"])
-          OUT.mkdir(parents=True,exist_ok=False)
-          sys.path.insert(0,str(ROOT/"tools"))
-          from sources import stockfish_corpus_acceptance as activation
-          BASE="b042de4216e1d674effe5bd3e8ecf3ebc7aeddac"
-          PACKAGE="912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe"
-          PROFILE="2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651"
-          MANIFEST=pathlib.Path("/opt/laplace/sources/acceptance/stockfish/f4183139d6274eca84b2cbd5ba29e54f/manifest.json")
-          def require(value,message):
-              if not value: raise RuntimeError(message)
-          def digest(data): return hashlib.sha256(data).hexdigest()
-          def save(name,value): activation.save(OUT/name,value)
-          before=activation.observe_activation(BASE,OUT/"activation-before.json")
-          require(before["package_id"]==PACKAGE,"installed package differs")
-          manifest_bytes=MANIFEST.read_bytes()
-          require(digest(manifest_bytes)=="2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc","frozen source manifest differs")
-          manifest=json.loads(manifest_bytes)
-          require(len(manifest["artifacts"])==119 and manifest["commit"]=="edb0d9db6731067ec50ce619ff372b463bc4dd5d","official source manifest identity differs")
-          files={}
-          for i,item in enumerate(manifest["artifacts"]):
-              path=MANIFEST.parent/"files"/item["path"]
-              require(not path.is_symlink() and path.is_file(),"frozen file unavailable")
-              data=path.read_bytes()
-              require(len(data)==item["byte_count"] and digest(data)==item["sha256"],"frozen source bytes differ: "+item["path"])
-              files[i]=(item,data)
-          require(sum(len(data) for item,data in files.values())==1172144,"frozen source byte denominator differs")
-          save("source-manifest.json",manifest)
-          api="https://api.github.com/repos/SaltyPatron/Laplace-Refactor/actions/artifacts/10474447094/zip"
-          request=urllib.request.Request(api,headers={"Accept":"application/vnd.github+json"})
-          request.add_unredirected_header("Authorization","Bearer "+os.environ["GH_TOKEN"])
-          with urllib.request.urlopen(request,timeout=60) as response: archive=response.read(4*1024*1024)
-          require(len(archive)==3016206 and digest(archive)=="a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007","authenticated source admission artifact differs")
-          with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
-              matches=[n for n in bundle.namelist() if n.endswith("grammar/build-receipt.json")]
-              require(len(matches)==1,"exact grammar receipt missing")
-              grammar=json.loads(bundle.read(matches[0]))
-          save("qualified-grammar-receipt.json",grammar)
-          symbol_error={"type":"not-requested","message":"Persisted grammar kinds retain verified kind base and numeric symbol IDs; no runtime C ABI inference is used."}
-          def symbol(kind):
-              if kind is None or int(kind) == 0: return None
-              value=int(kind)
-              require(value & ~0xffff == 0x4350500000000000,"persisted grammar kind has an unexpected language base")
-              return {"kind_base":"0x4350500000000000","symbol_id":value & 0xffff,"name":None}
-          query="""BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
-          SET LOCAL statement_timeout = '30s';
-          SELECT json_build_object(
-          'profile', (SELECT row_to_json(p) FROM (SELECT encode(profile_id,'hex') AS profile_id,error_count,malformed_count,unsupported_count,unknown_count,lossy_count FROM laplace.source_profile WHERE profile_id=decode('__PROFILE__','hex'))p),
-          'nodes', (SELECT coalesce(json_agg(row_to_json(q) ORDER BY artifact_index,span_index),'[]'::json) FROM (
-          SELECT w.artifact_index,w.span_index,w.parent_span_index,w.byte_start,w.byte_end,w.kind,w.grammar_kind,w.field_kind,w.depth,w.flags,w.syntax_flags,
-          p.grammar_kind AS parent_grammar_kind,p.byte_start AS parent_byte_start,p.byte_end AS parent_byte_end,p.syntax_flags AS parent_syntax_flags,
-          g.grammar_kind AS grandparent_grammar_kind,g.byte_start AS grandparent_byte_start,g.byte_end AS grandparent_byte_end,g.syntax_flags AS grandparent_syntax_flags
-          FROM laplace.source_structural_witness w
-          LEFT JOIN laplace.source_structural_witness p ON p.source_profile_id=w.source_profile_id AND p.artifact_index=w.artifact_index AND p.span_index=w.parent_span_index
-          LEFT JOIN laplace.source_structural_witness g ON g.source_profile_id=p.source_profile_id AND g.artifact_index=p.artifact_index AND g.span_index=p.parent_span_index
-          WHERE w.source_profile_id=decode('__PROFILE__','hex') AND (w.syntax_flags::bigint & 6)<>0
-          ORDER BY w.artifact_index,w.span_index LIMIT 103)q));
-          COMMIT;
-          """.replace("__PROFILE__",PROFILE)
-          (OUT/"query.sql").write_text(query)
-          instance=before["cluster_plan"]["instance"]
-          command=[str(pathlib.Path(before["release"])/"pgsql-18/bin/psql"),"--no-psqlrc","--no-password","--quiet","--tuples-only","--no-align","--set","ON_ERROR_STOP=1","--host",instance["socket_directory"],"--port",str(instance["port"]),"--username",instance["admin_role"],"--dbname",instance["database"]]
-          environment=dict(os.environ)
-          for key in list(environment):
-              if key.startswith("PG"): environment.pop(key)
-          environment["PGCONNECT_TIMEOUT"]="10"
-          environment["PGOPTIONS"]="-c default_transaction_read_only=on"
-          begin=time.monotonic()
-          observed=subprocess.run(command,input=query,text=True,capture_output=True,timeout=45,env=environment,check=False)
-          query_seconds=time.monotonic()-begin
-          (OUT/"query.stdout").write_text(observed.stdout)
-          (OUT/"query.stderr").write_text(observed.stderr)
-          require(observed.returncode==0,"read-only persisted diagnostic query failed")
-          rows=json.loads(observed.stdout)
-          require(rows["profile"]["profile_id"]==PROFILE and rows["profile"]["error_count"]==102,"persisted profile diagnostic denominator differs")
-          require(len(rows["nodes"])==102,"exact ERROR/MISSING node count differs")
-          for row in rows["nodes"]:
-              item,data=files[int(row["artifact_index"])]
-              start,end=int(row["byte_start"]),int(row["byte_end"])
-              require(0<=start<=end<=len(data),"diagnostic span out of exact source bounds")
-              row.update(path=item["path"],file_sha256=item["sha256"],source_line=data[:start].count(b"\n")+1,
-                         grammar_symbol=symbol(row["grammar_kind"]),parent_symbol=symbol(row["parent_grammar_kind"]),
-                         grandparent_symbol=symbol(row["grandparent_grammar_kind"]),
-                         is_error=bool(int(row["syntax_flags"])&4),is_missing=bool(int(row["syntax_flags"])&2),
-                         diagnostic_byte_count=end-start)
-              lo=max(0,start-240);hi=min(len(data),max(start+480,min(end+240,start+1200)))
-              row["excerpt"]={"byte_start":lo,"byte_end":hi,"utf8_display":data[lo:hi].decode("utf-8",errors="replace"),"sha256":digest(data[lo:hi])}
-              row["classification"]="unclassified; byte context is diagnostic evidence, not executable semantics"
-          after=activation.observe_activation(BASE,OUT/"activation-after.json")
-          require(activation.stable_activation(before)==activation.stable_activation(after),"installed activation changed during read-only extraction")
-          save("diagnostics.json",{"schema":"laplace.stockfish-persisted-syntax-diagnostics/v1","status":"observed","source_profile_id":PROFILE,"manifest_sha256":digest(manifest_bytes),"qualified_artifact_sha256":digest(archive),"package_id":PACKAGE,"database_access":"repeatable-read read-only transaction; exact profile and ERROR/MISSING flags","query_seconds":query_seconds,"query_command":command,"symbol_lookup_error":symbol_error,"profile":rows["profile"],"diagnostic_count":len(rows["nodes"]),"activation_unchanged":True,"executable_semantics_verified":False,"nodes":rows["nodes"]})
-          print(json.dumps({"status":"observed","diagnostic_count":len(rows["nodes"]),"symbol_lookup_error":symbol_error,"output":str(OUT/"diagnostics.json")}))
+          mkdir "$EVIDENCE"
+          python3 - <<'PY'
+          import ast,hashlib,os
+          source=os.environ["OBSERVER_SOURCE"].encode()
+          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="84fa9212700b94567529a8131b73d8d731191eab"
+          ast.parse(source)
           PY
-      - name: Retain exact persisted diagnostic evidence
+          timeout --signal=TERM --kill-after=5s 180s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
+      - name: Retain the bounded read-only observation
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: stockfish-syntax-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.DIAGNOSTIC_EVIDENCE }}/
+          name: original-pg-crash-observer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE }}/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
