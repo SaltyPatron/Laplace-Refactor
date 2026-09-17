@@ -2335,7 +2335,14 @@
     "diagnostic": {
       "source_manifest": "0590e654c2b8b2f1171f12fdb215e377629bc87d",
       "scope": "Only after a failed strict comparison, report one ordered differing row, exact field names and both retained/expected values. Hex and decimal strings preserve identity. Successful upsert/verification SQL and all refusal conditions remain unchanged. Both selected physicality metadata records are observed before failure rollback with exact float8send encodings and no trajectory payload.",
-      "verification": "Existing real PostgreSQL mutation asserts that only syntax_flags differs; actual current-candidate qualification and installed diagnostic remain pending."
+      "verification": "Existing real PostgreSQL mutation asserts that only syntax_flags differs; actual current-candidate qualification and installed diagnostic remain pending.",
+      "compile_correction": {
+        "failed_run": 35194575145,
+        "failed_job": 105115958185,
+        "error": "Intel C compilation refused diagnostic string longer than4095bytes under unchanged Wpedantic/Werror.",
+        "repair": "Split exact diagnostic SQL into two literals and join only after a failed comparison; original query bytes and compiler flags unchanged.",
+        "source_blob": "05f450a3ec844107deb83acb2ac65acf22d618dc"
+      }
     },
     "remaining": [
       "Qualify the diagnostic and observe the exact installed witness mismatch.",

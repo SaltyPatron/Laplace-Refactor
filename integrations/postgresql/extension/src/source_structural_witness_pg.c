@@ -310,7 +310,7 @@ void laplace_pg_persist_source_structural_witnesses(
      * and report one exact differing row without changing stored evidence.
      * Capture both physicality records before the failing transaction rolls back;
      * float8send retains exact geometry bits, while trajectory payloads stay private. */
-    static const char witnesses_diagnose_sql[] =
+    static const char witnesses_diagnose_sql_prefix[] =
         "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM "
         "unnest($2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],$7::numeric[],$8::numeric[],$9::numeric"
         "[],$10::numeric[],$11::numeric[],$12::numeric[],$13::numeric[],$14::bytea[],$15::numeric[],$16::numeric[],$17:"
@@ -343,9 +343,10 @@ void laplace_pg_persist_source_structural_witnesses(
         "i.sibling_ordinal OR s.media_type<>i.media_type OR s.depth<>i.depth OR s.flags<>i.flags OR s.syntax_flags IS "
         "DISTINCT FROM i.syntax_flags OR s.canonical_physicality_id IS DISTINCT FROM (CASE WHEN i.byte_start=i.byte_end "
         "AND (i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_physicality_id END) ORDER BY "
-        "i.artifact_index,i.span_index LIMIT 1) SELECT jsonb_build_object('mismatched_fields',(SELECT jsonb_agg(key "
-        "ORDER BY key) FROM jsonb_each(expected) WHERE value IS DISTINCT FROM "
-        "stored->key),'expected',expected,'stored',stored,'expected_physicality',(SELECT "
+        "i.artifact_index,i.span_index LIMIT 1) ";
+    static const char witnesses_diagnose_sql_result[] =
+        "SELECT jsonb_build_object('mismatched_fields',(SELECT jsonb_agg(key ORDER BY key) FROM jsonb_each(expected) "
+        "WHERE value IS DISTINCT FROM stored->key),'expected',expected,'stored',stored,'expected_physicality',(SELECT "
         "jsonb_build_object('physicality_id',encode(p.physicality_id,'hex'),'entity_id',encode(p.entity_id,'hex'),'phys"
         "icality_type',p.physicality_type::text,'vertex_class',p.vertex_class::text,'recipe_version',p.recipe_version::"
         "text,'structural_form',p.structural_form::text,'dimension_count',p.dimension_count::text,'flags',p.flags::text"
@@ -621,9 +622,12 @@ void laplace_pg_persist_source_structural_witnesses(
             if (verification_status != SPI_OK_SELECT || mismatch_count != 0) {
                 char* first_mismatch = NULL;
                 if (verification_status == SPI_OK_SELECT && mismatch_count > 0) {
+                    char* diagnostic_sql = psprintf("%s%s",
+                        witnesses_diagnose_sql_prefix, witnesses_diagnose_sql_result);
                     const int diagnostic_status = SPI_execute_with_args(
-                        witnesses_diagnose_sql, 18, witness_types, witness_parameters,
+                        diagnostic_sql, 18, witness_types, witness_parameters,
                         NULL, false, 1);
+                    pfree(diagnostic_sql);
                     if (diagnostic_status == SPI_OK_SELECT &&
                         SPI_processed == 1u && SPI_tuptable != NULL) {
                         first_mismatch = SPI_getvalue(
