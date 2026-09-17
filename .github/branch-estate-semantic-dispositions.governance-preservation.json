@@ -1,5 +1,0 @@
-{
-  "schema": "laplace.branch-estate-semantic-dispositions/v1",
-  "rule": "Every entry is pinned to an exact live branch tip and is terminal only when stronger current authority or explicit repository history proves the branch no longer owns unique valid work.",
-  "entries": []
-}

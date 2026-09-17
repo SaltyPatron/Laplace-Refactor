@@ -1,7 +1,0 @@
-[Event "?"]
-[SetUp "1"]
-[FEN "r1bR2Q1/ppp3pp/4p1k1/2b1P1n1/1np1q3/5N2/PPP3PP/5R1K w - - 2 18"]
-
-18. Qe8+ Kh6 (18... Nf7 19. Rxc8 Qc6 20. Rxa8 Qxe8 (21. Rxe8 Kh5 22. Rd1 Ng5 23. Rd7))
-19. Nxg5 Kxg5
-*

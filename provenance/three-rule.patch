@@ -1,0 +1,56 @@
+--- a/grammar.js
++++ b/grammar.js
+@@ -618,8 +618,10 @@
+         $.operator_cast,
+         alias($.qualified_operator_cast_identifier, $.qualified_identifier),
+       )),
++      choice(
++        $.delete_method_clause,
++        seq(optional(seq('=', field('default_value', $.expression))), ';'),
++      ),
+-      optional(seq('=', field('default_value', $.expression))),
+-      ';',
+     )),
+ 
+     constructor_try_statement: $ => seq(
+@@ -851,11 +853,15 @@
+     using_declaration: $ => seq(
+       repeat($.attribute_declaration),
+       'using',
+-      optional(choice('namespace', 'enum')),
+       choice(
++        seq(
++          choice('namespace', 'enum'),
++          choice($.identifier, $.qualified_identifier, $.splice_type_specifier),
++        ),
++        seq(
++          choice($.identifier, $.qualified_identifier, $.splice_type_specifier),
++          optional('...'),
++        ),
+-        $.identifier,
+-        $.qualified_identifier,
+-        $.splice_type_specifier,
+       ),
+       ';',
+     ),
+@@ -939,7 +945,19 @@
+     // Using prec(1) instead of prec.dynamic(1) causes issues with the
+     // range loop's declaration specifiers if `int` is passed in, it'll
+     // always prefer the standard for loop and give us a parse error.
++    _for_statement_body: $ => prec.dynamic(1, seq(
++      choice(
++        field('initializer', $.declaration),
++        seq(field('initializer', optional(choice($.expression, $.comma_expression))), ';'),
++      ),
++      field('condition', optional(choice(
++        $.expression,
++        $.comma_expression,
++        alias($.condition_declaration, $.declaration),
++      ))),
++      ';',
++      field('update', optional(choice($.expression, $.comma_expression))),
++    )),
+-    _for_statement_body: ($, original) => prec.dynamic(1, original),
+     for_range_loop: $ => seq(
+       'for',
+       '(',

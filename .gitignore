@@ -1,27 +1,40 @@
-# Build products, logs, generated artifacts, and resolved dependency trees belong under
-# /opt/laplace. They are intentionally not ignored here: an accidental repository-local
-# output must be visible to Git rather than silently accumulating beneath the checkout.
+# Rust artifacts
+target/
 
-# Managed and web outputs
-**/bin/
-**/obj/
-**/node_modules/
-**/dist/
+# Node artifacts
+build/
+prebuilds/
+node_modules/
 
-# Python interpreter state
-**/__pycache__/
-*.py[cod]
+# Swift artifacts
+.build/
 
-# Editors and operating systems
-.vs/
-.vscode/
-.idea/
-*.user
-*.suo
-.DS_Store
-Thumbs.db
+# Go artifacts
+_obj/
 
-# Secrets and local machine state
-*.env
-*.secret
-local/
+# Python artifacts
+.venv/
+dist/
+*.egg-info
+*.whl
+
+# C artifacts
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.pc
+
+# Example dirs
+/examples/*/
+
+# Grammar volatiles
+*.wasm
+*.obj
+*.o
+
+# Archives
+*.tar.gz
+*.tgz
+*.zip

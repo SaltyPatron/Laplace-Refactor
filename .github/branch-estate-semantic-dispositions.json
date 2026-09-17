@@ -1,5 +1,0 @@
-{
-  "schema": "laplace.branch-estate-semantic-dispositions/v1",
-  "rule": "Every entry is pinned to an exact live branch tip. A disposition is valid only for that exact SHA and must be backed by current-code or repository-history evidence. Missing entries remain unresolved; branch names, age, and inactivity never imply retirement.",
-  "entries": []
-}

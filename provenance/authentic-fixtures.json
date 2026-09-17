@@ -1,0 +1,268 @@
+{
+  "schema": "laplace.prepared-cpp-grammar-cases/v1",
+  "status": "source-prepared-not-parser-executed",
+  "baseline_grammar": {
+    "commit": "8b5b49eb196bec7040441bee33b2c9a4838d6967",
+    "declared_lock_inputs": {
+      "external_scanners": [
+        {
+          "path": "src/scanner.c",
+          "sha256": "cf60387d290271f4d2fb558d0569b2b9ef879cb72206a9df5cc73b0b1a4b20ff"
+        }
+      ],
+      "generated_parsers": [
+        {
+          "path": "src/parser.c",
+          "sha256": "0007727b6e1fbc07657b6a4bf5dc39f524c6009fa347f9faaf180fa9ab17e999"
+        }
+      ],
+      "git_archive_sha256": "a162edeecfebe736bc561d826dd6d694b78ac970f70a1d4b6dbf5f07429a768a",
+      "verification_scope": "Values read from the frozen Refactor lock; parser/scanner/archive bytes were not independently rehashed in this classification review."
+    },
+    "lock_git_blob_sha1": "da364f3938a9d23fd54a1857431817c9b14a7453",
+    "lock_path": "dependencies/tree-sitter-grammars.lock.json",
+    "lock_repository_commit": "b042de4216e1d674effe5bd3e8ecf3ebc7aeddac",
+    "repository": "https://github.com/tree-sitter/tree-sitter-cpp",
+    "reviewed_source_files": [
+      {
+        "byte_count": 43970,
+        "git_blob_sha1": "ffbaf0f13b6bfd756635f50a484192f35f6fdd0e",
+        "path": "grammar.js",
+        "sha256": "4545b6bf72e8a38d3e9a6c9a3deb9dbce37dfce357133c1b9e3a172831234622",
+        "url": "https://github.com/tree-sitter/tree-sitter-cpp/blob/8b5b49eb196bec7040441bee33b2c9a4838d6967/grammar.js",
+        "verification": "exact UTF-8 bytes hashed and Git blob SHA1 matched to the locked upstream commit tree"
+      },
+      {
+        "byte_count": 458800,
+        "git_blob_sha1": "a091cbff0611375b03e738af6a438df6010ba9c3",
+        "path": "src/grammar.json",
+        "sha256": "3aa14b0b6ef87951ef9933d126f6d9774bc7d7dba11e7be1861820e381d36455",
+        "url": "https://github.com/tree-sitter/tree-sitter-cpp/blob/8b5b49eb196bec7040441bee33b2c9a4838d6967/src/grammar.json",
+        "verification": "exact UTF-8 bytes hashed and Git blob SHA1 matched to the locked upstream commit tree"
+      }
+    ],
+    "tree": "d5ed868917a07bcc8272f37e551d707e7a836f95"
+  },
+  "diagnostic_input": {
+    "activation_unchanged": true,
+    "authenticated_reader": {
+      "artifact_verification": "The hosted reader checked producer run, unexpired artifact metadata digest, exact downloaded archive size and SHA256 before reading diagnostics.json.",
+      "emitted_json_sha256": "e6126f1022e017ca175c497a4c449f796ccf9b0cdd160503b4df3cd17bca9ac8",
+      "hash_scope": "Exact emitted JSON bytes after the log prefix, excluding timestamp/prefix and terminal newline; not the raw artifact member digest.",
+      "job_id": 105043502755,
+      "log_prefix": "PERSISTED_SYNTAX_DIAGNOSTICS ",
+      "workflow_run_id": 35171351580
+    },
+    "database_access": "repeatable-read read-only transaction; exact profile and ERROR/MISSING flags",
+    "diagnostics": {
+      "artifact_byte_count": 331918,
+      "artifact_id": 10476716479,
+      "artifact_sha256": "f857f717882a5310f4828bfcc564b0fa0b29ffb3ebac2496d98521fb68bd7386",
+      "member": "diagnostics.json",
+      "schema": "laplace.stockfish-persisted-syntax-diagnostics/v1",
+      "workflow_head_commit": "557d468b41b1a42c66dbb35e795b45e009ce9ae6",
+      "workflow_run_id": 35168832815
+    },
+    "installed_package_id": "912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe",
+    "manifest_sha256": "2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc",
+    "persisted_profile_counts": {
+      "error_count": 102,
+      "lossy_count": 0,
+      "malformed_count": 0,
+      "profile_id": "2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
+      "unknown_count": 0,
+      "unsupported_count": 0
+    },
+    "qualified_corpus_artifact_sha256": "a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007",
+    "repository": "SaltyPatron/Laplace-Refactor",
+    "source_profile_id": "2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
+    "stockfish_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+    "stockfish_repository": "https://github.com/official-stockfish/Stockfish"
+  },
+  "interpretation": "Exact source excerpts plus explicit wrappers isolate syntax. Wrappers do not replace the original admitted source. No resolved types, executable equivalence or measured new diagnostic count.",
+  "cases": [
+    {
+      "id": "for-condition-declaration",
+      "status": "proposed-three-rule-correction",
+      "source_binding": {
+        "repository": "https://github.com/official-stockfish/Stockfish",
+        "commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+        "path": "src/attacks.h",
+        "file_sha256": "561d2eb1268ba66e7aa065387a033e686a49925d8e8c58a75826239a358cb1f5",
+        "first_line": 203,
+        "last_line": 208,
+        "byte_start": 7288,
+        "byte_end": 7469,
+        "excerpt_sha256": "3370c2a5017b2fe4bbc24ee6683e8195bfb64ba28ffc38b7dc0afb422ea84ca0",
+        "excerpt": "        for (Square s = sq; Bitboard dest = safe_destination(s, d); s += d)\n        {\n            attacks |= dest;\n            if (occupied & dest)\n                break;\n        }\n"
+      },
+      "parser_input": "void fixture() {\n        for (Square s = sq; Bitboard dest = safe_destination(s, d); s += d)\n        {\n            attacks |= dest;\n            if (occupied & dest)\n                break;\n        }\n}\n",
+      "parser_input_sha256": "4023dc8bbf2469a36f3bee637a2f5fb10030a8c06dca2a68fd713f9da7a48ff9",
+      "syntactic_assertions": [
+        "No ERROR/MISSING nodes",
+        "for_statement.condition is a declaration of dest with a call initializer",
+        "initializer Square s=sq and update s+=d remain separate fields"
+      ],
+      "semantic_equivalence_claimed": false
+    },
+    {
+      "id": "deleted-conversion-operator",
+      "status": "proposed-three-rule-correction",
+      "source_binding": {
+        "repository": "https://github.com/official-stockfish/Stockfish",
+        "commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+        "path": "src/movegen.h",
+        "file_sha256": "8180128aafed4aacdfc75999b17e7cb64da250b6c94b87e06a2e1bf65b3a6276",
+        "first_line": 46,
+        "last_line": 46,
+        "byte_start": 1238,
+        "byte_end": 1275,
+        "excerpt_sha256": "b2f71b45afe115a35e79787412d79464da3d9c48d0c95ea511a32116874980ae",
+        "excerpt": "    operator float() const = delete;\n"
+      },
+      "parser_input": "struct Conversion {\n    operator float() const = delete;\n};\n",
+      "parser_input_sha256": "a5609438a1d759a9d6d4bce141f823e83632b5d9208ca7e879737070efd7d2f7",
+      "syntactic_assertions": [
+        "No ERROR/MISSING nodes",
+        "One conversion operator declarator and one delete_method_clause",
+        "The delete clause consumes exactly one semicolon"
+      ],
+      "semantic_equivalence_claimed": false
+    },
+    {
+      "id": "using-pack-expansion",
+      "status": "proposed-three-rule-correction",
+      "source_binding": {
+        "repository": "https://github.com/official-stockfish/Stockfish",
+        "commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+        "path": "src/uci.cpp",
+        "file_sha256": "a31fa10719b1d9ecaa23f774f14a5a995be65eeb52722798c2f2bb4255991b21",
+        "first_line": 52,
+        "last_line": 55,
+        "byte_start": 1382,
+        "byte_end": 1464,
+        "excerpt_sha256": "e9107d1e3906211974b01e7990fd4aa41a0f740f6e124491e53937d27b55b783",
+        "excerpt": "template<typename... Ts>\nstruct overload: Ts... {\n    using Ts::operator()...;\n};\n"
+      },
+      "parser_input": "template<typename... Ts>\nstruct overload: Ts... {\n    using Ts::operator()...;\n};\n",
+      "parser_input_sha256": "e9107d1e3906211974b01e7990fd4aa41a0f740f6e124491e53937d27b55b783",
+      "syntactic_assertions": [
+        "No ERROR/MISSING nodes",
+        "Pack ellipsis belongs to using_declaration after qualified operator identifier",
+        "No broadening of using namespace/using enum to permit ellipsis"
+      ],
+      "semantic_equivalence_claimed": false
+    },
+    {
+      "id": "pointer-to-member-operator",
+      "status": "followup-required-no-pointer-rule-patch",
+      "source_binding": {
+        "repository": "https://github.com/official-stockfish/Stockfish",
+        "commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+        "path": "src/thread.h",
+        "file_sha256": "d39544eea0dc30fa6edd541f5f87ed06af554ba0364161ab04a78b4b9757a897",
+        "first_line": 175,
+        "last_line": 175,
+        "byte_start": 6011,
+        "byte_end": 6091,
+        "excerpt_sha256": "78cf60a12cd3a64732e37ea89af96449363ff6d6bfa3e80b4aa59656248968c5",
+        "excerpt": "            sum += (th->worker.get()->*member).load(std::memory_order_relaxed);\n"
+      },
+      "parser_input": "void fixture() {\n            sum += (th->worker.get()->*member).load(std::memory_order_relaxed);\n}\n",
+      "parser_input_sha256": "44d75f644aa649e0642f6c0f814d0152ea5f3b516cb1f12d0f77646e2902e69c",
+      "syntactic_assertions": [
+        "Currently unresolved by prepared three-rule patch",
+        "Future corrected parse retains binary pointer-member operator in parenthesized expression before .load call"
+      ],
+      "semantic_equivalence_claimed": false
+    }
+  ],
+  "controls": [
+    {
+      "id": "for-braced-condition",
+      "input": "void f() { for (; int value{next()}; ) {} }\n",
+      "expect": "No ERROR/MISSING after condition rule correction"
+    },
+    {
+      "id": "existing-range-loop",
+      "input": "void f() { for (int value : values) {} }\n",
+      "expect": "Existing for_range_loop remains a range loop"
+    },
+    {
+      "id": "existing-empty-for",
+      "input": "void f() { for (;;) {} }\n",
+      "expect": "No ERROR/MISSING"
+    },
+    {
+      "id": "broken-condition",
+      "input": "void f() { for (; int value = ; ) {} }\n",
+      "expect": "ERROR or MISSING retained"
+    },
+    {
+      "id": "conversion-pure-virtual",
+      "input": "struct C { virtual operator float() const = 0; };\n",
+      "expect": "Existing pure-virtual syntax remains accepted"
+    },
+    {
+      "id": "deleted-conversion-missing-semicolon",
+      "input": "struct C { operator float() const = delete };\n",
+      "expect": "ERROR or MISSING retained"
+    },
+    {
+      "id": "ordinary-using",
+      "input": "using Base::operator();\n",
+      "expect": "Existing using declaration remains accepted"
+    },
+    {
+      "id": "namespace-pack-not-admitted",
+      "input": "namespace N {} using namespace N...;\n",
+      "expect": "ERROR or MISSING retained"
+    },
+    {
+      "id": "enum-pack-not-admitted",
+      "input": "enum class E { a }; using enum E...;\n",
+      "expect": "ERROR or MISSING retained"
+    }
+  ],
+  "pointer_member_followup_controls": [
+    {
+      "expression": "p->*pm * k",
+      "shape": "multiply(pointer_member(p,pm),k)"
+    },
+    {
+      "expression": "k * p->*pm",
+      "shape": "multiply(k,pointer_member(p,pm))"
+    },
+    {
+      "expression": "(T*)p->*pm",
+      "shape": "pointer_member(cast(T*,p),pm)"
+    },
+    {
+      "expression": "*pp->*pm",
+      "shape": "pointer_member(dereference(pp),pm)"
+    },
+    {
+      "expression": "p->*pm1.*pm2",
+      "shape": "pointer_member(pointer_member(p,pm1),pm2)"
+    },
+    {
+      "expression": "object.*(choose() ? pm1 : pm2)",
+      "shape": "pointer_member(object,parenthesized_conditional)"
+    },
+    {
+      "expression": "object.*pm = 7",
+      "shape": "assignment(pointer_member(object,pm),7)"
+    },
+    {
+      "expression": "(p->*method)(arg)",
+      "shape": "call(parenthesized_pointer_member,[arg])"
+    }
+  ],
+  "execution_required": [
+    "Generate real parse tables, resolve actual conflicts and review exact CSTs",
+    "Run existing upstream inherited C and C++ corpora without blanket expectation updates",
+    "Run authentic snippets through canonical verified native source provider with exact readback and preserved negative diagnostics",
+    "Deliberately revert each repaired rule and observe its specific regression failure",
+    "After qualified installed provider, re-observe the same complete Stockfish bytes and compare all raw ERROR/MISSING coordinates; retain remaining categories and executable_semantics_verified=false"
+  ]
+}

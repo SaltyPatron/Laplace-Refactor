@@ -1,337 +1,58 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.13)
 
-include(cmake/LaplaceOutputBoundary.cmake)
-laplace_require_external_output(
-    "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+project(tree-sitter-cpp
+        VERSION "0.23.4"
+        DESCRIPTION "C++ grammar for tree-sitter"
+        HOMEPAGE_URL "https://github.com/tree-sitter/tree-sitter-cpp"
+        LANGUAGES C)
 
-project(Laplace VERSION 1.0.0 LANGUAGES C CXX)
+option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
+option(TREE_SITTER_REUSE_ALLOCATOR "Reuse the library allocator" OFF)
 
-include(CTest)
+set(TREE_SITTER_ABI_VERSION 14 CACHE STRING "Tree-sitter ABI version")
+if(NOT ${TREE_SITTER_ABI_VERSION} MATCHES "^[0-9]+$")
+    unset(TREE_SITTER_ABI_VERSION CACHE)
+    message(FATAL_ERROR "TREE_SITTER_ABI_VERSION must be an integer")
+endif()
+
+find_program(TREE_SITTER_CLI tree-sitter DOC "Tree-sitter CLI")
+
+add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/src/parser.c"
+                   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/grammar.json"
+                   COMMAND "${TREE_SITTER_CLI}" generate src/grammar.json
+                            --abi=${TREE_SITTER_ABI_VERSION}
+                   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                   COMMENT "Generating parser.c")
+
+add_library(tree-sitter-cpp src/parser.c)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/scanner.c)
+  target_sources(tree-sitter-cpp PRIVATE src/scanner.c)
+endif()
+target_include_directories(tree-sitter-cpp PRIVATE src)
+
+target_compile_definitions(tree-sitter-cpp PRIVATE
+                           $<$<BOOL:${TREE_SITTER_REUSE_ALLOCATOR}>:TREE_SITTER_REUSE_ALLOCATOR>
+                           $<$<CONFIG:Debug>:TREE_SITTER_DEBUG>)
+
+set_target_properties(tree-sitter-cpp
+                      PROPERTIES
+                      C_STANDARD 11
+                      POSITION_INDEPENDENT_CODE ON
+                      SOVERSION "${TREE_SITTER_ABI_VERSION}.${PROJECT_VERSION_MAJOR}"
+                      DEFINE_SYMBOL "")
+
+configure_file(bindings/c/tree-sitter-cpp.pc.in
+               "${CMAKE_CURRENT_BINARY_DIR}/tree-sitter-cpp.pc" @ONLY)
+
 include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
 
-set(CMAKE_C_STANDARD 17)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+install(FILES bindings/c/tree-sitter-cpp.h
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/tree_sitter")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/tree-sitter-cpp.pc"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig")
+install(TARGETS tree-sitter-cpp
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 
-set(LAPLACE_BLAKE3_SOURCE "" CACHE PATH "Verified upstream BLAKE3 C source directory")
-set(LAPLACE_GTEST_SOURCE "" CACHE PATH "Verified upstream GoogleTest source directory")
-set(LAPLACE_EIGEN_SOURCE "" CACHE PATH "Verified upstream Eigen source directory")
-set(LAPLACE_SPECTRA_SOURCE "" CACHE PATH "Verified upstream Spectra source directory")
-set(LAPLACE_PG_CONFIG "" CACHE FILEPATH "PostgreSQL pg_config for the server extension profile")
-set(LAPLACE_PG_PHYSICAL_ROOT "" CACHE PATH
-    "Optional staging root used to resolve absolute logical paths reported by pg_config")
-set(LAPLACE_SOURCE_ESTATE_ROOT
-    "/vault/Data"
-    CACHE PATH "Existing local Laplace source estate root; this is not an acquisition or download location")
-set(LAPLACE_UNICODE_SOURCE_ROOT
-    "${LAPLACE_SOURCE_ESTATE_ROOT}/UCD/Public/UCD/latest"
-    CACHE PATH "Pinned Unicode source-data root used by the root producer and conformance tests")
-set(LAPLACE_ISO_639_SOURCE_ROOT
-    "${LAPLACE_SOURCE_ESTATE_ROOT}/ISO639"
-    CACHE PATH "Locked ISO 639 Set 3 source-profile artifact root")
-set(LAPLACE_CILI_SOURCE_ROOT
-    "${LAPLACE_SOURCE_ESTATE_ROOT}/CILI"
-    CACHE PATH "Locked CILI PWN mapping source-profile artifact root")
-option(LAPLACE_ENABLE_DOTNET_BINDINGS
-    "Generate and build the .NET 10 typed ISA orchestration surface" OFF)
-set(LAPLACE_DEPENDENCY_LOCK
-    "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/lock.json"
-    CACHE FILEPATH "Laplace dependency lock")
-set(LAPLACE_INSTALLED_PROVIDER_LOCK
-    "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/installed-lock.json"
-    CACHE FILEPATH "Selected installed-provider byte lock")
-set(LAPLACE_PRODUCT_RECEIPT "" CACHE FILEPATH
-    "Accepted product receipt used to compose a standalone customer installer")
-set(LAPLACE_INSTALLER_OUTPUT_DIRECTORY
-    "/build/laplace/runner/product/installers"
-    CACHE PATH "Persistent output root for standalone customer installer bundles")
-set(LAPLACE_INSTALLER_ARCHIVE
-    "${CMAKE_CURRENT_BINARY_DIR}/laplace-product-installer.tar"
-    CACHE FILEPATH "Deterministic standalone customer installer archive")
-option(LAPLACE_VERIFY_ONEAPI_INSTALLED_PROVIDER
-    "Verify and enable the exact selected installed oneAPI execution provider"
-    OFF)
-
-include(cmake/LaplaceDependencyLock.cmake)
-include(cmake/LaplaceOneApiProvider.cmake)
-laplace_configure_oneapi_provider()
-
-if(NOT IS_ABSOLUTE "${LAPLACE_BLAKE3_SOURCE}")
-    message(FATAL_ERROR "LAPLACE_BLAKE3_SOURCE must be an absolute verified source path")
-endif()
-if(NOT EXISTS "${LAPLACE_BLAKE3_SOURCE}/blake3.c"
-   OR NOT EXISTS "${LAPLACE_BLAKE3_SOURCE}/blake3.h"
-   OR NOT EXISTS "${LAPLACE_BLAKE3_SOURCE}/CMakeLists.txt")
-    message(FATAL_ERROR "LAPLACE_BLAKE3_SOURCE does not contain the upstream C distribution")
-endif()
-get_filename_component(LAPLACE_BLAKE3_ROOT "${LAPLACE_BLAKE3_SOURCE}" DIRECTORY)
-laplace_verify_git_dependency(
-    blake3 "${LAPLACE_BLAKE3_ROOT}" "${LAPLACE_DEPENDENCY_LOCK}")
-
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static internal dependencies" FORCE)
-include(cmake/LaplaceBlake3.cmake)
-laplace_configure_blake3_provider()
-add_subdirectory("${LAPLACE_BLAKE3_SOURCE}" "${CMAKE_BINARY_DIR}/dependencies/blake3" EXCLUDE_FROM_ALL)
-
-include(cmake/LaplaceIdentityContract.cmake)
-laplace_configure_identity_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/identity.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/identity.h")
-
-include(cmake/LaplacePerfcacheContract.cmake)
-laplace_configure_perfcache_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/perfcache.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/perfcache.h")
-
-include(cmake/LaplaceTrajectoryContract.cmake)
-laplace_configure_trajectory_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/trajectory.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/trajectory.h")
-
-include(cmake/LaplaceIsaContract.cmake)
-laplace_configure_isa_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/isa.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/isa.h")
-
-include(cmake/LaplaceExecutionContract.cmake)
-laplace_configure_execution_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/execution.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/execution.h")
-
-include(cmake/LaplaceFrameworkContract.cmake)
-laplace_configure_framework_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/framework.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/framework.h")
-
-include(cmake/LaplacePersistenceContract.cmake)
-laplace_configure_persistence_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/persistence.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/persistence.h")
-
-include(cmake/LaplaceEvidenceLineageContract.cmake)
-laplace_configure_evidence_lineage_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/evidence-lineage.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/evidence_lineage.h")
-include(cmake/LaplaceEvidenceTestimonyContract.cmake)
-laplace_configure_evidence_testimony_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/evidence-testimony.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/evidence_testimony.h")
-include(cmake/LaplaceStandingCalculationContract.cmake)
-laplace_configure_standing_calculation_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/standing-calculation.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/standing_calculation.h")
-include(cmake/LaplaceStockRecipeContract.cmake)
-laplace_configure_stock_recipe_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/stock-recipe.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/stock_recipe.h")
-include(cmake/LaplaceReferenceTopologyContract.cmake)
-laplace_configure_reference_topology_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-topology.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/reference_topology.h")
-include(cmake/LaplaceReferenceMappingContract.cmake)
-laplace_configure_reference_mapping_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/reference-mapping.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/reference_mapping.h")
-include(cmake/LaplaceQuerySearchContract.cmake)
-laplace_configure_query_search_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/query-search.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h")
-include(cmake/LaplaceCognitionGuidanceContract.cmake)
-laplace_configure_cognition_guidance_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-guidance.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_guidance.h")
-include(cmake/LaplaceCognitionOperatorContract.cmake)
-laplace_configure_cognition_operator_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-operator.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_operator.h")
-include(cmake/LaplaceCognitionSolverContract.cmake)
-laplace_configure_cognition_solver_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/cognition-solver.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_solver.h")
-include(cmake/LaplaceSourceProfileContract.cmake)
-laplace_configure_source_profile_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/source-profile-execution.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/source_profile.h")
-include(cmake/LaplaceWorldAdmissionContract.cmake)
-laplace_configure_world_admission_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/world-admission-execution.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/world_admission.h")
-include(cmake/LaplaceTabularSourceContract.cmake)
-laplace_configure_tabular_source_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/tabular-source.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/tabular_source.h")
-include(cmake/LaplaceTabularSourceProfile.cmake)
-laplace_compile_tabular_source_profile(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/iso-639-3-20260415.json"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/iso_639_3_20260415_profile.h")
-laplace_compile_tabular_source_profile(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/cili-pwn-mappings-20240611.json"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/cili_pwn_mappings_20240611_profile.h")
-laplace_compile_tabular_source_profile(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/sources/cili-pwn-mappings-20260903.json"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-tabular-source-profile.py"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/source/cili_pwn_mappings_20260903_profile.h")
-
-include(cmake/LaplaceCompositionContract.cmake)
-laplace_configure_composition_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/composition.json"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/composition.h")
-
-include(cmake/LaplaceHighwayContract.cmake)
-laplace_configure_highway_contract(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/highway.json"
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts/history/highway-v1.json"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-highway.py"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated")
-
-include(cmake/LaplaceUnicodeSource.cmake)
-laplace_configure_unicode_source(
-    "${CMAKE_CURRENT_SOURCE_DIR}/contracts"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/contracts/generate-unicode-source.py"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/unicode-source-manifest.h")
-
-add_subdirectory(engine)
-target_sources(laplace_engine PRIVATE
-    engine/src/query_search.cpp
-    engine/src/cognition_guidance.cpp
-    engine/src/cognition_operator.cpp
-    engine/src/cognition_solver.cpp
-    engine/src/cognition_runtime.cpp
-    engine/src/cognition_packet.cpp
-    engine/src/cognition_packet_words.cpp
-    engine/src/cognition_packet_compile.cpp)
-add_library(Laplace::QuerySearch ALIAS laplace_engine)
-add_library(Laplace::CognitionGuidance ALIAS laplace_engine)
-add_library(Laplace::CognitionOperator ALIAS laplace_engine)
-add_library(Laplace::CognitionSolver ALIAS laplace_engine)
-install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/query_search.h"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_guidance.h"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_operator.h"
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/laplace/contract/cognition_solver.h"
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/laplace/contract")
-
-if(LAPLACE_ENABLE_DOTNET_BINDINGS)
-    include(cmake/LaplaceDotnetBindings.cmake)
-    laplace_configure_dotnet_bindings(
-        "${CMAKE_CURRENT_SOURCE_DIR}/contracts/isa.json"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/bindings/generate-dotnet.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/managed/Laplace.Managed/Laplace.Managed.csproj"
-        "${LAPLACE_HIGHWAY_GENERATED_CSHARP}")
-endif()
-
-if(LAPLACE_PG_CONFIG)
-    include(cmake/LaplacePostgreSQL.cmake)
-    laplace_discover_postgresql("${LAPLACE_PG_CONFIG}")
-    add_subdirectory(integrations/postgresql/extension)
-    target_sources(laplace_pg PRIVATE
-        integrations/postgresql/extension/src/cognition_pg.c)
-    file(READ
-        "${CMAKE_CURRENT_SOURCE_DIR}/integrations/postgresql/extension/cognition.sql"
-        LAPLACE_COGNITION_POSTGRES_SQL)
-    file(APPEND "${LAPLACE_POSTGRES_EXTENSION_SQL}"
-        "\n${LAPLACE_COGNITION_POSTGRES_SQL}\n")
-endif()
-
-add_subdirectory(tools)
-
-if(LAPLACE_PRODUCT_RECEIPT)
-    if(NOT IS_ABSOLUTE "${LAPLACE_PRODUCT_RECEIPT}"
-       OR NOT EXISTS "${LAPLACE_PRODUCT_RECEIPT}")
-        message(FATAL_ERROR
-            "LAPLACE_PRODUCT_RECEIPT must name an existing absolute accepted receipt")
-    endif()
-    if(NOT IS_ABSOLUTE "${LAPLACE_INSTALLER_OUTPUT_DIRECTORY}")
-        message(FATAL_ERROR
-            "LAPLACE_INSTALLER_OUTPUT_DIRECTORY must be an absolute persistent path")
-    endif()
-    if(NOT IS_ABSOLUTE "${LAPLACE_INSTALLER_ARCHIVE}")
-        message(FATAL_ERROR "LAPLACE_INSTALLER_ARCHIVE must be an absolute path")
-    endif()
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
-    add_custom_target(laplace_product_installer
-        COMMAND "${Python3_EXECUTABLE}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/delivery/product_distribution.py"
-            build
-            --repository "${CMAKE_CURRENT_SOURCE_DIR}"
-            --product-receipt "${LAPLACE_PRODUCT_RECEIPT}"
-            --output-directory "${LAPLACE_INSTALLER_OUTPUT_DIRECTORY}"
-            --archive-output "${LAPLACE_INSTALLER_ARCHIVE}"
-            --result "${CMAKE_CURRENT_BINARY_DIR}/laplace-product-installer-selection.json"
-        VERBATIM
-        COMMENT "Compose a source-checkout-free Laplace product installer")
-endif()
-
-if(BUILD_TESTING)
-    if(NOT IS_ABSOLUTE "${LAPLACE_GTEST_SOURCE}")
-        message(FATAL_ERROR "LAPLACE_GTEST_SOURCE must be an absolute verified source path when BUILD_TESTING=ON")
-    endif()
-    if(NOT EXISTS "${LAPLACE_GTEST_SOURCE}/CMakeLists.txt")
-        message(FATAL_ERROR "LAPLACE_GTEST_SOURCE does not contain GoogleTest")
-    endif()
-    laplace_verify_git_dependency(
-        googletest "${LAPLACE_GTEST_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
-    foreach(math_dependency IN ITEMS EIGEN SPECTRA)
-        if(NOT IS_ABSOLUTE "${LAPLACE_${math_dependency}_SOURCE}")
-            message(FATAL_ERROR
-                "LAPLACE_${math_dependency}_SOURCE must be an absolute verified source path when BUILD_TESTING=ON")
-        endif()
-    endforeach()
-    if(NOT EXISTS "${LAPLACE_EIGEN_SOURCE}/Eigen/Core")
-        message(FATAL_ERROR "LAPLACE_EIGEN_SOURCE does not contain Eigen")
-    endif()
-    if(NOT EXISTS "${LAPLACE_SPECTRA_SOURCE}/include/Spectra/SymEigsSolver.h")
-        message(FATAL_ERROR "LAPLACE_SPECTRA_SOURCE does not contain Spectra")
-    endif()
-    laplace_verify_git_dependency(
-        eigen "${LAPLACE_EIGEN_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
-    laplace_verify_git_dependency(
-        spectra "${LAPLACE_SPECTRA_SOURCE}" "${LAPLACE_DEPENDENCY_LOCK}")
-    set(INSTALL_GTEST OFF CACHE BOOL "Do not install internal test dependency" FORCE)
-    add_subdirectory("${LAPLACE_GTEST_SOURCE}" "${CMAKE_BINARY_DIR}/dependencies/googletest" EXCLUDE_FROM_ALL)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
-        include(cmake/LaplaceDependencyCompiler.cmake)
-        foreach(google_test_target IN ITEMS gtest gtest_main)
-            laplace_remove_dependency_compile_flag(
-                "${google_test_target}" "-Winline"
-                "IntelLLVM 2026.1 rejects GoogleTest 1.18.0's Clang-family strict flag")
-        endforeach()
-        laplace_add_dependency_compile_option(
-            gtest "-Wno-deprecated-declarations"
-            "IntelLLVM reports a libstdc++ stable_sort implementation detail used while compiling GoogleTest 1.18.0")
-    endif()
-    add_subdirectory(tests)
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/query_search.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_guidance.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_operator.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/cognition_solver.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/decomposition_orchestration.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_occurrence.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/composition_frontier_benchmark.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/tests/finish_line_program.cmake")
-endif()
-
-configure_package_config_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/LaplaceConfig.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/LaplaceConfig.cmake"
-    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Laplace")
-write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/LaplaceConfigVersion.cmake"
-    VERSION "${PROJECT_VERSION}"
-    COMPATIBILITY SameMajorVersion)
-install(EXPORT LaplaceTargets
-    FILE LaplaceTargets.cmake
-    NAMESPACE Laplace::
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Laplace")
-install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/LaplaceConfig.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/LaplaceConfigVersion.cmake"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Laplace")
+add_custom_target(ts-test "${TREE_SITTER_CLI}" test
+                  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                  COMMENT "tree-sitter test")

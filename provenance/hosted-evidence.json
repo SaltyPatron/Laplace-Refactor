@@ -1,0 +1,344 @@
+{
+  "schema": "laplace.cpp-grammar-hosted-evidence/v1",
+  "status": "passed-hosted-syntax-experiment-only",
+  "experiment": {
+    "run_id": 35181390710,
+    "job_id": 105074088139,
+    "head": "dba90fd7fc9bc735bca712f2c7ecc0fcacb24e6e",
+    "elapsed_seconds": 253.548,
+    "artifact_id": 10480207378,
+    "artifact_bytes": 14413749,
+    "artifact_sha256": "043f838112100a2889eb28c29dea0de1f8a3bb619a45f6f79bdd273f9ece2cfb",
+    "report_member": "report.json"
+  },
+  "reader": {
+    "run_id": 35181733196,
+    "job_id": 105075146319,
+    "head": "c8012bd95f92bfbf573255310a4d442553b38fee",
+    "archive_and_report_member_authenticated": true,
+    "emitted_json_sha256": "7a6d1af5fce61654a8e4401c87b391bddff9d04401576100644ff2127e4a6e23",
+    "hash_scope": "exact JSON bytes following GRAMMAR_EXPERIMENT_REPORT log prefix, excluding timestamp and newline; not raw artifact report member"
+  },
+  "source_proposal_manifest": "2eb692ea78e870f0d8e2a1e375f6443c310bc3f3",
+  "corrected_script_blob": "b2f5d78e2fca62b4d2e7815a6abf4d8b76f6c460",
+  "workflow_blob": "12f1dc91369cc6aa1c9bffad6799b16df09adf87",
+  "sources": {
+    "c": {
+      "archive": {
+        "bytes": 4812800,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/hosted-cpp-grammar-experiment/evidence/sources/c.tar",
+        "sha256": "6e90673e7c6a8e9f0fae3883d730c59d5d8d8a44634a9499e064858681828ebd"
+      },
+      "commit": "7fa1be1b694b6e763686793d97da01f36a0e5c12",
+      "repository": "tree-sitter/tree-sitter-c",
+      "tree": "5392349d60304fc2920be64ac9aa5410c0f8c385"
+    },
+    "cpp": {
+      "archive": {
+        "bytes": 27054080,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/hosted-cpp-grammar-experiment/evidence/sources/cpp.tar",
+        "sha256": "a162edeecfebe736bc561d826dd6d694b78ac970f70a1d4b6dbf5f07429a768a"
+      },
+      "commit": "8b5b49eb196bec7040441bee33b2c9a4838d6967",
+      "repository": "tree-sitter/tree-sitter-cpp",
+      "tree": "d5ed868917a07bcc8272f37e551d707e7a836f95"
+    },
+    "generator": {
+      "archive": {
+        "bytes": 4341760,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/hosted-cpp-grammar-experiment/evidence/sources/generator.tar",
+        "sha256": "aeec1600189c9036d606401b6069b51bf2c1805d308ab0aad06ba3341ba657fe"
+      },
+      "commit": "470813116b99578956e67abb7138e993833af67a",
+      "repository": "tree-sitter/tree-sitter",
+      "tree": "f26d8ff7b7c569815c8118724fad05d473c01b7e"
+    }
+  },
+  "generator": {
+    "binary": {
+      "bytes": 12470680,
+      "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/hosted-cpp-grammar-experiment/work/cargo-target/release/tree-sitter",
+      "sha256": "83d9f2f0348b132a20a8de92863322cdfc65661fb623976ce6416cf612e9ea5e"
+    },
+    "cargo_lock": {
+      "bytes": 74045,
+      "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/hosted-cpp-grammar-experiment/work/generator/Cargo.lock",
+      "sha256": "f6fa698ef13b94dc86c8993b1169c4d9c90f4a9cd60980cc0470bb0ad7a4e033"
+    },
+    "generated_abi": 15,
+    "javascript_runtime": "node",
+    "version_output": "tree-sitter 0.26.5"
+  },
+  "results": {
+    "generation_conflicts_reported": false,
+    "generation": [
+      {
+        "label": "regenerated-baseline-generate",
+        "argv": [
+          "/home/runner/work/Laplace-Refactor/Laplace-Refactor/hosted-cpp-grammar-experiment/work/cargo-target/release/tree-sitter",
+          "generate",
+          "--abi",
+          "15",
+          "--js-runtime",
+          "node",
+          "--json-summary"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 37.153,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      {
+        "label": "candidate-generate",
+        "argv": [
+          "/home/runner/work/Laplace-Refactor/Laplace-Refactor/hosted-cpp-grammar-experiment/work/cargo-target/release/tree-sitter",
+          "generate",
+          "--abi",
+          "15",
+          "--js-runtime",
+          "node",
+          "--json-summary"
+        ],
+        "returncode": 0,
+        "elapsed_seconds": 37.105,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      }
+    ],
+    "inherited_c_corpus": {
+      "command_returncode": 0,
+      "parse_outcomes": {
+        "Passed": 85
+      },
+      "passed": true,
+      "selection": "unfiltered upstream test directory; actual completed counts retained",
+      "summary_present": true,
+      "update_requested": false
+    },
+    "cpp_corpora": {
+      "candidate": {
+        "command_returncode": 0,
+        "parse_outcomes": {
+          "Passed": 198
+        },
+        "passed": true,
+        "selection": "unfiltered upstream test directory; actual completed counts retained",
+        "summary_present": true,
+        "update_requested": false
+      },
+      "locked": {
+        "command_returncode": 0,
+        "parse_outcomes": {
+          "Passed": 198
+        },
+        "passed": true,
+        "selection": "unfiltered upstream test directory; actual completed counts retained",
+        "summary_present": true,
+        "update_requested": false
+      },
+      "regenerated-baseline": {
+        "command_returncode": 0,
+        "parse_outcomes": {
+          "Passed": 198
+        },
+        "passed": true,
+        "selection": "unfiltered upstream test directory; actual completed counts retained",
+        "summary_present": true,
+        "update_requested": false
+      }
+    },
+    "upstream_parse_executions": 679,
+    "unique_upstream_parse_cases": 283,
+    "cst_executions": 63,
+    "cases_per_variant": 21,
+    "explicit_assertions_passed": 34,
+    "explicit_assertions_total": 34,
+    "baseline_regeneration_cst_parity": true,
+    "unpatched_pointer_member_cst_parity": true,
+    "generated_grammar_comparison": {
+      "baseline_matches_locked_json": true,
+      "changed_rules": [
+        "_for_statement_body",
+        "operator_cast_declaration",
+        "using_declaration"
+      ],
+      "other_properties_match": true
+    },
+    "candidate_authentic_targets": [
+      {
+        "baseline_failure_is_deliberate_counterexample": false,
+        "case": "for-condition-declaration",
+        "passed": true,
+        "result": {
+          "checks": {
+            "condition_declaration": true,
+            "distinct_initializer_update": true,
+            "no_error_or_missing": true
+          },
+          "error_node_count": 0,
+          "missing_node_count": 0,
+          "valid": true
+        },
+        "variant": "candidate"
+      },
+      {
+        "baseline_failure_is_deliberate_counterexample": false,
+        "case": "deleted-conversion-operator",
+        "passed": true,
+        "result": {
+          "checks": {
+            "no_error_or_missing": true,
+            "one_conversion": true,
+            "one_delete_clause_semicolon": true
+          },
+          "error_node_count": 0,
+          "missing_node_count": 0,
+          "valid": true
+        },
+        "variant": "candidate"
+      },
+      {
+        "baseline_failure_is_deliberate_counterexample": false,
+        "case": "using-pack-expansion",
+        "passed": true,
+        "result": {
+          "checks": {
+            "ellipsis_in_using": true,
+            "no_error_or_missing": true,
+            "qualified_operator": true
+          },
+          "error_node_count": 0,
+          "missing_node_count": 0,
+          "valid": true
+        },
+        "variant": "candidate"
+      }
+    ],
+    "candidate_negative_controls": [
+      {
+        "baseline_failure_is_deliberate_counterexample": false,
+        "case": "broken-condition",
+        "passed": true,
+        "result": {
+          "checks": {
+            "no_error_or_missing": false
+          },
+          "error_node_count": 0,
+          "missing_node_count": 1,
+          "valid": false
+        },
+        "variant": "candidate"
+      },
+      {
+        "baseline_failure_is_deliberate_counterexample": false,
+        "case": "deleted-conversion-missing-semicolon",
+        "passed": true,
+        "result": {
+          "checks": {
+            "no_error_or_missing": false
+          },
+          "error_node_count": 0,
+          "missing_node_count": 1,
+          "valid": false
+        },
+        "variant": "candidate"
+      },
+      {
+        "baseline_failure_is_deliberate_counterexample": false,
+        "case": "namespace-pack-not-admitted",
+        "passed": true,
+        "result": {
+          "checks": {
+            "no_error_or_missing": false
+          },
+          "error_node_count": 1,
+          "missing_node_count": 0,
+          "valid": false
+        },
+        "variant": "candidate"
+      },
+      {
+        "baseline_failure_is_deliberate_counterexample": false,
+        "case": "enum-pack-not-admitted",
+        "passed": true,
+        "result": {
+          "checks": {
+            "no_error_or_missing": false
+          },
+          "error_node_count": 1,
+          "missing_node_count": 0,
+          "valid": false
+        },
+        "variant": "candidate"
+      }
+    ],
+    "failures": []
+  },
+  "candidate_generated_files": [
+    {
+      "path": "grammar.js",
+      "bytes": 44564,
+      "sha256": "3a47547ab927ff4262d7c760ca6df6f86e1c56012848867c17f24ba7e1360bd1"
+    },
+    {
+      "path": "src/grammar.json",
+      "bytes": 460858,
+      "sha256": "58ea3ae4c0952319a5f72e703ad7411406690afa9b881dbd1d9e741c110b5766"
+    },
+    {
+      "path": "src/node-types.json",
+      "bytes": 164589,
+      "sha256": "ae67d1ea3c71f074d2ba17e223fae31f0c099534c0c8df54bdecbf679cb30bae"
+    },
+    {
+      "path": "src/parser.c",
+      "bytes": 25906544,
+      "sha256": "7c07d847115c87936f04a3cbf7999ea996ba0d0b1759e069667dad365e8a7ba5"
+    },
+    {
+      "path": "src/scanner.c",
+      "bytes": 5169,
+      "sha256": "cf60387d290271f4d2fb558d0569b2b9ef879cb72206a9df5cc73b0b1a4b20ff"
+    },
+    {
+      "path": "src/tree_sitter/parser.h",
+      "bytes": 7624,
+      "sha256": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2"
+    },
+    {
+      "path": "src/tree_sitter/alloc.h",
+      "bytes": 985,
+      "sha256": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea"
+    },
+    {
+      "path": "src/tree_sitter/array.h",
+      "bytes": 13720,
+      "sha256": "4483dc3d37ab62fc8cabd5cfbd7de8267a2b1e3b12da3a90a5b8b324dacd5498"
+    }
+  ],
+  "baseline_parser_sha256": "0007727b6e1fbc07657b6a4bf5dc39f524c6009fa347f9faaf180fa9ab17e999",
+  "regenerated_baseline_parser_sha256": "0007727b6e1fbc07657b6a4bf5dc39f524c6009fa347f9faaf180fa9ab17e999",
+  "retained_first_failure": {
+    "run_id": 35180850248,
+    "job_id": 105072465147,
+    "artifact_id": 10480492200,
+    "artifact_sha256": "f76bd3a562b722493fbadd3571fba784b37d47163b99c485dd7ce850a68eb078",
+    "driver_cause": "--show-fields forced field labels into actual upstream corpus expectations; 525/525 mismatches equal expected strings under exact upstream strip_sexp_fields transformation.",
+    "correction": "Removed only --show-fields; no grammar/fixture/expectation changes."
+  },
+  "boundaries": {
+    "current_clean_git_qualifier_not_invoked": true,
+    "canonical_provider_not_promoted": true,
+    "canonical_lock_unchanged": true,
+    "installed_runtime_0_26_13_not_qualified": true,
+    "stockfish119_not_reparsed": true,
+    "historical102_diagnostics_not_recounted": true,
+    "pointer_member_fix_included": false,
+    "executable_semantics_verified": false
+  },
+  "next_selected_design": "Generic authenticated source derivation in existing dependency/grammar owner, binding upstream archive, patch digest, generator and inherited C identity, generated source digests and explicit derivative provider identity; no source implementation or selector changes in this review."
+}

@@ -1,0 +1,64 @@
+{
+  "schema": "laplace.prepared-cpp-grammar-correction/v1",
+  "status": "unpublished-source-proposal-not-qualified-parser",
+  "refactor_base_commit": "2e62b2260a145de41596c7f4ab2c4aff65e07352",
+  "observed_official_cpp_master": "8b5b49eb196bec7040441bee33b2c9a4838d6967",
+  "official_master_equals_selected_lock": true,
+  "patched_rules": [
+    "_for_statement_body",
+    "operator_cast_declaration",
+    "using_declaration"
+  ],
+  "pointer_member_fix_included": false,
+  "assets": [
+    {
+      "name": "three-rule-candidate.grammar.js",
+      "owner_repository": "tree-sitter/tree-sitter-cpp",
+      "owner_path": "grammar.js",
+      "base_git_blob": "ffbaf0f13b6bfd756635f50a484192f35f6fdd0e",
+      "git_blob_sha": "c0cc5faedb20c5f0925375eacb2f612501fcc51b",
+      "sha256": "3a47547ab927ff4262d7c760ca6df6f86e1c56012848867c17f24ba7e1360bd1",
+      "bytes": 44564
+    },
+    {
+      "name": "three-rule-correction.patch",
+      "git_blob_sha": "48fa8889b7a9e64304dc2e38dcfdba044cc162c8",
+      "sha256": "f8ee9de5eb9de1e2b96fa6d5db0a110fbb9d6e1c8df017793ceb45e56c409d12",
+      "bytes": 1852
+    },
+    {
+      "name": "authentic-cpp-grammar-fixtures.json",
+      "git_blob_sha": "35b958c279832720f390602d1f347bcf63b7da7f",
+      "sha256": "9b34692c98169799fdf932951ed26f65c1396f996bf9be6728c63fd0990a2723",
+      "bytes": 12297
+    },
+    {
+      "name": "cpp-grammar-provider-correction-proposal.txt",
+      "git_blob_sha": "96ba485e50320ee5690689ac337ba76337d3eb6f",
+      "sha256": "de328f3cbac1aa268709874ad61b781d199dc95e099e2a8e279a15517434e26f",
+      "bytes": 9180
+    }
+  ],
+  "checks": {
+    "source_files_sha256_match_authenticated_report": true,
+    "combined_patch_application_to_exact_base": true,
+    "actual_upstream_dsl_construction": true,
+    "baseline_rules_match_official_grammar_json": 326,
+    "candidate_rule_count": 326,
+    "changed_rule_count": 3,
+    "lr_generation_executed": false,
+    "parser_execution_completed": false,
+    "full_stockfish_reparse_completed": false,
+    "refs_mutated": false,
+    "host_jobs_started": false,
+    "executable_semantics_verified": false
+  },
+  "generation_authority": {
+    "cpp_package_lock_cli": "0.26.5",
+    "inherited_c_package": "0.24.1",
+    "inherited_c_tag_commit": "7fa1be1b694b6e763686793d97da01f36a0e5c12",
+    "refactor_runtime_revision": "d97971e24500218865c05ed1febdee2acf41bae1",
+    "refactor_runtime_version": "v0.26.13",
+    "note": "Generator package lock and independently selected runtime are separate identities. No generated parser or new pin is supplied."
+  }
+}
