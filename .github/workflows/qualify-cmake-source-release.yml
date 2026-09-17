@@ -1,4 +1,4 @@
-name: Qualify reproducible grammar provider and real compiler controls
+name: Qualify structural execution orchestration and authenticated provider builds
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -20,7 +20,7 @@ jobs:
           python3 - <<'PY'
           import base64, hashlib, importlib.util, json, os, pathlib, sys, unittest, urllib.request
           root=pathlib.Path.cwd()
-          for path,sha in [("tools/sources/qualify_grammar.py","582f8b5ad926ff3756cae5cbf53a4ffd905532b4"),("tests/verified_git_source_tests.py","52c11b644d54faffd62941f4b77066dd9a43bbd6")]:
+          for path,sha in [("tools/sources/qualify_grammar.py","582f8b5ad926ff3756cae5cbf53a4ffd905532b4"),("tests/verified_git_source_tests.py","124b0c8d372bf8794e47456ff7e69252c9692c1f"),("tests/build_cpp_provider_execution_mutant.py","e0dc7ab6f372951da927dccbec96dbc1d50757e2"),("tools/admit_source.py","36d689ebe57239a455d863b01ade0d738642b847"),("tests/stockfish_corpus_acceptance_tests.py","4190be4d936dd847bcf177cf7df70b5e0d146a02")]:
               request=urllib.request.Request("https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+sha,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"})
               with urllib.request.urlopen(request,timeout=60) as response: value=json.load(response)
               data=base64.b64decode(value["content"],validate=False)
@@ -30,6 +30,12 @@ jobs:
           module=importlib.util.module_from_spec(spec)
           spec.loader.exec_module(module)
           result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromModule(module))
-          assert result.testsRun==34 and not result.skipped and result.wasSuccessful(), result
-          print(json.dumps({"schema":"laplace.provider-reproducibility-qualification/v1","base":"92dd91a568d5b764879ab20ffdc739b7db05b902","tests":result.testsRun,"skipped":len(result.skipped),"success":result.wasSuccessful(),"provider":"582f8b5ad926ff3756cae5cbf53a4ffd905532b4","controls":"52c11b644d54faffd62941f4b77066dd9a43bbd6"}))
+          assert result.testsRun==37 and not result.skipped and result.wasSuccessful(), result
+          print(json.dumps({"schema":"laplace.provider-reproducibility-qualification/v1","base":"92dd91a568d5b764879ab20ffdc739b7db05b902","tests":result.testsRun,"skipped":len(result.skipped),"success":result.wasSuccessful(),"provider":"582f8b5ad926ff3756cae5cbf53a4ffd905532b4","controls":"124b0c8d372bf8794e47456ff7e69252c9692c1f"}))
+          spec=importlib.util.spec_from_file_location("acceptance_tests",root/"tests/stockfish_corpus_acceptance_tests.py")
+          module=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromModule(module))
+          assert not result.skipped and result.wasSuccessful(),result
+          print(json.dumps({"schema":"laplace.structural-execution-cli-qualification/v1","tests":result.testsRun,"skipped":len(result.skipped),"success":result.wasSuccessful()}))
           PY
