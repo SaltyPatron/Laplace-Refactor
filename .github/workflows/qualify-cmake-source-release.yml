@@ -15,12 +15,16 @@ jobs:
       PRODUCT_PARENT_TREE: "0d144df0c2d36cb327c9d1ff78ebb79061cbe847"
       DERIVATIVE_COMMIT: "8ece5afbc1e97f8d4344355b15822110e8231056"
       DERIVATIVE_TREE: "cd00239b00007a65e70fde9c8163233e5f651095"
-      QUALIFICATION_ROOT: ${{ runner.temp }}/cpp-selected-runtime-${{ github.run_id }}-${{ github.run_attempt }}
       PYTHONDONTWRITEBYTECODE: "1"
       GIT_CONFIG_NOSYSTEM: "1"
       GIT_CONFIG_GLOBAL: "/dev/null"
       GIT_TERMINAL_PROMPT: "0"
     steps:
+      - name: Establish the actual runner-owned qualification path
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'QUALIFICATION_ROOT=%s/cpp-selected-runtime-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ env.PRODUCT_PARENT_COMMIT }}
