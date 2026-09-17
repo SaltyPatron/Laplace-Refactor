@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import json
 import os
+import select
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import textwrap
 import time
@@ -160,18 +164,18 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
         self.assert_stale_sweep(custom, custom_names)
         self.assert_cleanup_step(custom, custom_names)
         self.assertGreaterEqual(
-            custom.count("--discover-prefix laplace-postgres-test."), 2
+            custom.count("--discover-prefix laplace-postgres-test."), 1
         )
-        self.assertGreaterEqual(custom.count("--discover-prefix lp-pg."), 2)
+        self.assertGreaterEqual(custom.count("--discover-prefix lp-pg."), 1)
 
         postgres_names = ("laplace-postgresql-product-proof",)
         postgres = POSTGRESQL_PRODUCT.read_text(encoding="utf-8")
         self.assert_stale_sweep(postgres, postgres_names)
         self.assert_cleanup_step(postgres, postgres_names)
         self.assertGreaterEqual(
-            postgres.count("--discover-prefix laplace-postgres-test."), 2
+            postgres.count("--discover-prefix laplace-postgres-test."), 1
         )
-        self.assertGreaterEqual(postgres.count("--discover-prefix lp-pg."), 2)
+        self.assertGreaterEqual(postgres.count("--discover-prefix lp-pg."), 1)
 
         package_names = ("laplace-package-product-proof",)
         package = PACKAGE_PRODUCT.read_text(encoding="utf-8")
@@ -189,8 +193,7 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
             self.assert_native_scratch_cleanup(mutant)
 
     def assert_native_scratch_cleanup(self, workflow: str) -> None:
-        for step, stale in (("Sweep stale interrupted custom-stack residue", True),
-                            ("Clean disposable custom-stack workspaces", False)):
+        for step, stale in (("Sweep stale interrupted custom-stack residue", True),):
             block = workflow.split(f"      - name: {step}\n", 1)[1].split("      - name:", 1)[0]
             self.assertIn("bash tools/host/run-exclusive.sh", block)
             if not stale:
@@ -333,6 +336,211 @@ class ProofWorkspaceCleanupTests(unittest.TestCase):
                 self.root,
                 ["laplace-custom-stack-qa", "laplace-custom-stack-qa"],
             )
+
+
+    @staticmethod
+    def cleanup_cases() -> tuple[tuple[Path, str, tuple[str, ...]], ...]:
+        return (
+            (CUSTOM_STACK, "Clean disposable custom-stack workspaces",
+             ("laplace-sources", "laplace-output", "laplace-custom-stack-qa",
+              "laplace-custom-stack-qa-result-replay.json",
+              "laplace-custom-stack-changed.status", "laplace-custom-stack-qa-plan.json")),
+            (POSTGRESQL_PRODUCT, "Clean disposable PostgreSQL-product workspace",
+             ("laplace-postgresql-product-proof",)),
+            (PACKAGE_PRODUCT, "Clean isolated installation workspace",
+             ("laplace-package-product-proof",)),
+        )
+
+    @staticmethod
+    def step_block(workflow: str, name: str) -> str:
+        return workflow.split(f"      - name: {name}\n", 1)[1].split("      - name:", 1)[0]
+
+    def assert_private_cleanup(self, workflow: str, name: str, names: tuple[str, ...]) -> str:
+        block = self.step_block(workflow, name)
+        self.assertIn("if: always()", block)
+        self.assertIn("        shell: bash\n", block)
+        self.assertNotIn("run-exclusive.sh", block)
+        self.assertNotIn("runner_orphan_cleanup.py", block)
+        self.assertNotIn("--discover-prefix", block)
+        self.assertNotIn("TMPDIR", block)
+        self.assertNotIn("--runner-temp /tmp", block)
+        script = textwrap.dedent(block.split("        run: |\n", 1)[1])
+        calls_path = self.root / "private-cleanup-calls"
+        calls_path.write_bytes(b"")
+        environment = dict(os.environ, RUNNER_TEMP=str(self.root / "runner temp"),
+                           GITHUB_STEP_SUMMARY=str(self.root / "summary"),
+                           CLEANUP_CALLS=str(calls_path), TMPDIR=str(self.root / "shared scratch"))
+        spy = 'python3() { printf "%s\\0" "$@" >> "$CLEANUP_CALLS"; printf "\\n" >> "$CLEANUP_CALLS"; }\n'
+        subprocess.run(["bash", "-c", spy + script], cwd=REPOSITORY, env=environment,
+                       check=True, capture_output=True, text=True, timeout=10)
+        calls = [line.rstrip(b"\0").decode().split("\0")
+                 for line in calls_path.read_bytes().splitlines()]
+        expected = ["tools/delivery/proof_workspace_cleanup.py", "--runner-temp",
+                    environment["RUNNER_TEMP"]]
+        for item in names:
+            expected.extend(("--name", item))
+        self.assertEqual(calls, [expected])
+        return script
+
+    def test_terminal_cleanup_is_explicit_private_and_does_not_scan_or_signal(self) -> None:
+        for path, name, names in self.cleanup_cases():
+            with self.subTest(workflow=path.name):
+                self.assert_private_cleanup(path.read_text(encoding="utf-8"), name, names)
+
+    def test_deliberate_terminal_lock_or_shared_discovery_is_rejected(self) -> None:
+        path, name, names = self.cleanup_cases()[1]
+        source = path.read_text(encoding="utf-8")
+        block = self.step_block(source, name)
+        for mutant in (
+            block.replace("shell: bash\n", "shell: bash tools/host/run-exclusive.sh bash {0}\n"),
+            block.replace("--name laplace-postgresql-product-proof",
+                          "--discover-prefix laplace-postgres-test."),
+            block.replace("tools/delivery/proof_workspace_cleanup.py",
+                          "tools/delivery/runner_orphan_cleanup.py"),
+        ):
+            with self.subTest(mutant=mutant):
+                with self.assertRaises(AssertionError):
+                    self.assert_private_cleanup(source.replace(block, mutant), name, names)
+
+    def test_shared_recovery_stays_reserved_and_private_cleanup_keeps_ownership_guard(self) -> None:
+        for path, prepare_id in ((CUSTOM_STACK, "prepare_custom_stack"),
+                                 (POSTGRESQL_PRODUCT, "prepare_postgresql_product")):
+            workflow = path.read_text(encoding="utf-8")
+            preparation = self.step_block(workflow, "Terminate stale database workers from interrupted jobs")
+            self.assertIn(f"id: {prepare_id}", preparation)
+            self.assertIn("shell: bash tools/host/run-exclusive.sh", preparation)
+            self.assertIn("printf 'started=true\\n'", preparation)
+            self.assertIn("--minimum-age-seconds 300", preparation)
+            self.assertIn("--terminate", preparation)
+            blocks = workflow.split("\n      - name: ")[1:]
+            for block in blocks:
+                if "--discover-prefix" in block:
+                    self.assertIn("shell: bash tools/host/run-exclusive.sh", block)
+                    self.assertIn("--minimum-age-seconds 300", block)
+            name = next(name for case, name, _ in self.cleanup_cases() if case == path)
+            terminal = self.step_block(workflow, name)
+            self.assertIn(f"always() && steps.{prepare_id}.outputs.started == 'true'", terminal)
+            self.assertIn("Shared interrupted residue recovery: deferred to the next reserved preparation pass.",
+                          terminal)
+
+    def assert_evidence_before_cleanup(self, workflow: str, cleanup_name: str,
+                                      evidence_names: tuple[str, ...]) -> None:
+        cleanup_at = workflow.index(f"      - name: {cleanup_name}\n")
+        for evidence in evidence_names:
+            self.assertLess(workflow.index(f"      - name: {evidence}\n"), cleanup_at)
+
+    def test_evidence_and_failure_diagnostics_precede_private_deletion(self) -> None:
+        custom = CUSTOM_STACK.read_text(encoding="utf-8")
+        evidence = ("Retain exact custom-stack terminal result",
+                    "Upload custom-stack QA evidence copy",
+                    "Upload exact C++ provider build evidence",
+                    "Upload exact PGN provider build evidence",
+                    "Persist custom-stack terminal result by BLAKE3",
+                    "Print retained PostgreSQL evidence")
+        self.assert_evidence_before_cleanup(custom, self.cleanup_cases()[0][1], evidence)
+        postgres = POSTGRESQL_PRODUCT.read_text(encoding="utf-8")
+        self.assert_evidence_before_cleanup(
+            postgres, self.cleanup_cases()[1][1],
+            ("Prove exact current-change PostgreSQL 18.6 package runtime",
+             "Print bounded PostgreSQL-product failure diagnostics"))
+        package = PACKAGE_PRODUCT.read_text(encoding="utf-8")
+        self.assert_evidence_before_cleanup(
+            package, self.cleanup_cases()[2][1],
+            ("Build or reuse package and verify isolated installation",
+             "Build and verify local installer"))
+        # Deliberately moving deletion ahead of evidence must fail the same check.
+        early = "      - name: Clean disposable custom-stack workspaces\n" + custom
+        with self.assertRaises(AssertionError):
+            self.assert_evidence_before_cleanup(early, self.cleanup_cases()[0][1], evidence)
+
+    @contextlib.contextmanager
+    def held_host_lock(self, lock: Path, cwd: Path):
+        # A real independent process owns the lock and an active cwd reference.
+        holder = subprocess.Popen(
+            [sys.executable, "-c",
+             "import fcntl,sys\n"
+             "with open(sys.argv[1], 'a') as lock:\n"
+             " fcntl.flock(lock, fcntl.LOCK_EX)\n"
+             " print('locked', flush=True)\n"
+             " sys.stdin.read()\n", str(lock)],
+            cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True)
+        try:
+            self.assertTrue(select.select([holder.stdout], [], [], 10)[0],
+                            "lock holder did not become ready")
+            self.assertEqual(holder.stdout.readline().strip(), "locked")
+            yield holder
+        finally:
+            try:
+                holder.communicate(timeout=10)
+            except subprocess.TimeoutExpired:
+                holder.kill()
+                holder.communicate(timeout=10)
+
+    @unittest.skipUnless(sys.platform == "linux", "requires Linux flock and proc references")
+    def test_private_cleanup_finishes_while_host_lock_and_other_workspace_are_active(self) -> None:
+        for index, (path, name, names) in enumerate(self.cleanup_cases()):
+            with self.subTest(workflow=path.name):
+                workflow = path.read_text(encoding="utf-8")
+                script = self.assert_private_cleanup(workflow, name, names)
+                root = self.root / f"case-{index}"
+                root.mkdir()
+                for target_name in names:
+                    target = root / target_name
+                    target.mkdir()
+                    (target / "private-output").write_text("disposable\n", encoding="utf-8")
+                sibling = root / "laplace-postgres-test.Active"
+                sibling.mkdir()
+                marker = sibling / "keep"
+                marker.write_text("active other proof\n", encoding="utf-8")
+                # Receipts outside the deleted tree remain available to later jobs.
+                evidence = root / "laplace-postgresql-product-proof.json"
+                evidence.write_text("retained result\n", encoding="utf-8")
+                lock = self.root / f"host-resource-{index}.lock"
+                environment = dict(os.environ, RUNNER_TEMP=str(root),
+                                   GITHUB_STEP_SUMMARY=str(root / "summary"),
+                                   LAPLACE_HOST_RESOURCE_LOCK=str(lock),
+                                   TMPDIR=str(sibling))
+                with self.held_host_lock(lock, sibling) as holder:
+                    locked = subprocess.run(["flock", "--nonblock", str(lock), "true"],
+                                            capture_output=True, timeout=10)
+                    self.assertEqual(locked.returncode, 1, "global lock was not held")
+                    completed = subprocess.run(["bash", "-c", script], cwd=REPOSITORY,
+                                               env=environment, capture_output=True,
+                                               text=True, timeout=10)
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    self.assertIsNone(holder.poll())
+                    receipt = json.loads(completed.stdout)
+                    self.assertEqual({row["name"] for row in receipt["results"]}, set(names))
+                    self.assertTrue(all(row["state"] == "removed" for row in receipt["results"]))
+                    self.assertTrue(all(not (root / item).exists() for item in names))
+                    self.assertEqual(marker.read_text(encoding="utf-8"), "active other proof\n")
+                    self.assertEqual(evidence.read_text(encoding="utf-8"), "retained result\n")
+                    self.assertEqual(subprocess.run(
+                        ["flock", "--nonblock", str(lock), "true"],
+                        capture_output=True, timeout=10).returncode, 1)
+
+    @unittest.skipUnless(sys.platform == "linux", "requires Linux flock and proc references")
+    def test_private_cleanup_refuses_real_live_target_without_waiting_for_host_lock(self) -> None:
+        path, name, names = self.cleanup_cases()[1]
+        script = self.assert_private_cleanup(path.read_text(encoding="utf-8"), name, names)
+        root = self.root / "live-target-case"
+        target = root / names[0]
+        target.mkdir(parents=True)
+        marker = target / "keep"
+        marker.write_text("live target\n", encoding="utf-8")
+        lock = self.root / "live-target-host.lock"
+        environment = dict(os.environ, RUNNER_TEMP=str(root),
+                           GITHUB_STEP_SUMMARY=str(root / "summary"),
+                           LAPLACE_HOST_RESOURCE_LOCK=str(lock))
+        with self.held_host_lock(lock, target) as holder:
+            completed = subprocess.run(["bash", "-c", script], cwd=REPOSITORY,
+                                       env=environment, capture_output=True,
+                                       text=True, timeout=10)
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("refusing active workspace", completed.stderr)
+            self.assertIsNone(holder.poll())
+            self.assertEqual(marker.read_text(encoding="utf-8"), "live target\n")
 
 
 if __name__ == "__main__":

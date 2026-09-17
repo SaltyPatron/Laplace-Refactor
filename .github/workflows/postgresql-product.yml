@@ -33,9 +33,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: Terminate stale database workers from interrupted jobs
+        id: prepare_postgresql_product
         shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
+          printf 'started=true\n' >> "$GITHUB_OUTPUT"
           python3 tools/delivery/runner_orphan_cleanup.py \
             --minimum-age-seconds 300 \
             --grace-seconds 5 \
@@ -124,20 +126,13 @@ jobs:
               -print -exec sh -c 'tail -n 240 "$1"' _ {} \;
           fi
       - name: Clean disposable PostgreSQL-product workspace
-        if: always()
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        # Preparation establishes this runner's ownership after acquiring the host lock.
+        if: always() && steps.prepare_postgresql_product.outputs.started == 'true'
+        # Only explicit private outputs are removed here; shared recovery stays in preparation.
+        shell: bash
         run: |
           set -euo pipefail
-          python3 tools/delivery/runner_orphan_cleanup.py \
-            --minimum-age-seconds 0 \
-            --grace-seconds 5 \
-            --terminate
-          python3 tools/delivery/proof_workspace_cleanup.py \
-            --runner-temp "$RUNNER_TEMP" \
-            --discover-prefix laplace-postgres-test.
-          python3 tools/delivery/proof_workspace_cleanup.py \
-            --runner-temp /tmp \
-            --discover-prefix lp-pg.
+          printf '%s\n' 'Shared interrupted residue recovery: deferred to the next reserved preparation pass.' >> "$GITHUB_STEP_SUMMARY"
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --name laplace-postgresql-product-proof

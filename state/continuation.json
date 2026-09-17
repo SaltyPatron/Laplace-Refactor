@@ -631,7 +631,29 @@
       "actual deployed source readback and replay",
       "fresh source toolchain/runtime/PostgreSQL publication remains a separate pending operation"
     ],
-    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe."
+    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe.",
+    "normal_candidate_qualification": {
+      "head": "727debeb4e72f4a6356c7c7980f8e16ad37d2df9",
+      "run": 35184451666,
+      "custom_job": 105084128973,
+      "custom_job_status": "completed-success",
+      "tests": {
+        "core": 48,
+        "highway": 1,
+        "verified_cpp_and_physicality": 1
+      },
+      "actual_test_started_at_utc": "2026-09-17T05:12:05.194140Z",
+      "actual_test_ended_at_utc": "2026-09-17T05:21:36.568961Z",
+      "artifact": {
+        "id": 10482420724,
+        "bytes": 44225,
+        "sha256": "d9fc8087c2af6434cabdead0a5cb30c9e7fa6fe24ab9fc2d4d5dec3f32b82424"
+      },
+      "postgresql_product_job": 105090702716,
+      "postgresql_product_proof_step": "passed-2026-09-17T05:47:03Z",
+      "postgresql_product_terminal_cleanup": "Waiting for the shared host reservation at this observation; proof success does not mark the incomplete job successful.",
+      "scope": "Retained previous-head proof. The coherent cleanup correction still requires normal CI, merge and actual installed acceptance."
+    }
   },
   "isolated_unpublished_work": {
     "base_commit": "ed2b4f42db10e61c33ab83dc0fc462c2f07f8465",
@@ -2244,5 +2266,32 @@
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
     "physical_verification_command": "LAPLACE_VERIFY_CONTINUATION_PHYSICAL=1 python3 tests/program_authority_tests.py",
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use"
+  },
+  "private_proof_cleanup_20260917": {
+    "classification": "observed-development-state-not-product-law",
+    "observed_at_utc": "2026-09-17T06:09:42Z",
+    "base_commit": "727debeb4e72f4a6356c7c7980f8e16ad37d2df9",
+    "defect": "Completed proof released the shared host reservation, then reacquired it to remove private output. Another repository's sustained work could prevent this already-completed proof job from reaching terminal status.",
+    "repair": "Keep shared orphan termination and prefix discovery in the existing reserved startup pass. After producer termination and evidence retention, terminal cleanup removes only explicit direct children of this runner's RUNNER_TEMP through the existing refusing helper, without acquiring the shared reservation. Preparation ownership guards are required.",
+    "source_manifest": "7c3313adb15ad771a2b39a326b65a6630ac8a760",
+    "shared_interrupted_residue_recovery": "Explicitly deferred to the next existing reserved preparation pass.",
+    "hosted_qualification": {
+      "run": 35188535673,
+      "job": 105095751570,
+      "operator": "d4ccb584a637b1c363819d8e0d56cde808a909df",
+      "candidate_tree": "09412889a831db9057010b8ab3b1dfd7068ff763",
+      "tests_passed": 79,
+      "failed": 0,
+      "skipped": 0,
+      "real_held_reservation_active_sibling_and_live_target_refusal": "passed",
+      "old_locked_terminal_mutant": "expected failure; old body not executed",
+      "artifact": {
+        "bytes": 13504,
+        "id": 10482649910,
+        "sha256": "21d851753ad2e07b2791986f5a06b4516a239ae256d95af2ae32870e85cbba57"
+      }
+    },
+    "remaining": "Normal current-head CI, merge, installed cognition/gateway and current full119-source readback/replay.",
+    "installed_product_claim": false
   }
 }
