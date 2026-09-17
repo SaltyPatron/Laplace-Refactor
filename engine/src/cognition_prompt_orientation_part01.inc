@@ -122,7 +122,18 @@ OrientationStatus BuildJointFactors(
             witness.seed_index >= static_cast<std::uint64_t>(seeds.size())) {
             return OrientationStatus::Invalid;
         }
+        const auto& seed = seeds[static_cast<std::size_t>(witness.seed_index)];
+        /*
+         * Coupling intentionally preserves every structural path reachable from a
+         * seed.  Joint prompt interpretation must not, however, let one prompt
+         * occurrence walk through structure to another occurrence and then claim
+         * that occurrence's semantic witness as independent support of its own.
+         * The witness contract retains both seed_index and actual source_entity_id,
+         * so keep the complete coupling field while admitting into this factor only
+         * semantic back-reaction emitted by the seed entity itself.
+         */
         if (!JointSemanticWitness(witness) ||
+            !OrientationSameId(witness.source_entity_id, seed.entity_id) ||
             IsSeedEntity(seeds, witness.target_entity_id)) {
             continue;
         }
