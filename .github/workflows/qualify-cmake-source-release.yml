@@ -1,81 +1,50 @@
-name: Read authenticated structural execution PostgreSQL proof
+name: Observe exact packaged public reconciliation binding
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: read
 jobs:
-  read-proof:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  observe:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor, oneapi, postgres-18, avx2]
+    timeout-minutes: 3
     steps:
-      - name: Authenticate exact required QA archive and current execution receipt
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Read fixed package metadata and installed binding without host mutation
         shell: bash
         run: |
-          python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, re, urllib.request, zipfile, xml.etree.ElementTree as ET
-          repository="SaltyPatron/Laplace-Refactor"
-          artifact_id=10490249252
-          run_id=35206242161
-          expected_size=35770
-          expected_sha="70861be62237ad5eba7df54b2b981c2d4209f2b94a03e69977010afbf9f9db2d"
-          expected_head="b314c3305b943498063e31fe10252875f2a14629"
-          token=os.environ.pop("GH_TOKEN")
-          api="https://api.github.com/repos/"+repository
-          def get(url, limit):
-           request=urllib.request.Request(url,headers={"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
-           request.add_unredirected_header("Authorization","Bearer "+token)
-           with urllib.request.urlopen(request,timeout=90) as response:
-            raw=response.read(limit+1)
-           assert len(raw)<=limit
-           return raw
-          meta=json.loads(get(api+"/actions/artifacts/"+str(artifact_id),100000))
-          assert meta["workflow_run"]["id"]==run_id and not meta["expired"]
-          assert meta["size_in_bytes"]==expected_size and meta["digest"]=="sha256:"+expected_sha
-          raw=get(api+"/actions/artifacts/"+str(artifact_id)+"/zip",expected_size)
-          assert len(raw)==expected_size and hashlib.sha256(raw).hexdigest()==expected_sha
-          print("PG_EXECUTION_ARTIFACT_AUTHENTICATED "+json.dumps({"run":run_id,"artifact":artifact_id,"bytes":len(raw),"sha256":expected_sha}),flush=True)
-          found=[]
-          result_verified=False
-          def visit(value):
-           if isinstance(value,dict):
-            if value.get("schema")=="laplace.structural-execution-separation/v1": found.append(value)
-            for child in value.values(): visit(child)
-           elif isinstance(value,list):
-            for child in value: visit(child)
-          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-           entries=archive.infolist()
-           assert len(entries)<=100 and sum(e.file_size for e in entries)<=32000000
-           assert len({e.filename for e in entries})==len(entries)
-           for entry in entries:
-            path=pathlib.PurePosixPath(entry.filename)
-            assert not path.is_absolute() and ".." not in path.parts and entry.file_size<=8000000
-            if entry.is_dir(): continue
-            data=archive.read(entry)
-            print("PG_RETAINED_MEMBER "+json.dumps({"name":entry.filename,"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest()}),flush=True)
-            if entry.filename.endswith(".json"):
-             value=json.loads(data)
-             visit(value)
-             if isinstance(value,dict) and value.get("schema")=="laplace.custom-stack-qa-result/v1":
-              assert value["head_sha"]==expected_head
-              print("PG_QA_RESULT "+json.dumps(value,sort_keys=True),flush=True)
-              result_verified=True
-            text="\n".join(ET.fromstring(data).itertext()) if entry.filename.endswith(".xml") else data.decode("utf-8")
-            for match in re.finditer(r"LAPLACE_QA_RECEIPT structural_execution_separation (\{[^\n]*\})",text):
-             found.append(json.loads(match.group(1)))
-          unique={json.dumps(value,sort_keys=True) for value in found}
-          assert result_verified, "exact source QA result missing"
-          assert len(unique)==1, "missing or conflicting structural execution proof"
-          proof=json.loads(next(iter(unique)))
-          for key in ("same_profile","same_entity_physicality","historical_rows_and_receipts_unchanged"):
-           assert proof[key] is True
-          for key in ("repeat_execution_row_delta","repeat_execution_receipt_delta","repeat_entity_delta","repeat_physicality_delta","repeat_attestation_delta"):
-           assert proof[key]==0
-          assert proof["corruption_controls"]==15 and proof["schema_controls"]==2 and proof["exact_readback_files"]==4
-          assert proof["execution_rows_created_once"]==180
-          assert proof["first_provider_sha256"]!=proof["second_provider_sha256"]
-          print("ACTUAL_STRUCTURAL_EXECUTION_SEPARATION "+json.dumps(proof,sort_keys=True),flush=True)
+          python3 -I - <<'PY'
+          import hashlib,json,os,stat
+          from pathlib import Path
+          package="d854e1d89e71cbb75a7c94817973ed055f1d496caf712afd430327ebd884264a"
+          build=Path("/build/laplace/runner/product/build/d42ce0a0e07e75d54506ae31b1bfaff0b1df7046b0d15843eae535f0ceb5903e")
+          manifest_path=build/"package-manifest.json"
+          receipt_path=build/"package-receipt.json"
+          def load(path):
+              assert path.is_file() and not path.is_symlink()
+              raw=path.read_bytes()
+              assert len(raw)<=16000000
+              return json.loads(raw),hashlib.sha256(raw).hexdigest()
+          receipt,_=load(receipt_path)
+          manifest,manifest_sha=load(manifest_path)
+          assert receipt["package_id"]==manifest["package_id"]==package
+          assert receipt["manifest"]==str(manifest_path)
+          assert receipt["manifest_sha256"]==manifest_sha
+          relative="pgsql-18/share/extension/laplace-public-readback.sql"
+          path=Path("/opt/laplace/releases")/package/relative
+          info=path.lstat()
+          entries=[row for row in manifest["files"] if row["path"]==relative]
+          raw=path.read_bytes() if stat.S_ISREG(info.st_mode) else b""
+          digest=hashlib.sha256(raw).hexdigest()
+          current=Path("/opt/laplace/current")
+          result={"schema":"laplace.public-binding-failure-observation/v1",
+              "source_run":35208985114,"source_job":105171045703,
+              "package_id":package,"manifest_sha256":manifest_sha,
+              "manifest_entries":entries,"installed_path":str(path),
+              "regular_file":stat.S_ISREG(info.st_mode),"symlink":stat.S_ISLNK(info.st_mode),
+              "bytes":info.st_size,"sha256":digest,"device":info.st_dev,"inode":info.st_ino,
+              "old_65536_byte_check_passes":info.st_size<=65536,
+              "manifest_hash_matches":len(entries)==1 and entries[0].get("sha256")==digest,
+              "active_link":os.readlink(current) if current.is_symlink() else None,
+              "active_resolved":str(current.resolve(strict=True))}
+          print("PUBLIC_BINDING_OBSERVATION "+json.dumps(result,sort_keys=True),flush=True)
           PY
