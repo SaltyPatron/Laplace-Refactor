@@ -1,4 +1,4 @@
-name: Read exact Original exact consensus evidence
+name: Read Original lifecycle ownership and source journal
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -12,16 +12,55 @@ env:
   PGCONNECT_TIMEOUT: "5"
   PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
   OBSERVER_SOURCE: |
-    import datetime,json,os,subprocess
-    sql="BEGIN READ ONLY;\nSET LOCAL statement_timeout = '20s';\nSET LOCAL lock_timeout = '1s';\nWITH evidence AS MATERIALIZED (\n    SELECT id, subject_id, type_id, object_id, source_id, context_id, outcome,\n           last_observed_at, observation_count, sum_score_fp1e9,\n           opponent_rd_fp1e9, opponent_rating_fp1e9, fold_replayable\n    FROM laplace.attestations\n    WHERE type_id = decode('9229e864a12093d7327c0ccd2295abc7', 'hex')\n      AND subject_id = decode('1498082da2f8136492554265cfbb2fcd', 'hex')\n      AND object_id = decode('b82a04e7b1f172018e0bae7f2cadb673', 'hex')\n), bounded AS (\n    SELECT * FROM evidence ORDER BY last_observed_at, id LIMIT 4096\n)\nSELECT jsonb_build_object(\n    'schema', 'laplace.exact-consensus-cell-evidence/v1',\n    'scope', 'Durable exact testimony for one indexed type/subject/object cell. Sorted observation timestamps do not by themselves reconstruct original rating-period boundaries.',\n    'database', current_database(),\n    'database_oid', (SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname = current_database()),\n    'system_identifier', (SELECT system_identifier::text FROM pg_catalog.pg_control_system()),\n    'cell_id', '60386a133f597501dc75500739fe426b',\n    'canonical_cell_id', encode(laplace.consensus_id(\n        decode('1498082da2f8136492554265cfbb2fcd','hex'),\n        decode('9229e864a12093d7327c0ccd2295abc7','hex'),\n        decode('b82a04e7b1f172018e0bae7f2cadb673','hex')), 'hex'),\n    'total_evidence_rows', (SELECT count(*)::text FROM evidence),\n    'truncated', (SELECT count(*) > 4096 FROM evidence),\n    'total_observations', (SELECT COALESCE(sum(observation_count),0)::text FROM evidence),\n    'total_fold_games', (SELECT COALESCE(sum(GREATEST(observation_count,1)),0)::text FROM evidence),\n    'total_score_fp1e9', (SELECT COALESCE(sum(sum_score_fp1e9),0)::text FROM evidence),\n    'all_fold_replayable', (SELECT COALESCE(bool_and(fold_replayable),true) FROM evidence),\n    'stored_consensus', (\n        SELECT jsonb_build_object(\n            'rating', c.rating::text, 'rd', c.rd::text, 'volatility', c.volatility::text,\n            'witness_count', c.witness_count::text, 'last_observed_at', c.last_observed_at)\n        FROM laplace.consensus c\n        WHERE c.type_id = decode('9229e864a12093d7327c0ccd2295abc7','hex')\n          AND c.subject_id = decode('1498082da2f8136492554265cfbb2fcd','hex')\n          AND c.id = decode('60386a133f597501dc75500739fe426b','hex')),\n    'evidence', COALESCE((\n        SELECT jsonb_agg(jsonb_build_object(\n            'id', encode(id,'hex'), 'source_id', encode(source_id,'hex'),\n            'context_id', encode(context_id,'hex'), 'outcome', outcome,\n            'last_observed_at', last_observed_at,\n            'observation_count', observation_count::text,\n            'sum_score_fp1e9', sum_score_fp1e9::text,\n            'opponent_rd_fp1e9', opponent_rd_fp1e9::text,\n            'opponent_rating_fp1e9', opponent_rating_fp1e9::text,\n            'fold_replayable', fold_replayable)\n            ORDER BY last_observed_at,id)\n        FROM bounded), '[]'::jsonb));\nROLLBACK;\n"
-    env=dict(os.environ,PGHOST="/var/run/postgresql",PGPORT="5432",PGUSER="laplace_admin",PGDATABASE="laplace",PGCONNECT_TIMEOUT="5",PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=20000")
-    result=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-q","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],env=env,capture_output=True,text=True,timeout=30)
-    proof={"observedUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"exitCode":result.returncode,"sqlBlob":"73aeede0aaafbbc162619ebefc42bb8bc24d02c1"}
-    if result.returncode==0:
-        assert len(result.stdout.encode())<4194304
-        proof["value"]=json.loads(result.stdout)
-    else:proof["error"]=result.stderr[:4096]
-    print("EXACT_CONSENSUS_EVIDENCE "+json.dumps(proof,sort_keys=True),flush=True)
+    import datetime,json,os,pathlib,subprocess
+    def emit(label,value):print(label+" "+json.dumps(value,sort_keys=True),flush=True)
+    emit("ORDINARY_LIFECYCLE_OBSERVATION",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"readOnly":True})
+    lock=pathlib.Path("/build/laplace/work/host-resource.lock")
+    st=None
+    try:
+     st=lock.stat()
+     key=f"{os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x}:{st.st_ino}"
+     entries=[line for line in pathlib.Path("/proc/locks").read_text().splitlines() if key in line]
+     emit("ORDINARY_HOST_RESERVATION",{"device":st.st_dev,"inode":st.st_ino,"entries":entries})
+    except OSError as error:emit("ORDINARY_HOST_RESERVATION",{"error":type(error).__name__})
+    recognized={"product-ci.sh","ensure-foundation.sh","ingest-source.sh","maintain-installed-database.sh",
+     "reconcile-highway-masks.sh","publish-applications.sh","managed-publish.sh","pipeline.sh","Laplace.Cli.dll",
+     "Laplace.Endpoints.Uci.dll","Laplace.Endpoints.Mcp.dll","Laplace.Endpoints.Lichess.dll","test-parallel.sh",
+     "cmake","ninja","ctest"}
+    for proc in pathlib.Path("/proc").iterdir():
+     if not proc.name.isdecimal():continue
+     try:
+      if proc.stat().st_uid!=os.getuid():continue
+      raw=(proc/"cmdline").read_bytes()
+      if len(raw)>131072:continue
+      arguments=[a.decode(errors="replace") for a in raw.split(b"\0") if a]
+      scripts=sorted({pathlib.Path(a).name for a in arguments if pathlib.Path(a).name in recognized})
+      if not scripts:continue
+      tail=(proc/"stat").read_text().rsplit(")",1)[1].split()
+      fds=[]
+      for descriptor in (proc/"fd").iterdir():
+       try:
+        current=descriptor.stat()
+        if st is not None and current.st_dev==st.st_dev and current.st_ino==st.st_ino:fds.append(int(descriptor.name))
+       except (OSError,ValueError):pass
+      emit("ORDINARY_PROCESS",{"pid":int(proc.name),"ppid":int(tail[1]),"startTicks":int(tail[19]),
+       "state":tail[0],"comm":(proc/"comm").read_text().strip(),"recognizedOwners":scripts,"hostReservationFDs":fds})
+     except (OSError,ValueError,IndexError):pass
+    sql="""SELECT coalesce(json_agg(row_to_json(j)), '[]'::json)::text FROM (
+     SELECT DISTINCT ON (source_name) source_name,status,files_done,files_total,
+     entities::text,attestations::text,started_at,ended_at
+     FROM laplace.ingest_run_journal ORDER BY source_name,started_at DESC LIMIT 32
+    ) j"""
+    env=dict(os.environ,PGHOST="/var/run/postgresql",PGPORT="5432",PGUSER="laplace_admin",PGDATABASE="laplace",
+     PGCONNECT_TIMEOUT="5",PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=10000")
+    try:
+     result=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-q","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],
+      env=env,capture_output=True,text=True,timeout=20)
+     value={"exitCode":result.returncode}
+     if result.returncode==0:value["latestSources"]=json.loads(result.stdout)
+     else:value["error"]=result.stderr[:2048]
+     emit("ORDINARY_FOUNDATION_JOURNAL",value)
+    except (OSError,ValueError,subprocess.TimeoutExpired) as error:emit("ORDINARY_FOUNDATION_JOURNAL",{"error":type(error).__name__})
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -34,18 +73,18 @@ jobs:
           import ast,hashlib,os
           source=os.environ["OBSERVER_SOURCE"].encode()
           identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
-          assert identity=="5a910b72b11603482abf044e9ed08c2433a402eb",identity
+          assert identity=="c7d6214f1543dfb01da01ef8d80df1c2c3aef4a1",identity
           ast.parse(source)
-          print("Authenticated Original observer 5a910b7; Python syntax passed without host execution.")
+          print("Authenticated Original observer c7d6214; Python syntax passed without host execution.")
           PY
   observe:
     needs: validate
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
     timeout-minutes: 5
     env:
-      EVIDENCE: /build/laplace/work/original-exact-consensus-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+      EVIDENCE: /build/laplace/work/original-lifecycle-ownership-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Read the exact indexed consensus evidence without mutation
+      - name: Read the exact lifecycle ownership and source journal without mutation
         shell: bash
         run: |
           set -euo pipefail
@@ -55,7 +94,7 @@ jobs:
           python3 - <<'PY'
           import ast,hashlib,os
           source=os.environ["OBSERVER_SOURCE"].encode()
-          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="5a910b72b11603482abf044e9ed08c2433a402eb"
+          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="c7d6214f1543dfb01da01ef8d80df1c2c3aef4a1"
           ast.parse(source)
           PY
           timeout --signal=TERM --kill-after=5s 60s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
@@ -63,7 +102,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: original-exact-consensus-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          name: original-lifecycle-ownership-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.EVIDENCE }}/
           if-no-files-found: error
           retention-days: 30
