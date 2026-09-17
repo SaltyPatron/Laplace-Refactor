@@ -1,0 +1,306 @@
+{
+  "schema": "laplace.installed-stockfish-replay-summary/v1",
+  "status": "passed",
+  "source": "54c3ec6f8d5caf01d6923b2c79d496dea0606311",
+  "tree": "83273063a0dc7fb6221d190847bfecd3925b9484",
+  "package_id": "c7cd0ecfd651480ebb36f13932325f2f4c7d9da29a5c6257f97cb7b8d4393c20",
+  "main_run": 35247073782,
+  "main_conclusion": "success",
+  "source_job": 105304519318,
+  "reader": {
+    "run": 35251964077,
+    "job": 105306243934,
+    "status": "success",
+    "workflow_blob": "ee49bfb1174c111d841e318c7a78848a6a48048f"
+  },
+  "artifact": {
+    "id": 10509249926,
+    "size": 3010386,
+    "sha256": "477ebcedb70a29866d671139cb1c153bc9a332c8054a13c4a14b475eb018591b"
+  },
+  "source_manifest_sha256": "2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc",
+  "stockfish_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+  "stockfish_tree": "418af042b3c0aade628c1c98f13942659e67e64d",
+  "cpp_files": 72,
+  "phases": [
+    {
+      "phase": "grammar-qualification",
+      "seconds": 32.76296854019165,
+      "start": "2026-09-17T17:14:17.727Z",
+      "end": "2026-09-17T17:14:50.490Z",
+      "exit_code": 0,
+      "stdout_sha256": "48345944e3192e094185636b6378246ffd2ef7c65b00f66b7a5bef268054794d"
+    },
+    {
+      "phase": "admission",
+      "seconds": 88.13985347747803,
+      "start": "2026-09-17T17:14:50.880Z",
+      "end": "2026-09-17T17:16:19.020Z",
+      "exit_code": 0,
+      "stdout_sha256": "200eefb3e4f77a0a69ae324759f9b3a706053b51830434fe844df2d8455bf212"
+    },
+    {
+      "phase": "repeat",
+      "seconds": 57.81555414199829,
+      "start": "2026-09-17T17:16:19.363Z",
+      "end": "2026-09-17T17:17:17.179Z",
+      "exit_code": 0,
+      "stdout_sha256": "200eefb3e4f77a0a69ae324759f9b3a706053b51830434fe844df2d8455bf212"
+    }
+  ],
+  "admissions": [
+    {
+      "composition_receipt": "\\xd054ccc2bd99789ce4cb8804af6fcb998ec9c7e2376d005fbd9514d03ab87ac9",
+      "execution_metrics": {
+        "last": {
+          "composition_entity_candidate_count": 58660,
+          "composition_entity_presence_round_count": 4,
+          "composition_persistence_executed": true,
+          "composition_persistence_plan_count": 11,
+          "composition_physicality_candidate_count": 58634,
+          "composition_physicality_presence_round_count": 1,
+          "composition_receipt_persistence_call_count": 1,
+          "sequence": 1,
+          "source_stage_spi_execute_with_args_count": 2,
+          "structural_execution_receipt_id": "3b997679354ebbf2d9766f72b99d62ea4a0a37ea01790beb080b0ea602e1094c",
+          "valid": true
+        },
+        "previous": {
+          "composition_entity_candidate_count": 0,
+          "composition_entity_presence_round_count": 0,
+          "composition_persistence_executed": false,
+          "composition_persistence_plan_count": 0,
+          "composition_physicality_candidate_count": 0,
+          "composition_physicality_presence_round_count": 0,
+          "composition_receipt_persistence_call_count": 0,
+          "sequence": 0,
+          "source_stage_spi_execute_with_args_count": 0,
+          "structural_execution_receipt_id": "0000000000000000000000000000000000000000000000000000000000000000",
+          "valid": false
+        },
+        "schema": "laplace.source-admission-execution-metrics/v1"
+      },
+      "json_sha256": "200eefb3e4f77a0a69ae324759f9b3a706053b51830434fe844df2d8455bf212",
+      "phase": "admission",
+      "profile": "\\xc6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab",
+      "readback": {
+        "all_artifacts_exact": true,
+        "database_row_counts": {
+          "attestation": 1114927,
+          "entity": 1172710,
+          "physicality": 1231471
+        },
+        "execution_witness_fingerprint": "d593f2d56d66d521d5a0888fde35dbb3a1313368f6e983062e4fa8a52989f3dd",
+        "historical_structural_receipt_id": "62420b53fdd162b11feebe07427f1e13dccefc6951c8fc9a171edd061bf58ca7",
+        "schema": "laplace.verified-git-source-readback/v1",
+        "source_occurrence_count": 239,
+        "structural_execution_observation_count": 1143254,
+        "structural_execution_receipt_count": 2,
+        "structural_execution_receipt_id": "3b997679354ebbf2d9766f72b99d62ea4a0a37ea01790beb080b0ea602e1094c",
+        "structural_receipt_count": 1,
+        "structural_witness_count": 571627,
+        "structural_witness_fingerprint": "ba472cecbaafd886e2a2d604b29d79e0b91faf4c48747baf9fa8cbb81ed6144b",
+        "verified_byte_count": 1172144,
+        "verified_file_count": 119
+      },
+      "root_entity_id": "\\xb8d43a92fa28c32252ec2bde16d0f32f",
+      "root_physicality_id": "\\x511b083ad0bfd2fdcf675e25a51470ace65335210b1b7d73d1dca1e63611dc12",
+      "source_fingerprint": "\\x5a8957894b5fc4b5bf33801708fe40bd7faad2537787977d82beb45a5d44c0ba"
+    },
+    {
+      "composition_receipt": "\\xd054ccc2bd99789ce4cb8804af6fcb998ec9c7e2376d005fbd9514d03ab87ac9",
+      "execution_metrics": {
+        "last": {
+          "composition_entity_candidate_count": 58660,
+          "composition_entity_presence_round_count": 4,
+          "composition_persistence_executed": true,
+          "composition_persistence_plan_count": 11,
+          "composition_physicality_candidate_count": 58634,
+          "composition_physicality_presence_round_count": 1,
+          "composition_receipt_persistence_call_count": 1,
+          "sequence": 1,
+          "source_stage_spi_execute_with_args_count": 2,
+          "structural_execution_receipt_id": "3b997679354ebbf2d9766f72b99d62ea4a0a37ea01790beb080b0ea602e1094c",
+          "valid": true
+        },
+        "previous": {
+          "composition_entity_candidate_count": 0,
+          "composition_entity_presence_round_count": 0,
+          "composition_persistence_executed": false,
+          "composition_persistence_plan_count": 0,
+          "composition_physicality_candidate_count": 0,
+          "composition_physicality_presence_round_count": 0,
+          "composition_receipt_persistence_call_count": 0,
+          "sequence": 0,
+          "source_stage_spi_execute_with_args_count": 0,
+          "structural_execution_receipt_id": "0000000000000000000000000000000000000000000000000000000000000000",
+          "valid": false
+        },
+        "schema": "laplace.source-admission-execution-metrics/v1"
+      },
+      "json_sha256": "200eefb3e4f77a0a69ae324759f9b3a706053b51830434fe844df2d8455bf212",
+      "phase": "repeat",
+      "profile": "\\xc6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab",
+      "readback": {
+        "all_artifacts_exact": true,
+        "database_row_counts": {
+          "attestation": 1114927,
+          "entity": 1172710,
+          "physicality": 1231471
+        },
+        "execution_witness_fingerprint": "d593f2d56d66d521d5a0888fde35dbb3a1313368f6e983062e4fa8a52989f3dd",
+        "historical_structural_receipt_id": "62420b53fdd162b11feebe07427f1e13dccefc6951c8fc9a171edd061bf58ca7",
+        "schema": "laplace.verified-git-source-readback/v1",
+        "source_occurrence_count": 239,
+        "structural_execution_observation_count": 1143254,
+        "structural_execution_receipt_count": 2,
+        "structural_execution_receipt_id": "3b997679354ebbf2d9766f72b99d62ea4a0a37ea01790beb080b0ea602e1094c",
+        "structural_receipt_count": 1,
+        "structural_witness_count": 571627,
+        "structural_witness_fingerprint": "ba472cecbaafd886e2a2d604b29d79e0b91faf4c48747baf9fa8cbb81ed6144b",
+        "verified_byte_count": 1172144,
+        "verified_file_count": 119
+      },
+      "root_entity_id": "\\xb8d43a92fa28c32252ec2bde16d0f32f",
+      "root_physicality_id": "\\x511b083ad0bfd2fdcf675e25a51470ace65335210b1b7d73d1dca1e63611dc12",
+      "source_fingerprint": "\\x5a8957894b5fc4b5bf33801708fe40bd7faad2537787977d82beb45a5d44c0ba"
+    }
+  ],
+  "repeat": {
+    "execution_witness_fingerprint": "d593f2d56d66d521d5a0888fde35dbb3a1313368f6e983062e4fa8a52989f3dd",
+    "historical_structural_receipt_id": "62420b53fdd162b11feebe07427f1e13dccefc6951c8fc9a171edd061bf58ca7",
+    "source_occurrence_delta": 0,
+    "structural_execution_observation_delta": 0,
+    "structural_execution_receipt_delta": 0,
+    "structural_execution_receipt_id": "3b997679354ebbf2d9766f72b99d62ea4a0a37ea01790beb080b0ea602e1094c",
+    "structural_witness_delta": 0,
+    "substrate_row_deltas": {
+      "attestation": 0,
+      "entity": 0,
+      "physicality": 0
+    },
+    "verified_byte_count": 1172144,
+    "verified_file_count": 119
+  },
+  "service": [
+    {
+      "artifact_id": 10509460466,
+      "kind": "service-restart",
+      "member": "result.json",
+      "member_bytes": 2680,
+      "member_sha256": "8928e0063badef9f3657851fd45983b6137cf162e73f73e78add215999f7ae9a",
+      "projection": {
+        "cold_boot_proven": false,
+        "health": {
+          "database": "laplace_refactor",
+          "highway_present": true,
+          "package_id": "c7cd0ecfd651480ebb36f13932325f2f4c7d9da29a5c6257f97cb7b8d4393c20",
+          "status": "ready",
+          "unicode_present": true
+        },
+        "http_auth": {
+          "credential_source": "/opt/laplace/secrets/operator.env",
+          "mode": "managed-operator"
+        },
+        "package_id": "c7cd0ecfd651480ebb36f13932325f2f4c7d9da29a5c6257f97cb7b8d4393c20",
+        "repository_commit": "54c3ec6f8d5caf01d6923b2c79d496dea0606311",
+        "schema": "laplace.cognition-service-lifecycle/v1",
+        "service": "laplace-refactor-cognition.service",
+        "service_scope": "user",
+        "status": "passed",
+        "timings_seconds": {
+          "activation_after": 2.415908558992669,
+          "activation_before": 2.4470234740292653,
+          "restart_command": 0.22751146205700934,
+          "restart_to_verified_health": 0.9087446480989456
+        },
+        "unit": {
+          "ActiveState": "active",
+          "Id": null,
+          "LoadState": "loaded",
+          "MainPID": "2012387",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        }
+      },
+      "zip_bytes": 291475,
+      "zip_sha256": "294dda5c90d6edc1b034dee4b94c8302683b1ce080720dc643c535e700e95052"
+    },
+    {
+      "artifact_id": 10509215972,
+      "kind": "http-readiness",
+      "member": "installed-http-readiness-35247073782-1.json",
+      "member_bytes": 2690,
+      "member_sha256": "53ce37ab7217dcdbcd05c17c6304f0c6be47a4ee8064e6066ff4e59ffd6c82b9",
+      "projection": {
+        "anonymous_protected_status": 401,
+        "endpoint": "http://127.0.0.1:55434",
+        "external_reachability_verified": false,
+        "http_auth": {
+          "credential_source": "/opt/laplace/secrets/operator.env",
+          "mode": "managed-operator"
+        },
+        "package_id": "c7cd0ecfd651480ebb36f13932325f2f4c7d9da29a5c6257f97cb7b8d4393c20",
+        "schema": "laplace.installed-product-http-readiness/v1",
+        "scope": "GET-only health and exact installed web assets; no cognition or source admission",
+        "status": "passed"
+      },
+      "zip_bytes": 1182,
+      "zip_sha256": "6cc21626b5954e1bdfeb7a328c4bafdbf22f29ffede13abdfcbe7894bf4365c1"
+    },
+    {
+      "artifact_id": 10509495303,
+      "kind": "gateway",
+      "member": "proof.json",
+      "member_bytes": 10726,
+      "member_sha256": "89e7fee44e49841392f0a4632dbe0fbdd70fe6913bee5aaf72d9851574d2476c",
+      "projection": {
+        "anonymous_mcp_status": 401,
+        "completed_phases": [
+          "browser",
+          "http_authority",
+          "product_events",
+          "health",
+          "descriptors",
+          "explore",
+          "cognition_turn_0",
+          "cognition_turn_1",
+          "openai_nonstream",
+          "openai_stream",
+          "mcp_initialize",
+          "mcp_tools",
+          "mcp_query"
+        ],
+        "external_reachability_verified": false,
+        "http_auth": {
+          "credential_source": "/opt/laplace/secrets/operator.env",
+          "mode": "managed-operator"
+        },
+        "package_id": "c7cd0ecfd651480ebb36f13932325f2f4c7d9da29a5c6257f97cb7b8d4393c20",
+        "product_events": {
+          "complete_frame": true,
+          "event": "product-snapshot",
+          "package_id": "c7cd0ecfd651480ebb36f13932325f2f4c7d9da29a5c6257f97cb7b8d4393c20",
+          "response_sha256": "e01359aabad64f2f9b24fa58f97b288f786ff180185711bef75da8eff59a3896",
+          "schema": "laplace.product.event/v1",
+          "status": 200
+        },
+        "schema": "laplace.installed-product-gateway-proof/v2",
+        "status": "passed"
+      },
+      "zip_bytes": 4387,
+      "zip_sha256": "29d6ea857c87eab412b96aa59afa1a11aa50fbec54bda4a043ca57aff7108450"
+    }
+  ],
+  "canonical_corpus_admission_completed": true,
+  "zero_amplification_repeat_proven": true,
+  "executable_semantics_verified": false,
+  "notes": [
+    "Full normal main acceptance; identical current-provider repeat proves zero persistent row growth.",
+    "Cross-package first pass has no separate before/after measurement; no first-pass zero-write claim.",
+    "Current source profile has two retained execution witness sets and two v4 receipts; current and historical provenance identities are explicit.",
+    "Previous timeout and later read-only recovery remain historical; this completed current normal repeat is separate.",
+    "95 persisted syntax diagnostics remain; future hosted GNU experiment is not selected or installed.",
+    "Current package proxy/TLS proof is owned separately by Original; these service artifacts prove authenticated loopback."
+  ]
+}

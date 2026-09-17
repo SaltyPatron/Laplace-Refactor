@@ -1,4 +1,5 @@
 #include "laplace/unicode_root.h"
+#include "unicode_byte_order.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1105,7 +1106,9 @@ bool ParseSpecialCasing(
         return false;
     }
     for (auto& [position, position_entries] : entries) {
-        std::sort(position_entries.begin(), position_entries.end());
+        std::sort(
+            position_entries.begin(), position_entries.end(),
+            laplace::internal::UnicodePayloadBytesLess);
         if (std::adjacent_find(
                 position_entries.begin(), position_entries.end()) !=
             position_entries.end()) {
