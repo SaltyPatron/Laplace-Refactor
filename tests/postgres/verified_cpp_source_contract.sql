@@ -486,7 +486,9 @@ SELECT 'LAPLACE_QA_RECEIPT verified_cpp_source_admission ' || json_build_object(
 
 
 -- A second real build of the same authenticated parser deliberately retains
--- build-directory __FILE__ bytes. Only execution identity may differ.
+-- build-directory __FILE__ bytes. Canonical content is unchanged; the existing
+-- recursive-decomposition source fingerprint binds the changed provider trace,
+-- so its explicit source occurrences are a distinct authenticated observation.
 CREATE FUNCTION pg_temp.cpp_second_binding()
 RETURNS laplace.source_grammar_binding LANGUAGE SQL STABLE AS $binding$
  SELECT ROW(convert_from(decode('@LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_PATH_HEX@','hex'),'UTF8'),
@@ -496,6 +498,9 @@ RETURNS laplace.source_grammar_binding LANGUAGE SQL STABLE AS $binding$
    @LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_BYTES@::bigint,256)::laplace.source_grammar_binding
 $binding$;
 
+CREATE TEMP TABLE cpp_observation_before AS
+ SELECT a.* FROM laplace.attestation a JOIN cpp_first f
+ ON a.source_fingerprint=f.source_fingerprint;
 CREATE TEMP TABLE cpp_execution_before AS SELECT
  (SELECT jsonb_agg(to_jsonb(w) ORDER BY artifact_index,span_index)
     FROM laplace.source_structural_witness w WHERE source_profile_id=f.profile_id) historical_rows,
@@ -511,6 +516,9 @@ CREATE TEMP TABLE cpp_execution_before AS SELECT
     WHERE source_profile_id=f.profile_id AND version=4) execution_receipts
  FROM cpp_first f;
 CREATE TEMP TABLE cpp_second AS SELECT a.* FROM pg_temp.cpp_admit(pg_temp.cpp_second_binding(),1048576) AS a;
+CREATE TEMP TABLE cpp_observation_current AS
+ SELECT a.* FROM laplace.attestation a JOIN cpp_second s
+ ON a.source_fingerprint=s.source_fingerprint;
 CREATE TEMP TABLE cpp_current_structural AS
  SELECT r.* FROM laplace.source_structural_witness_receipt r
  WHERE receipt_id=decode(laplace.source_admission_last_execution_metrics()::jsonb
@@ -525,15 +533,39 @@ $read$;
 DO $execution_separation$
 DECLARE f cpp_first%ROWTYPE; second cpp_second%ROWTYPE; receipt cpp_current_structural%ROWTYPE;
  before_state cpp_execution_before%ROWTYPE;
+ observation_projection_equal boolean; historical_observations_equal boolean;
 BEGIN
  SELECT * INTO STRICT f FROM cpp_first;
  SELECT * INTO STRICT second FROM cpp_second;
  SELECT * INTO STRICT receipt FROM cpp_current_structural;
  SELECT * INTO STRICT before_state FROM cpp_execution_before;
+ -- Native A-ID and source fingerprint may change. Every other occurrence field,
+ -- including multiplicity, must still denote the same exact content use.
+ observation_projection_equal := NOT EXISTS(
+      SELECT entity_id,physicality_id,context_fingerprint,source_ordinal,flags,attestation_kind
+      FROM cpp_observation_current
+      EXCEPT ALL
+      SELECT entity_id,physicality_id,context_fingerprint,source_ordinal,flags,attestation_kind
+      FROM cpp_observation_before) AND NOT EXISTS(
+      SELECT entity_id,physicality_id,context_fingerprint,source_ordinal,flags,attestation_kind
+      FROM cpp_observation_before
+      EXCEPT ALL
+      SELECT entity_id,physicality_id,context_fingerprint,source_ordinal,flags,attestation_kind
+      FROM cpp_observation_current);
+ historical_observations_equal := (SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id)
+       FROM laplace.attestation a WHERE source_fingerprint=f.source_fingerprint)
+       IS NOT DISTINCT FROM
+      (SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id) FROM cpp_observation_before a);
  IF '@LAPLACE_CPP_GRAMMAR_LIBRARY_SHA256@'='@LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_SHA256@' OR
     second.profile_id<>f.profile_id OR second.root_entity_id<>f.root_entity_id OR
     second.root_physicality_id<>f.root_physicality_id OR
-    second.composition_working_set_receipt_id<>(SELECT composition_working_set_receipt_id FROM cpp_replay) OR
+    second.source_fingerprint IS NOT DISTINCT FROM f.source_fingerprint OR
+    second.composition_working_set_receipt_id IS NOT DISTINCT FROM
+      (SELECT composition_working_set_receipt_id FROM cpp_replay) OR
+    second.occurrence_count IS DISTINCT FROM f.occurrence_count OR second.occurrence_count<=0 OR
+    (SELECT count(*) FROM cpp_observation_before) IS DISTINCT FROM f.occurrence_count OR
+    (SELECT count(*) FROM cpp_observation_current) IS DISTINCT FROM second.occurrence_count OR
+    NOT observation_projection_equal OR NOT historical_observations_equal OR
     receipt.version<>4 OR receipt.source_profile_id<>f.profile_id OR
     receipt.composition_working_set_receipt<>second.composition_working_set_receipt_id OR
     receipt.witness_fingerprint=(SELECT witness_fingerprint FROM laplace.source_structural_witness_receipt
@@ -542,7 +574,7 @@ BEGIN
        <>receipt.witness_count OR
     (SELECT count(*) FROM laplace.entity)<>before_state.entities OR
     (SELECT count(*) FROM laplace.physicality)<>before_state.physicalities OR
-    (SELECT count(*) FROM laplace.attestation)<>before_state.occurrences OR
+    (SELECT count(*) FROM laplace.attestation)<>before_state.occurrences+second.occurrence_count OR
     (SELECT count(*) FROM laplace.source_structural_witness_execution WHERE source_profile_id=f.profile_id)
        <>before_state.observations+receipt.witness_count OR
     (SELECT count(*) FROM laplace.source_structural_witness_receipt WHERE source_profile_id=f.profile_id AND version=4)
@@ -560,7 +592,48 @@ BEGIN
        JOIN laplace.source_structural_witness w USING(source_profile_id,artifact_index,span_index)
        WHERE e.receipt_id=receipt.receipt_id AND e.artifact_index=0
          AND e.provider_fingerprint<>w.provider_fingerprint) THEN
-   RAISE EXCEPTION 'same authenticated syntax under a different physical build changed canonical state or lost execution provenance';
+   RAISE EXCEPTION USING
+    MESSAGE='same authenticated syntax under a different physical build changed canonical state or lost execution provenance',
+    DETAIL=jsonb_build_object(
+     'providers_differ','@LAPLACE_CPP_GRAMMAR_LIBRARY_SHA256@'<>'@LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_SHA256@',
+     'profile_equal',second.profile_id=f.profile_id,
+     'entity_equal',second.root_entity_id=f.root_entity_id,
+     'physicality_equal',second.root_physicality_id=f.root_physicality_id,
+     'composition_equal',second.composition_working_set_receipt_id=(SELECT composition_working_set_receipt_id FROM cpp_replay),
+     'version',receipt.version,
+     'receipt_profile_equal',receipt.source_profile_id=f.profile_id,
+     'receipt_composition_equal',receipt.composition_working_set_receipt=second.composition_working_set_receipt_id,
+     'execution_fingerprint_changed',receipt.witness_fingerprint<>(SELECT witness_fingerprint FROM laplace.source_structural_witness_receipt WHERE receipt_id=receipt.baseline_receipt_id),
+     'selected_observation_count',(SELECT count(*) FROM laplace.source_structural_witness_execution WHERE receipt_id=receipt.receipt_id),
+     'witness_count',receipt.witness_count,
+     'entity_delta',(SELECT count(*) FROM laplace.entity)-before_state.entities,
+     'physicality_delta',(SELECT count(*) FROM laplace.physicality)-before_state.physicalities,
+     'attestation_delta',(SELECT count(*) FROM laplace.attestation)-before_state.occurrences,
+     'execution_row_delta',(SELECT count(*) FROM laplace.source_structural_witness_execution WHERE source_profile_id=f.profile_id)-before_state.observations,
+     'execution_receipt_delta',(SELECT count(*) FROM laplace.source_structural_witness_receipt WHERE source_profile_id=f.profile_id AND version=4)-before_state.execution_receipts,
+     'historical_rows_equal',(SELECT jsonb_agg(to_jsonb(w) ORDER BY artifact_index,span_index) FROM laplace.source_structural_witness w WHERE source_profile_id=f.profile_id) IS NOT DISTINCT FROM before_state.historical_rows,
+     'historical_receipts_equal',(SELECT jsonb_agg(to_jsonb(r) ORDER BY receipt_id) FROM laplace.source_structural_witness_receipt r WHERE source_profile_id=f.profile_id AND version<4) IS NOT DISTINCT FROM before_state.historical_receipts,
+     'canonical_fingerprints_equal',NOT EXISTS(SELECT FROM laplace.source_structural_witness_receipt r WHERE source_profile_id=f.profile_id AND version=4 AND canonical_witness_fingerprint<>receipt.canonical_witness_fingerprint),
+     'artifact_zero_provider_changed',EXISTS(SELECT FROM laplace.source_structural_witness_execution e JOIN laplace.source_structural_witness w USING(source_profile_id,artifact_index,span_index) WHERE e.receipt_id=receipt.receipt_id AND e.artifact_index=0 AND e.provider_fingerprint<>w.provider_fingerprint),
+     'first_profile',encode(f.profile_id,'hex'),
+     'second_profile',encode(second.profile_id,'hex'),
+     'prior_replay_composition',encode((SELECT composition_working_set_receipt_id FROM cpp_replay),'hex'),
+     'second_composition',encode(second.composition_working_set_receipt_id,'hex'),
+     'current_receipt',encode(receipt.receipt_id,'hex'),
+     'baseline_receipt',encode(receipt.baseline_receipt_id,'hex'),
+     'observation_provenance',jsonb_build_object(
+       'source_changed',second.source_fingerprint IS DISTINCT FROM f.source_fingerprint,
+       'composition_changed',second.composition_working_set_receipt_id IS DISTINCT FROM
+         (SELECT composition_working_set_receipt_id FROM cpp_replay),
+       'first_source',encode(f.source_fingerprint,'hex'),
+       'second_source',encode(second.source_fingerprint,'hex'),
+       'expected_first_occurrences',f.occurrence_count,
+       'expected_current_occurrences',second.occurrence_count,
+       'retained_first_occurrences',(SELECT count(*) FROM cpp_observation_before),
+       'current_occurrences',(SELECT count(*) FROM cpp_observation_current),
+       'projection_equal',observation_projection_equal,
+       'historical_observations_equal',historical_observations_equal)
+    )::text;
  END IF;
  FOR artifact IN 0..3 LOOP
    IF (pg_temp.cpp_current_read(artifact)).content IS DISTINCT FROM
@@ -575,21 +648,49 @@ $execution_separation$;
 
 CREATE TEMP TABLE cpp_execution_after AS SELECT
  (SELECT count(*) FROM laplace.source_structural_witness_execution) observations,
- (SELECT count(*) FROM laplace.source_structural_witness_receipt) receipts;
+ (SELECT count(*) FROM laplace.source_structural_witness_receipt) receipts,
+ (SELECT count(*) FROM laplace.attestation) occurrences;
 CREATE TEMP TABLE cpp_second_replay AS SELECT a.* FROM pg_temp.cpp_admit(pg_temp.cpp_second_binding(),1048576) AS a;
 DO $execution_replay$
 BEGIN
  IF (laplace.source_admission_last_execution_metrics()::jsonb#>>'{last,structural_execution_receipt_id}')
        IS DISTINCT FROM (SELECT encode(receipt_id,'hex') FROM cpp_current_structural) OR
     (SELECT profile_id FROM cpp_second_replay)<>(SELECT profile_id FROM cpp_second) OR
+    (SELECT source_fingerprint FROM cpp_second_replay) IS DISTINCT FROM
+      (SELECT source_fingerprint FROM cpp_second) OR
+    (SELECT composition_working_set_receipt_id FROM cpp_second_replay) IS DISTINCT FROM
+      (SELECT composition_working_set_receipt_id FROM cpp_second) OR
+    (SELECT occurrence_count FROM cpp_second_replay) IS DISTINCT FROM
+      (SELECT occurrence_count FROM cpp_second) OR
     (SELECT root_entity_id FROM cpp_second_replay)<>(SELECT root_entity_id FROM cpp_second) OR
     (SELECT root_physicality_id FROM cpp_second_replay)<>(SELECT root_physicality_id FROM cpp_second) OR
     (SELECT count(*) FROM laplace.source_structural_witness_execution)<>(SELECT observations FROM cpp_execution_after) OR
     (SELECT count(*) FROM laplace.source_structural_witness_receipt)<>(SELECT receipts FROM cpp_execution_after) OR
     (SELECT count(*) FROM laplace.entity)<>(SELECT entities FROM cpp_execution_before) OR
     (SELECT count(*) FROM laplace.physicality)<>(SELECT physicalities FROM cpp_execution_before) OR
-    (SELECT count(*) FROM laplace.attestation)<>(SELECT occurrences FROM cpp_execution_before) THEN
-   RAISE EXCEPTION 'identical execution replay amplified canonical state or execution observations';
+    (SELECT count(*) FROM laplace.attestation)<>(SELECT occurrences FROM cpp_execution_after) OR
+    (SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id) FROM laplace.attestation a
+       WHERE source_fingerprint=(SELECT source_fingerprint FROM cpp_first)) IS DISTINCT FROM
+      (SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id) FROM cpp_observation_before a) OR
+    (SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id) FROM laplace.attestation a
+       WHERE source_fingerprint=(SELECT source_fingerprint FROM cpp_second)) IS DISTINCT FROM
+      (SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id) FROM cpp_observation_current a) THEN
+   RAISE EXCEPTION USING
+    MESSAGE='identical execution replay amplified canonical state or execution observations',
+    DETAIL=jsonb_build_object(
+      'source_equal',(SELECT source_fingerprint FROM cpp_second_replay) IS NOT DISTINCT FROM
+        (SELECT source_fingerprint FROM cpp_second),
+      'composition_equal',(SELECT composition_working_set_receipt_id FROM cpp_second_replay) IS NOT DISTINCT FROM
+        (SELECT composition_working_set_receipt_id FROM cpp_second),
+      'current_receipt',laplace.source_admission_last_execution_metrics()::jsonb#>>'{last,structural_execution_receipt_id}',
+      'expected_receipt',(SELECT encode(receipt_id,'hex') FROM cpp_current_structural),
+      'attestation_delta',(SELECT count(*) FROM laplace.attestation)-(SELECT occurrences FROM cpp_execution_after),
+      'historical_observations_equal',(SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id)
+        FROM laplace.attestation a WHERE source_fingerprint=(SELECT source_fingerprint FROM cpp_first)) IS NOT DISTINCT FROM
+        (SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id) FROM cpp_observation_before a),
+      'current_observations_equal',(SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id)
+        FROM laplace.attestation a WHERE source_fingerprint=(SELECT source_fingerprint FROM cpp_second)) IS NOT DISTINCT FROM
+        (SELECT jsonb_agg(to_jsonb(a) ORDER BY attestation_id) FROM cpp_observation_current a))::text;
  END IF;
 END
 $execution_replay$;
@@ -717,6 +818,11 @@ SELECT 'LAPLACE_QA_RECEIPT structural_execution_separation ' || json_build_objec
  'first_provider_sha256','@LAPLACE_CPP_GRAMMAR_LIBRARY_SHA256@',
  'second_provider_sha256','@LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_SHA256@',
  'same_profile',true,'same_entity_physicality',true,
+ 'first_source_fingerprint',(SELECT encode(source_fingerprint,'hex') FROM cpp_first),
+ 'current_source_fingerprint',(SELECT encode(source_fingerprint,'hex') FROM cpp_second),
+ 'observation_source_changed',true,'observation_projection_equal',true,
+ 'historical_observations_unchanged',true,
+ 'current_observations_created_once',(SELECT occurrence_count FROM cpp_second),
  'historical_rows_and_receipts_unchanged',true,'exact_readback_files',4,
  'execution_receipt_id',encode(receipt_id,'hex'),
  'historical_receipt_id',encode(baseline_receipt_id,'hex'),

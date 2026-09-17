@@ -2168,7 +2168,7 @@
     "correction": "Keep canonical span rows and v1-v3 evidence; add authenticated v4 current execution observations and stable canonical witness fingerprint, explicit metrics/CLI selection, source-location reproducibility fix.",
     "current_119_same_profile_replay": "pending",
     "current_installation": "pending",
-    "current_native_qualification": "pending",
+    "current_native_qualification": "Corrected occurrence-provenance fixture pending ordinary required qualification; retained prior native/core passes and named failure below.",
     "diagnostic": {
       "activation_job": 105131148335,
       "canonical_entity_and_physicality_identical": true,
@@ -2193,7 +2193,38 @@
       "Install accepted repair and complete same-profile119-file exact readback/replay with unchanged historical evidence.",
       "Integrate separately qualified parser derivative and report current95 diagnostic recount without claiming executable semantics.",
       "Complete the deferred fresh source toolchain/runtime/PostgreSQL provider when shorter user-facing delivery no longer needs the shared reservation."
-    ]
+    ],
+    "normal_qualification": {
+      "run": 35203565205,
+      "head": "f6d2afd31ba3b17e8fe474f86eb554900ae8560c",
+      "native_development_passed": 718,
+      "sanitizer": "passed",
+      "requirements": "passed",
+      "host_native_managed_build": "passed",
+      "postgresql_core_passed": 48,
+      "postgresql_core_seconds": 244.48,
+      "verified_cpp": "Existing four-file180-witness controls passed; new second-provider combined fixture failed after successful admission.",
+      "new_corruption_controls": "not reached",
+      "installed": false
+    },
+    "execution_observation_diagnostic": {
+      "run": 35205361290,
+      "job": 105149687363,
+      "source": "57b6dc84cfa9b12b1ea87b4601749411d19cc4c7",
+      "evidence_blob": "030c45e624fe94a79f6b1eb806c8b45450cf9928",
+      "actual_test_seconds": 150.87,
+      "result": "Changed provider preserved exact profile/E/P and old canonical history; existing trace-bound source observation changed composition and added9 scoped attestations; new execution rows180/receipts1.",
+      "correction": "Assert exact old/current occurrence payload equality excluding only source fingerprint and derived A-ID, exact unique scoped delta and unchanged history; identical-provider replay must preserve all identities and have zero row growth.",
+      "new_sql_blob": "5f52edcc20e27efaa6090c57a176dce3245ca093"
+    },
+    "supplemental_qualification": {
+      "run": 35203564666,
+      "job": 105143817570,
+      "provider_controls": 37,
+      "acceptance_cli_controls": 61,
+      "skips": 0,
+      "result": "passed"
+    }
   },
   "source_witness_replay_diagnostic_20260917": {
     "actual_compile_fixed_qualification": {
