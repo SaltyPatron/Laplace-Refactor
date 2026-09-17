@@ -1,93 +1,35 @@
-name: Read authenticated installed Stockfish witness diagnostic
+name: Qualify reproducible grammar provider and real compiler controls
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: read
 jobs:
-  read-installed-source:
+  provider-reproducibility:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Authenticate retained experiment and expose bounded diagnostics
+      - uses: actions/checkout@v4
+        with:
+          ref: 92dd91a568d5b764879ab20ffdc739b7db05b902
+      - name: Execute complete source verification and actual compiler controls
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, urllib.request, zipfile
-          repository = "SaltyPatron/Laplace-Refactor"
-          artifact_id = 10488005371
-          run_id = 35198079402
-          job_id = 105131694032
-          expected_size = 2743772
-          expected_sha = "b5139199281b312e9e801beaf95c9d1dcd624014acc53565e5f9466b01262df4"
-          api = "https://api.github.com/repos/" + repository
-          token = os.environ.pop("GH_TOKEN")
-          def get(url, limit):
-              request = urllib.request.Request(url, headers={
-                  "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28",
-                  "User-Agent": "Laplace-authenticated-pointer-diagnostic-reader"})
-              request.add_unredirected_header("Authorization", "Bearer " + token)
-              with urllib.request.urlopen(request, timeout=90) as response:
-                  data = response.read(limit + 1)
-              if len(data) > limit:
-                  raise RuntimeError("response exceeds exact bounded reader limit")
-              return data
-          metadata = json.loads(get(api + "/actions/artifacts/" + str(artifact_id), 100000))
-          assert metadata["id"] == artifact_id and not metadata["expired"], metadata
-          assert metadata["size_in_bytes"] == expected_size, metadata
-          assert metadata["digest"] == "sha256:" + expected_sha, metadata
-          assert metadata["workflow_run"]["id"] == run_id, metadata
-          archive_data = get(api + "/actions/artifacts/" + str(artifact_id) + "/zip", expected_size)
-          assert len(archive_data) == expected_size
-          assert hashlib.sha256(archive_data).hexdigest() == expected_sha
-          print("SOURCE_ARTIFACT_AUTHENTICATED " + json.dumps({
-              "repository": repository, "run_id": run_id, "job_id": job_id,
-              "artifact_id": artifact_id, "zip_bytes": len(archive_data),
-              "zip_sha256": expected_sha}), flush=True)
-          with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
-              entries = archive.infolist()
-              names = [entry.filename for entry in entries]
-              assert len(names) == len(set(names))
-              assert all(not pathlib.PurePosixPath(name).is_absolute() and ".." not in pathlib.PurePosixPath(name).parts for name in names)
-              print("SOURCE_ARTIFACT_MEMBERS " + json.dumps([{"name": e.filename, "bytes": e.file_size} for e in entries if "/" not in e.filename]), flush=True)
-              report = json.loads(archive.read("result.json"))
-              print("SOURCE_ACCEPTANCE_RESULT " + json.dumps(report, sort_keys=True), flush=True)
-              context = json.loads(archive.read("execution-context.json"))
-              assert context["expected_sha"] == "92dd91a568d5b764879ab20ffdc739b7db05b902"
-              assert str(context["workflow_run_id"]) == str(run_id)
-              print("SOURCE_EXECUTION_CONTEXT " + json.dumps(context, sort_keys=True), flush=True)
-              for name in ("activation-before.json", "runtime-selection.json", "grammar/build-receipt.json"):
-                  if name in names:
-                      raw = archive.read(name)
-                      assert len(raw) <= 1000000
-                      value = json.loads(raw)
-                      scope = "complete-json"
-                      if name == "activation-before.json":
-                          value = {key: value.get(key) for key in (
-                              "repository_commit", "repository_build_fingerprint",
-                              "package_id", "cli", "cli_sha256", "manifest_sha256",
-                              "release", "native_receipt_paths", "loaded")}
-                          scope = "selected-installed-identity-fields"
-                      print("SOURCE_RETAINED_JSON " + json.dumps({
-                          "name": name, "bytes": len(raw),
-                          "sha256": hashlib.sha256(raw).hexdigest(),
-                          "content_scope": scope, "value": value}, sort_keys=True), flush=True)
-              for command in report.get("commands", []):
-                  if command.get("name") not in ("grammar-qualification", "admission", "repeat"):
-                      continue
-                  print("SOURCE_COMMAND " + json.dumps(command, sort_keys=True), flush=True)
-                  for stream in ("stdout", "stderr"):
-                      name = command["name"] + "." + stream + ".log"
-                      raw = archive.read(name)
-                      expected = command.get(stream + "_sha256")
-                      assert expected is not None and hashlib.sha256(raw).hexdigest() == expected
-                      print("SOURCE_STREAM_IDENTITY " + json.dumps({"name": name, "bytes": len(raw), "sha256": expected, "truncated": len(raw) > 64000}), flush=True)
-                      print("SOURCE_STREAM_BEGIN " + name, flush=True)
-                      print((raw if len(raw) <= 64000 else raw[:8000] + b"\n[bounded middle omitted]\n" + raw[-56000:]).decode("utf-8", errors="replace"), flush=True)
-                      print("SOURCE_STREAM_END " + name, flush=True)
-              print("SOURCE_FAILURE_READER_COMPLETE", flush=True)
+          import base64, hashlib, importlib.util, json, os, pathlib, sys, unittest, urllib.request
+          root=pathlib.Path.cwd()
+          for path,sha in [("tools/sources/qualify_grammar.py","582f8b5ad926ff3756cae5cbf53a4ffd905532b4"),("tests/verified_git_source_tests.py","52c11b644d54faffd62941f4b77066dd9a43bbd6")]:
+              request=urllib.request.Request("https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+sha,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"})
+              with urllib.request.urlopen(request,timeout=60) as response: value=json.load(response)
+              data=base64.b64decode(value["content"],validate=False)
+              assert hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()==sha
+              (root/path).write_bytes(data)
+          spec=importlib.util.spec_from_file_location("provider_repro_tests",root/"tests/verified_git_source_tests.py")
+          module=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromModule(module))
+          assert result.testsRun==34 and not result.skipped and result.wasSuccessful(), result
+          print(json.dumps({"schema":"laplace.provider-reproducibility-qualification/v1","base":"92dd91a568d5b764879ab20ffdc739b7db05b902","tests":result.testsRun,"skipped":len(result.skipped),"success":result.wasSuccessful(),"provider":"582f8b5ad926ff3756cae5cbf53a4ffd905532b4","controls":"52c11b644d54faffd62941f4b77066dd9a43bbd6"}))
           PY
