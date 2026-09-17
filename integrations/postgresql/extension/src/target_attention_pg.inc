@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "laplace/target_attention_projection.h"
 #include "laplace/target_compile.h"
 

@@ -1,39 +1,54 @@
 # Running the installed cognition surface
 
-The installed Refactor surface serves Explore, Chat and Operator at
-http://127.0.0.1:55434/. Its browser, JSON APIs, OpenAI-compatible endpoint and MCP
-endpoint use the same installed native package. The local command is
-/opt/laplace/current/bin/laplace-cognition; its cognition transport is
+On the observed shared host, open https://hart-server:8443/refactor/ for Explore,
+Chat and Operator. The existing Original HTTP application forwards this directory
+to Refactor's loopback listener at http://127.0.0.1:55434/. Both use the selected
+Refactor native package; no additional public listener is required. The local
+command is /opt/laplace/current/bin/laplace-cognition, with cognition transport
 /opt/laplace/runtime/laplace-cognition.sock.
 
-The retained installation proof for source
-d2d8a3533d1000cd31f56c6fd92bc11365f0ebac and package
-b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903 is
-[main run 35216221036](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35216221036).
-It verifies the enabled, active laplace-refactor-cognition.service user unit,
-selected package health, exact installed browser assets, native cognition,
-OpenAI-compatible streaming and MCP readback. The authenticated retained source
-and service readback is
-[run 35220249735](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35220249735).
-These observations prove the loopback endpoint and a warm restart; they do not
-prove a cold boot or a remote browser connection.
+The September 17, 2026 installation observation binds source
+`df158f21bfecaf4045d065b10c21cd92464ce3ec` and package
+`d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490`.
+[Main run 35231752869](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35231752869)
+passed package activation, installed substrate and the authenticated service
+proof. Its separate initial source-readback job timed out; the already committed
+source subsequently passed complete readback in
+[run 35242450404](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35242450404).
+The main workflow's original failed outcome remains unchanged.
+
+[Authenticated service reader 35233873945](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35233873945)
+verified the enabled, active/running laplace-refactor-cognition.service user unit,
+selected-package health, exact installed browser assets, native cognition,
+OpenAI streaming/nonstreaming and MCP. Anonymous protected health and MCP requests
+returned HTTP 401; the selected operator bearer returned health HTTP 200 and a
+complete package-bound product-snapshot event. Warm restart to verified health
+took 0.917228 seconds. A cold machine boot was not tested.
 
 ## Browser access through the existing host gateway
 
 The browser resolves assets and API/event requests relative to its served
-directory. When the companion Original managed HTTP forwarder is published,
-the existing host TLS address can serve the same application at
-https://<configured-host>:8443/refactor/. Original strips /refactor/ and streams
-requests to the fixed Refactor loopback listener. This route uses the existing
-host proxy and certificate; it does not require a second public port or a
-different Refactor bind address.
+directory. Original strips /refactor/ and streams requests to the fixed loopback
+listener, preserving the caller's Authorization header.
 
-The public forwarder must be published after the selected Refactor service
-enforces its operator bearer and its live proof has checked anonymous rejection
-and authenticated success. Source support and hosted transport tests alone do
-not establish that the host route is reachable. Until those two deployments and
-the external readback complete, use the verified loopback address locally, or an
-operator-established SSH forward with the host's existing SSH access.
+[Original delivery 35240399243](https://github.com/SaltyPatron/Laplace/actions/runs/35240399243)
+verified the actual forwarding route with nine GET requests: the canonical
+redirect, three public assets, anonymous rejection and authenticated success for
+health and summary, and a complete authenticated event frame. The final TLS
+check at 15:36:48 UTC verified the hostname, certificate and selected Refactor
+package at https://hart-server:8443/refactor/.
+
+This was a server-local request through the configured LAN TLS route. A browser
+on another machine was not exercised. Remote clients still need their ordinary
+network/DNS access and trust in the host's configured certificate authority.
+The loopback address remains available on the server or through an
+operator-established SSH forward.
+
+[Authenticated route reader 35241779535](https://github.com/SaltyPatron/Laplace/actions/runs/35241779535)
+verified artifact 10505532233 (4,527,079 bytes; ZIP SHA-256
+`dbb27abb0f11789cbe0bb2cf05f13395f9a9bc2ad83a90d9153925978ab7be3a`).
+Its cache/refactor-front-door.json member has SHA-256
+`f595e5f23ccde5e12dfd8a45d35264ace6149c0186704637f4058d0957a96cbd`.
 
 The Token button accepts the same operator bearer used by the existing managed
 Original API. It is held in the browser tab's session storage and sent in the

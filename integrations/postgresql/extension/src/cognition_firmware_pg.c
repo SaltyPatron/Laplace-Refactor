@@ -47,8 +47,8 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     laplace_pg_cognition_provider* physical_owner = NULL;
     laplace_pg_semantic_provider_state* semantic_owner = NULL;
     laplace_pg_semantic_provider_report semantic_reads;
-    ErrorData* physical_error = NULL;
-    ErrorData* semantic_error = NULL;
+    ErrorData* volatile physical_error = NULL;
+    ErrorData* volatile semantic_error = NULL;
     laplace_digest256 program_id;
     laplace_cognition_firmware_status status;
     laplace_cognition_observation_provider_set_status provider_set_status;
@@ -58,7 +58,7 @@ laplace_cognition_firmware_status laplace_pg_cognition_firmware_execute_indexed(
     uint32_t step;
     bool need_physical = false;
     bool need_semantic = false;
-    bool spi_connected = false;
+    volatile bool spi_connected = false;
     const uint32_t semantic_mask = LAPLACE_OBSERVATION_QUERY_SEMANTIC;
     const uint32_t structural_mask =
         LAPLACE_OBSERVATION_QUERY_RELATION_MASK & ~semantic_mask;

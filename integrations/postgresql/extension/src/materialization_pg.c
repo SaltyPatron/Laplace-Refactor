@@ -1231,8 +1231,10 @@ static void materialization_prefetch_children(
     PG_CATCH();
     {
         /* Speculation includes planning/allocation as well as the read itself.
-         * Restore the caller context before discarding any speculative error. */
+         * Cancellation belongs to the caller, not the optional prefetch. */
         MemoryContextSwitchTo(previous);
+        if (geterrcode() == ERRCODE_QUERY_CANCELED)
+            PG_RE_THROW();
         FlushErrorState();
         materialization_reset_resolving(state);
     }

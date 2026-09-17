@@ -1,4 +1,5 @@
 -- Runs after source_admission_contract.sql in its disposable PostgreSQL cluster.
+\ir materialization_prefetch_contract.sql
 -- CMake fills context flags and one-based epoch indexes from framework.json.
 -- Keep this fixture's context and receipts across a genuine backend reconnect.
 -- CREATE without IF NOT EXISTS prevents cleanup from claiming an existing schema.

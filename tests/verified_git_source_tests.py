@@ -604,7 +604,7 @@ class CommittedSourceReceiptTests(unittest.TestCase):
 
 
 class GitReadbackReceiptTests(unittest.TestCase):
-    def execute(self, witness='ab'*32, corrupt_last=False, span_count=4):
+    def execute(self, witness='ab'*32, corrupt_last=False, span_count=4, response=None):
         profile='\\x'+'12'*32
         artifacts=[{'path':'one.cpp','sha256':hashlib.sha256(b'one').hexdigest(),'byte_count':3},
                    {'path':'two.cpp','sha256':hashlib.sha256('λ'.encode()).hexdigest(),'byte_count':2}]
@@ -623,12 +623,16 @@ class GitReadbackReceiptTests(unittest.TestCase):
                 'execution_metrics':{'last':{'valid':True,'structural_execution_receipt_id':'ef'*32}}}
         identities={key:'78'*32 for key in ('source_epoch','identity_epoch','evidence_epoch','firmware_epoch',
                     'dependency_epoch','database_epoch','package_epoch','authority_fingerprint')}
-        with patch.object(A,'run_scalar',return_value=json.dumps(returned)) as scalar:
-            receipt = A.verify_git_readback(['psql'],result,{'manifest':{'artifacts':artifacts,'byte_count':5}},
-                                           identities,'90'*32,'91'*32,'92'*32)
-            self.readback_sql = scalar.call_args.args[1]
-            self.assertEqual(scalar.call_count, 1)
-            return receipt
+        if response is None:
+            response = subprocess.CompletedProcess([], 0, json.dumps(returned) + '\n', '')
+        with patch.object(A.subprocess, 'run', return_value=response) as process:
+            try:
+                return A.verify_git_readback(['psql'],result,{'manifest':{'artifacts':artifacts,'byte_count':5}},
+                                             identities,'90'*32,'91'*32,'92'*32)
+            finally:
+                self.assertEqual(process.call_count, 1)
+                self.readback_sql = process.call_args.kwargs['input']
+                self.readback_client_timeout = process.call_args.kwargs['timeout']
 
     def test_readback_retains_semantic_witness_identity_and_all_exact_artifacts(self):
         result=self.execute()
@@ -641,6 +645,25 @@ class GitReadbackReceiptTests(unittest.TestCase):
         self.assertEqual(result['verified_file_count'],2)
         self.assertEqual(result['verified_byte_count'],5)
         self.assertTrue(result['all_artifacts_exact'])
+
+    def test_readback_has_a_local_server_deadline_before_unchanged_client_timeout(self):
+        self.execute()
+        self.assertTrue(self.readback_sql.startswith(
+            "BEGIN READ ONLY;\nSET LOCAL statement_timeout = '15min';\nWITH selected AS MATERIALIZED ("))
+        self.assertTrue(self.readback_sql.endswith('::text;\nCOMMIT;'))
+        self.assertEqual(self.readback_client_timeout, 1000)
+
+    def test_server_cancellation_cannot_promote_partial_output_to_exact_readback(self):
+        response = subprocess.CompletedProcess([], 3, '{}\n',
+            'ERROR:  57014: canceling statement due to statement timeout\n')
+        with self.assertRaisesRegex(A.AdmissionError,
+                'exact Git source readback failed:.*57014: canceling statement due to statement timeout'):
+            self.execute(response=response)
+        self.assertEqual(self.readback_client_timeout, 1000)
+
+    def test_extra_readback_rows_still_fail_the_single_result_parser(self):
+        with self.assertRaisesRegex(A.AdmissionError, 'returned 2 rows; expected one'):
+            self.execute(response=subprocess.CompletedProcess([], 0, '{}\n{}\n', ''))
 
     def test_large_committed_profile_reaches_readback_with_its_own_finite_bound(self):
         result = self.execute(span_count=5000001)
