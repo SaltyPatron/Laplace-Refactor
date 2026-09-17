@@ -1,118 +1,38 @@
-name: Read actual Original PostgreSQL stop lifecycle
+name: Read exact installed cognition failure evidence
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-env:
-  PYTHONDONTWRITEBYTECODE: "1"
-  TMPDIR: /build/laplace/work
-  TMP: /build/laplace/work
-  TEMP: /build/laplace/work
-  PGCONNECT_TIMEOUT: "5"
-  PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
-  OBSERVER_SOURCE: |
-    import datetime,hashlib,json,os,pathlib,re,subprocess
-    def emit(label,value):
-        print(label+" "+json.dumps(value,sort_keys=True),flush=True)
-    def run(args,timeout=15):
-        try:
-            p=subprocess.run(args,capture_output=True,text=True,timeout=timeout)
-            return {"exitCode":p.returncode,"stdout":p.stdout,"stderr":p.stderr[:1024]}
-        except (OSError,subprocess.TimeoutExpired) as e:return {"error":type(e).__name__}
-    emit("LIFECYCLE_OBSERVATION",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"readOnly":True,"hostReservation":False})
-    props=["Id","MainPID","ActiveState","SubState","Result","NRestarts","ExecMainStartTimestamp","ExecMainExitTimestamp","Restart","RestartUSec","TimeoutStartUSec","TimeoutStopUSec","RuntimeMaxUSec","WatchdogUSec","WatchdogTimestamp","KillMode","KillSignal","RestartKillSignal","FinalKillSignal","SendSIGKILL","OOMPolicy","MemoryMax","MemoryHigh","FragmentPath","DropInPaths","ControlGroup","Job"]
-    r=run(["systemctl","show","laplace-postgresql.service","--property="+",".join(props)])
-    p=dict(x.split("=",1) for x in r.pop("stdout","").splitlines() if "=" in x)
-    emit("POSTGRES_UNIT_PROPERTIES",{"properties":p,**r})
-    unit=run(["systemctl","cat","laplace-postgresql.service"])
-    raw=unit.pop("stdout","")
-    allowed=re.compile(r"^(?:\[|# /|Type=|User=|Group=|ExecStart=|ExecStartPost=|ExecStop=|ExecStopPost=|ExecReload=|Restart|Timeout|RuntimeMax|Watchdog|KillMode=|KillSignal=|FinalKillSignal=|SendSIGKILL=|OOMPolicy=|MemoryMax=|MemoryHigh=|Requires=|After=|Before=|PartOf=|BindsTo=|PropagatesStopTo=|StopPropagatedFrom=)")
-    emit("POSTGRES_UNIT_SOURCE",{"sha256":hashlib.sha256(raw.encode()).hexdigest(),"selectedLines":[x[:4096] for x in raw.splitlines() if allowed.match(x)],**unit})
-    pid=p.get("MainPID","0")
-    if pid.isdigit() and pid!="0":
-        proc=pathlib.Path("/proc")/pid
-        try:
-            env=(proc/"environ").read_bytes().split(b"\0")
-            emit("POSTMASTER_RUNNER_TRACKING",{"pid":int(pid),"hasRunnerTrackingId":any(x.startswith(b"RUNNER_TRACKING_ID=") for x in env),"cgroup":(proc/"cgroup").read_text()[:2048]})
-        except OSError as e:emit("POSTMASTER_RUNNER_TRACKING",{"pid":int(pid),"error":type(e).__name__})
-    for start,end in (("01:17:30","01:18:20"),("01:29:30","01:30:30")):
-        r=run(["journalctl","--unit=laplace-postgresql.service","--since=2026-09-17 "+start+" UTC","--until=2026-09-17 "+end+" UTC","--no-pager","-o","short-iso"],20)
-        lines=r.pop("stdout","").splitlines()
-        selected=[x[:4096] for x in lines if re.search(r"stop|start|timeout|kill|signal|restart|watchdog|memory|failed",x,re.I)]
-        emit("POSTGRES_LIFECYCLE_JOURNAL",{"start":start,"end":end,"selectedLines":selected[-120:],**r})
-    for root in ("/var/lib/agents/laplace-runner/actions-runner/_diag","/var/lib/agents/laplace-runner/actions-runner-refactor/_diag"):
-        directory=pathlib.Path(root)
-        try:
-            files=sorted(directory.glob("Worker_20260917-01*.log"),key=lambda x:x.stat().st_mtime,reverse=True)[:12]
-            for file in files:
-                with file.open("rb") as stream:
-                    stream.seek(max(0,file.stat().st_size-262144))
-                    text=stream.read(262144).decode("utf-8","replace")
-                selected=[]
-                for line in text.splitlines():
-                    if not re.search(r"(?i)(orphan process|process cleanup|terminate process|kill process|send.*signal|job cancellation|cancel.*token)",line):continue
-                    if re.search(r"(?i)(token|secret|authorization|password)",line):continue
-                    selected.append(line[:1200])
-                if selected:emit("RUNNER_CLEANUP_EVENTS",{"file":file.name,"runner":directory.parent.name,"selectedLines":selected[-60:]})
-        except OSError as e:emit("RUNNER_CLEANUP_EVENTS",{"runner":directory.parent.name,"error":type(e).__name__})
-    cmd=["/opt/laplace/pgsql-18/bin/psql","-XAt","-h","/var/run/postgresql","-U","laplace_admin","-d","laplace","-v","ON_ERROR_STOP=1","-c","SELECT json_build_object('systemIdentifier',(pg_control_system()).system_identifier::text,'databaseOid',(SELECT oid FROM pg_database WHERE datname=current_database()),'database',current_database(),'postmasterStarted',pg_postmaster_start_time(),'extensions',(SELECT json_object_agg(extname,extversion) FROM pg_extension WHERE extname IN ('laplace_substrate','laplace_geom')))"]
-    r=run(cmd)
-    try:value=json.loads(r.pop("stdout","")) if r.get("exitCode")==0 else r
-    except ValueError:value={"error":"non-JSON observation"}
-    emit("CURRENT_DATABASE_GENERATION",value)
-    evidence=pathlib.Path("/build/laplace/recovery/native-install/35172008006-1")
-    for relative in ("completed-phases.txt","execution.log"):
-        path=evidence/relative
-        try:
-            with path.open("rb") as stream:
-                stream.seek(max(0,path.stat().st_size-4194304))
-                raw=stream.read(4194304).decode("utf-8","replace")
-            lines=[x[:4096] for x in raw.splitlines() if relative.endswith(".txt") or re.match(r"^(NATIVE_SOURCE_FREEZE|NATIVE_PHASE_|NATIVE_INSTALL_RESULT|CORPUS_CAPACITY_RESULT|CHESS_RETAINED_WINDOW_BOUND)",x)]
-            emit("ACTIVE_NATIVE_PROVISIONAL",{"file":relative,"selectedLines":lines[-80:]})
-        except OSError as e:emit("ACTIVE_NATIVE_PROVISIONAL",{"file":relative,"error":type(e).__name__})
+  actions: read
 jobs:
-  validate:
+  read:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Authenticate and parse the bounded observation owner
+      - name: Authenticate the actual main activation failure
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import ast,hashlib,os
-          source=os.environ["OBSERVER_SOURCE"].encode()
-          identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
-          assert identity=="19e36644ef37758b8cdff3e1c9be62117dc5a947",identity
-          ast.parse(source)
-          print("Authenticated Original observer19e366; Python syntax passed without host execution.")
+          import hashlib,io,json,os,urllib.request,zipfile
+          BASE="https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
+          def get(path):
+              request=urllib.request.Request(BASE+path,headers={"Accept":"application/vnd.github+json"})
+              request.add_unredirected_header("Authorization","Bearer "+os.environ["GH_TOKEN"])
+              with urllib.request.urlopen(request,timeout=60) as response:return response.read()
+          run=json.loads(get("/actions/runs/35172058662"))
+          assert run["head_sha"]=="2e62b2260a145de41596c7f4ab2c4aff65e07352" and run["event"]=="push" and run["head_branch"]=="main"
+          metadata=json.loads(get("/actions/artifacts/10477892824"))
+          expected="d4cc15776a8a8a4b01cee38131086bc14242e68300e3d089fe182bdf9112ecd4"
+          assert metadata["workflow_run"]["id"]==35172058662 and not metadata["expired"]
+          assert metadata["digest"]=="sha256:"+expected
+          raw=get("/actions/artifacts/10477892824/zip")
+          assert len(raw)==2991 and hashlib.sha256(raw).hexdigest()==expected
+          files=zipfile.ZipFile(io.BytesIO(raw))
+          assert len(files.namelist())==1,files.namelist()
+          document=json.loads(files.read(files.namelist()[0]))
+          print("AUTHENTICATED_FAILURE_ARTIFACT "+json.dumps({"id":10477892824,"run":35172058662,"bytes":len(raw),"sha256":expected,"name":files.namelist()[0]}))
+          print("INSTALLED_COGNITION_FAILURE "+json.dumps(document,sort_keys=True))
           PY
-  observe:
-    needs: validate
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 5
-    env:
-      EVIDENCE: /build/laplace/work/original-pg-crash-observer-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - name: Read Original database, process, lock and crash evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          test "$(id -un)" = laplace-runner
-          mkdir "$EVIDENCE"
-          python3 - <<'PY'
-          import ast,hashlib,os
-          source=os.environ["OBSERVER_SOURCE"].encode()
-          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="19e36644ef37758b8cdff3e1c9be62117dc5a947"
-          ast.parse(source)
-          PY
-          timeout --signal=TERM --kill-after=5s 180s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
-      - name: Retain the bounded read-only observation
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: original-pg-crash-observer-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.EVIDENCE }}/
-          if-no-files-found: error
-          retention-days: 30
