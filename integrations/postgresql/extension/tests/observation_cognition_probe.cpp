@@ -223,6 +223,123 @@ int WriteUnrelatedEstate(const char* path) {
     return out ? 0 : 66;
 }
 
+// Preserve the canonical identity/trajectory owners when changing a fixture's
+// children. Nested containers have no atom bit on their composite child.
+bool RecomposeFixture(
+    Fixture* fixture, const std::array<std::uint64_t, 3>& metadata) {
+    const std::array<laplace_id128, 3> entities{{fixture->a, fixture->b, fixture->c}};
+    for (std::size_t i = 0U; i < entities.size(); ++i) {
+        if (laplace_trajectory_composition_encode(
+                &entities[i], static_cast<std::uint64_t>(i + 1U), 1U,
+                metadata[i], &fixture->carriers[i]) != LAPLACE_TRAJECTORY_OK)
+            return false;
+    }
+    if (laplace_identity_composite_witness(
+            entities.data(), entities.size(), nullptr,
+            &fixture->root, &fixture->root_witness) != LAPLACE_IDENTITY_OK)
+        return false;
+    fixture->physicality.entity_id = fixture->root;
+    if (laplace_persistence_trajectory_fingerprint(
+            fixture->carriers.data(), fixture->carriers.size(),
+            &fixture->physicality.trajectory_fingerprint) != LAPLACE_PERSISTENCE_OK ||
+        laplace_persistence_physicality_identify(
+            &fixture->physicality, &fixture->physicality.physicality_id) !=
+                LAPLACE_PERSISTENCE_OK)
+        return false;
+    for (std::size_t i = 0U; i < fixture->segments.size(); ++i) {
+        fixture->segments[i].physicality_id = fixture->physicality.physicality_id;
+        fixture->segments[i].vertex_index = static_cast<std::uint64_t>(i);
+        fixture->segments[i].carrier = fixture->carriers[i];
+        if (laplace_trajectory_composition_decode_one(
+                &fixture->carriers[i], static_cast<std::uint64_t>(i + 1U),
+                &fixture->segments[i].occurrence) != LAPLACE_TRAJECTORY_OK)
+            return false;
+    }
+    return true;
+}
+
+void WriteFixture(std::ostream& out, const Fixture& fixture) {
+    const std::array<laplace_id128, 4> ids{{
+        fixture.a, fixture.b, fixture.c, fixture.root}};
+    const std::array<laplace_digest256, 4> witnesses{{
+        fixture.a_witness, fixture.b_witness, fixture.c_witness, fixture.root_witness}};
+    out << "INSERT INTO laplace.entity(entity_id,identity_witness) VALUES ";
+    for (std::size_t i = 0U; i < ids.size(); ++i) {
+        if (i != 0U) out << ',';
+        out << "(decode('" << Hex(ids[i]) << "','hex'),decode('"
+            << Hex(witnesses[i]) << "','hex'))";
+    }
+    // Reusing A and the same exact composite must not duplicate canonical entities.
+    out << " ON CONFLICT (entity_id) DO NOTHING;\n"
+        "INSERT INTO laplace.physicality(physicality_id,entity_id,physicality_type,vertex_class,"
+        "recipe_version,structural_form,dimension_count,flags,recipe_fingerprint,geometry_epoch,"
+        "trajectory_fingerprint,centroid_x,centroid_y,centroid_z,centroid_m,radius,logical_count,vertex_count,trajectory)"
+        " VALUES (decode('" << Hex(fixture.physicality.physicality_id)
+        << "','hex'),decode('" << Hex(fixture.root)
+        << "','hex'),1,1,1,1,4,0,decode('" << Hex(fixture.physicality.recipe_fingerprint)
+        << "','hex'),decode('" << Hex(fixture.physicality.geometry_epoch)
+        << "','hex'),decode('" << Hex(fixture.physicality.trajectory_fingerprint)
+        << "','hex'),0.125,-0.25,0.5,-0.75,0.875,3,3,decode('"
+        << Hex(fixture.carriers) << "','hex'));\n";
+}
+
+int WriteGoalFixtures(const char* path) {
+    Fixture direct{}, alternate{}, inner{}, outer{};
+    if (!BuildFixture(&direct, 0x12000U) ||
+        !Codepoint(0x41U, &direct.a, &direct.a_witness) ||
+        !BuildFixture(&inner, 0x30000U) ||
+        !BuildFixture(&outer, 0x31000U)) return 65;
+    direct.c = direct.a;
+    direct.c_witness = direct.a_witness;
+    const std::array<std::uint64_t, 3> direct_metadata{{
+        Metadata(2U, 0x41U), Metadata(2U, 0x12042U), Metadata(2U, 0x41U)}};
+    if (!RecomposeFixture(&direct, direct_metadata)) return 65;
+    alternate = direct;
+    alternate.physicality.recipe_fingerprint = Digest(21U);
+    if (!RecomposeFixture(&alternate, direct_metadata)) return 65;
+    outer.a = inner.root;
+    outer.a_witness = inner.root_witness;
+    if (!RecomposeFixture(&outer, {{
+            UINT64_C(3) << LAPLACE_TRAJECTORY_TIER_SHIFT,
+            Metadata(2U, 0x31042U), Metadata(2U, 0x31043U)}})) return 65;
+    std::ofstream out(path);
+    if (!out) return 64;
+    out << "BEGIN;\n";
+    WriteFixture(out, direct);
+    WriteFixture(out, alternate);
+    WriteFixture(out, inner);
+    WriteFixture(out, outer);
+    out << "CREATE TEMP TABLE container_goal_fixture AS SELECT decode('"
+        << Hex(direct.a) << "','hex') AS anchor,decode('"
+        << Hex(direct.root) << "','hex') AS goal,decode('"
+        << Hex(inner.a) << "','hex') AS nested_anchor,decode('"
+        << Hex(outer.root) << "','hex') AS nested_goal,ARRAY[decode('"
+        << Hex(direct.physicality.physicality_id) << "','hex'),decode('"
+        << Hex(alternate.physicality.physicality_id)
+        << "','hex')] AS direct_physicalities;\nCOMMIT;\n";
+    out.close();
+    return out ? 0 : 66;
+}
+
+int WriteSharedAtomEstate(const char* path) {
+    std::ofstream out(path);
+    if (!out) return 64;
+    out << "BEGIN;\n";
+    for (std::uint32_t i = 1U; i <= 4096U; ++i) {
+        const std::uint32_t offset = 0x20000U + i * 16U;
+        Fixture fixture{};
+        if (!BuildFixture(&fixture, offset) ||
+            !Codepoint(0x41U, &fixture.a, &fixture.a_witness) ||
+            !RecomposeFixture(&fixture, {{
+                Metadata(2U, 0x41U), Metadata(2U, 0x42U + offset),
+                Metadata(2U, 0x43U + offset)}})) return 65;
+        WriteFixture(out, fixture);
+    }
+    out << "COMMIT;\n";
+    out.close();
+    return out ? 0 : 66;
+}
+
 }  // namespace
 
 bool FirmwareImages() {
@@ -275,6 +392,10 @@ bool FirmwareImages() {
 int main(int argc, char** argv) {
     if (argc == 3 && std::strcmp(argv[1], "--unrelated-estate") == 0)
         return WriteUnrelatedEstate(argv[2]);
+    if (argc == 3 && std::strcmp(argv[1], "--goal-fixtures") == 0)
+        return WriteGoalFixtures(argv[2]);
+    if (argc == 3 && std::strcmp(argv[1], "--shared-atom-estate") == 0)
+        return WriteSharedAtomEstate(argv[2]);
     if (argc != 1) return 64;
     if (!FirmwareImages()) return 2;
     Fixture fixture{};

@@ -1,169 +1,4 @@
 {
-  "source_admission_delivery_20260916": {
-    "classification": "observed-development-state-not-product-law",
-    "continuation": "Ship the managed compiler-server lock repair and measured-profile consumer; finish current source-built CMake and PostgreSQL consumer through canonical fresh providers, then normal publication selection and actual activation. Installed source admission is complete within exact-observation scope; diagnostic classification, executable semantics and chess playing strength remain separate.",
-    "current_validation": "Normal main workflow 35163097838 passed hosted requirements/native/sanitizers, real PostgreSQL product/package proof, actual activation, installed full-source acceptance, live Unicode readback and deployed chess calibration.",
-    "installed_source_acceptance": {
-      "status": "passed",
-      "run": 35163097838,
-      "job": 105024533587,
-      "artifact": {
-        "id": 10474447094,
-        "bytes": 3016206,
-        "sha256": "a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007"
-      },
-      "authenticated_reader": {
-        "run": 35165647185,
-        "job": 105026007725,
-        "status": "passed"
-      },
-      "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
-      "source_tree": "418af042b3c0aade628c1c98f13942659e67e64d",
-      "source_manifest_sha256": "2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc",
-      "files": 119,
-      "bytes": 1172144,
-      "cpp_files": 72,
-      "source_profile_id": "2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
-      "structural_witnesses": 571626,
-      "source_occurrences": 239,
-      "exact_readback_per_pass": {
-        "records": 119,
-        "resolved_root_nodes": 119,
-        "trajectory_carriers": 968195
-      },
-      "first_admission_and_readback_seconds": 129.58197689056396,
-      "repeat_admission_and_readback_seconds": 60.71063208580017,
-      "repeat_deltas": {
-        "entity": 0,
-        "physicality": 0,
-        "attestation": 0,
-        "source_occurrence": 0,
-        "structural_witness": 0
-      },
-      "syntax_diagnostics": {
-        "count": 102,
-        "definition": "emitted ERROR or MISSING syntax witnesses; propagated HAS_ERROR ancestors excluded",
-        "classification": "individual source locations not yet classified; no preprocessing or executable semantics claim"
-      },
-      "canonical_corpus_admission_completed": true,
-      "zero_amplification_repeat_proven": true,
-      "executable_semantics_verified": false,
-      "performance_scope": "Whole CLI admission and exact readback. No fresh-row insertion or recorded-game throughput is inferred."
-    },
-    "integration_branch": "fix/ci-execution-owners-20260916",
-    "integration_pull_request": 394,
-    "observed_at_utc": "2026-09-17T00:19:44Z",
-    "persistent_service_observation": {
-      "cold_boot_proven": false,
-      "warm_restart_proven": true,
-      "job": 105024106144,
-      "workflow_run": 35163097838,
-      "result": "success",
-      "service": "laplace-refactor-postgresql.service",
-      "provider": "systemd-system",
-      "active": true,
-      "enabled": true
-    },
-    "preserved_source_parents": [
-      "91f3e58814ece4dbf5f3a4ce9b067448a265098f",
-      "f0edaaf19f0c80756b772d0f4b781dc3ff9d97c6"
-    ],
-    "source_changes": [
-      "Bind admission to the live receipt-derived perfcache, Highway and geometry epochs.",
-      "Preserve the incoming native source decomposition-depth correction.",
-      "Use the committed source profile witness count as the finite readback bound without a five-million-witness ceiling.",
-      "Use the canonical persistent PostgreSQL system service and retain host exclusion through bounded cancellation rollback."
-    ],
-    "supersedes_observation_scope": "This installed b042 observation supersedes earlier pending source-admission and absent-gateway disposition text. Earlier active_work and product_activation_projection history remains historical and does not describe the currently installed package or service ownership.",
-    "merged_main_commit": "b042de4216e1d674effe5bd3e8ecf3ebc7aeddac",
-    "installed_product": {
-      "package_id": "912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe",
-      "activation_result_sha256": "b3d3ae843cc2aad1a2ed41d7287aa763eb664278962e8d68086bbbc80e513eb8",
-      "job": 105024106144,
-      "postgresql_lifecycle_provider": "systemd-system",
-      "system_identifier": "7682119102860556519",
-      "cognition_restart_to_verified_health_seconds": 0.8309767160099,
-      "cold_boot_proven": false,
-      "gateway": {
-        "status": "passed",
-        "artifact": 10474571451,
-        "sha256": "a7687c2db247a1170f00f880a2371333717f62fc4a21aa939f083373ac4024e7",
-        "scope": "Installed health/browser/descriptors/explore, two native continued turns, single-user-message OpenAI nonstream/stream, MCP initialize/tools/query; no general conversation or chess strength claim."
-      }
-    },
-    "calibration": {
-      "artifact": 10474698366,
-      "completed": "2026-09-17T00:19:44Z",
-      "concurrency": 8,
-      "gameHashMiB": 16,
-      "gameThreads": 1,
-      "generatedGamesPerSecond": 5.017006584766846,
-      "hashMiB": 256,
-      "job": 105024533530,
-      "normalGames": 48,
-      "plies": 7488,
-      "recordedGames": null,
-      "run": 35163097838,
-      "threads": 4,
-      "wallNPS": 2216083.453339395,
-      "zipSHA256": "5d9e6f96d52eb5e504828f7d4fe80873457ed4f4e372ca3e4d4e3dbb37ba0058"
-    }
-  },
-  "toolchain_followup_20260917": {
-    "classification": "observed-development-state-not-product-law",
-    "observed_at_utc": "2026-09-17T00:45:00Z",
-    "installed_product_preserved": true,
-    "current_state": "Fresh prerequisite preparation; no current CMake 697-test qualification or successor PostgreSQL publication claimed.",
-    "private_historical_provider": {
-      "prefix": "/opt/laplace/stage/toolchain/2e899074f53c0495ab966196c15cd89de8b0bd61c87e6591edf5b2801ef55ea6/toolchain",
-      "owner_uid": 1000,
-      "group_gid": 994,
-      "mode": "0700",
-      "observation_run": 35166437346,
-      "observation_job": 105028468046,
-      "disposition": "Preserved. Available runner UID994 cannot traverse or change owner metadata."
-    },
-    "private_historical_runtime": {
-      "receipt": "/build/laplace/build/0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373/package-receipt.json",
-      "observation_run": 35166912751,
-      "observation_job": 105029974616,
-      "disposition": "Unreadable to runner. Fresh canonical runtime source build required rather than rewriting historical provenance."
-    },
-    "recovery": "Canonical toolchain build/resume, runtime graph build/resume and PostgreSQL build/check-world/io_uring/ELF publication under runner-owned addressed storage; selected package remains unchanged until ordinary activation.",
-    "managed_build_defect": {
-      "observer_run": 35164094601,
-      "observer_job": 105021173277,
-      "orphan_pid": 901105,
-      "orphan_ppid": 1,
-      "start_ticks": 85970188,
-      "fd": 9,
-      "lock_device": 64774,
-      "lock_inode": 354780545,
-      "exact_cleanup": {
-        "run": 35164382866,
-        "job": 105022065700,
-        "outcome": "already-exited-no-replacement-signaled",
-        "signal_sent": false
-      },
-      "repair": "Canonical managed-build child marks inherited reservation descriptor close-on-exec and disables persistent MSBuild/compiler servers; foreground owner retains reservation through actual build and cleanup.",
-      "repair_execution_status": "Source integration qualified by two actual process and mutation tests on hosted job 105032244535; ordinary managed native build and deployed execution remain pending this source batch."
-    },
-    "private_historical_host_provider": {
-      "receipt": "/build/laplace/build/postgresql-host-provider/0b3378486ff5e39942b19b6292644e69573ad2b802307e095968aa148ca29e18/host-provider-receipt.json",
-      "observation_run": 35167159259,
-      "observation_job": 105030738295,
-      "disposition": "Original locator is unreadable to runner. Complete prerequisite matrix will authenticate the byte-identical publication-owned receipt copy against the unchanged required SHA256 and verify current host identity before using that locator in a derived contract."
-    },
-    "source_preparation": {
-      "status": "Complete independent prerequisite matrix prepared; execution outcome pending.",
-      "workflow_blob": "c58cc9193bb9afa79845db04739d36f73420f38e",
-      "locked_archive_count": 26,
-      "locked_archive_bytes": 244860824,
-      "locked_expanded_source_bytes": 1318724433,
-      "builds_executed": 0,
-      "scheduling": "Long canonical source build follows Original's first recorded pilot; no unqualified component interruption or mid-build reservation release."
-    }
-  },
   "active_work": {
     "base_commit": "935cbc6e99315c38f6fa0e704a92ee61d4e663bd",
     "branch": "feat/cili-cross-profile-topology",
@@ -728,6 +563,58 @@
     "state": "standing-native-isa-managed-postgresql-controlled-integration-and-stock-recipe-native-implementation-proven-not-product-activated",
     "whole_product_target": "Laplace works perfectly as invented and envisioned; this boundary does not narrow that target",
     "worktree": "/tmp/laplace-persistent-product-20260831"
+  },
+  "measured_chess_profile_consumer_20260917": {
+    "activation_status": "Merged in PR397. Actual candidate profile activation, direct UCI defaults, explicit caller overrides, and complete legal CuteChess games passed. Main 2e62 installed its package before a later populated-corpus cognition proof failed; that run's deployed calibration and source readback were skipped.",
+    "classification": "observed-development-state-not-product-law",
+    "database_recording": false,
+    "implementation": "Canonical chess_tools activate-profile and run-profile consume an authenticated calibration receipt, preserve caller overrides and invoke the selected official source executables directly.",
+    "qualification": {
+      "authenticated_calibration_artifact": 10474698366,
+      "authority_tests": 34,
+      "compatibility": "Receipt-schema and recommendation replay passed on the hosted worker; this is not actual host binding or direct invocation evidence.",
+      "job": 105032244535,
+      "managed_lock_tests": 2,
+      "profile_tests": 9,
+      "run": 35167655316,
+      "status": "passed"
+    },
+    "receipt_binding": "Compatible observed hardware and resource configuration, selected source/executable/NNUE/Qt identities, benchmark implementation, contract and maximum age must match. The execution receipt names hart-server; compatibility is not restricted by a unique physical-machine identifier.",
+    "recorded_games_per_second": null,
+    "actual_candidate_evidence": {
+      "run": 35168534734,
+      "job": 105035839343,
+      "artifact": 10476786113,
+      "artifact_bytes": 8086884,
+      "artifact_sha256": "bbe1e2caaa063f6b5d8be3d0f6ff7be113fbfcdc692167bd7bcdb7dbeb529608",
+      "calibration_receipt_sha256": "f55c41b1d1766b73615c366e8f516860a0b933fdbb5005b0b07d66d7b8dc3482",
+      "analysis": {
+        "threads": 2,
+        "hash_mib": 64,
+        "median_wall_nodes_per_second": 1149291.1975636713
+      },
+      "generation": {
+        "concurrency": 8,
+        "threads": 1,
+        "hash_mib": 16,
+        "median_complete_legal_games_per_second": 4.982292158357136,
+        "games": 48,
+        "plies": 7488
+      },
+      "actual_invocations": {
+        "direct_official_executables": true,
+        "defaults_verified": true,
+        "explicit_1_thread_16_mib_override_verified": true,
+        "complete_legal_games": 2,
+        "plies": 312,
+        "distinct_move_sequences": 1
+      },
+      "authenticated_reader": {
+        "run": 35171351580,
+        "job": 105043502755
+      },
+      "scope": "Finite measured host/configuration/workload result. Generated games are not recorded PostgreSQL games; no playing-strength or universal-best claim."
+    }
   },
   "observed_at_utc": "2026-08-31T06:05:30Z",
   "prior_highway_work": {
@@ -1999,6 +1886,116 @@
       "trigger": "the user directly resumed work after a shell failure required a host reboot"
     }
   },
+  "source_admission_delivery_20260916": {
+    "calibration": {
+      "artifact": 10474698366,
+      "completed": "2026-09-17T00:19:44Z",
+      "concurrency": 8,
+      "gameHashMiB": 16,
+      "gameThreads": 1,
+      "generatedGamesPerSecond": 5.017006584766846,
+      "hashMiB": 256,
+      "job": 105024533530,
+      "normalGames": 48,
+      "plies": 7488,
+      "recordedGames": null,
+      "run": 35163097838,
+      "threads": 4,
+      "wallNPS": 2216083.453339395,
+      "zipSHA256": "5d9e6f96d52eb5e504828f7d4fe80873457ed4f4e372ca3e4d4e3dbb37ba0058"
+    },
+    "classification": "observed-development-state-not-product-law",
+    "continuation": "Ship the managed compiler-server lock repair and measured-profile consumer; finish current source-built CMake and PostgreSQL consumer through canonical fresh providers, then normal publication selection and actual activation. Installed source admission is complete within exact-observation scope; diagnostic classification, executable semantics and chess playing strength remain separate.",
+    "current_validation": "Normal main workflow 35163097838 passed hosted requirements/native/sanitizers, real PostgreSQL product/package proof, actual activation, installed full-source acceptance, live Unicode readback and deployed chess calibration.",
+    "installed_product": {
+      "activation_result_sha256": "b3d3ae843cc2aad1a2ed41d7287aa763eb664278962e8d68086bbbc80e513eb8",
+      "cognition_restart_to_verified_health_seconds": 0.8309767160099,
+      "cold_boot_proven": false,
+      "gateway": {
+        "artifact": 10474571451,
+        "scope": "Installed health/browser/descriptors/explore, two native continued turns, single-user-message OpenAI nonstream/stream, MCP initialize/tools/query; no general conversation or chess strength claim.",
+        "sha256": "a7687c2db247a1170f00f880a2371333717f62fc4a21aa939f083373ac4024e7",
+        "status": "passed"
+      },
+      "job": 105024106144,
+      "package_id": "912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe",
+      "postgresql_lifecycle_provider": "systemd-system",
+      "system_identifier": "7682119102860556519"
+    },
+    "installed_source_acceptance": {
+      "artifact": {
+        "bytes": 3016206,
+        "id": 10474447094,
+        "sha256": "a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007"
+      },
+      "authenticated_reader": {
+        "job": 105026007725,
+        "run": 35165647185,
+        "status": "passed"
+      },
+      "bytes": 1172144,
+      "canonical_corpus_admission_completed": true,
+      "cpp_files": 72,
+      "exact_readback_per_pass": {
+        "records": 119,
+        "resolved_root_nodes": 119,
+        "trajectory_carriers": 968195
+      },
+      "executable_semantics_verified": false,
+      "files": 119,
+      "first_admission_and_readback_seconds": 129.58197689056396,
+      "job": 105024533587,
+      "performance_scope": "Whole CLI admission and exact readback. No fresh-row insertion or recorded-game throughput is inferred.",
+      "repeat_admission_and_readback_seconds": 60.71063208580017,
+      "repeat_deltas": {
+        "attestation": 0,
+        "entity": 0,
+        "physicality": 0,
+        "source_occurrence": 0,
+        "structural_witness": 0
+      },
+      "run": 35163097838,
+      "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+      "source_manifest_sha256": "2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc",
+      "source_occurrences": 239,
+      "source_profile_id": "2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
+      "source_tree": "418af042b3c0aade628c1c98f13942659e67e64d",
+      "status": "passed",
+      "structural_witnesses": 571626,
+      "syntax_diagnostics": {
+        "classification": "individual source locations not yet classified; no preprocessing or executable semantics claim",
+        "count": 102,
+        "definition": "emitted ERROR or MISSING syntax witnesses; propagated HAS_ERROR ancestors excluded"
+      },
+      "zero_amplification_repeat_proven": true
+    },
+    "integration_branch": "fix/ci-execution-owners-20260916",
+    "integration_pull_request": 394,
+    "merged_main_commit": "b042de4216e1d674effe5bd3e8ecf3ebc7aeddac",
+    "observed_at_utc": "2026-09-17T00:19:44Z",
+    "persistent_service_observation": {
+      "active": true,
+      "cold_boot_proven": false,
+      "enabled": true,
+      "job": 105024106144,
+      "provider": "systemd-system",
+      "result": "success",
+      "service": "laplace-refactor-postgresql.service",
+      "warm_restart_proven": true,
+      "workflow_run": 35163097838
+    },
+    "preserved_source_parents": [
+      "91f3e58814ece4dbf5f3a4ce9b067448a265098f",
+      "f0edaaf19f0c80756b772d0f4b781dc3ff9d97c6"
+    ],
+    "source_changes": [
+      "Bind admission to the live receipt-derived perfcache, Highway and geometry epochs.",
+      "Preserve the incoming native source decomposition-depth correction.",
+      "Use the committed source profile witness count as the finite readback bound without a five-million-witness ceiling.",
+      "Use the canonical persistent PostgreSQL system service and retain host exclusion through bounded cancellation rollback."
+    ],
+    "supersedes_observation_scope": "This installed b042 observation supersedes earlier pending source-admission and absent-gateway disposition text. Earlier active_work and product_activation_projection history remains historical and does not describe the currently installed package or service ownership."
+  },
   "state_classes": {
     "implemented": "the clean repository contains the canonical implementation and exact implementation tests",
     "integration_proven": "controlled integration executes the implementation and proves the declared behavior",
@@ -2018,6 +2015,61 @@
     "source_base": "b80e453a0e050e2054252f98306ec1901c01a53e",
     "source_worktree": "/tmp/laplace-corpus-recipes",
     "verification": "All six files matched original bytes at integration. IntelLLVM native build passed after reconfiguration against refreshed main. Eleven generic tabular tests, historical CILI plan test, and current CILI exact reconstruction/mutated-byte rejection passed. Python provenance CTest passed after moving registration below interpreter discovery; it checks actual archive/member/receipt hashes. Hosted requirements passed on 6c98465."
+  },
+  "toolchain_followup_20260917": {
+    "classification": "observed-development-state-not-product-law",
+    "current_state": "Fresh prerequisite preparation; no current CMake 697-test qualification or successor PostgreSQL publication claimed.",
+    "installed_product_preserved": true,
+    "managed_build_defect": {
+      "exact_cleanup": {
+        "job": 105022065700,
+        "outcome": "already-exited-no-replacement-signaled",
+        "run": 35164382866,
+        "signal_sent": false
+      },
+      "fd": 9,
+      "lock_device": 64774,
+      "lock_inode": 354780545,
+      "observer_job": 105021173277,
+      "observer_run": 35164094601,
+      "orphan_pid": 901105,
+      "orphan_ppid": 1,
+      "repair": "Canonical managed-build child marks inherited reservation descriptor close-on-exec and disables persistent MSBuild/compiler servers; foreground owner retains reservation through actual build and cleanup.",
+      "repair_execution_status": "Source integration qualified by two actual process and mutation tests on hosted job 105032244535; ordinary managed native build and deployed execution remain pending this source batch.",
+      "start_ticks": 85970188
+    },
+    "observed_at_utc": "2026-09-17T00:45:00Z",
+    "private_historical_host_provider": {
+      "disposition": "Original locator is unreadable to runner. Complete prerequisite matrix will authenticate the byte-identical publication-owned receipt copy against the unchanged required SHA256 and verify current host identity before using that locator in a derived contract.",
+      "observation_job": 105030738295,
+      "observation_run": 35167159259,
+      "receipt": "/build/laplace/build/postgresql-host-provider/0b3378486ff5e39942b19b6292644e69573ad2b802307e095968aa148ca29e18/host-provider-receipt.json"
+    },
+    "private_historical_provider": {
+      "disposition": "Preserved. Available runner UID994 cannot traverse or change owner metadata.",
+      "group_gid": 994,
+      "mode": "0700",
+      "observation_job": 105028468046,
+      "observation_run": 35166437346,
+      "owner_uid": 1000,
+      "prefix": "/opt/laplace/stage/toolchain/2e899074f53c0495ab966196c15cd89de8b0bd61c87e6591edf5b2801ef55ea6/toolchain"
+    },
+    "private_historical_runtime": {
+      "disposition": "Unreadable to runner. Fresh canonical runtime source build required rather than rewriting historical provenance.",
+      "observation_job": 105029974616,
+      "observation_run": 35166912751,
+      "receipt": "/build/laplace/build/0538f872ba3f0f5201368f969ad01cb6d071c336ea29c764ba3a6a8cc535a373/package-receipt.json"
+    },
+    "recovery": "Canonical toolchain build/resume, runtime graph build/resume and PostgreSQL build/check-world/io_uring/ELF publication under runner-owned addressed storage; selected package remains unchanged until ordinary activation.",
+    "source_preparation": {
+      "builds_executed": 0,
+      "locked_archive_bytes": 244860824,
+      "locked_archive_count": 26,
+      "locked_expanded_source_bytes": 1318724433,
+      "scheduling": "Long canonical source build follows Original's first recorded pilot; no unqualified component interruption or mid-build reservation release.",
+      "status": "Complete independent prerequisite matrix prepared; execution outcome pending.",
+      "workflow_blob": "c58cc9193bb9afa79845db04739d36f73420f38e"
+    }
   },
   "unicode": {
     "implemented": true,
@@ -2076,22 +2128,37 @@
     "physical_verification_command": "LAPLACE_VERIFY_CONTINUATION_PHYSICAL=1 python3 tests/program_authority_tests.py",
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use"
   },
-  "measured_chess_profile_consumer_20260917": {
+  "indexed_container_goal_repair_20260917": {
     "classification": "observed-development-state-not-product-law",
-    "implementation": "Canonical chess_tools activate-profile and run-profile consume an authenticated calibration receipt, preserve caller overrides and invoke the selected official source executables directly.",
-    "qualification": {
-      "run": 35167655316,
-      "job": 105032244535,
-      "profile_tests": 9,
-      "managed_lock_tests": 2,
-      "authority_tests": 34,
-      "status": "passed",
-      "authenticated_calibration_artifact": 10474698366,
-      "compatibility": "Receipt-schema and recommendation replay passed on the hosted worker; this is not actual host binding or direct invocation evidence."
+    "observed_at_utc": "2026-09-17T02:27:39Z",
+    "installed_repository_commit": "2e62b2260a145de41596c7f4ab2c4aff65e07352",
+    "installed_package_id": "56cdb7118be6322ec8ecf7d586ead2cc39711ae6854d9ed93e22aa8f601134c5",
+    "activation_result_sha256": "ccd5004af658d2b51d0fc82185386fc4f0eaa62c5a55c4467b12694198464b88",
+    "activation_scope": "PostgreSQL, Unicode and Highway activation completed; the subsequent installed cognition proof failed before gateway restart and full acceptance.",
+    "failed_run": 35172058662,
+    "failed_job": 105052898809,
+    "failure": {
+      "sha256": "4aaaaac83f9841debdba26b905f294e653811505d8f6a2579d979807c0229b73",
+      "artifact": 10477892824,
+      "artifact_bytes": 2991,
+      "artifact_sha256": "d4cc15776a8a8a4b01cee38131086bc14242e68300e3d089fe182bdf9112ecd4",
+      "reader_run": 35174735672,
+      "reader_job": 105053816928
     },
-    "receipt_binding": "Machine, resource grant, selected source/executable/NNUE/Qt identities, benchmark implementation, contract and maximum age must match. Profile module participates in exact candidate/deployment calibration selection.",
-    "activation_status": "New contract digest requires a fresh matching calibration receipt. Actual selected profile activation and direct machine invocation remain pending normal source delivery.",
-    "database_recording": false,
-    "recorded_games_per_second": null
+    "canonical_prompt_replay": {
+      "prompt": "AA",
+      "trunk_entity_id": "7043ee24af19f09e5b2ee122ed257088",
+      "first_constituent_output": "A",
+      "prompt_persistence_receipt_id": null
+    },
+    "defect": "The goal-bound AA -> A -> AA program exceeded metadata workspace while first selecting every container of the shared atom A. Native candidate selection failed before materialization; the already-admitted prompt identity was reused correctly.",
+    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe.",
+    "preserved": "No prompt change, corpus deletion, memory increase, request-depth reduction, unconditional goal filter, or shortened witness set.",
+    "proof_boundary": "The source correction and volume/multihop/tie/mutation regressions must pass normal qualification and actual installed cognition before this delivery is complete.",
+    "remaining": [
+      "actual corrected installed cognition and gateway verification",
+      "actual deployed source readback and replay",
+      "fresh source toolchain/runtime/PostgreSQL publication remains a separate pending operation"
+    ]
   }
 }

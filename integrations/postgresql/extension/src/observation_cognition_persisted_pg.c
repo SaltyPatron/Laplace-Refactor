@@ -282,6 +282,7 @@ static const char persisted_metadata_sql[] =
     "FROM " LAPLACE_PG_SCHEMA ".physicality AS p "
     "WHERE p.physicality_type=1 AND ((($2 & 2)<>0 AND p.entity_id=ANY($1)) "
     "OR (($2 & 29)<>0 AND " LAPLACE_PG_SCHEMA ".trajectory_entity_ids(p.trajectory) && $1)) "
+    "AND ($4::bytea IS NULL OR p.entity_id=$4) "
     "ORDER BY p.physicality_id LIMIT $3";
 
 static const char persisted_payload_sql[] =
@@ -415,11 +416,11 @@ static void persisted_merge_views(
 
 static int persisted_enumerate_impl(
     persisted_provider_state* state, const laplace_observation_query_binding* binding,
-    const laplace_id128* source_ids, size_t source_count,
+    const laplace_id128* source_ids, size_t source_count, bool direct_goal_probe,
     laplace_cognition_observation_candidate* candidates, size_t capacity,
     size_t* count, laplace_cognition_observation_candidate_usage* usage) {
-    Oid types[3] = {BYTEAARRAYOID, INT4OID, INT8OID};
-    Datum args[3];
+    Oid types[4] = {BYTEAARRAYOID, INT4OID, INT8OID, BYTEAOID};
+    Datum args[4];
     Datum* source_values;
     Datum* physicality_values;
     uint64_t max_rows, candidate_workspace, frontier_workspace;
@@ -458,9 +459,13 @@ static int persisted_enumerate_impl(
                             BYTEAOID, -1, false, TYPALIGN_INT));
     args[1] = Int32GetDatum((int32)binding->relation_mask);
     args[2] = Int64GetDatum((int64)(max_rows + 1u));
+    args[3] = direct_goal_probe
+        ? PointerGetDatum(laplace_pg_bytes_to_bytea(binding->goal_entity_id.bytes, 16u))
+        : (Datum)0;
     persisted_charge_query(state);
-    if (SPI_execute_with_args(persisted_metadata_sql, 3, types, args,
-                              NULL, true, (long)(max_rows + 1u)) != SPI_OK_SELECT)
+    if (SPI_execute_with_args(persisted_metadata_sql, 4, types, args,
+                              direct_goal_probe ? NULL : "   n",
+                              true, (long)(max_rows + 1u)) != SPI_OK_SELECT)
         ereport(ERROR, (errmsg("Laplace indexed physicality metadata read failed")));
     rows = (uint64_t)SPI_processed;
     fetched_rows = rows;
@@ -554,10 +559,20 @@ static int persisted_enumerate_impl(
         view_memory = remaining / 2u;
         view_rows = (remaining - view_memory) / UINT64_C(2048);
         if (view_rows > max_rows - rows) view_rows = max_rows - rows;
-        laplace_pg_physicality_entity_candidates(&state->context, source_ids,
-            source_count, binding->relation_mask, view_rows, view_memory,
-            database_limit - state->database_operations,
-            &views, &view_count, &operations);
+        if (direct_goal_probe) {
+            /* All eligible goal realizations participate, including derived
+             * physicalities. The native index still verifies source membership,
+             * exact ordered carriers and every occurrence before a goal wins. */
+            laplace_pg_physicality_entity_resolve(&state->context,
+                &binding->goal_entity_id, NULL, 1u, view_rows, view_memory,
+                database_limit - state->database_operations,
+                &views, &view_count, &operations);
+        } else {
+            laplace_pg_physicality_entity_candidates(&state->context, source_ids,
+                source_count, binding->relation_mask, view_rows, view_memory,
+                database_limit - state->database_operations,
+                &views, &view_count, &operations);
+        }
         if (operations > database_limit - state->database_operations)
             persisted_limit("derived provider exceeded its database-operation admission");
         state->database_operations = persisted_add(state->database_operations, operations);
@@ -639,8 +654,6 @@ static int persisted_enumerate(
     persisted_provider_state* state = (persisted_provider_state*)opaque;
     volatile int status = 0;
     MemoryContext previous;
-    (void)frontier;
-    (void)costs;
     *count = 0u;
     memset(usage, 0, sizeof(*usage));
     if (state->error != NULL || state->scratch_context == NULL) return 1;
@@ -650,8 +663,48 @@ static int persisted_enumerate(
      * the original database diagnostic at the public C entry boundary. */
     PG_TRY();
     {
-        status = persisted_enumerate_impl(state, binding, source_ids, source_count,
-                                         candidates, capacity, count, usage);
+        /* RequestCompile admits unit edge costs and zero heuristics through the
+         * canonical observation BuildTransition owner. From one initial state,
+         * an exact direct goal costs one; every non-goal continuation costs at
+         * least two. Retain every tied direct witness and let the ordinary native
+         * search choose its deterministic winner. This is not a goal filter for
+         * arbitrary multi-hop, multipath, mixed-family or terminal-all queries. */
+        bool probe = source_count == 1u && frontier != NULL && costs != NULL &&
+            frontier[0].depth == 0u && frontier[0].heuristic_cost == 0u && costs[0] == 0u &&
+            binding->relation_mask == LAPLACE_OBSERVATION_QUERY_CONTAINER &&
+            (binding->flags & LAPLACE_OBSERVATION_QUERY_BINDING_GOAL_PRESENT) != 0u &&
+            (binding->flags & LAPLACE_OBSERVATION_QUERY_BINDING_TERMINAL_RESULTS) == 0u &&
+            binding->maximum_results == 1u &&
+            state->request->search_budget.requested_path_count == 1u;
+#if defined(LAPLACE_TEST_DISABLE_PERSISTED_DIRECT_GOAL)
+        probe = false;
+#endif
+        laplace_cognition_observation_candidate_usage probed = {0};
+        if (probe) {
+            status = persisted_enumerate_impl(state, binding, source_ids, source_count,
+                                             true, candidates, capacity, count, usage);
+            if (status == 0 && usage->limiting_disposition == 0u && *count == 0u) {
+                probed = *usage;
+                /* A miss is not absence. Release the probe's bounded scratch
+                 * before the unchanged multi-hop selection, and charge both. */
+                MemoryContextReset(state->scratch_context);
+                memset(usage, 0, sizeof(*usage));
+                probe = false;
+            }
+        }
+        if (!probe) {
+            status = persisted_enumerate_impl(state, binding, source_ids, source_count,
+                                             false, candidates, capacity, count, usage);
+            usage->rows_examined = persisted_add(usage->rows_examined, probed.rows_examined);
+            usage->index_plan_count = persisted_add(usage->index_plan_count, probed.index_plan_count);
+            usage->crossing_count = persisted_add(usage->crossing_count, probed.crossing_count);
+            usage->io_operations = persisted_add(usage->io_operations, probed.io_operations);
+            usage->database_operations = persisted_add(usage->database_operations, probed.database_operations);
+            if ((uint64_t)source_count > UINT64_MAX / state->request->search_budget.transition_batch_capacity ||
+                usage->rows_examined >
+                    (uint64_t)source_count * state->request->search_budget.transition_batch_capacity)
+                persisted_limit("goal probe and fallback exceed the declared provider bound");
+        }
     }
     PG_CATCH();
     {
@@ -687,7 +740,7 @@ void laplace_pg_cognition_provider_create(
     uint64_t provider_memory_bytes,
     laplace_pg_cognition_provider** owner,
     laplace_cognition_observation_candidate_provider_v1* provider) {
-    static const char domain[] = "laplace-postgresql-indexed-physicality-provider-v2";
+    static const char domain[] = "laplace-postgresql-indexed-physicality-provider-v3";
     laplace_digest256 request_fingerprint;
     laplace_digest256 context_fingerprint;
     blake3_hasher identifier;

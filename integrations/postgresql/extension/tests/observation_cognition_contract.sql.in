@@ -522,3 +522,208 @@ BEGIN
     END IF;
 END $descriptor_upgrade$;
 \echo LAPLACE_PHYSICALITY_ENTITY_UPGRADE_PARITY_OK
+
+
+-- A direct goal must remain query-local when thousands of legitimate containers
+-- share its source atom. This is actual PostgreSQL, exact native fixture identity,
+-- the unchanged depth-eight search contract, and the live 8 MiB provider grant.
+\i :goal_fixtures
+CREATE FUNCTION pg_temp.container_goal_context()
+RETURNS laplace.execution_context LANGUAGE plpgsql AS $context$
+DECLARE context laplace.execution_context := pg_temp.execution_context();
+BEGIN
+    context.memory_bytes := 9437184; -- 1 MiB search + 8 MiB physical provider
+    RETURN context;
+END $context$;
+
+CREATE FUNCTION pg_temp.container_goal_request(
+    anchor bytea, goal bytea, request_flags integer DEFAULT 9,
+    path_count integer DEFAULT 1)
+RETURNS laplace.cognition_observation_request LANGUAGE plpgsql AS $request$
+DECLARE q laplace.cognition_observation_request;
+BEGIN
+    SELECT (request).* INTO STRICT q FROM observation_cognition_fixture;
+    q.anchor_entity_id := anchor;
+    q.goal_entity_id := goal;
+    q.relation_mask := 1;
+    q.maximum_results := path_count;
+    q.flags := request_flags;
+    q.search_budget := ROW(
+        64,256,128,64,1048576,64,64,64,8,path_count,8,64
+    )::laplace.cognition_observation_search_budget;
+    q.forward_limits := ROW(
+        16,32,32,32,16,8192,128,128,4,4
+    )::laplace.cognition_observation_forward_limits;
+    RETURN q;
+END $request$;
+
+-- This module compiles the same provider with only the guarded direct-goal probe
+-- disabled. Unique provider symbols prevent dynamic-loader interposition from
+-- silently routing this deliberate defect back into the production provider.
+CREATE FUNCTION pg_temp.container_goal_unoptimized(
+    laplace.execution_context, laplace.cognition_observation_request)
+RETURNS laplace.cognition_observation_persisted_result
+AS 'laplace_pg_container_goal_mutant', 'laplace_pg_cognition_observation_execute_persisted'
+LANGUAGE C VOLATILE STRICT PARALLEL UNSAFE;
+
+CREATE TEMP TABLE container_goal_baseline(
+    mode text PRIMARY KEY, observed laplace.cognition_observation_persisted_result);
+
+DO $goal_baseline$
+DECLARE f container_goal_fixture%ROWTYPE;
+    q laplace.cognition_observation_request;
+    normal laplace.cognition_observation_persisted_result;
+    ordinary laplace.cognition_observation_persisted_result;
+    removed bytea;
+BEGIN
+    SELECT * INTO STRICT f FROM container_goal_fixture;
+    q := pg_temp.container_goal_request(f.anchor,f.goal);
+    normal := laplace.cognition_observation_execute_persisted(pg_temp.container_goal_context(),q);
+    ordinary := pg_temp.container_goal_unoptimized(pg_temp.container_goal_context(),q);
+    IF normal.answers IS DISTINCT FROM ordinary.answers
+       OR cardinality(normal.answers)<>1
+       OR (normal.answers[1]).entity_id IS DISTINCT FROM f.goal
+       OR (normal.answers[1]).transition_count<>1
+       OR (normal.answers[1]).total_cost<>1
+       OR (normal.answers[1]).relation_family<>1
+       OR (normal.answers[1]).source_layer<>1
+       OR (normal.answers[1]).direction<>2
+       OR (normal.answers[1]).independent_evidence_root_count<>0
+       OR (normal.execution).final_remaining_required_count<>0
+       OR normal.provider_rows_fetched<>2
+       OR normal.provider_trajectory_bytes<>192
+       OR normal.provider_batch_count<>1 THEN
+        RAISE EXCEPTION 'direct goal lost ordinary path/witness parity or tied physicalities: % / %',normal,ordinary;
+    END IF;
+    INSERT INTO container_goal_baseline VALUES ('direct',normal);
+
+    -- Both native-built physicalities encode A twice at distinct ordinals.
+    -- Each surviving physicality must independently yield the same deterministic
+    -- occurrence witness as ordinary search; the subtransaction restores the pair.
+    FOREACH removed IN ARRAY f.direct_physicalities LOOP
+        BEGIN
+            DELETE FROM laplace.physicality WHERE physicality_id=removed;
+            normal := laplace.cognition_observation_execute_persisted(pg_temp.container_goal_context(),q);
+            ordinary := pg_temp.container_goal_unoptimized(pg_temp.container_goal_context(),q);
+            IF normal.answers IS DISTINCT FROM ordinary.answers
+               OR cardinality(normal.answers)<>1
+               OR normal.provider_rows_fetched<>1
+               OR normal.provider_trajectory_bytes<>96 THEN
+                RAISE EXCEPTION 'direct occurrence tie changed after removing one physicality: % / %',normal,ordinary;
+            END IF;
+            RAISE SQLSTATE 'ZCG01' USING MESSAGE='restore one direct-goal physicality';
+        EXCEPTION WHEN SQLSTATE 'ZCG01' THEN NULL;
+        END;
+    END LOOP;
+
+    -- No direct source->goal edge exists here: X belongs to inner, inner to outer.
+    -- A miss must preserve the two-edge answer and charge the metadata and empty
+    -- derived selection used by the probe, in addition to ordinary fallback work.
+    q := pg_temp.container_goal_request(f.nested_anchor,f.nested_goal);
+    normal := laplace.cognition_observation_execute_persisted(pg_temp.container_goal_context(),q);
+    ordinary := pg_temp.container_goal_unoptimized(pg_temp.container_goal_context(),q);
+    IF normal.answers IS DISTINCT FROM ordinary.answers
+       OR cardinality(normal.answers)<>1
+       OR (normal.answers[1]).entity_id IS DISTINCT FROM f.nested_goal
+       OR (normal.answers[1]).transition_count<>2
+       OR (normal.answers[1]).total_cost<>2
+       OR (normal.execution).final_remaining_required_count<>0
+       OR normal.provider_rows_fetched<>2
+       OR normal.provider_trajectory_bytes<>192
+       OR normal.provider_batch_count<>ordinary.provider_batch_count+1
+       OR (normal.execution).database_operations<>(ordinary.execution).database_operations+2 THEN
+        RAISE EXCEPTION 'direct-goal miss lost multi-hop fallback or probe accounting: % / %',normal,ordinary;
+    END IF;
+    INSERT INTO container_goal_baseline VALUES ('nested',normal);
+
+    -- The existing C->B->A predecessor fixture also runs at depth eight. Its
+    -- non-CONTAINER request remains on the ordinary provider with identical work.
+    SELECT (request).* INTO STRICT q FROM observation_cognition_fixture;
+    q := pg_temp.container_goal_request(q.anchor_entity_id,q.goal_entity_id);
+    q.relation_mask := 4;
+    normal := laplace.cognition_observation_execute_persisted(pg_temp.container_goal_context(),q);
+    ordinary := pg_temp.container_goal_unoptimized(pg_temp.container_goal_context(),q);
+    IF normal IS DISTINCT FROM ordinary OR cardinality(normal.answers)<>1
+       OR (normal.answers[1]).transition_count<>2
+       OR (normal.execution).final_remaining_required_count<>0 THEN
+        RAISE EXCEPTION 'ordinary depth-eight C->B->A route changed: % / %',normal,ordinary;
+    END IF;
+END $goal_baseline$;
+
+\i :shared_atom_estate
+
+CREATE FUNCTION pg_temp.expect_shared_atom_exhaustion(
+    q laplace.cognition_observation_request, use_mutant boolean)
+RETURNS void LANGUAGE plpgsql AS $exhaustion$
+BEGIN
+    BEGIN
+        IF use_mutant THEN
+            PERFORM pg_temp.container_goal_unoptimized(pg_temp.container_goal_context(),q);
+        ELSE
+            PERFORM laplace.cognition_observation_execute_persisted(pg_temp.container_goal_context(),q);
+        END IF;
+    EXCEPTION WHEN program_limit_exceeded THEN
+        IF SQLERRM <> 'Laplace indexed persisted cognition resource limit: matching physicality metadata exceeds workspace' THEN
+            RAISE EXCEPTION 'unexpected shared-atom exhaustion diagnostic: %',SQLERRM;
+        END IF;
+        RETURN;
+    END;
+    RAISE EXCEPTION 'ordinary shared-atom selector did not exhaust its finite metadata workspace';
+END $exhaustion$;
+
+DO $goal_estate$
+DECLARE f container_goal_fixture%ROWTYPE;
+    q laplace.cognition_observation_request;
+    observed laplace.cognition_observation_persisted_result;
+    before laplace.cognition_observation_persisted_result;
+    plan json;
+BEGIN
+    SELECT * INTO STRICT f FROM container_goal_fixture;
+    q := pg_temp.container_goal_request(f.anchor,f.goal);
+    IF (SELECT count(*) FROM laplace.physicality p
+        WHERE p.physicality_type=1
+          AND laplace.trajectory_entity_ids(p.trajectory) && ARRAY[f.anchor])<>4099 THEN
+        RAISE EXCEPTION 'shared-atom estate did not contain the exact 4096 decoys plus three baseline physicalities';
+    END IF;
+    SELECT (baseline.observed).* INTO STRICT before FROM container_goal_baseline baseline WHERE mode='direct';
+    observed := laplace.cognition_observation_execute_persisted(pg_temp.container_goal_context(),q);
+    IF observed IS DISTINCT FROM before THEN
+        RAISE EXCEPTION 'shared content changed direct goal answer, witness, bounded work or receipt: % / %',before,observed;
+    END IF;
+    -- This fails precisely on the pre-fix provider; it cannot pass merely by
+    -- increasing the workspace or admitting a truncated prefix of matching rows.
+    PERFORM pg_temp.expect_shared_atom_exhaustion(q,true);
+
+    -- Reproduce the real four-parameter provider selector. Admission maintained
+    -- its sparse index; no ANALYZE/VACUUM/planner hint is introduced for this check.
+    EXECUTE 'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT p.physicality_id FROM laplace.physicality p '
+            'WHERE p.physicality_type=1 AND '
+            '((($2 & 2)<>0 AND p.entity_id=ANY($1)) OR '
+            '(($2 & 29)<>0 AND laplace.trajectory_entity_ids(p.trajectory) && $1)) '
+            'AND ($4::bytea IS NULL OR p.entity_id=$4) '
+            'ORDER BY p.physicality_id LIMIT $3'
+        INTO plan USING ARRAY[q.anchor_entity_id],q.relation_mask,4097,q.goal_entity_id;
+    IF position('physicality_entity_lookup_idx' in plan::text)=0
+       OR (plan #>> '{0,Plan,Actual Rows}')::integer<>2 THEN
+        RAISE EXCEPTION 'direct container lookup did not select both goal physicalities through its entity index: %',plan;
+    END IF;
+    RAISE NOTICE 'direct-container indexed query plan: %',plan;
+
+    -- TERMINAL_RESULTS admits non-goals too; multipath must preserve alternatives.
+    -- Both therefore retain the ordinary finite-workspace failure on this estate.
+    PERFORM pg_temp.expect_shared_atom_exhaustion(
+        pg_temp.container_goal_request(f.anchor,f.goal,11),false);
+    PERFORM pg_temp.expect_shared_atom_exhaustion(
+        pg_temp.container_goal_request(f.anchor,decode(repeat('00',16),'hex'),10),false);
+    PERFORM pg_temp.expect_shared_atom_exhaustion(
+        pg_temp.container_goal_request(f.anchor,f.goal,9,2),false);
+
+    q := pg_temp.container_goal_request(f.nested_anchor,f.nested_goal);
+    SELECT (baseline.observed).* INTO STRICT before FROM container_goal_baseline baseline WHERE mode='nested';
+    observed := laplace.cognition_observation_execute_persisted(pg_temp.container_goal_context(),q);
+    IF observed IS DISTINCT FROM before THEN
+        RAISE EXCEPTION 'shared-atom estate changed isolated real multi-hop fallback: % / %',before,observed;
+    END IF;
+    RAISE NOTICE 'shared-atom direct-goal control passed: 4096 additional containers; two direct physicalities; ordinary mutant rejected; depth-eight fallback retained';
+END $goal_estate$;
+\echo LAPLACE_SHARED_ATOM_CONTAINER_GOAL_PARITY_OK
