@@ -1,207 +1,75 @@
-name: Qualify real PostgreSQL materialization cancellation
+name: Authenticate completed committed source readback
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
+  actions: read
 jobs:
-  prefetch-cancellation:
+  retained-readback:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    env:
-      GIT_TERMINAL_PROMPT: "0"
-      QUAL_ROOT: /build/laplace/work/prefetch-cancel-${{ github.run_id }}-${{ github.run_attempt }}
-      QUAL_BUILD: /build/laplace/build/prefetch-cancel-${{ github.run_id }}-${{ github.run_attempt }}
-      TMPDIR: /build/laplace/work
-      TMP: /build/laplace/work
-      TEMP: /build/laplace/work
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: df158f21bfecaf4045d065b10c21cd92464ce3ec
-          persist-credentials: false
-      - name: Prepare private hosted build and exact candidate leaves
-        timeout-minutes: 5
-        shell: bash
+      - name: Authenticate exact artifact and native output scope
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          set -euo pipefail
-          sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" /build/laplace/work /build/laplace/build
-          test ! -e "$QUAL_ROOT"
-          test ! -e "$QUAL_BUILD"
-          mkdir -p "$QUAL_ROOT/output" "$QUAL_ROOT/archives" "$QUAL_BUILD"
-          python3 - <<'PY'
-          import base64,hashlib,json,os,pathlib,subprocess,urllib.request
-          base="df158f21bfecaf4045d065b10c21cd92464ce3ec"
-          leaves=json.loads('''[{"path":"integrations/postgresql/extension/src/materialization_pg.c","sha":"43e6e73e98e7721f076887ecc163ac720ec9fa61","base_blob":"e9af5ca3864460c94a6f560a03a5492f2627ab7e"},{"path":"integrations/postgresql/extension/tests/materialization_prefetch_pg.c","sha":"a47d24a981f462c647e9fc6dc290e92eb1d08ede","base_blob":null},{"path":"integrations/postgresql/extension/CMakeLists.txt","sha":"92442f14563f60c00226dcb099428cbd54195b80","base_blob":"4d29817e48524e84b5245f785168831aa27ba9a9"},{"path":"tests/postgres/materialization_prefetch_contract.sql","sha":"2b4a22e23d18ae2c7a9006a77d7d5a54c7525130","base_blob":null},{"path":"tests/postgres/physicality_entity_contract.sql","sha":"fc6478801a51297147bca8ce31f4d3c77ee424f2","base_blob":"3b5281cd0463be61ce349d6b7c84442242e666e2"},{"path":"tests/registry.d/verified-cpp-source.json","sha":"336e7f24546da3f154afbed520f496d0ea09b0a2","base_blob":"149d00c4ed50303f0bedd5c6668e74e226d73e70"},{"path":"integrations/postgresql/extension/src/target_attention_pg.inc","sha":"9291503e6e115d1e19a0dd7d82fb579796e4612e","base_blob":"bf05492e15f91cbb61e605fcb5e92ef6221a9624"},{"path":"integrations/postgresql/extension/src/cognition_firmware_pg.c","sha":"a0fbca53139968c3be0fc083a1c44397a0db3d00","base_blob":"e076b52c7a7bcaeb7fd00605626729e6651d9af5"},{"path":"integrations/postgresql/extension/src/cognition_conversation_product_pg.c","sha":"429b0a0bc875b4110e1f56ce87257c4597ac617a","base_blob":"3752e7a7967b74d090a7b22b173b22b3a5b5f859"}]''')
-          def git(*args):
-              return subprocess.check_output(["git",*args],text=True).strip()
-          if git("rev-parse","HEAD") != base:
-              raise SystemExit("qualification source base differs")
-          for leaf in leaves:
-              path=pathlib.Path(leaf["path"])
-              if leaf["base_blob"] is None:
-                  if path.exists():raise SystemExit("new candidate path already exists")
-              elif git("hash-object",str(path)) != leaf["base_blob"]:
-                  raise SystemExit("candidate baseline leaf differs: "+str(path))
-              request=urllib.request.Request(
-                  "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+leaf["sha"],
-                  headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
-                           "Accept":"application/vnd.github+json",
-                           "X-GitHub-Api-Version":"2022-11-28"})
-              with urllib.request.urlopen(request,timeout=30) as response:
-                  document=json.load(response)
-              if document.get("sha") != leaf["sha"] or document.get("encoding") != "base64":
-                  raise SystemExit("GitHub blob response differs")
-              payload=base64.b64decode(document["content"])
-              observed=hashlib.sha1(b"blob "+str(len(payload)).encode()+b"\0"+payload).hexdigest()
-              if observed != leaf["sha"]:raise SystemExit("candidate blob bytes differ")
-              path.parent.mkdir(parents=True,exist_ok=True)
-              path.write_bytes(payload)
-              if git("hash-object",str(path)) != leaf["sha"]:
-                  raise SystemExit("materialized candidate differs")
-          subprocess.run(["git","add","--",*[x["path"] for x in leaves]],check=True)
-          output=pathlib.Path(os.environ["QUAL_ROOT"])/"output"
-          selection={"schema":"laplace.materialization-prefetch-source-selection/v1",
-              "base_commit":base,"candidate_tree":git("write-tree"),"leaves":leaves}
-          (output/"source-selection.json").write_text(json.dumps(selection,indent=2)+"\n")
-          print(json.dumps(selection,sort_keys=True))
+          python3 -I - <<'PY'
+          import hashlib,io,json,os,pathlib,urllib.request,zipfile
+          REPO="SaltyPatron/Laplace-Refactor";ARTIFACT=10505599545;RUN=35242450404
+          HEAD="1ca73182518e068254bbf0dcb829e86d054de17c";SIZE=90291
+          DIGEST="ed7c878b2f576c13fe27fb4420ad472ef63173f55c234e6ee735ee74f1fcf0c4"
+          PACKAGE="d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490"
+          PROFILE="c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab"
+          RECEIPT="d1f9cd77cda9b20f220d60644472a513e9e182ff279470e113844c0972667843"
+          def fetch(url,maximum):
+              request=urllib.request.Request(url,headers={"Accept":"application/vnd.github+json"})
+              request.add_unredirected_header("Authorization","Bearer "+os.environ["GH_TOKEN"])
+              with urllib.request.urlopen(request,timeout=45) as response:data=response.read(maximum+1)
+              if len(data)>maximum:raise RuntimeError("authenticated response exceeded bound")
+              return data
+          base="https://api.github.com/repos/"+REPO
+          metadata=json.loads(fetch(base+"/actions/artifacts/"+str(ARTIFACT),65536))
+          if metadata["id"]!=ARTIFACT or metadata["workflow_run"]["id"]!=RUN or metadata["workflow_run"]["head_sha"]!=HEAD or metadata["size_in_bytes"]!=SIZE or metadata["digest"]!="sha256:"+DIGEST or metadata["expired"]:raise RuntimeError("artifact metadata differs")
+          archive=fetch(metadata["archive_download_url"],SIZE)
+          if len(archive)!=SIZE or hashlib.sha256(archive).hexdigest()!=DIGEST:raise RuntimeError("artifact ZIP differs")
+          with zipfile.ZipFile(io.BytesIO(archive)) as source:
+              names=source.namelist()
+              if len(names)!=len(set(names)) or len(names)>8 or any(pathlib.PurePosixPath(n).is_absolute() or ".." in pathlib.PurePosixPath(n).parts or "\\" in n for n in names):raise RuntimeError("artifact paths differ")
+              def member(name):
+                  matches=[n for n in names if pathlib.PurePosixPath(n).name==name]
+                  if len(matches)!=1:raise RuntimeError("artifact member absent or ambiguous")
+                  info=source.getinfo(matches[0])
+                  if info.file_size>2097152:raise RuntimeError("artifact member too large")
+                  return source.read(info)
+              payload=member("result.json");document=json.loads(payload)
+              output=member("full119.stdout.json")
+              error=member("full119.stderr.log")
+          if document["schema"]!="laplace.committed-source-readback/v1" or document["status"]!="completed" or document["package_id"]!=PACKAGE or document["source_profile_id"]!=PROFILE or document["receipt_id"]!=RECEIPT:raise RuntimeError("retained readback identity differs")
+          if not document["database_read_only"] or document["admission_executed"] or document["admission_replayed"] or document["admission_metrics_reconstructed"] or not document["selected_package_unchanged"] or document["package_after"]!="/opt/laplace/releases/"+PACKAGE:raise RuntimeError("retained operation scope differs")
+          if not document["whole_corpus_verified"] or document["verified_file_count"]!=119 or document["verified_byte_count"]!=1172144 or document["executable_semantics_verified"]:raise RuntimeError("retained corpus scope differs")
+          phases=document["phases"]
+          if len(phases)!=1:raise RuntimeError("retained phase count differs")
+          phase=phases[0]
+          if phase["name"]!="full119" or phase["status"]!="completed" or phase["exit_code"]!=0 or phase["backend_cleanup"][-1]["remaining"]!=[]:raise RuntimeError("phase or cleanup differs")
+          if hashlib.sha256(output).hexdigest()!=phase["stdout_sha256"] or hashlib.sha256(error).hexdigest()!=phase["stderr_sha256"] or error:raise RuntimeError("phase output bytes differ")
+          raw=json.loads(output);readback=document["readback"]
+          if raw!=phase["result"]:raise RuntimeError("retained native result differs")
+          records=readback["records"]
+          if len(records)!=119 or [int(r["artifact_index"]) for r in records]!=list(range(119)) or sum(int(r["output_bytes"]) for r in records)!=1172144:raise RuntimeError("returned file scope differs")
+          if any(r["source_profile_id"]!="\\x"+PROFILE or r["structural_receipt_id"]!="\\x"+RECEIPT or int(r["verified_witnesses"])!=571627 for r in records):raise RuntimeError("native record identity/witness scope differs")
+          for item,retained in zip(raw["records"],records):
+              if item!={key:value for key,value in retained.items() if key!="path"}:raise RuntimeError("normal verified record differs from native output")
+          selection=document["durable_selection"]
+          summary={"schema":"laplace.committed-source-readback-summary/v1","status":"passed","source":"df158f21bfecaf4045d065b10c21cd92464ce3ec","package_id":PACKAGE,"profile_id":PROFILE,"current_structural_receipt_id":RECEIPT,"historical_structural_receipt_id":readback["historical_structural_receipt_id"],"canonical_witness_fingerprint":readback["structural_witness_fingerprint"],"execution_witness_fingerprint":readback["execution_witness_fingerprint"],"file_count":119,"byte_count":1172144,"resolved_roots":sum(int(r["resolved_nodes"]) for r in records),"trajectory_carriers":sum(int(r["trajectory_carriers"]) for r in records),"database_operations":sum(int(r["database_operations"]) for r in records),"source_occurrence_count":readback["source_occurrence_count"],"canonical_witness_count":readback["structural_witness_count"],"execution_observation_count":readback["structural_execution_observation_count"],"execution_receipt_count":readback["structural_execution_receipt_count"],"database_row_counts":readback["database_row_counts"],"profile_counts":{k:v for k,v in selection["profile"].items() if k.endswith("_count")},"execution_seconds":phase["seconds"],"execution_and_cleanup_seconds":phase["seconds_including_cleanup"],"started_unix":document["started_unix"],"finished_unix":document["finished_unix"],"remaining_owned_backends":[],"admission_executed":False,"replay_growth_measured":False,"executable_semantics_verified":False,"package_changed":False,"artifact":{"run":RUN,"job":105274103339,"id":ARTIFACT,"zip_bytes":SIZE,"zip_sha256":DIGEST,"member":"result.json","member_bytes":len(payload),"member_sha256":hashlib.sha256(payload).hexdigest(),"native_output_sha256":hashlib.sha256(output).hexdigest()},"reader":{"run":int(os.environ["GITHUB_RUN_ID"])}}
+          pathlib.Path("committed-readback-summary.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
+          print("AUTHENTICATED_COMMITTED_READBACK "+json.dumps(summary,sort_keys=True))
+          
           PY
-          sudo apt-get update
-          sudo apt-get install --yes build-essential cmake ninja-build jq bison flex perl curl
-          {
-            uname -a
-            gcc --version
-            g++ --version
-            cmake --version
-            ninja --version
-          } > "$QUAL_ROOT/output/hosted-provider-versions.txt"
-      - name: Acquire native dependencies and verify exact PostgreSQL release
-        timeout-minutes: 6
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./tools/dependencies/acquire-locked-git.sh \
-            dependencies/lock.json "$QUAL_ROOT/dependencies" \
-            blake3 eigen googletest spectra tree-sitter \
-            2>&1 | tee "$QUAL_ROOT/output/native-acquisition.log"
-          python3 - <<'PY'
-          import json,os,pathlib
-          source=json.loads(pathlib.Path("dependencies/release-lock.json").read_text())
-          entry=source["archives"]["postgresql"]
-          if entry["version"]!="18.6" or entry["sha256"]!="555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f":
-              raise SystemExit("selected PostgreSQL release differs")
-          target=pathlib.Path(os.environ["QUAL_ROOT"])/"output"/"postgresql-release-lock.json"
-          target.write_text(json.dumps({"schema":source["schema"],"archives":{"postgresql":entry}},indent=2)+"\n")
-          PY
-          curl --fail --location --retry 3 --connect-timeout 20 --max-time 180 \
-            --output "$QUAL_ROOT/archives/postgresql-18.6.tar.bz2" \
-            https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2
-          python3 tools/dependencies/release-assets.py import \
-            --lock "$QUAL_ROOT/output/postgresql-release-lock.json" \
-            --archive-root "$QUAL_ROOT/archives" \
-            --destination "$QUAL_ROOT/release-source" \
-            | tee "$QUAL_ROOT/output/postgresql-source-verification.json"
-      - name: Build disposable PostgreSQL 18.6 cancellation provider
-        timeout-minutes: 12
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$QUAL_BUILD/postgresql"
-          cd "$QUAL_BUILD/postgresql"
-          "$QUAL_ROOT/release-source/postgresql/configure" \
-            --prefix="$QUAL_ROOT/pgsql-18" \
-            --without-readline --without-zlib --without-icu \
-            2>&1 | tee "$QUAL_ROOT/output/postgresql-configure.log"
-          make --jobs=2 2>&1 | tee "$QUAL_ROOT/output/postgresql-build.log"
-          make install 2>&1 | tee "$QUAL_ROOT/output/postgresql-install.log"
-          "$QUAL_ROOT/pgsql-18/bin/pg_config" --version \
-            | tee "$QUAL_ROOT/output/postgresql-version.txt"
-          test "$("$QUAL_ROOT/pgsql-18/bin/pg_config" --version)" = "PostgreSQL 18.6"
-      - name: Build the actual Laplace extension and test fixture
-        timeout-minutes: 12
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --preset linux-dev -B "$QUAL_BUILD/laplace" \
-            -DLAPLACE_BLAKE3_SOURCE="$QUAL_ROOT/dependencies/blake3/c" \
-            -DLAPLACE_GTEST_SOURCE="$QUAL_ROOT/dependencies/googletest" \
-            -DLAPLACE_EIGEN_SOURCE="$QUAL_ROOT/dependencies/eigen" \
-            -DLAPLACE_SPECTRA_SOURCE="$QUAL_ROOT/dependencies/spectra" \
-            -DLAPLACE_TREE_SITTER_SOURCE="$QUAL_ROOT/dependencies/tree-sitter" \
-            -DLAPLACE_PG_CONFIG="$QUAL_ROOT/pgsql-18/bin/pg_config" \
-            -DLAPLACE_ENABLE_DOTNET_BINDINGS=OFF \
-            2>&1 | tee "$QUAL_ROOT/output/laplace-configure.log"
-          cmake --build "$QUAL_BUILD/laplace" --target laplace_pg --parallel 2 -- -k 0 \
-            2>&1 | tee "$QUAL_ROOT/output/laplace-build.log"
-      - name: Execute real SIGINT, optional failure and classification mutant
-        timeout-minutes: 3
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            printf 'CREATE EXTENSION laplace;\n'
-            printf "SET statement_timeout = '15s';\n"
-            cat tests/postgres/materialization_prefetch_contract.sql
-          } > "$QUAL_ROOT/output/standalone.sql"
-          timeout --signal=TERM --kill-after=10s 120s \
-            bash tests/postgres/run_spi_test.sh mutation \
-            "$QUAL_ROOT/pgsql-18/bin" \
-            "$QUAL_BUILD/laplace/integrations/postgresql/extension/share" \
-            "$QUAL_BUILD/laplace/integrations/postgresql/extension" \
-            "$QUAL_BUILD/laplace/engine" "" "" \
-            "$QUAL_ROOT/output/standalone.sql" "" \
-            2>&1 | tee "$QUAL_ROOT/output/postgresql-controls.log"
-          python3 - <<'PY'
-          import hashlib,json,os,pathlib
-          root=pathlib.Path(os.environ["QUAL_ROOT"])/"output"
-          marker="LAPLACE_QA_RECEIPT materialization_prefetch_cancellation "
-          lines=(root/"postgresql-controls.log").read_text().splitlines()
-          receipts=[json.loads(line.split(marker,1)[1]) for line in lines if marker in line]
-          if len(receipts)!=1:raise SystemExit("real PostgreSQL receipt is absent or ambiguous")
-          receipt=receipts[0]
-          expected={"schema":"laplace.materialization-prefetch-cancellation/v1",
-              "actual_prefetch_wrapper":True,"actual_provider_callback":True,
-              "ordinary_speculative_fallbacks":2,"backend_sigint_requests":2,
-              "propagated_cancellations":1,"cancellation_sqlstate":"57014",
-              "cancelled_read_receipt_zeroed":True,"cancelled_trajectory_output_untouched":True,
-              "resolving_cache_reset":True,"caller_context_restored":True,
-              "classification_mutants_detected":1,"backend_usable_after_cancel":True}
-          if receipt != expected:raise SystemExit("real PostgreSQL control receipt differs")
-          files={}
-          for name in ("source-selection.json","postgresql-source-verification.json",
-                       "hosted-provider-versions.txt","postgresql-version.txt",
-                       "postgresql-controls.log"):
-              payload=(root/name).read_bytes()
-              files[name]={"bytes":len(payload),"sha256":hashlib.sha256(payload).hexdigest()}
-          qualification={"schema":"laplace.materialization-prefetch-hosted-qualification/v1",
-              "status":"passed","scope":"actual PostgreSQL cancellation/error boundary",
-              "installed_product_qualification":False,"host":"ubuntu-24.04",
-              "provider":"locked PostgreSQL 18.6 source built with hosted GCC",
-              "selected_product_provider_replaced":False,
-              "source":json.loads((root/"source-selection.json").read_text()),
-              "controls":receipt,"evidence":files}
-          (root/"qualification.json").write_text(json.dumps(qualification,indent=2)+"\n")
-          print("LAPLACE_PREFETCH_HOSTED_QUALIFICATION "+json.dumps(qualification,sort_keys=True))
-          PY
-      - name: Retain configure diagnostics
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$QUAL_ROOT/output"
-          if [[ -f "$QUAL_BUILD/postgresql/config.log" ]]; then
-            cp "$QUAL_BUILD/postgresql/config.log" "$QUAL_ROOT/output/postgresql-config.log"
-          fi
-          if [[ -f "$QUAL_BUILD/laplace/CMakeFiles/CMakeConfigureLog.yaml" ]]; then
-            cp "$QUAL_BUILD/laplace/CMakeFiles/CMakeConfigureLog.yaml" "$QUAL_ROOT/output/laplace-CMakeConfigureLog.yaml"
-          fi
-      - name: Retain source binding and actual PostgreSQL evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: materialization-prefetch-cancellation-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.QUAL_ROOT }}/output/
+          name: committed-readback-summary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: committed-readback-summary.json
           if-no-files-found: error
           retention-days: 30
