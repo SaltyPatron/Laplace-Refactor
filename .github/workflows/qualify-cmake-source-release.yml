@@ -19,8 +19,8 @@ jobs:
           python3 - <<'PY'
           import json, os, time, urllib.request
           repo = "SaltyPatron/Laplace-Refactor"
-          head = "74aeecb00f6f1edb593c36b1d4e447437955f24b"
-          run_id = 35253928138
+          head = "f510bc4dae608dd9f34ab8e5555c19350d14b039"
+          run_id = 35254590978
           pr_number = 404
           assert os.environ["GITHUB_REPOSITORY"] == repo
           token = os.environ.pop("GH_TOKEN")
