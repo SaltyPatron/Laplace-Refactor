@@ -2333,8 +2333,8 @@
       "mutation_outcome": "No successful admission receipt; consult retained native transaction evidence, do not infer committed data from submission."
     },
     "diagnostic": {
-      "source_manifest": "1993d671307d0f9f489235550fbfc2f69b4b8f67",
-      "scope": "Only after a failed strict comparison, report one ordered differing row, exact field names and both retained/expected values. Hex and decimal strings preserve identity. Successful upsert/verification SQL and all refusal conditions remain unchanged.",
+      "source_manifest": "0590e654c2b8b2f1171f12fdb215e377629bc87d",
+      "scope": "Only after a failed strict comparison, report one ordered differing row, exact field names and both retained/expected values. Hex and decimal strings preserve identity. Successful upsert/verification SQL and all refusal conditions remain unchanged. Both selected physicality metadata records are observed before failure rollback with exact float8send encodings and no trajectory payload.",
       "verification": "Existing real PostgreSQL mutation asserts that only syntax_flags differs; actual current-candidate qualification and installed diagnostic remain pending."
     },
     "remaining": [

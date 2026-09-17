@@ -307,7 +307,9 @@ void laplace_pg_persist_source_structural_witnesses(
         "(i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_physicality_id END)) "
         "SELECT count(*) FROM mismatched";
     /* Failure-only bounded comparison: preserve the successful admission query
-     * and report the first exact differing row without changing stored evidence. */
+     * and report one exact differing row without changing stored evidence.
+     * Capture both physicality records before the failing transaction rolls back;
+     * float8send retains exact geometry bits, while trajectory payloads stay private. */
     static const char witnesses_diagnose_sql[] =
         "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM "
         "unnest($2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],$7::numeric[],$8::numeric[],$9::numeric"
@@ -343,7 +345,26 @@ void laplace_pg_persist_source_structural_witnesses(
         "AND (i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_physicality_id END) ORDER BY "
         "i.artifact_index,i.span_index LIMIT 1) SELECT jsonb_build_object('mismatched_fields',(SELECT jsonb_agg(key "
         "ORDER BY key) FROM jsonb_each(expected) WHERE value IS DISTINCT FROM "
-        "stored->key),'expected',expected,'stored',stored)::text FROM first_mismatch";
+        "stored->key),'expected',expected,'stored',stored,'expected_physicality',(SELECT "
+        "jsonb_build_object('physicality_id',encode(p.physicality_id,'hex'),'entity_id',encode(p.entity_id,'hex'),'phys"
+        "icality_type',p.physicality_type::text,'vertex_class',p.vertex_class::text,'recipe_version',p.recipe_version::"
+        "text,'structural_form',p.structural_form::text,'dimension_count',p.dimension_count::text,'flags',p.flags::text"
+        ",'recipe_fingerprint',encode(p.recipe_fingerprint,'hex'),'geometry_epoch',encode(p.geometry_epoch,'hex'),'traj"
+        "ectory_fingerprint',encode(p.trajectory_fingerprint,'hex'),'centroid_x',encode(float8send(p.centroid_x),'hex')"
+        ",'centroid_y',encode(float8send(p.centroid_y),'hex'),'centroid_z',encode(float8send(p.centroid_z),'hex'),'cent"
+        "roid_m',encode(float8send(p.centroid_m),'hex'),'radius',encode(float8send(p.radius),'hex'),'logical_count',p.l"
+        "ogical_count::text,'vertex_count',p.vertex_count::text,'trajectory_bytes',octet_length(p.trajectory)::text) "
+        "FROM " LAPLACE_PG_SCHEMA ".physicality p WHERE p.physicality_id=decode(expected->>'canonical_physicality_id','hex')),'sto"
+        "red_physicality',(SELECT jsonb_build_object('physicality_id',encode(p.physicality_id,'hex'),'entity_id',encode"
+        "(p.entity_id,'hex'),'physicality_type',p.physicality_type::text,'vertex_class',p.vertex_class::text,'recipe_ve"
+        "rsion',p.recipe_version::text,'structural_form',p.structural_form::text,'dimension_count',p.dimension_count::t"
+        "ext,'flags',p.flags::text,'recipe_fingerprint',encode(p.recipe_fingerprint,'hex'),'geometry_epoch',encode(p.ge"
+        "ometry_epoch,'hex'),'trajectory_fingerprint',encode(p.trajectory_fingerprint,'hex'),'centroid_x',encode(float8"
+        "send(p.centroid_x),'hex'),'centroid_y',encode(float8send(p.centroid_y),'hex'),'centroid_z',encode(float8send(p"
+        ".centroid_z),'hex'),'centroid_m',encode(float8send(p.centroid_m),'hex'),'radius',encode(float8send(p.radius),'"
+        "hex'),'logical_count',p.logical_count::text,'vertex_count',p.vertex_count::text,'trajectory_bytes',octet_lengt"
+        "h(p.trajectory)::text) FROM " LAPLACE_PG_SCHEMA ".physicality p WHERE "
+        "p.physicality_id=decode(stored->>'canonical_physicality_id','hex')))::text FROM first_mismatch";
     static const char witnesses_count_sql[] =
         "SELECT count(*) FROM " LAPLACE_PG_SCHEMA
         ".source_structural_witness WHERE source_profile_id=$1";

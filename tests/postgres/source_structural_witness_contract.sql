@@ -140,7 +140,12 @@ BEGIN
                OR (difference#>>'{stored,syntax_flags}')::numeric <>
                   (difference#>>'{expected,syntax_flags}')::numeric + 1
                OR (difference->'expected' - 'syntax_flags') IS DISTINCT FROM
-                  (difference->'stored' - 'syntax_flags') THEN
+                  (difference->'stored' - 'syntax_flags')
+               OR difference->'expected_physicality' IS DISTINCT FROM difference->'stored_physicality'
+               OR difference#>>'{expected_physicality,physicality_id}' IS DISTINCT FROM
+                  difference#>>'{expected,canonical_physicality_id}'
+               OR coalesce(length(difference#>>'{expected_physicality,centroid_x}'),0) <> 16
+               OR coalesce(length(difference#>>'{expected_physicality,radius}'),0) <> 16 THEN
                 RAISE EXCEPTION 'structural witness diagnostic did not identify the exact rejected field: %', difference;
             END IF;
     END;
