@@ -1,157 +1,100 @@
-name: Qualify private final cleanup
+name: Read bounded current Original lifecycle progress
 on:
-  workflow_dispatch:
   push:
     branches: [qualify/cmake-source-443-20260916]
     paths: [".github/workflows/qualify-cmake-source-release.yml"]
 permissions:
   contents: read
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  OBSERVER_SOURCE: |
+    #!/usr/bin/env python3
+    import datetime,json,os,pathlib,re,subprocess
+    result={"schema":"laplace.readonly-lifecycle-progress/v1","observedUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"requestedRun":35186758963,"expectedSource":"96a02adb064ad221e17ae275e076b11816b6a517"}
+    checkout="/var/lib/agents/laplace-runner/actions-runner/_work/Laplace/Laplace"
+    try:
+        done=subprocess.run(["git","-C",checkout,"rev-parse","HEAD"],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=5)
+        value=done.stdout.strip()
+        result["checkout"]={"path":checkout,"exitCode":done.returncode,"head":value if re.fullmatch("[0-9a-f]{40}",value) else None}
+    except (OSError,subprocess.SubprocessError) as error:result["checkout"]={"errorType":type(error).__name__}
+    lock=pathlib.Path("/build/laplace/work/host-resource.lock")
+    try:
+        identity=lock.stat();key="%02x:%02x:%s"%(os.major(identity.st_dev),os.minor(identity.st_dev),identity.st_ino)
+        lines=[line for line in pathlib.Path("/proc/locks").read_text().splitlines() if key in line.split()]
+        result["reservation"]={"device":identity.st_dev,"inode":identity.st_ino,"kernelEntries":lines}
+        owners=[]
+        for line in lines:
+            fields=line.split();index=fields.index(key)
+            if index>0 and fields[index-1].isdigit():owners.append(int(fields[index-1]))
+        processes=[];seen=set()
+        for first in owners:
+            pid=first
+            for depth in range(12):
+                if pid<=1 or pid in seen:break
+                seen.add(pid)
+                try:
+                    root=pathlib.Path("/proc")/str(pid);raw=(root/"stat").read_text();fields=raw[raw.rfind(")")+2:].split()
+                    parent=int(fields[1])
+                    processes.append({"pid":pid,"parentPid":parent,"comm":(root/"comm").read_text().strip(),"startTicks":int(fields[19]),"state":fields[0],"cwd":str((root/"cwd").resolve())})
+                    pid=parent
+                except (OSError,ValueError,IndexError) as error:
+                    processes.append({"pid":pid,"errorType":type(error).__name__});break
+        result["reservation"]["matchingEntryAncestorProcesses"]=processes
+    except OSError as error:result["reservation"]={"errorType":type(error).__name__}
+    sql="BEGIN READ ONLY;\nSET LOCAL statement_timeout='5s'; SET LOCAL lock_timeout='1s';\nWITH recent AS MATERIALIZED (\n SELECT source_name,status,started_at,units_attempted,units_applied,units_failed,entities,physicalities,attestations,files_done,files_total\n FROM laplace.ingest_run_journal ORDER BY started_at DESC LIMIT 16\n)\nSELECT jsonb_build_object('observed_at',clock_timestamp(),'database',current_database(),'postmaster_started',pg_postmaster_start_time(),\n'journal',COALESCE((SELECT jsonb_agg(to_jsonb(recent) ORDER BY started_at DESC) FROM recent),'[]'::jsonb));\nROLLBACK;"
+    environment={key:value for key,value in os.environ.items() if not key.startswith("PG")}
+    environment["PGCONNECT_TIMEOUT"]="5"
+    environment["PGOPTIONS"]="-c default_transaction_read_only=on -c statement_timeout=5000 -c lock_timeout=1000"
+    try:
+        done=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-w","-qAt","-h","/var/run/postgresql","-p","5432","-U","laplace_admin","-d","laplace","-v","ON_ERROR_STOP=1","-c",sql],env=environment,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=15)
+        if done.returncode==0 and len(done.stdout)<=65536:
+            result["journal"]=json.loads(done.stdout)
+        else:result["journal"]={"exitCode":done.returncode,"stdoutBytes":len(done.stdout),"stderrBytes":len(done.stderr)}
+    except (OSError,ValueError,subprocess.SubprocessError) as error:result["journal"]={"errorType":type(error).__name__}
+    result["scope"]="Bounded read-only current checkout, kernel reservation entries and recent operational journal counters; no argv/environment output, no source or service change, no claimed run attribution from elapsed time."
+    print(json.dumps(result,sort_keys=True))
 jobs:
-  qualify-cleanup:
+  validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: 727debeb4e72f4a6356c7c7980f8e16ad37d2df9
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Authenticate leaves and create the exact local candidate
+      - name: Authenticate exact bounded read-only observer
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
           python3 - <<'PY'
-          import base64, hashlib, json, os, pathlib, subprocess, urllib.request
-          repository = "SaltyPatron/Laplace-Refactor"
-          base = "727debeb4e72f4a6356c7c7980f8e16ad37d2df9"
-          manifest_sha = "7c3313adb15ad771a2b39a326b65a6630ac8a760"
-          out = pathlib.Path(os.environ["RUNNER_TEMP"]) / "laplace-cleanup-qualification"
-          out.mkdir(exist_ok=False)
-          def git(*args):
-              return subprocess.check_output(["git", *args]).decode().strip()
-          def blob(sha):
-              request = urllib.request.Request(
-                  "https://api.github.com/repos/" + repository + "/git/blobs/" + sha,
-                  headers={"Accept": "application/vnd.github+json", "User-Agent": "laplace-cleanup-qualification"})
-              request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
-              with urllib.request.urlopen(request, timeout=60) as response:
-                  record = json.load(response)
-              assert record["sha"] == sha and record["encoding"] == "base64"
-              body = base64.b64decode(record["content"])
-              actual = hashlib.sha1(b"blob " + str(len(body)).encode() + b"\0" + body).hexdigest()
-              assert actual == sha
-              return body
-          assert git("rev-parse", "HEAD") == base
-          assert git("status", "--porcelain") == ""
-          manifest_bytes = blob(manifest_sha)
-          manifest = json.loads(manifest_bytes)
-          assert manifest["repository"] == repository and manifest["base_commit"] == base
-          assert len(manifest["leaves"]) == 3
-          (out / "manifest.json").write_bytes(manifest_bytes)
-          for row in [manifest["unchanged_package_workflow"], *manifest["unchanged_cleanup_owners"]]:
-              assert git("rev-parse", base + ":" + row["path"]) == row["sha"]
-          paths = []
-          for row in manifest["leaves"]:
-              path = pathlib.Path(row["path"])
-              assert row["mode"] == "100644" and not path.is_absolute() and ".." not in path.parts
-              assert git("rev-parse", base + ":" + row["path"]) == row["base"]
-              if row["path"] == ".github/workflows/postgresql-product.yml":
-                  (out / "baseline-postgresql-product.yml").write_bytes(path.read_bytes())
-              path.write_bytes(blob(row["sha"]))
-              paths.append(row["path"])
-          patch = subprocess.check_output(["git", "diff", "--binary", "--", *paths])
-          (out / "candidate.patch").write_bytes(patch)
-          subprocess.run(["git", "add", "--", *paths], check=True)
-          subprocess.run(["git", "-c", "user.name=Laplace hosted qualification",
-                          "-c", "user.email=qualification@users.noreply.github.com",
-                          "commit", "-m", "Local qualification of explicit private terminal cleanup"], check=True)
-          assert git("status", "--porcelain") == ""
-          for row in manifest["leaves"]:
-              assert git("rev-parse", "HEAD:" + row["path"]) == row["sha"]
-          identity = {
-              "operator_commit": os.environ["GITHUB_SHA"], "source_parent": base,
-              "actual_candidate_commit": git("rev-parse", "HEAD"),
-              "actual_candidate_tree": git("rev-parse", "HEAD^{tree}"),
-              "manifest_blob": manifest_sha,
-              "patch_sha256": hashlib.sha256(patch).hexdigest(),
-              "leaves": manifest["leaves"],
-              "scope": "hosted source and isolated cleanup tests; no shared self-hosted work"}
-          (out / "candidate.json").write_text(json.dumps(identity, indent=2) + "\n")
-          print("CLEANUP_CANDIDATE " + json.dumps(identity, sort_keys=True))
+          import ast,hashlib,os
+          source=os.environ["OBSERVER_SOURCE"].encode()
+          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="a36ab8e19ee9c95b4dbe3e6c8bffd1b0b3e96a44"
+          ast.parse(source)
+          print("Exact Original observer a36ab8 authenticated; Python syntax passed.")
           PY
-      - name: Qualify owned cleanup with real contention and refusal controls
+  observe:
+    needs: validate
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 3
+    env:
+      EVIDENCE: /build/laplace/work/original-lifecycle-observer-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Read current checkout, reservation ownership and operational progress
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import importlib.util, json, os, pathlib, py_compile, subprocess, time
-          root = pathlib.Path.cwd()
-          out = pathlib.Path(os.environ["RUNNER_TEMP"]) / "laplace-cleanup-qualification"
-          paths = (
-              "tests/proof_workspace_cleanup_tests.py",
-              "tests/runner_orphan_cleanup_tests.py",
-              "tests/proof_workspace_foreign_owner_tests.py",
-              "tests/postgresql_product_proof_tests.py",
-              "tests/package_product_proof_tests.py")
-          for path in (*paths, "tools/delivery/proof_workspace_cleanup.py",
-                       "tools/delivery/runner_orphan_cleanup.py"):
-              py_compile.compile(path, doraise=True)
-          spec = importlib.util.spec_from_file_location("qualified_private_cleanup", paths[0])
-          module = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(module)
-          case = module.ProofWorkspaceCleanupTests()
-          case.setUp()
-          try:
-              for workflow, name, names in case.cleanup_cases():
-                  script = case.assert_private_cleanup(workflow.read_text(), name, names)
-                  subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-              try:
-                  case.assert_private_cleanup(
-                      (out / "baseline-postgresql-product.yml").read_text(),
-                      "Clean disposable PostgreSQL-product workspace",
-                      ("laplace-postgresql-product-proof",))
-              except AssertionError as error:
-                  control = {"status": "expected-failure", "baseline": "727debeb4e72f4a6356c7c7980f8e16ad37d2df9",
-                             "diagnostic": str(error), "execution": "source assertion only; baseline cleanup not run"}
-              else:
-                  raise AssertionError("old globally locked cleanup passed the new private-boundary check")
-          finally:
-              case.tearDown()
-          (out / "old-workflow-control.json").write_text(json.dumps(control, indent=2) + "\n")
-          results = []
-          for path in paths:
-              started = time.monotonic()
-              command = ["python3", path, "-v"]
-              try:
-                  completed = subprocess.run(command, cwd=root, text=True,
-                                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
-                  output, status = completed.stdout, completed.returncode
-              except subprocess.TimeoutExpired as error:
-                  output = error.stdout or b""
-                  if isinstance(output, bytes):
-                      output = output.decode("utf-8", "replace")
-                  output += "\nQUALIFIER: finite test timeout\n"
-                  status = 124
-              (out / (pathlib.Path(path).stem + ".log")).write_text(output)
-              results.append({"command": command, "exit_code": status, "elapsed_seconds": time.monotonic() - started})
-              print(output, flush=True)
-          receipt = {
-              "candidate": json.loads((out / "candidate.json").read_text()),
-              "checks": results, "old_workflow_control": control,
-              "passed": all(row["exit_code"] == 0 for row in results),
-              "shared_host_actions": [], "installed_product_claim": False}
-          (out / "qualification.json").write_text(json.dumps(receipt, indent=2) + "\n")
-          print("CLEANUP_QUALIFICATION " + json.dumps(receipt, sort_keys=True), flush=True)
-          if not receipt["passed"]:
-              raise SystemExit(1)
+          umask 077
+          test "$(id -un)" = laplace-runner
+          mkdir "$EVIDENCE"
+          python3 - <<'PY' | tee "$EVIDENCE/observer.log"
+          import ast,hashlib,os,subprocess,sys
+          source=os.environ["OBSERVER_SOURCE"].encode()
+          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="a36ab8e19ee9c95b4dbe3e6c8bffd1b0b3e96a44"
+          ast.parse(source)
+          result=subprocess.run([sys.executable,"-I","-u","-c",source.decode()],stdin=subprocess.DEVNULL,timeout=40)
+          raise SystemExit(result.returncode)
           PY
-      - name: Retain exact cleanup qualification evidence
+      - name: Retain bounded read-only lifecycle evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: private-cleanup-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/laplace-cleanup-qualification/
+          name: original-lifecycle-observer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE }}/
           if-no-files-found: error
           retention-days: 30
