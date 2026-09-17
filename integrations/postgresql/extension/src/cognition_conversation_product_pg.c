@@ -555,9 +555,9 @@ Datum laplace_pg_cognition_conversation_product_execute(PG_FUNCTION_ARGS) {
     laplace_cognition_prompt_conversation_result conversation_result;
     laplace_cognition_prompt_conversation_status conversation_status;
     laplace_cognition_prompt_admission_status prompt_status;
-    ErrorData* physical_error = NULL;
-    ErrorData* semantic_error = NULL;
-    ErrorData* materialization_error = NULL;
+    ErrorData* volatile physical_error = NULL;
+    ErrorData* volatile semantic_error = NULL;
+    ErrorData* volatile materialization_error = NULL;
     laplace_pg_cognition_conversation_product_owners* owners;
     HeapTupleHeader scope;
     HeapTupleHeader request_tuple;
@@ -573,7 +573,7 @@ Datum laplace_pg_cognition_conversation_product_execute(PG_FUNCTION_ARGS) {
     uint64_t output_capacity64;
     size_t output_capacity;
     int64 workspace;
-    int publication_required = 0;
+    volatile int publication_required = 0;
     int spi_connected = 0;
     Datum values[30];
     bool nulls[30];

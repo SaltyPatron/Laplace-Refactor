@@ -78,10 +78,52 @@ Authenticated reader run 35220249735 / job 105198318176 checked artifact 1049596
 `ef5c5cb5e1defbe2c916110ec68b9ae870693933e030c17d1b4224e3b47113a4`)
 and bound both service artifacts to the same installed package and source. The
 [complete compact receipt](STOCKFISH_EXECUTION_REPLAY_QUALIFICATION.json) and
-[chess dependency guide](CHESS_DEPENDENCIES.md#current-installed-source-replay-and-service)
+[chess dependency guide](CHESS_DEPENDENCIES.md#historical-installed-source-replay-and-service)
 retain exact counts and current loopback service availability.
 
 The parser derivative is promoted only after this same-profile proof. Its existing
 source/native qualification preserves the historical 102 diagnostic coordinates and
-separately reports 95 diagnostics for the new native source plan; actual successor
-PostgreSQL admission and replay remain pending normal delivery.
+separately reports 95 diagnostics for the new native source plan; the installed successor's committed readback is recorded below. Its identical-provider
+admission replay remains a separate boundary.
+
+
+## Installed derivative readback and bounded cancellation
+
+Source `df158f21bfecaf4045d065b10c21cd92464ce3ec` installed package
+`d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490`.
+The pointer-member derivative committed successor profile
+`c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab`,
+with 95 retained syntax errors and 571,627 structural witnesses. Its first exact
+readback exceeded the client deadline after admission had committed. The
+abandoned backend was cancelled at 14:58:54 UTC; no database reset, source
+re-admission or row removal was used.
+
+The existing committed source then passed the normal complete verifier in
+[run 35242450404](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35242450404):
+119 files, 1,172,144 bytes, exact per-file hashes, full current/historical witness
+authentication, 8.751249 seconds for the readback query and no remaining owned
+session. [Reader 35243222289](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35243222289)
+authenticated the retained artifact and all record identities. The
+[successor receipt](STOCKFISH_SUCCESSOR_READBACK_QUALIFICATION.json) distinguishes
+this read-only operation from admission or zero-growth replay.
+
+The initial slow query began before PostgreSQL refreshed statistics for the new
+profile and execution receipt. Later actual cursor execution read all 571,627
+rows in 771.555 ms, and the complete native readback passed. This chronology
+does not by itself establish the original timeout's cause.
+
+The accompanying lifecycle correction gives only exact readback a 15-minute
+server-side statement timeout, within its unchanged 1,000-second client limit.
+Seventeen focused checks passed in run 35238427704, including actual server
+cancellation and session cleanup. The native optional-prefetch catch now preserves
+SQLSTATE 57014 instead of treating cancellation as an optional cache miss.
+[Actual PostgreSQL 18.6 qualification 35242526520](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35242526520)
+compiled the real extension and executed the real SIGINT boundary, ordinary
+fallbacks and a deliberate classification mutant. Cancelled output and receipt
+remain untouched/zero, resolving state is cleared, and the backend remains usable.
+
+That hosted build also required the owning math.h declaration and seven volatile
+local declarations across existing PostgreSQL exception boundaries. These are
+compiler portability corrections; the checks do not claim observed runtime
+corruption. Final ordinary deployment of this lifecycle correction remains
+separate from the dated installed d12 readback above.

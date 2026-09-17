@@ -19,8 +19,16 @@
     {
       "ctest_name": "postgres.verified-cpp-source-contract",
       "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-IDENTITY-NEGATIVE"],
-      "covered_dimensions": ["native source admission persists actual C++ syntax and exact source roots", "zero semantic claims use absent evidence receipts", "distinct named artifacts share identical canonical content", "exact source readback verifies the complete retained structural receipt", "replay and failed provider or corrupted readback publish no extra state"]
+      "evidence_targets": ["LP-TEST-ADMISSION-SOURCE-TOPOLOGY", "LP-TEST-ADMISSION-READ-REACHABILITY", "LP-TEST-BULK-DETERMINISM", "LP-TEST-IDENTITY-NEGATIVE", "LP-TEST-MACHINE-EXCEPTION-TAXONOMY"],
+      "covered_dimensions": [
+        "native source admission persists actual C++ syntax and exact source roots",
+        "zero semantic claims use absent evidence receipts",
+        "distinct named artifacts share identical canonical content",
+        "exact source readback verifies the complete retained structural receipt",
+        "replay and failed provider or corrupted readback publish no extra state",
+        "real PostgreSQL SIGINT inside actual speculative prefetch survives the materialization provider callback as SQLSTATE 57014 with zero receipt and untouched output; ordinary speculative failures preserve cached reads and the backend remains usable"
+      ],
+      "defect_controls": ["query cancellation misclassified as optional materialization prefetch failure"]
     },
     {
       "ctest_name": "postgres.source-runtime-state-schema",

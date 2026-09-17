@@ -17,7 +17,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
@@ -302,6 +304,57 @@ class SourceRuntimeSchemaTests(unittest.TestCase):
                    + bytea("45") + "; UPDATE laplace.highway_registry_active_control "
                    "SET activation_epoch_fingerprint=" + bytea("45") + ";")
         self.assertEqual({**self.expected, "numeric_epoch": "45" * 32}, self.observed())
+
+
+    def readback_transaction(self, statement):
+        # Generate the production SQL through its existing caller fixture, then
+        # replace only the native SELECT: these tests prove PostgreSQL lifecycle,
+        # not native materialization or corpus acceptance.
+        cases = module("source_readback_transaction_fixture",
+                       ROOT / "tests/verified_git_source_tests.py")
+        case = cases.GitReadbackReceiptTests()
+        case.execute()
+        prefix, selected, unused = case.readback_sql.partition("WITH selected AS MATERIALIZED (")
+        unused, selected_end, suffix = case.readback_sql.rpartition(")::text;")
+        self.assertTrue(selected and selected_end)
+        self.assertEqual(case.readback_client_timeout, 1000)
+        return prefix + statement + suffix
+
+    def test_readback_transaction_is_read_only_and_timeout_is_local(self):
+        original_timeout = self.query("SHOW statement_timeout;").strip()
+        sql = self.readback_transaction(
+            "SELECT json_build_object('read_only',current_setting('transaction_read_only'),"
+            "'timeout',current_setting('statement_timeout'))::text;")
+        result = json.loads(self.core.run_scalar(self.command, sql, "readback transaction control"))
+        self.assertEqual(result, {"read_only": "on", "timeout": "15min"})
+        rows = self.query(sql + "\nSHOW statement_timeout;").splitlines()
+        self.assertEqual(json.loads(rows[0]), result)
+        self.assertEqual(rows[1:], [original_timeout])
+
+    def test_readback_server_timeout_cancels_before_client_and_leaves_no_backend(self):
+        sql = self.readback_transaction("SELECT pg_sleep(1);")
+        self.assertEqual(sql.count("SET LOCAL statement_timeout = '15min';"), 1)
+        sql = sql.replace("SET LOCAL statement_timeout = '15min';",
+                          "SET LOCAL statement_timeout = '50ms';")
+        application = "source_readback_timeout_" + str(os.getpid())
+        with patch.dict(os.environ, {"PGAPPNAME": application}):
+            with self.assertRaisesRegex(self.core.AdmissionError,
+                    "readback timeout control failed:.*canceling statement due to statement timeout"):
+                self.core.run_scalar(self.command, sql, "readback timeout control", timeout=3)
+        deadline = time.monotonic() + 3
+        while self.query("SELECT count(*) FROM pg_stat_activity WHERE application_name='"
+                        + application + "';").strip() != "0":
+            if time.monotonic() >= deadline:
+                self.fail("timed-out readback backend remained after its client returned")
+            time.sleep(0.01)
+
+    def test_readback_transaction_refuses_persistent_writes(self):
+        before = self.query("SELECT encode(identity_witness,'hex') FROM laplace.entity;")
+        sql = self.readback_transaction("UPDATE laplace.entity SET identity_witness=identity_witness;")
+        with self.assertRaisesRegex(self.core.AdmissionError,
+                "cannot execute UPDATE in a read-only transaction"):
+            self.core.run_scalar(self.command, sql, "readback write control")
+        self.assertEqual(self.query("SELECT encode(identity_witness,'hex') FROM laplace.entity;"), before)
 
 
 if __name__ == "__main__":

@@ -419,7 +419,11 @@ def verify_git_readback(command: list[str], result: dict[str, Any], proof: dict[
     # Pass a finite profile-derived bound; do not invent a smaller global corpus
     # ceiling after admission has already committed.
     witness_bound = max(4096, int(profile["span_count"]))
-    sql = f"""WITH selected AS MATERIALIZED (
+    # Let PostgreSQL cancel and unwind readback before the existing 1000-second
+    # client deadline. Admission has already committed in its separate transaction.
+    sql = f"""BEGIN READ ONLY;
+SET LOCAL statement_timeout = '15min';
+WITH selected AS MATERIALIZED (
  SELECT receipt_id,witness_fingerprint,canonical_witness_fingerprint,baseline_receipt_id
  FROM laplace.source_structural_witness_receipt
  WHERE receipt_id={execution_receipt} AND source_profile_id={profile_id}
@@ -449,7 +453,8 @@ SELECT jsonb_build_object(
    'entity',(SELECT count(*) FROM laplace.entity),
    'physicality',(SELECT count(*) FROM laplace.physicality),
    'attestation',(SELECT count(*) FROM laplace.attestation))
-)::text;"""
+)::text;
+COMMIT;"""
     try:
         readback = json.loads(run_scalar(command, sql, "exact Git source readback", timeout=1000))
     except (ValueError, TypeError) as error:

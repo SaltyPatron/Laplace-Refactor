@@ -471,8 +471,8 @@ records that historical profile, the three-rule native plan with 96 diagnostics,
 and the later pointer-member correction with 95. The pointer-member derivative
 passed 18 exact precedence/shape controls and reconstructed all 119 files through
 the selected native runtime; its [qualification record](STOCKFISH_CPP_POINTER_MEMBER_QUALIFICATION.json)
-binds the source and executed evidence. These native plans do not change the
-historical database's 102 retained witnesses or establish an installed successor
+binds the source and executed evidence. These native qualifications did not change the
+historical database's 102 retained witnesses or, by themselves, establish an installed successor
 profile. The same installed-profile mismatch was subsequently repaired and verified without
 changing that provider declaration; the completed current result is recorded below. Exact byte reconstruction and zero-growth replay
 do not prove C++ preprocessing, name/type resolution, executable semantics or chess strength. The separately
@@ -487,7 +487,7 @@ The full acceptance report and both command outputs are retained in
 independently authenticated the artifact and evidence digests, installed activation
 tuple, both readback denominators and all five zero replay deltas.
 
-## Current installed source replay and service
+## Historical installed source replay and service
 
 [Accepted-main run 35216221036](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35216221036)
 completed at source `d2d8a3533d1000cd31f56c6fd92bc11365f0ebac`, package
@@ -540,7 +540,55 @@ authenticated source artifact 10495964088 (3,017,055 bytes, ZIP SHA-256
 and the matching service restart and HTTP artifacts. The
 [compact replay qualification](STOCKFISH_EXECUTION_REPLAY_QUALIFICATION.json)
 retains exact source, package, artifact, receipt, count and timing identities.
-The separately qualified pointer-member grammar is a subsequent provider change;
-its installed successor acceptance remains pending normal delivery of this follow-up.
-The 95 native syntax diagnostics are not a claim of executable C++ semantics or
-chess playing strength.
+The pointer-member grammar is a subsequent provider change. Its installed
+successor readback is recorded below; the historical replay proof above remains
+bound to its original profile and package.
+
+
+## Installed successor profile and authenticated surface
+
+PR 402 installed source `df158f21bfecaf4045d065b10c21cd92464ce3ec`, package
+`d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490`,
+with the qualified pointer-member grammar. Its initial command committed the
+new profile, then exceeded the 1,000-second client readback deadline. The abandoned
+read-only backend was identified and cancelled; its absence was verified. That
+failure is retained in main run 35231752869.
+
+The committed profile was subsequently verified without another admission.
+[Readback run 35242450404](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35242450404)
+used the normal full-corpus query and parser, a server deadline and cleanup of its
+own session. Every file reconstructed to the manifest's exact byte count and SHA-256.
+
+| Installed successor observation | Actual result |
+| --- | --- |
+| Profile | `c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab` |
+| Files / bytes / resolved roots | 119 / 1,172,144 / 119 |
+| Canonical witnesses / current execution observations | 571,627 / 571,627 |
+| Current v4 execution receipts / source occurrences | 1 / 239 |
+| Retained syntax error count | 95 |
+| Trajectory carriers / database operations | 968,195 / 4,948 |
+| Complete readback query / query plus owned-session cleanup | 8.751249 / 8.770346 seconds |
+| Remaining owned backend after readback | None |
+
+The current v4 receipt is
+`d1f9cd77cda9b20f220d60644472a513e9e182ff279470e113844c0972667843`;
+its historical v3 baseline for this new profile is
+`3612ef294343de1761f9846cf5bbab1b606cc3f0102d59e13351ef84e17bf8fb`.
+This read-only resume did not execute admission or measure replay growth. It does
+not inherit the older profile's zero-growth replay claim. Actual global counts at
+this observation were 1,172,710 Entities, 1,231,471 Physicalities and 1,114,927
+Attestations; these are separate denominators.
+
+[Authenticated reader 35243222289](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35243222289)
+verified artifact 10505599545 (90,291 bytes; ZIP SHA-256
+`ed7c878b2f576c13fe27fb4420ad472ef63173f55c234e6ee735ee74f1fcf0c4`).
+The [compact successor proof](STOCKFISH_SUCCESSOR_READBACK_QUALIFICATION.json)
+retains exact profile, receipt, output, count and timing identities. The 95 syntax
+diagnostics remain unresolved source syntax observations; exact reconstruction
+does not establish executable C++ semantics or chess strength.
+
+The same package's authenticated surface is available through the existing
+https://hart-server:8443/refactor/ route, verified from the server with hostname
+and certificate validation. A remote client was not tested.
+The [operator guide](COGNITION_SURFACE.md) describes the actual service,
+operator bearer, loopback endpoint and retained route evidence.

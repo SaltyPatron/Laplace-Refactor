@@ -231,7 +231,12 @@ if(BUILD_TESTING)
         LAPLACE_POSTGRES_TESTING=1)
     target_sources(laplace_pg PRIVATE
         tests/cognition_firmware_provider_pg.c
-        tests/materialization_provider_pg.c)
+        tests/materialization_provider_pg.c
+        tests/materialization_prefetch_pg.c)
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/tests/postgres/materialization_prefetch_contract.sql"
+        "${CMAKE_BINARY_DIR}/tests/postgres/materialization_prefetch_contract.sql"
+        COPYONLY)
 
     if(NOT DEFINED LAPLACE_FRAMEWORK_EPOCH_FIRMWARE)
         message(FATAL_ERROR "Firmware SQL context binding lacks its generated epoch slot")
