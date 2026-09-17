@@ -1,50 +1,51 @@
-name: Observe current Original workspace activity
+name: Qualify exact readback server deadline
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
 jobs:
-  original-progress:
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 2
+  readback-deadline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - name: Read fixed source markers and same-user process metadata
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: df158f21bfecaf4045d065b10c21cd92464ce3ec
+          persist-credentials: false
+      - name: Authenticate and syntax-check exact three source leaves
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 -I - <<'PY'
-          import json,os,pathlib,time
-          root=pathlib.Path("/var/lib/agents/laplace-runner/actions-runner/_work/Laplace/Laplace")
-          build=(root/"build").resolve()
-          def emit(kind,value): print(kind+" "+json.dumps(value,sort_keys=True),flush=True)
-          def metadata(path):
-              try:
-                  s=path.stat()
-                  return {"path":str(path),"bytes":s.st_size,"mtime_ns":s.st_mtime_ns,"uid":s.st_uid}
-              except OSError as error:return {"path":str(path),"unavailable":type(error).__name__}
-          head=(root/".git/HEAD")
-          head_text=head.read_text()[:256].strip() if head.is_file() else None
-          if head_text and head_text.startswith("ref: "):
-              ref=head_text[5:]
-              if ref.startswith("refs/") and ".." not in ref.split("/"):
-                  p=root/".git"/ref
-                  head_text=p.read_text()[:256].strip() if p.is_file() else head_text
-          marker=build/".laplace-source-revision"
-          emit("ORIGINAL_WORKSPACE",{"unix":time.time(),"head":head_text,"build":str(build),"build_source":marker.read_text()[:256].strip() if marker.is_file() else None,"test_logs":[metadata(build/"Testing/Temporary"/n) for n in ("LastTest.log","LastTestsFailed.log")]})
-          def sample():
-              out=[]
-              for path in pathlib.Path("/proc").iterdir():
-                  if not path.name.isdecimal():continue
-                  try:
-                      if path.stat().st_uid!=os.getuid():continue
-                      cwd=(path/"cwd").resolve()
-                      if not(cwd==root or cwd==build or root in cwd.parents or build in cwd.parents):continue
-                      raw=(path/"stat").read_text();parts=raw[raw.rindex(")")+2:].split()
-                      out.append({"pid":int(path.name),"ppid":int(parts[1]),"comm":raw[raw.index("(")+1:raw.rindex(")")],"executable":(path/"exe").resolve().name,"start_ticks":int(parts[19]),"cpu_ticks":int(parts[11])+int(parts[12]),"state":parts[0]})
-                  except(OSError,ValueError,IndexError):continue
-              return out[:128]
-          emit("ORIGINAL_PROCESS_SAMPLE_1",{"unix":time.time(),"rows":sample()})
-          time.sleep(1)
-          emit("ORIGINAL_PROCESS_SAMPLE_2",{"unix":time.time(),"rows":sample()})
+          import ast,base64,hashlib,json,os,pathlib,urllib.request
+          for entry in json.loads("[{\"path\":\"tools/admit_source.py\",\"sha\":\"b20ef5ab21ea17dc056e13cf8d3d5baa4e1dce96\"},{\"path\":\"tests/verified_git_source_tests.py\",\"sha\":\"dba35cfbdee0c066447b20d2f33a809b159a897a\"},{\"path\":\"tests/source_runtime_state_postgres_tests.py\",\"sha\":\"78e77fff37d86ab8e527b0841d36e0c0553198d0\"}]"):
+              request=urllib.request.Request("https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+entry["sha"],headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"})
+              with urllib.request.urlopen(request,timeout=30) as response: value=json.load(response)
+              data=base64.b64decode(value["content"],validate=False)
+              if hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()!=entry["sha"]:raise ValueError("source blob digest differs")
+              ast.parse(data,filename=entry["path"])
+              pathlib.Path(entry["path"]).write_bytes(data)
+              print("AUTHENTICATED_SOURCE",entry["path"],entry["sha"],len(data))
           
           PY
+      - name: Prepare owned hosted PostgreSQL fixture workspace
+        shell: bash
+        run: |
+          sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" /build/laplace/work/readback-deadline
+          python3 -I - <<'PY'
+          import os,pathlib
+          candidates=sorted(pathlib.Path("/usr/lib/postgresql").glob("*/bin"),key=lambda p:int(p.parent.name),reverse=True)
+          selected=next((p for p in candidates if all((p/n).is_file() for n in ("initdb","pg_ctl","postgres","psql"))),None)
+          if selected is None:raise RuntimeError("hosted PostgreSQL fixture binaries unavailable")
+          with open(os.environ["GITHUB_ENV"],"a") as output:
+              output.write("SELECTED_PG_BINDIR="+str(selected)+"\nTMPDIR=/build/laplace/work/readback-deadline\n")
+          print("SELECTED_POSTGRESQL",selected)
+          PY
+      - name: Exercise exact readback parser and private PostgreSQL cancellation
+        shell: bash
+        run: |
+          "${SELECTED_PG_BINDIR}/postgres" --version
+          PYTHONPATH=tools python3 -B tests/verified_git_source_tests.py GitReadbackReceiptTests
+          PYTHONPATH=tools python3 -B tests/source_runtime_state_postgres_tests.py --pg-bindir "${SELECTED_PG_BINDIR}"
