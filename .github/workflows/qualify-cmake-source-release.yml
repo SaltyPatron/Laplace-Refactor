@@ -1,92 +1,54 @@
-name: Observe retained Refactor source readback
+name: Cancel the exact abandoned Refactor readback
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
 jobs:
-  observe-readback:
+  cancel-abandoned-readback:
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 3
+    timeout-minutes: 2
     steps:
-      - name: Read PostgreSQL activity and explain bounded selected metadata queries
+      - name: Revalidate and cancel only the timed-out source readback backend
         shell: bash
         run: |
           python3 -I - <<'PY'
-          import hashlib,json,os,pathlib,subprocess,time
-          PSQL="/opt/laplace/releases/d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490/pgsql-18/bin/psql"
-          CMD=[PSQL,"--host","/opt/laplace/runtime/postgresql/refactor","--port","55433","--username","laplace_admin","--dbname","laplace_refactor","--no-psqlrc","--set","ON_ERROR_STOP=1","--quiet","--tuples-only","--no-align"]
-          env=dict(os.environ)
-          env["PGOPTIONS"]="-c default_transaction_read_only=on -c statement_timeout=5000 -c lock_timeout=1000 -c application_name=refactor_readback_observer"
-          def emit(kind,value): print(kind+" "+json.dumps(value,sort_keys=True),flush=True)
-          def sql(query):
-              result=subprocess.run(CMD,input="BEGIN READ ONLY;\n"+query+"\nCOMMIT;\n",text=True,capture_output=True,timeout=15,env=env)
-              if len(result.stdout)>1048576 or len(result.stderr)>16384: raise ValueError("bounded SQL output exceeded")
-              if result.returncode: raise ValueError(result.stderr[-2000:])
-              return json.loads(result.stdout)
-          activity=sql("""SELECT coalesce(jsonb_agg(to_jsonb(a)),'[]'::jsonb) FROM (
-          SELECT pid,backend_start,xact_start,query_start,state,wait_event_type,wait_event,
-          pg_blocking_pids(pid) AS blockers,
-          CASE WHEN position('source_readback_utf8_batch' in query)>0 THEN 'source-readback'
-          WHEN position('source_admit_with_grammar' in query)>0 THEN 'source-admission'
-          ELSE 'other' END AS query_kind,
-          length(query) AS query_bytes,
-          CASE WHEN position('source_readback_utf8_batch' in query)>0
-          AND ltrim(query) LIKE 'WITH selected AS MATERIALIZED%'
-          THEN query ELSE NULL END AS exact_readback_query
-          FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()
-          ORDER BY pid LIMIT 64) a;""")
-          private_queries=[]
-          for row in activity:
-              query=row.pop("exact_readback_query",None)
-              if query:
-                  row["readback_query_sha256"]=hashlib.sha256(query.encode()).hexdigest()
-                  private_queries.append(query)
-          emit("PG_ACTIVITY",{"observed_unix":time.time(),"rows":activity})
-          metadata=sql("""SELECT jsonb_build_object(
-          'profiles',(SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (SELECT encode(profile_id,'hex') AS profile,
-          to_jsonb(p)->'file_count' AS file_count,to_jsonb(p)->'span_count' AS span_count,
-          to_jsonb(p)->'byte_count' AS byte_count FROM laplace.source_profile p ORDER BY profile_id LIMIT 32) x),
-          'receipts',(SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (
-          SELECT encode(source_profile_id,'hex') AS profile,encode(receipt_id,'hex') AS receipt,
-          encode(composition_working_set_receipt,'hex') AS composition,version,witness_count::text,
-          encode(baseline_receipt_id,'hex') AS baseline
-          FROM laplace.source_structural_witness_receipt ORDER BY source_profile_id,version,receipt_id LIMIT 64) x),
-          'estimated_tables',(SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (
-          SELECT c.relname,c.reltuples::text AS estimated_rows,c.relpages,s.n_live_tup,s.n_dead_tup,s.last_analyze,s.last_autoanalyze
-          FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-          LEFT JOIN pg_stat_user_tables s ON s.relid=c.oid
-          WHERE n.nspname='laplace' AND c.relname IN ('source_profile','source_structural_witness','source_structural_witness_execution','source_structural_witness_receipt','entity','physicality','attestation')) x),
-          'indexes',(SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (
-          SELECT tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='laplace'
-          AND tablename IN ('source_profile','source_structural_witness','source_structural_witness_execution','source_structural_witness_receipt')
-          ORDER BY tablename,indexname LIMIT 64) x));""")
-          emit("PG_METADATA",metadata)
-          def process_row(pid):
-              root=pathlib.Path("/proc")/str(pid)
+          import json,os,pathlib,subprocess,time
+          PID=1932005
+          START=91298824
+          PROFILE="c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab"
+          ROOT=pathlib.Path("/proc")/str(PID)
+          def proc():
               try:
-                  if root.stat().st_uid!=os.getuid(): return {"pid":pid,"same_uid":False}
-                  raw=(root/"stat").read_text()
-                  tail=raw[raw.rindex(")")+2:].split()
-                  return {"pid":pid,"start_ticks":int(tail[19]),"state":tail[0],"ppid":int(tail[1]),
-                      "cpu_ticks":int(tail[11])+int(tail[12]),"comm":raw[raw.index("(")+1:raw.rindex(")")],
-                      "wchan":(root/"wchan").read_text()[:128]}
-              except (OSError,ValueError,IndexError) as error:
-                  return {"pid":pid,"unavailable":type(error).__name__}
-          pids=[row["pid"] for row in activity]
-          emit("BACKEND_SAMPLE_1",[process_row(pid) for pid in pids])
-          time.sleep(1)
-          emit("BACKEND_SAMPLE_2",[process_row(pid) for pid in pids])
-          for index,query in enumerate(private_queries[:2]):
-              # EXPLAIN only: no ANALYZE, and no execution of the selected function.
-              if not query.rstrip().endswith(";"):
-                  emit("EXPLAIN_UNAVAILABLE",{"index":index,"reason":"activity text is truncated"});continue
-              try: emit("OUTER_READBACK_EXPLAIN",{"query_sha256":hashlib.sha256(query.encode()).hexdigest(),"plan":sql("EXPLAIN (FORMAT JSON,COSTS TRUE) "+query)})
-              except (ValueError,subprocess.SubprocessError) as error: emit("EXPLAIN_UNAVAILABLE",{"index":index,"reason":str(error)[:2000]})
-          for profile in [p["profile"] for p in metadata["profiles"] if p["profile"]!="2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651"][:4]:
-              if len(profile)!=64 or any(c not in "0123456789abcdef" for c in profile): raise ValueError("invalid profile")
-              for table in ("source_structural_witness","source_structural_witness_execution"):
-                  emit("SCOPED_COUNT_EXPLAIN",{"profile":profile,"table":table,"plan":sql("EXPLAIN (FORMAT JSON,COSTS TRUE) SELECT count(*) FROM laplace."+table+" WHERE source_profile_id=decode('"+profile+"','hex');")})
-          emit("OBSERVER_COMPLETE",{"read_only":True,"analyze_executed":False,"observed_unix":time.time()})
+                  if ROOT.stat().st_uid!=os.getuid(): raise RuntimeError("backend owner differs")
+                  raw=(ROOT/"stat").read_text(); parts=raw[raw.rindex(")")+2:].split()
+                  if int(parts[19])!=START or raw[raw.index("(")+1:raw.rindex(")") ]!="postgres": raise RuntimeError("backend identity changed")
+                  return {"pid":PID,"start_ticks":START,"state":parts[0],"cpu_ticks":int(parts[11])+int(parts[12])}
+              except FileNotFoundError: return None
+          def emit(kind,value): print(kind+" "+json.dumps(value,sort_keys=True),flush=True)
+          CMD=["/opt/laplace/releases/d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490/pgsql-18/bin/psql","--host","/opt/laplace/runtime/postgresql/refactor","--port","55433","--username","laplace_admin","--dbname","laplace_refactor","--no-psqlrc","--set","ON_ERROR_STOP=1","--quiet","--tuples-only","--no-align"]
+          env=dict(os.environ);env["PGOPTIONS"]="-c default_transaction_read_only=on -c statement_timeout=2000 -c lock_timeout=500 -c application_name=refactor_abandoned_readback_cancel"
+          def sql(query):
+              result=subprocess.run(CMD,input=query,text=True,capture_output=True,timeout=5,env=env)
+              if result.returncode: raise RuntimeError(result.stderr[-2000:])
+              if len(result.stdout)>65536: raise RuntimeError("oversized result")
+              return json.loads(result.stdout)
+          before=proc();emit("EXACT_BACKEND_BEFORE",before)
+          if before:
+              result=sql("""SELECT coalesce(jsonb_agg(to_jsonb(a)),'[]'::jsonb) FROM (
+          SELECT pid,backend_start,query_start,pg_cancel_backend(pid) AS cancel_requested
+          FROM pg_stat_activity WHERE pid=1932005 AND datname='laplace_refactor' AND state='active'
+          AND backend_start='2026-09-17T14:31:06.775385+00:00'::timestamptz
+          AND query_start='2026-09-17T14:31:06.778372+00:00'::timestamptz
+          AND ltrim(query) LIKE 'WITH selected AS MATERIALIZED%'
+          AND position('source_readback_utf8_batch' in query)>0
+          AND position('c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab' in query)>0) a;""")
+              emit("GUARDED_CANCEL",result)
+              for index in range(6):
+                  time.sleep(0.5)
+                  state=sql("SELECT coalesce(jsonb_agg(to_jsonb(a)),'[]'::jsonb) FROM (SELECT pid,backend_start,query_start,state,wait_event_type,wait_event FROM pg_stat_activity WHERE pid=1932005) a;")
+                  emit("BACKEND_AFTER",{"sample":index,"unix":time.time(),"activity":state,"process":proc()})
+                  if not state: break
+          emit("CANCEL_OBSERVER_COMPLETE",{"unix":time.time(),"broad_kill":False,"database_reset":False})
           
           PY
