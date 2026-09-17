@@ -139,8 +139,8 @@ BEGIN
                OR difference#>>'{stored,source_profile_id}' IS DISTINCT FROM encode(replay.profile_id,'hex')
                OR (difference#>>'{stored,syntax_flags}')::numeric <>
                   (difference#>>'{expected,syntax_flags}')::numeric + 1
-               OR (difference->'expected' - 'syntax_flags') IS DISTINCT FROM
-                  (difference->'stored' - 'syntax_flags')
+               OR ((difference->'expected') - 'syntax_flags') IS DISTINCT FROM
+                  ((difference->'stored') - 'syntax_flags')
                OR difference->'expected_physicality' IS DISTINCT FROM difference->'stored_physicality'
                OR difference#>>'{expected_physicality,physicality_id}' IS DISTINCT FROM
                   difference#>>'{expected,canonical_physicality_id}'
