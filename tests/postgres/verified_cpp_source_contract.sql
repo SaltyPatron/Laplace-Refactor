@@ -699,8 +699,10 @@ DO $execution_corruption$
 DECLARE rejected integer:=0; selected_profile bytea:=(SELECT profile_id FROM cpp_second);
  current_receipt bytea:=(SELECT receipt_id FROM cpp_current_structural);
  baseline_receipt bytea:=(SELECT baseline_receipt_id FROM cpp_current_structural);
+ observations_before jsonb:=(SELECT jsonb_agg(to_jsonb(e) ORDER BY artifact_index,span_index)
+   FROM laplace.source_structural_witness_execution e WHERE receipt_id=current_receipt);
 BEGIN
- FOR control IN 1..15 LOOP
+ FOR control IN 1..18 LOOP
    BEGIN
      IF control IN(1,2,14) THEN
        UPDATE laplace.source_structural_witness SET
@@ -749,6 +751,28 @@ BEGIN
        UPDATE laplace.source_structural_witness_receipt
        SET canonical_witness_fingerprint=set_byte(canonical_witness_fingerprint,0,get_byte(canonical_witness_fingerprint,0)#1)
        WHERE receipt_id=current_receipt;
+     ELSIF control=16 THEN
+       DELETE FROM laplace.source_structural_witness_execution
+       WHERE receipt_id=current_receipt AND artifact_index=0 AND span_index=0;
+     ELSIF control=17 THEN
+       -- Corrupt only this caught subtransaction; its FK and row both roll back.
+       ALTER TABLE laplace.source_structural_witness_execution
+         DROP CONSTRAINT source_witness_execution_span_fk;
+       DELETE FROM laplace.source_structural_witness
+       WHERE source_profile_id=selected_profile AND artifact_index=0 AND span_index=0;
+     ELSIF control=18 THEN
+       -- A receipt-scoped row must remain visible even with a damaged profile
+       -- binding. Its deferred receipt FK must not replace native verification.
+       ALTER TABLE laplace.source_structural_witness_execution
+         DROP CONSTRAINT source_witness_execution_span_fk;
+       INSERT INTO laplace.source_structural_witness_execution
+        (receipt_id,source_profile_id,artifact_index,span_index,trace_fingerprint,provider_fingerprint)
+       SELECT current_receipt,set_byte(source_profile_id,0,get_byte(source_profile_id,0)#1),
+        artifact_index,(SELECT max(span_index)+1 FROM laplace.source_structural_witness_execution
+          WHERE receipt_id=current_receipt AND artifact_index=0),
+        trace_fingerprint,provider_fingerprint
+       FROM laplace.source_structural_witness_execution
+       WHERE receipt_id=current_receipt AND artifact_index=0 AND span_index=0;
      ELSE
        UPDATE laplace.source_structural_witness_receipt
        SET witness_fingerprint=set_byte(witness_fingerprint,0,get_byte(witness_fingerprint,0)#1)
@@ -763,7 +787,10 @@ BEGIN
    EXCEPTION WHEN SQLSTATE 'XX001' THEN rejected:=rejected+1;
    END;
  END LOOP;
- IF rejected<>15 OR
+ IF rejected<>18 OR
+    (SELECT jsonb_agg(to_jsonb(e) ORDER BY artifact_index,span_index)
+       FROM laplace.source_structural_witness_execution e WHERE receipt_id=current_receipt)
+       IS DISTINCT FROM observations_before OR
     (SELECT count(*) FROM laplace.source_structural_witness_execution)<>(SELECT observations FROM cpp_execution_after) OR
     (SELECT count(*) FROM laplace.source_structural_witness_receipt)<>(SELECT receipts FROM cpp_execution_after) OR
     (SELECT jsonb_agg(to_jsonb(w) ORDER BY artifact_index,span_index)
@@ -830,4 +857,4 @@ SELECT 'LAPLACE_QA_RECEIPT structural_execution_separation ' || json_build_objec
  'current_witness_fingerprint',encode(witness_fingerprint,'hex'),
  'execution_rows_created_once',witness_count,'repeat_execution_row_delta',0,
  'repeat_execution_receipt_delta',0,'repeat_entity_delta',0,'repeat_physicality_delta',0,
- 'repeat_attestation_delta',0,'corruption_controls',15,'schema_controls',2)::text FROM cpp_current_structural;
+ 'repeat_attestation_delta',0,'corruption_controls',18,'schema_controls',2)::text FROM cpp_current_structural;
