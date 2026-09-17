@@ -1,190 +1,52 @@
-name: Read authenticated installed Stockfish execution replay
+name: Qualify browser origin and prefix paths
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: read
 jobs:
-  read-installed-source:
+  browser-paths:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Authenticate retained experiment and expose bounded diagnostics
+      - name: Authenticate exact production browser and tests
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, urllib.request, zipfile
-          repository = "SaltyPatron/Laplace-Refactor"
-          artifact_id = 10495964088
-          run_id = 35216221036
-          job_id = 105196806333
-          expected_size = 3017055
-          expected_sha = "ef5c5cb5e1defbe2c916110ec68b9ae870693933e030c17d1b4224e3b47113a4"
-          api = "https://api.github.com/repos/" + repository
-          token = os.environ.pop("GH_TOKEN")
-          def get(url, limit):
-              request = urllib.request.Request(url, headers={
-                  "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28",
-                  "User-Agent": "Laplace-authenticated-pointer-diagnostic-reader"})
-              request.add_unredirected_header("Authorization", "Bearer " + token)
-              with urllib.request.urlopen(request, timeout=90) as response:
-                  data = response.read(limit + 1)
-              if len(data) > limit:
-                  raise RuntimeError("response exceeds exact bounded reader limit")
-              return data
-          metadata = json.loads(get(api + "/actions/artifacts/" + str(artifact_id), 100000))
-          assert metadata["id"] == artifact_id and not metadata["expired"], metadata
-          assert metadata["size_in_bytes"] == expected_size, metadata
-          assert metadata["digest"] == "sha256:" + expected_sha, metadata
-          assert metadata["workflow_run"]["id"] == run_id, metadata
-          archive_data = get(api + "/actions/artifacts/" + str(artifact_id) + "/zip", expected_size)
-          assert len(archive_data) == expected_size
-          assert hashlib.sha256(archive_data).hexdigest() == expected_sha
-          print("SOURCE_ARTIFACT_AUTHENTICATED " + json.dumps({
-              "repository": repository, "run_id": run_id, "job_id": job_id,
-              "artifact_id": artifact_id, "zip_bytes": len(archive_data),
-              "zip_sha256": expected_sha}), flush=True)
-          with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
-              entries = archive.infolist()
-              names = [entry.filename for entry in entries]
-              assert len(names) == len(set(names))
-              assert all(not pathlib.PurePosixPath(name).is_absolute() and ".." not in pathlib.PurePosixPath(name).parts for name in names)
-              print("SOURCE_ARTIFACT_MEMBERS " + json.dumps([{"name": e.filename, "bytes": e.file_size} for e in entries if "/" not in e.filename]), flush=True)
-              report = json.loads(archive.read("result.json"))
-              print("SOURCE_ACCEPTANCE_RESULT " + json.dumps(report, sort_keys=True), flush=True)
-              context = json.loads(archive.read("execution-context.json"))
-              assert context["expected_sha"] == "d2d8a3533d1000cd31f56c6fd92bc11365f0ebac"
-              assert str(context["workflow_run_id"]) == str(run_id)
-              print("SOURCE_EXECUTION_CONTEXT " + json.dumps(context, sort_keys=True), flush=True)
-              source_activation = None
-              for name in ("activation-before.json", "runtime-selection.json", "grammar/build-receipt.json"):
-                  if name in names:
-                      raw = archive.read(name)
-                      assert len(raw) <= 1000000
-                      value = json.loads(raw)
-                      scope = "complete-json"
-                      if name == "activation-before.json":
-                          source_activation = dict(value)
-                          value = {key: value.get(key) for key in (
-                              "repository_commit", "repository_build_fingerprint",
-                              "package_id", "cli", "cli_sha256", "manifest_sha256",
-                              "release", "native_receipt_paths", "loaded")}
-                          scope = "selected-installed-identity-fields"
-                      print("SOURCE_RETAINED_JSON " + json.dumps({
-                          "name": name, "bytes": len(raw),
-                          "sha256": hashlib.sha256(raw).hexdigest(),
-                          "content_scope": scope, "value": value}, sort_keys=True), flush=True)
-              admissions = {}
-              for command in report.get("commands", []):
-                  if command.get("name") not in ("grammar-qualification", "admission", "repeat"):
-                      continue
-                  print("SOURCE_COMMAND " + json.dumps(command, sort_keys=True), flush=True)
-                  for stream in ("stdout", "stderr"):
-                      name = command["name"] + "." + stream + ".log"
-                      raw = archive.read(name)
-                      expected = command.get(stream + "_sha256")
-                      assert expected is not None and hashlib.sha256(raw).hexdigest() == expected
-                      if stream == "stdout" and command["name"] in ("admission", "repeat") and command.get("exit_code") == 0:
-                          assert len(raw) <= 8000000
-                          value = json.loads(raw)
-                          admissions[command["name"]] = value
-                          print("SOURCE_ADMISSION_PROJECTION " + json.dumps({
-                              "phase": command["name"], "json_sha256": expected,
-                              "profile": value["admission"]["profile_id"],
-                              "source_fingerprint": value["admission"]["source_fingerprint"],
-                              "root_entity_id": value["admission"]["root_entity_id"],
-                              "root_physicality_id": value["admission"]["root_physicality_id"],
-                              "composition_receipt": value["admission"]["composition_working_set_receipt_id"],
-                              "execution_metrics": value.get("execution_metrics"),
-                              "readback": {key:item for key,item in value["readback"].items() if key != "records"}
-                          }, sort_keys=True), flush=True)
-                      print("SOURCE_STREAM_IDENTITY " + json.dumps({"name": name, "bytes": len(raw), "sha256": expected, "truncated": len(raw) > 64000}), flush=True)
-                      print("SOURCE_STREAM_BEGIN " + name, flush=True)
-                      print((raw if len(raw) <= 64000 else raw[:8000] + b"\n[bounded middle omitted]\n" + raw[-56000:]).decode("utf-8", errors="replace"), flush=True)
-                      print("SOURCE_STREAM_END " + name, flush=True)
-              if report.get("status") == "passed":
-                  assert set(admissions) == {"admission", "repeat"}
-                  first, repeat = admissions["admission"], admissions["repeat"]
-                  expected_profile = "\\x2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651"
-                  assert first["admission"]["profile_id"] == repeat["admission"]["profile_id"] == expected_profile
-                  count_fields = ("structural_execution_observation_count", "structural_execution_receipt_count")
-                  identity_fields = ("structural_execution_receipt_id", "execution_witness_fingerprint", "historical_structural_receipt_id")
-                  for field in count_fields:
-                      assert type(first["readback"][field]) is int and first["readback"][field] > 0
-                      assert first["readback"][field] == repeat["readback"][field]
-                  for field in identity_fields:
-                      assert first["readback"][field] == repeat["readback"][field]
-                  print("SOURCE_IDENTICAL_EXECUTION_REPLAY " + json.dumps({
-                      "scope": "same installed current provider replay, separate from its first observation",
-                      "profile": expected_profile,
-                      "execution_observation_delta": 0, "execution_receipt_delta": 0,
-                      "counts": {key:first["readback"][key] for key in count_fields},
-                      "identities": {key:first["readback"][key] for key in identity_fields},
-                      "first_pass_global_entity_physicality_delta_measured": False,
-                      "executable_semantics_verified": False
-                  }, sort_keys=True), flush=True)
-              print("SOURCE_EXECUTION_READER_COMPLETE", flush=True)
-          service_artifacts = [{"id":10496413280,"kind":"service-restart","member":"result.json","sha256":"59d5ab6e8e39ef216de0e576a915597ec5f776bd8cf5209ddaa603496a15b794","size":291427},{"id":10495868693,"kind":"http-readiness","member":"installed-http-readiness-35216221036-1.json","sha256":"db88443c5505b1e18264de251ba0a6041bea3ade84faa32722949d2d678eedfe","size":1118}]
-          assert [item["kind"] for item in service_artifacts] == ["service-restart", "http-readiness"]
-          assert source_activation is not None
-          for selected in service_artifacts:
-              metadata = json.loads(get(api + "/actions/artifacts/" + str(selected["id"]), 100000))
-              assert metadata["id"] == selected["id"] and not metadata["expired"]
-              assert metadata["size_in_bytes"] == selected["size"]
-              assert metadata["digest"] == "sha256:" + selected["sha256"]
-              assert metadata["workflow_run"]["id"] == run_id
-              payload = get(api + "/actions/artifacts/" + str(selected["id"]) + "/zip", selected["size"])
-              assert len(payload) == selected["size"] and hashlib.sha256(payload).hexdigest() == selected["sha256"]
-              with zipfile.ZipFile(io.BytesIO(payload)) as service_archive:
-                  entries = service_archive.infolist()
-                  names = [entry.filename for entry in entries]
-                  assert len(names) == len(set(names))
-                  assert all(not pathlib.PurePosixPath(name).is_absolute() and ".." not in pathlib.PurePosixPath(name).parts for name in names)
-                  entry = service_archive.getinfo(selected["member"])
-                  assert 0 < entry.file_size <= 1000000
-                  raw = service_archive.read(entry)
-                  result = json.loads(raw)
-              assert result["status"] == "passed"
-              if selected["kind"] == "service-restart":
-                  assert result["schema"] == "laplace.cognition-service-lifecycle/v1"
-                  assert result["action"] == "restart"
-                  observation = result["observation"]
-                  assert observation["repository_commit"] == "d2d8a3533d1000cd31f56c6fd92bc11365f0ebac"
-                  assert observation["activated_package_verified"] is True
-                  assert observation["unit"]["ActiveState"] == "active"
-                  assert observation["health"]["response"]["status"] == "ready"
-                  assert observation["health"]["response"]["package_id"] == observation["package_id"]
-                  service_package = observation["package_id"]
-                  assert service_package == source_activation["package_id"]
-                  projection = {
-                      "schema": result["schema"], "status": result["status"],
-                      "service": "laplace-refactor-cognition.service",
-                      "service_scope": observation["scope"],
-                      "unit": {key: observation["unit"].get(key) for key in (
-                          "Id", "LoadState", "ActiveState", "SubState", "UnitFileState", "MainPID")},
-                      "package_id": service_package,
-                      "repository_commit": observation["repository_commit"],
-                      "health": observation["health"]["response"],
-                      "timings_seconds": observation["timings_seconds"],
-                      "cold_boot_proven": result["cold_boot_proven"]
-                  }
-              else:
-                  assert result["schema"] == "laplace.installed-product-http-readiness/v1"
-                  assert result["package_id"] == service_package
-                  assert result["endpoint"] == "http://127.0.0.1:55434"
-                  projection = {key: result.get(key) for key in (
-                      "schema", "status", "scope", "package_id", "endpoint")}
-                  projection["external_reachability_verified"] = False
-              print("SERVICE_ARTIFACT_AUTHENTICATED " + json.dumps({
-                  "artifact_id": selected["id"], "zip_bytes": selected["size"],
-                  "zip_sha256": selected["sha256"], "kind": selected["kind"],
-                  "member": selected["member"], "member_bytes": len(raw),
-                  "member_sha256": hashlib.sha256(raw).hexdigest(),
-                  "projection": projection
-              }, sort_keys=True), flush=True)
-          print("SOURCE_AND_SERVICE_READER_COMPLETE", flush=True)
+          import base64, hashlib, json, os, pathlib, urllib.request
+          root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          token = os.environ.pop('GH_TOKEN')
+          leaves = [{"path":"product/web/app.js","sha":"6fd4999c21d29de2150ca5c2731a60f72187f936"},{"path":"product/web/index.html","sha":"22d457e46142794fb7900184236ebf74ca322621"},{"path":"tests/browser_surface_paths_tests.cjs","sha":"1c1ba260359ff60ef19a2a598aa795f713b9d27d"}]
+          for leaf in leaves:
+              request = urllib.request.Request('https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/' + leaf['sha'], headers={'Accept':'application/vnd.github+json','User-Agent':'Laplace-browser-path-controls'})
+              request.add_unredirected_header('Authorization', 'Bearer ' + token)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  raw = response.read(1000000)
+              blob = json.loads(raw)
+              assert blob['sha'] == leaf['sha'] and blob['encoding'] == 'base64'
+              data = base64.b64decode(blob['content'])
+              assert len(data) == blob['size']
+              assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == leaf['sha']
+              path = root / leaf['path']
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(data)
+              print(json.dumps({'path':leaf['path'],'blob':leaf['sha'],'bytes':len(data)}))
           PY
+      - name: Execute shipped browser in root and prefixed contexts
+        shell: bash
+        run: |
+          node --test tests/browser_surface_paths_tests.cjs | tee browser-path-results.tap
+      - name: Retain exact source and controls
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: browser-prefix-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            product/web/app.js
+            product/web/index.html
+            tests/browser_surface_paths_tests.cjs
+            browser-path-results.tap
+          if-no-files-found: error
+          retention-days: 30
