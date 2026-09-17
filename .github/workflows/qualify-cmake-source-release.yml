@@ -1,4 +1,4 @@
-name: Adjudicate authenticated retained GNU alias evidence
+name: Adjudicate retained GNU evidence with exact hidden-source supplements
 on:
   workflow_dispatch:
   push:
@@ -27,7 +27,7 @@ jobs:
           printf 'ADJUDICATION_ROOT=%s\n' "$adjudication_root" >> "$GITHUB_ENV"
           printf 'TMPDIR=%s/tmp\nTMP=%s/tmp\nTEMP=%s/tmp\n' \
             "$adjudication_root" "$adjudication_root" "$adjudication_root" >> "$GITHUB_ENV"
-      - name: Authenticate adjudicator and revalidate retained artifact only
+      - name: Authenticate adjudicator and revalidate retained evidence with immutable supplements
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -36,7 +36,7 @@ jobs:
           python3 - <<'PY'
           import ast, base64, hashlib, json, os, pathlib, runpy, traceback, urllib.request
           evidence = pathlib.Path(os.environ["ADJUDICATION_ROOT"], "evidence")
-          identity = "1119575cd31562304a736eecc9d442595879abf3"
+          identity = "583d2b4f431f5ddc42a8d6bd05775a26ccacde55"
           try:
               request = urllib.request.Request(
                   "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/" + identity,
