@@ -1,4 +1,4 @@
-name: Read retained Stockfish grammar provider bytes
+name: Read authenticated installed Stockfish witness diagnostic
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -6,149 +6,88 @@ permissions:
   contents: read
   actions: read
 jobs:
-  read-retained-providers:
+  read-installed-source:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Authenticate prior source artifacts and expose provider receipts
+      - name: Authenticate retained experiment and expose bounded diagnostics
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, re, struct, urllib.request, zipfile
-          repo = "SaltyPatron/Laplace-Refactor"
-          api = "https://api.github.com/repos/" + repo
+          import hashlib, io, json, os, pathlib, urllib.request, zipfile
+          repository = "SaltyPatron/Laplace-Refactor"
+          artifact_id = 10488005371
+          run_id = 35198079402
+          job_id = 105131694032
+          expected_size = 2743772
+          expected_sha = "b5139199281b312e9e801beaf95c9d1dcd624014acc53565e5f9466b01262df4"
+          api = "https://api.github.com/repos/" + repository
           token = os.environ.pop("GH_TOKEN")
-          sources = [
-              {"name": "historical-success", "run": 35163097838, "artifact": 10474447094, "bytes": 3016206,
-               "sha256": "a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007",
-               "commit": "b042de4216e1d674effe5bd3e8ecf3ebc7aeddac"},
-              {"name": "current-failure", "run": 35191157961, "artifact": 10484374565, "bytes": 2742993,
-               "sha256": "27f6594ba16630711192fb1654358589ad879cbc312b9824a3e6df2f9d6be260",
-               "commit": "af0f3cf48de13005875f78888271ec8ccdf332c4"},
-          ]
           def get(url, limit):
               request = urllib.request.Request(url, headers={
-                  "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
-                  "User-Agent": "Laplace-retained-provider-reader"})
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "Laplace-authenticated-pointer-diagnostic-reader"})
               request.add_unredirected_header("Authorization", "Bearer " + token)
               with urllib.request.urlopen(request, timeout=90) as response:
                   data = response.read(limit + 1)
               if len(data) > limit:
-                  raise RuntimeError("bounded response exceeded")
+                  raise RuntimeError("response exceeds exact bounded reader limit")
               return data
-          observations = []
-          retained_libraries = {}
-          for source in sources:
-              metadata = json.loads(get(api + "/actions/artifacts/" + str(source["artifact"]), 100000))
-              assert metadata["id"] == source["artifact"] and not metadata["expired"]
-              assert metadata["workflow_run"]["id"] == source["run"]
-              assert metadata["workflow_run"]["head_sha"] == source["commit"]
-              assert metadata["size_in_bytes"] == source["bytes"]
-              assert metadata["digest"] == "sha256:" + source["sha256"]
-              raw = get(api + "/actions/artifacts/" + str(source["artifact"]) + "/zip", source["bytes"])
-              assert len(raw) == source["bytes"] and hashlib.sha256(raw).hexdigest() == source["sha256"]
-              with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-                  entries = archive.infolist()
-                  names = [e.filename for e in entries]
-                  assert len(names) == len(set(names))
-                  assert all(not pathlib.PurePosixPath(n).is_absolute() and ".." not in pathlib.PurePosixPath(n).parts for n in names)
-                  report = json.loads(archive.read("result.json"))
-                  assert report["expected_repository_commit"] == source["commit"]
-                  selected = [e for e in entries if e.filename.startswith("grammar/") and
-                              (e.filename.endswith("build-receipt.json") or e.filename.endswith(".so"))]
-                  observation = {"source": source, "acceptance_status": report["status"],
-                                 "selected_members": [], "missing_grammar_members": not bool(selected),
-                                 "does_not_establish_mismatch_cause": True}
-                  for entry in selected:
-                      limit = 2000000 if entry.filename.endswith(".json") else 32000000
-                      assert 0 <= entry.file_size <= limit
-                      data = archive.read(entry)
-                      if entry.filename.endswith(".so"):
-                          assert source["name"] not in retained_libraries
-                          retained_libraries[source["name"]] = data
-                      member = {"path": entry.filename, "bytes": len(data),
-                                "sha256": hashlib.sha256(data).hexdigest()}
-                      if entry.filename.endswith(".json"):
-                          member["receipt"] = json.loads(data)
-                      observation["selected_members"].append(member)
-                  if not selected:
-                      observation["retained_grammar_paths"] = [
-                          {"path": e.filename, "bytes": e.file_size}
-                          for e in entries if "grammar" in e.filename][:64]
-                  observations.append(observation)
-                  print("RETAINED_PROVIDER_OBSERVATION " + json.dumps(observation, sort_keys=True), flush=True)
-          def elf_sections(data):
-              assert data[:6] == b"\x7fELF\x02\x01", "expected ELF64 little endian"
-              header = struct.unpack_from("<HHIQQQIHHHHHH", data, 16)
-              shoff, shentsize, shnum, shstrndx = header[5], header[10], header[11], header[12]
-              assert shentsize == 64 and 0 < shnum < 512 and shstrndx < shnum
-              assert shoff + shentsize * shnum <= len(data)
-              raw = [struct.unpack_from("<IIQQQQIIQQ", data, shoff + i * shentsize) for i in range(shnum)]
-              strings = raw[shstrndx]
-              names = data[strings[4]:strings[4] + strings[5]]
-              sections = []
-              for row in raw:
-                  assert row[0] < len(names)
-                  end = names.index(b"\0", row[0])
-                  name = names[row[0]:end].decode("ascii")
-                  offset, size, kind = row[4], row[5], row[1]
-                  assert kind == 8 or offset + size <= len(data)
-                  body = b"" if kind == 8 else data[offset:offset + size]
-                  sections.append({"name": name, "type": kind, "offset": offset, "size": size,
-                                   "sha256": hashlib.sha256(body).hexdigest()})
-              return sections
-          def differences(left, right):
-              runs, first, count = [], None, 0
-              common = min(len(left), len(right))
-              for offset in range(common):
-                  differs = left[offset] != right[offset]
-                  if differs:
-                      count += 1
-                      if first is None:
-                          first = offset
-                  elif first is not None:
-                      runs.append((first, offset))
-                      first = None
-              if first is not None:
-                  runs.append((first, common))
-              if len(left) != len(right):
-                  runs.append((common, max(len(left), len(right))))
-                  count += abs(len(left) - len(right))
-              return count, runs
-          def selected_strings(data, sections):
-              output = []
-              for match in re.finditer(rb"[\x20-\x7e]{8,}", data):
-                  value = match.group()
-                  if b"stockfish-corpus-" not in value:
+          metadata = json.loads(get(api + "/actions/artifacts/" + str(artifact_id), 100000))
+          assert metadata["id"] == artifact_id and not metadata["expired"], metadata
+          assert metadata["size_in_bytes"] == expected_size, metadata
+          assert metadata["digest"] == "sha256:" + expected_sha, metadata
+          assert metadata["workflow_run"]["id"] == run_id, metadata
+          archive_data = get(api + "/actions/artifacts/" + str(artifact_id) + "/zip", expected_size)
+          assert len(archive_data) == expected_size
+          assert hashlib.sha256(archive_data).hexdigest() == expected_sha
+          print("SOURCE_ARTIFACT_AUTHENTICATED " + json.dumps({
+              "repository": repository, "run_id": run_id, "job_id": job_id,
+              "artifact_id": artifact_id, "zip_bytes": len(archive_data),
+              "zip_sha256": expected_sha}), flush=True)
+          with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
+              entries = archive.infolist()
+              names = [entry.filename for entry in entries]
+              assert len(names) == len(set(names))
+              assert all(not pathlib.PurePosixPath(name).is_absolute() and ".." not in pathlib.PurePosixPath(name).parts for name in names)
+              print("SOURCE_ARTIFACT_MEMBERS " + json.dumps([{"name": e.filename, "bytes": e.file_size} for e in entries if "/" not in e.filename]), flush=True)
+              report = json.loads(archive.read("result.json"))
+              print("SOURCE_ACCEPTANCE_RESULT " + json.dumps(report, sort_keys=True), flush=True)
+              context = json.loads(archive.read("execution-context.json"))
+              assert context["expected_sha"] == "92dd91a568d5b764879ab20ffdc739b7db05b902"
+              assert str(context["workflow_run_id"]) == str(run_id)
+              print("SOURCE_EXECUTION_CONTEXT " + json.dumps(context, sort_keys=True), flush=True)
+              for name in ("activation-before.json", "runtime-selection.json", "grammar/build-receipt.json"):
+                  if name in names:
+                      raw = archive.read(name)
+                      assert len(raw) <= 1000000
+                      value = json.loads(raw)
+                      scope = "complete-json"
+                      if name == "activation-before.json":
+                          value = {key: value.get(key) for key in (
+                              "repository_commit", "repository_build_fingerprint",
+                              "package_id", "cli", "cli_sha256", "manifest_sha256",
+                              "release", "native_receipt_paths", "loaded")}
+                          scope = "selected-installed-identity-fields"
+                      print("SOURCE_RETAINED_JSON " + json.dumps({
+                          "name": name, "bytes": len(raw),
+                          "sha256": hashlib.sha256(raw).hexdigest(),
+                          "content_scope": scope, "value": value}, sort_keys=True), flush=True)
+              for command in report.get("commands", []):
+                  if command.get("name") not in ("grammar-qualification", "admission", "repeat"):
                       continue
-                  section = next((s["name"] for s in sections
-                                  if s["type"] != 8 and s["offset"] <= match.start() < s["offset"] + s["size"]), None)
-                  output.append({"offset": match.start(), "section": section, "bytes": len(value),
-                                 "text": value[:2048].decode("ascii"), "truncated": len(value) > 2048})
-              assert len(output) <= 128
-              return output
-          assert set(retained_libraries) == {"historical-success", "current-failure"}
-          left, right = retained_libraries["historical-success"], retained_libraries["current-failure"]
-          left_sections, right_sections = elf_sections(left), elf_sections(right)
-          assert [s["name"] for s in left_sections] == [s["name"] for s in right_sections]
-          section_differences = [{"historical": a, "current": b}
-                                 for a, b in zip(left_sections, right_sections) if a != b]
-          count, ranges = differences(left, right)
-          report = {
-              "schema": "laplace.retained-provider-elf-comparison/v1",
-              "library_bytes": [len(left), len(right)],
-              "library_sha256": [hashlib.sha256(left).hexdigest(), hashlib.sha256(right).hexdigest()],
-              "different_bytes": count, "different_ranges_count": len(ranges),
-              "first_64_different_ranges": [{"start": a, "end": b, "bytes": b - a} for a, b in ranges[:64]],
-              "section_differences": section_differences,
-              "historical_run_path_strings": selected_strings(left, left_sections),
-              "current_run_path_strings": selected_strings(right, right_sections),
-              "library_executed": False, "stored_witness_cause_proven": False,
-          }
-          print("RETAINED_PROVIDER_ELF_COMPARISON " + json.dumps(report, sort_keys=True), flush=True)
-          print("RETAINED_PROVIDER_COMPARISON_COMPLETE " + json.dumps({
-              "sources_authenticated": len(observations), "host_actions": False,
-              "database_actions": False, "profile_mutations": False}), flush=True)
+                  print("SOURCE_COMMAND " + json.dumps(command, sort_keys=True), flush=True)
+                  for stream in ("stdout", "stderr"):
+                      name = command["name"] + "." + stream + ".log"
+                      raw = archive.read(name)
+                      expected = command.get(stream + "_sha256")
+                      assert expected is not None and hashlib.sha256(raw).hexdigest() == expected
+                      print("SOURCE_STREAM_IDENTITY " + json.dumps({"name": name, "bytes": len(raw), "sha256": expected, "truncated": len(raw) > 64000}), flush=True)
+                      print("SOURCE_STREAM_BEGIN " + name, flush=True)
+                      print((raw if len(raw) <= 64000 else raw[:8000] + b"\n[bounded middle omitted]\n" + raw[-56000:]).decode("utf-8", errors="replace"), flush=True)
+                      print("SOURCE_STREAM_END " + name, flush=True)
+              print("SOURCE_FAILURE_READER_COMPLETE", flush=True)
           PY
