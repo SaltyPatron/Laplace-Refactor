@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, stat, urllib.request, zipfile
+          import gzip, hashlib, io, json, os, pathlib, stat, urllib.request, zipfile
           repository = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
           artifact_id = 10510989568
           run_id = 35254821053
@@ -104,6 +104,51 @@ jobs:
                           "diagnostic_count": len(native["diagnostics"]),
                           "shape_count": len(native["shapes"])
                       }, sort_keys=True), flush=True)
+              manifest = json.loads(member("stockfish/manifest.json", 1048576))
+              matches = [(i, row) for i, row in enumerate(manifest["artifacts"]) if row["path"] == "src/main.cpp"]
+              assert len(matches) == 1
+              index, source_row = matches[0]
+              source = member("stockfish/files/src/main.cpp", 1048576)
+              assert hashlib.sha256(source).hexdigest() == source_row["sha256"]
+              trees = {}
+              retained = {}
+              for variant in ("baseline", "candidate"):
+                  selected = [row for row in commands if row["label"] == variant + "-full-cst-%03d" % index]
+                  assert len(selected) == 1 and selected[0]["returncode"] == 0
+                  item = selected[0]["compressed_stdout"]
+                  assert str(item["path"]).count("/evidence/") == 1
+                  name = str(item["path"]).split("/evidence/", 1)[1]
+                  compressed = member(name, 4194304)
+                  assert len(compressed) == item["bytes"] and hashlib.sha256(compressed).hexdigest() == item["sha256"]
+                  with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as stream:
+                      raw = stream.read(16777217)
+                  assert len(raw) <= 16777216
+                  parsed = json.loads(raw)
+                  trees[variant] = parsed["root"]
+                  retained[variant] = {"member": name, "compressed_bytes": len(compressed),
+                      "compressed_sha256": hashlib.sha256(compressed).hexdigest(),
+                      "cst_bytes": len(raw), "cst_sha256": hashlib.sha256(raw).hexdigest(),
+                      "has_error": parsed["has_error"]}
+              differences = []
+              def projection(node):
+                  return {k:v for k,v in node.items() if k != "children"}
+              def compare(left, right, path):
+                  a, b = projection(left), projection(right)
+                  if a != b or len(left["children"]) != len(right["children"]):
+                      differences.append({"path": path, "baseline": a, "candidate": b,
+                          "baseline_child_types": [n["type"] for n in left["children"]],
+                          "candidate_child_types": [n["type"] for n in right["children"]],
+                          "source_excerpt": source[min(left["start"],right["start"]):max(left["end"],right["end"])][:512].decode("utf-8", "strict")})
+                      assert len(differences) <= 128
+                      if left["type"] != right["type"] or len(left["children"]) != len(right["children"]):
+                          return
+                  for child_index, (a, b) in enumerate(zip(left["children"], right["children"], strict=True)):
+                      compare(a, b, path + [child_index])
+              compare(trees["baseline"], trees["candidate"], [])
+              print("GNU_ALIAS_MAIN_CPP_CST_DIFF " + json.dumps({
+                  "path": "src/main.cpp", "source_sha256": source_row["sha256"],
+                  "source_bytes": len(source), "retained": retained,
+                  "differences": differences}, sort_keys=True), flush=True)
               if report["status"] != "passed-hosted-gnu-alias-qualification-only":
                   for item in commands:
                       if item.get("returncode") != 0 and item["label"] != "byte-order-deliberate-break":
