@@ -74,13 +74,14 @@ being enabled is insufficient to establish those results.
 
 ## Qualification retained with this change
 
-[Hosted run 35226808029](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35226808029)
-executed 36 host/service controls, 25 gateway controls and 16 browser VM controls.
+[Hosted run 35227711080](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35227711080)
+executed 36 host/service controls, 25 gateway controls and 17 browser VM controls.
 The controls exercise optional authority selection, exact rollback, malformed
 credential refusal, real HTTP authorization, the full proof caller's expected
 401 boundary, and actual server event framing. Browser controls cover root and
 /refactor/ assets and APIs, UTF-8/CRLF split at each byte, coalesced frames,
-authentication failures, reconnect IDs, token replacement and reader cleanup.
+authentication failures, reconnect IDs, token replacement, reader cleanup, and
+first credential entry after an anonymous 401 boot.
 
 The browser tests are part of normal hosted requirements CI. The actual selected
 package activation, authenticated service readback and external gateway check

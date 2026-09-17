@@ -49,7 +49,7 @@ function stream(chunks = [], { end = false, status = 200, media = "text/event-st
   };
   return { response, observation };
 }
-async function boot(href, { token = "", script = source, responses = [] } = {}) {
+async function boot(href, { token = "", script = source, responses = [], requiredToken = null } = {}) {
   const elements = new Map(), timers = new Map(), requests = [], streams = [];
   let nextTimer = 0, promptValue = null;
   const document = {
@@ -74,14 +74,23 @@ async function boot(href, { token = "", script = source, responses = [] } = {}) 
         return selected.then ? await selected : selected.response;
       }
       requests.push(call);
+      if (requiredToken !== null && options.headers.Authorization !== "Bearer " + requiredToken) {
+        return new Response(JSON.stringify({ error: { message: "unauthorized" } }),
+          { status: 401, headers: { "Content-Type": "application/json" } });
+      }
       return new Response(JSON.stringify({ status: "ready", counts: {}, rows: [] }),
         { headers: { "Content-Type": "application/json" } });
     },
   };
   vm.runInNewContext(script, context, { filename: "product/web/app.js", timeout: 1000 });
   await flush();
-  assert.equal(requests.length, 3, "real boot must finish health, summary and selected facet");
-  assert.equal(document.querySelector("#connection-label").textContent, "ready");
+  if (requiredToken !== null && token !== requiredToken) {
+    assert.equal(requests.length, 1, "unauthenticated boot must stop at rejected health");
+    assert.equal(document.querySelector("#connection-label").textContent, "Unavailable");
+  } else {
+    assert.equal(requests.length, 3, "real boot must finish health, summary and selected facet");
+    assert.equal(document.querySelector("#connection-label").textContent, "ready");
+  }
   return { requests, streams, timers, node: selector => document.querySelector(selector),
     async click(selector) { document.querySelector(selector).handlers.click(); await flush(); },
     async replaceToken(value) { promptValue = value; await this.click("#auth-button"); },
@@ -217,4 +226,24 @@ test("original absolute-fetch mutation is rejected by the real boot route assert
   assert.notEqual(mutant, source);
   const href = "https://hart-server:8443/refactor/", observed = await boot(href, { script: mutant });
   assert.throws(() => assertRoutes(observed, new URL(href)), assert.AssertionError);
+});
+
+test("first credential entry loads health and Explore after an actual401 boot", async () => {
+  const href = "https://hart-server:8443/refactor/";
+  for (const script of [source, source.replace("refreshHealth().then(refreshExplore)", "refreshHealth()")]) {
+    const observed = await boot(href, { script, requiredToken: "first-token" });
+    await observed.replaceToken("first-token");
+    assert.equal(observed.node("#connection-label").textContent, "ready");
+    if (script === source) {
+      assert.equal(observed.requests.length, 4);
+      assertRoutes({ requests: observed.requests.slice(1) }, new URL(href));
+      for (const call of observed.requests.slice(1)) {
+        assert.equal(call.options.headers.Authorization, "Bearer first-token");
+      }
+      assert.match(observed.node("#explore-status").textContent, /entities rows/);
+    } else {
+      assert.equal(observed.requests.length, 2, "the old action exposes the missing Explore refresh");
+      assert.throws(() => assertRoutes({ requests: observed.requests.slice(1) }, new URL(href)), assert.AssertionError);
+    }
+  }
 });

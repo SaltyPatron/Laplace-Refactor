@@ -637,7 +637,7 @@
     if (state.token) sessionStorage.setItem("laplace.apiToken", state.token);
     else sessionStorage.removeItem("laplace.apiToken");
     if (state.events) { stopEvents(); startEvents(); }
-    refreshHealth().catch(error => toast(error.message, "error"));
+    refreshHealth().then(refreshExplore).catch(error => toast(error.message, "error"));
   }
 
   function bind() {
