@@ -797,7 +797,9 @@ def build_environment(
     tools = plan["tools"]
     staged = Path(plan["staged_prefix"])
     tool_directories = []
-    for selected in tools.values():
+    # The composed CMake root precedes the unchanged base for implicit lookup.
+    ordered_tools = ([tools["cmake"]] if "cmake" in tools else []) + list(tools.values())
+    for selected in ordered_tools:
         directory = str(Path(selected["path"]).parent)
         if directory not in tool_directories:
             tool_directories.append(directory)

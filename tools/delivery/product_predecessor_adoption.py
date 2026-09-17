@@ -91,7 +91,7 @@ def _receipt_is_current(receipt: dict[str, Any], package_id: str) -> bool:
         and receipt.get("phase") == "activated"
         and receipt.get("package_id") == package_id
         and receipt.get("restart_proven") is True
-        and receipt.get("lifecycle_provider") == clusterctl.LIFECYCLE_PROVIDER
+        and clusterctl.valid_lifecycle_receipt(receipt)
         and receipt.get("activation_receipt_sha256") == _activation_identity(receipt)
     )
 
@@ -170,8 +170,8 @@ def _ensure_predecessor_running(
                 or clusterctl.sha256_file(path) != entry["sha256"]):
             raise AdoptionError(f"stopped predecessor configuration differs: {path}")
     _require_selection(contract, package_id)
-    started = clusterctl.execute_activation_command(
-        "resume-stopped-selected-predecessor", plan["commands"]["start_candidate"], 300
+    started = clusterctl.execute_plan_command(
+        plan, "resume-stopped-selected-predecessor", plan["commands"]["start_candidate"], 300
     )
     ready = clusterctl.await_postgresql_ready(
         "resumed-selected-predecessor-readiness", plan["commands"]["probe_readiness"], 300
@@ -204,16 +204,16 @@ def _restore_predecessor_after_failure(
     # cycle. A failed stop may simply mean it was already stopped, so stopped-state
     # observation remains the authority before the restore start.
     try:
-        clusterctl.execute_activation_command(
-            "stop-predecessor-for-adoption-restore",
+        clusterctl.execute_plan_command(
+            plan, "stop-predecessor-for-adoption-restore",
             plan["commands"]["stop_candidate"],
             300,
         )
     except BaseException:
         pass
     clusterctl._stopped_live(plan)
-    clusterctl.execute_activation_command(
-        "restore-predecessor-after-adoption-failure",
+    clusterctl.execute_plan_command(
+        plan, "restore-predecessor-after-adoption-failure",
         plan["commands"]["start_candidate"],
         300,
     )
@@ -266,14 +266,14 @@ def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
     lifecycle_mutation_started = False
     try:
         lifecycle_mutation_started = True
-        stop_receipt = clusterctl.execute_activation_command(
-            "stop-predecessor-for-receipt-adoption",
+        stop_receipt = clusterctl.execute_plan_command(
+            plan, "stop-predecessor-for-receipt-adoption",
             plan["commands"]["stop_candidate"],
             300,
         )
         clusterctl._stopped_live(plan)
-        start_receipt = clusterctl.execute_activation_command(
-            "start-predecessor-for-receipt-adoption",
+        start_receipt = clusterctl.execute_plan_command(
+            plan, "start-predecessor-for-receipt-adoption",
             plan["commands"]["start_candidate"],
             300,
         )
@@ -323,9 +323,7 @@ def ensure_current_predecessor_receipt(contract_path: Path) -> dict[str, Any]:
             "phase": "activated",
             "package_id": package_id,
             "restart_proven": True,
-            "boot_enabled": False,
-            "service_integration_required": False,
-            "lifecycle_provider": clusterctl.LIFECYCLE_PROVIDER,
+            **clusterctl.lifecycle_result_fields(plan, restarted),
             "active_target": f"releases/{package_id}",
             "runtime_target": f"../releases/{package_id}",
             "cluster_plan_path": str(plan_path),

@@ -53,6 +53,7 @@
       "controllers/hostctl.py",
       "controllers/product_activation_impl.py",
       "controllers/product_service_state.py",
+      "controllers/service_lifecycle.py",
       "controllers/unicodectl.py",
       "controllers/unicodectl_core.py"
     ]

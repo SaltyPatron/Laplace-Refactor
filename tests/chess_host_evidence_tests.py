@@ -4,6 +4,7 @@ import importlib.util
 import hashlib
 import json
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -468,11 +469,197 @@ class HostEvidence(unittest.TestCase):
                 if second is not None:
                     second.wait(timeout=3)
 
-    def test_deployed_command_does_not_inherit_host_lock_descriptor(self):
+    def wait_file(self, path, *, timeout=5):
+        deadline = time.monotonic() + timeout
+        while not path.is_file() and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertTrue(path.is_file(), str(path))
+
+    def lock_available(self, path):
+        result = subprocess.run(['flock', '--exclusive', '--nonblock', str(path), 'true'],
+                                capture_output=True, timeout=3)
+        self.assertIn(result.returncode, (0, 1), result.stderr)
+        return result.returncode == 0
+
+    def test_command_owns_exact_lock_and_preserves_normal_exit_status(self):
         with tempfile.TemporaryDirectory() as temporary:
-            environment = {**os.environ, 'LAPLACE_HOST_RESOURCE_LOCK': str(Path(temporary) / 'host.lock')}
-            result = subprocess.run(['bash', str(ROOT / 'tools/host/run-exclusive.sh'), 'bash', '-c', 'if : >&9 2>/dev/null; then exit 1; fi'], env=environment, capture_output=True)
-            self.assertEqual(result.returncode, 0)
+            root = Path(temporary)
+            lock = root / 'host.lock'
+            environment = os.environ | {'LAPLACE_HOST_RESOURCE_LOCK': str(lock)}
+            script = ('import os,sys; held=os.fstat(9); expected=os.stat(sys.argv[1]); '
+                      'assert (held.st_dev,held.st_ino)==(expected.st_dev,expected.st_ino); '
+                      'sys.exit(int(sys.argv[2]))')
+            for status in (0, 7, 23):
+                with self.subTest(status=status):
+                    result = subprocess.run(['bash', str(ROOT / 'tools/host/run-exclusive.sh'),
+                        sys.executable, '-c', script, str(lock), str(status)],
+                        env=environment, capture_output=True, timeout=5)
+                    self.assertEqual(result.returncode, status, result.stderr)
+                    self.assertTrue(self.lock_available(lock))
+
+    def test_real_detached_service_subprocess_does_not_retain_the_host_lock(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            lock = root / 'host.lock'
+            environment = os.environ | {'LAPLACE_HOST_RESOURCE_LOCK': str(lock)}
+            service = textwrap.dedent("""
+                import json,os,sys,time
+                from pathlib import Path
+                root=Path(sys.argv[1])
+                try:
+                    os.fstat(9)
+                except OSError:
+                    inherited=False
+                else:
+                    inherited=True
+                (root/'service.json').write_text(json.dumps({'pid':os.getpid(),'lock_inherited':inherited}))
+                while not (root/'release-service').exists(): time.sleep(.01)
+                (root/'service-finished').touch()
+            """)
+            launcher = textwrap.dedent("""
+                import os,subprocess,sys,time
+                from pathlib import Path
+                os.fstat(9)
+                root=Path(sys.argv[1])
+                # Actual Python service boundary: default close_fds=True.
+                subprocess.Popen([sys.executable,'-c',sys.argv[2],str(root)],
+                    start_new_session=True,stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                deadline=time.monotonic()+3
+                while not (root/'service.json').is_file() and time.monotonic()<deadline: time.sleep(.01)
+                assert (root/'service.json').is_file()
+            """)
+            try:
+                result = subprocess.run(['bash', str(ROOT / 'tools/host/run-exclusive.sh'),
+                    sys.executable, '-c', launcher, str(root), service],
+                    env=environment, capture_output=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                observation = json.loads((root/'service.json').read_text())
+                self.assertFalse(observation['lock_inherited'])
+                os.kill(observation['pid'], 0)
+                self.assertFalse((root/'service-finished').exists())
+                self.assertTrue(self.lock_available(lock))
+            finally:
+                (root/'release-service').touch()
+                if (root/'service.json').exists():
+                    self.wait_file(root/'service-finished')
+
+    def cancellation_fixture(self):
+        # Real wrapper/timeout/Python/signal/FD behavior; the PostgreSQL and
+        # systemd calls below use the existing explicit lifecycle protocol fixture.
+        return textwrap.dedent("""
+            import importlib.util,json,os,signal,sys,time
+            from pathlib import Path
+            from unittest import mock
+            spec=importlib.util.spec_from_file_location('lock_service_fixture',sys.argv[1])
+            tests=importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(tests)
+            case=tests.PersistentPostgreSQLServiceOwnerTests()
+            case.setUp()
+            try:
+                service=case.service
+                acceptance,owner,model,target,historical=case.convergence_fixture()
+                root=Path(sys.argv[2])
+                held=os.fstat(9)
+                expected=(root/'host.lock').stat()
+                assert (held.st_dev,held.st_ino)==(expected.st_dev,expected.st_ino)
+                prior_term=signal.getsignal(signal.SIGTERM)
+                prior_int=signal.getsignal(signal.SIGINT)
+                original_converge=service.converge
+                original_action=owner.action.side_effect
+                original_execute=acceptance.runner.clusterctl.execute_activation_command.side_effect
+                def pause(plan,label,kind,timeout):
+                    if label=='start-system-postmaster':
+                        assert model['pid']==0 and not model['managed']
+                        (root/'ready.json').write_text(json.dumps({
+                            'helper':os.getpid(),'timeout':os.getppid(),
+                            'timeout_group':os.getpgid(os.getppid())}))
+                        signal.pause()
+                        raise AssertionError('signal did not enter actual CLI rollback')
+                    return original_action(plan,label,kind,timeout)
+                def rollback(label,command,timeout):
+                    if label=='stop-failed-system-handoff':
+                        (root/'rollback-started').touch()
+                        while not (root/'release-rollback').exists(): time.sleep(.01)
+                    return original_execute(label,command,timeout)
+                owner.action.side_effect=pause
+                acceptance.runner.clusterctl.execute_activation_command.side_effect=rollback
+                with mock.patch.object(service,'Owner',return_value=owner), \\
+                     mock.patch.object(service,'selection_path',return_value=target), \\
+                     mock.patch.object(service,'converge',side_effect=lambda sha,path:
+                                       original_converge(sha,path,acceptance=acceptance)), \\
+                     mock.patch.object(sys,'argv',['service_lifecycle.py','converge',
+                         '--expected-sha','4'*40,'--output-directory',str(root/'convergence')]):
+                    try: service.main()
+                    except (InterruptedError,KeyboardInterrupt) as error: cancellation=error
+                    else: raise AssertionError('cancelled operation reported success')
+                report=json.loads((root/'convergence/result.json').read_text())
+                assert report['status']=='failed' and report['previous_owner_restored'] is True
+                assert report['successful_selection_published'] is False and not target.exists()
+                assert signal.getsignal(signal.SIGTERM)==prior_term
+                assert signal.getsignal(signal.SIGINT)==prior_int
+                (root/'finished.json').write_text(json.dumps({
+                    'restored':True,'handler_restored':True,'historical':historical['lifecycle_provider']}))
+                raise cancellation
+            finally:
+                case.doCleanups()
+        """)
+
+    def run_lock_cancellation(self, *, nested, signum):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            lock = root/'host.lock'
+            environment = os.environ | {'LAPLACE_HOST_RESOURCE_LOCK':str(lock)}
+            command = ['timeout','--signal=TERM','--kill-after=10s','20s',
+                sys.executable,'-c',self.cancellation_fixture(),
+                str(ROOT/'tests/postgresql_cluster_tests.py'),str(root)]
+            if nested:
+                # Keep a real intermediate Bash; do not optimize it into timeout.
+                command = ['bash','-c','"$@"; status=$?; exit "$status"','fixture',*command]
+            process = subprocess.Popen(['bash',str(ROOT/'tools/host/run-exclusive.sh'),*command],
+                env=environment,start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            identities = None
+            try:
+                self.wait_file(root/'ready.json')
+                identities = json.loads((root/'ready.json').read_text())
+                self.assertFalse(self.lock_available(lock))
+                # Signal timeout once; it forwards to the real Python CLI.
+                os.kill(identities['timeout'],signum)
+                self.wait_file(root/'rollback-started')
+                if nested:
+                    process.terminate()
+                    self.assertEqual(process.wait(timeout=3), -signal.SIGTERM)
+                # Actual runner cancellation follows INT with TERM; its process
+                # tree pass may also repeat an initial TERM during rollback.
+                os.kill(identities['helper'],signal.SIGTERM)
+                time.sleep(.05)
+                self.assertFalse(self.lock_available(lock))
+                self.assertFalse((root/'finished.json').exists())
+                (root/'release-rollback').touch()
+                self.wait_file(root/'finished.json')
+                if not nested:
+                    self.assertNotEqual(process.wait(timeout=3),0)
+                deadline = time.monotonic()+3
+                while not self.lock_available(lock) and time.monotonic()<deadline: time.sleep(.01)
+                self.assertTrue(self.lock_available(lock))
+                completion=json.loads((root/'finished.json').read_text())
+                self.assertTrue(completion['restored'])
+                self.assertTrue(completion['handler_restored'])
+                self.assertEqual(completion['historical'],'pg_ctl')
+            finally:
+                (root/'release-rollback').touch()
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=3)
+                if identities is not None and not (root/'finished.json').exists():
+                    try: os.killpg(identities['timeout_group'],signal.SIGKILL)
+                    except ProcessLookupError: pass
+
+    def test_nested_timeout_rollback_retains_lock_after_bash_exit_and_repeated_term(self):
+        self.run_lock_cancellation(nested=True,signum=signal.SIGTERM)
+
+    def test_direct_timeout_int_then_term_retains_lock_through_actual_cli_rollback(self):
+        self.run_lock_cancellation(nested=False,signum=signal.SIGINT)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,32 @@
 {
+  "source_admission_delivery_20260916": {
+    "classification": "observed-development-state-not-product-law",
+    "observed_at_utc": "2026-09-16T22:42:00Z",
+    "integration_branch": "fix/ci-execution-owners-20260916",
+    "integration_pull_request": 394,
+    "preserved_source_parents": [
+      "91f3e58814ece4dbf5f3a4ce9b067448a265098f",
+      "f0edaaf19f0c80756b772d0f4b781dc3ff9d97c6"
+    ],
+    "source_changes": [
+      "Bind admission to the live receipt-derived perfcache, Highway and geometry epochs.",
+      "Preserve the incoming native source decomposition-depth correction.",
+      "Use the committed source profile witness count as the finite readback bound without a five-million-witness ceiling.",
+      "Use the canonical persistent PostgreSQL system service and retain host exclusion through bounded cancellation rollback."
+    ],
+    "current_validation": "The two-parent integration and its added large-profile orchestration regression require the normal product-path checks.",
+    "installed_source_acceptance": "pending: complete official Stockfish source admission, exact artifact readback and replay without canonical growth have not passed for this integration.",
+    "supersedes_observation_scope": "Earlier active_work and product_activation_projection disposition text remains historical; neither establishes the current installed package or service ownership.",
+    "persistent_service_observation": {
+      "workflow_run": 35153389638,
+      "job": 104986941035,
+      "result": "success",
+      "service": "laplace-refactor-postgresql.service",
+      "warm_restart_proven": true,
+      "cold_boot_proven": false
+    },
+    "continuation": "Verify this integrated source through ordinary CI, activate its package through product-activation, then retain the complete stockfish-corpus-acceptance receipts."
+  },
   "temporary_corpus_integration_20260911": {
     "classification": "observed-development-state-not-product-law",
     "source_worktree": "/tmp/laplace-corpus-recipes",

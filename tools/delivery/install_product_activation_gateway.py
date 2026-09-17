@@ -41,6 +41,7 @@ SOURCE_MAP = {
     "controllers/hostctl.py": "tools/postgresql/hostctl.py",
     "controllers/product_activation_impl.py": "tools/delivery/product_activation.py",
     "controllers/product_service_state.py": "tools/delivery/product_service_state.py",
+    "controllers/service_lifecycle.py": "tools/postgresql/service_lifecycle.py",
     "controllers/unicodectl.py": "tools/postgresql/unicodectl.py",
     "controllers/unicodectl_core.py": "tools/postgresql/unicodectl_core.py",
     "contracts/highway-product-activation.json": "contracts/highway-product-activation.json",

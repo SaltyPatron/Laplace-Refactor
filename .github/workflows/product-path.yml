@@ -378,7 +378,7 @@ jobs:
             ([.rows[].codepoint] == [65,233,20013,937]) and
             ([.rows[].character] == ["A","é","中","Ω"]) and
             ([.rows[].found] | all(. == true)) and
-            ([.rows[].entity_id] | all(test("^[0-9a-f]{64}$"))) and
+            ([.rows[].entity_id] | all(test("^[0-9a-f]{32}$"))) and
             ([.rows[].physicality_id] | all(test("^[0-9a-f]{64}$"))) and
             ([.rows[].hilbert_key] | all(test("^[0-9a-f]+$"))) and
             ([.rows[].s3] | all(length == 4 and all(. != null)))

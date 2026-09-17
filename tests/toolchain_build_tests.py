@@ -932,5 +932,325 @@ class ToolchainBuildTests(unittest.TestCase):
                 BUILD.verify_package(self.contract(), prefix, receipt)
 
 
+    def checkpoint_fixture(self, root: Path, processor_ids=None):
+        """Real small child commands; these are checkpoint controls, not upstream builds."""
+        prefix = root / "stage"
+        prefix.mkdir()
+        (prefix / "kept").write_text("retained provider bytes")
+        plan = {
+            "build_input_id": "a" * 64, "component_order": list(BUILD.EXPECTED_ORDER),
+            "build_directory": str(root / "build"),
+            "source_normalization": {"source_date_epoch": "1787616000"},
+            "processor_affinity": {"selected_processor_ids": processor_ids or [min(os.sched_getaffinity(0))]},
+        }
+        component = BUILD.EXPECTED_ORDER[0]
+        directory = root / "build/components" / component
+        directory.mkdir(parents=True)
+        steps = []
+        for name in ("configure", "build", "test", "install"):
+            steps.append(BUILD.run_logged([sys.executable, "-c", "print('checkpoint control')"],
+                directory, {"PATH": "/usr/bin:/bin"}, directory / (name + ".log"),
+                plan["processor_affinity"]["selected_processor_ids"]))
+        normalization = {component: {"source_date_epoch": "1787616000", "normalized_object_count": 1}}
+        path = root / "build/completed-components.json"
+        BUILD.write_checkpoint(plan, prefix, path, [component], {component: steps}, normalization)
+        return plan, prefix, path, {component: steps}, normalization
+
+    def test_resume_preserves_actual_prior_command_receipts_and_normalization(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            plan, prefix, path, steps, normalization = self.checkpoint_fixture(Path(temporary))
+            completed, observed_steps, observed_normalization = BUILD.read_checkpoint(plan, prefix, path)
+            self.assertEqual(completed, BUILD.EXPECTED_ORDER[:1])
+            self.assertEqual(observed_steps, steps)
+            self.assertEqual(observed_normalization, normalization)
+            self.assertEqual(len(observed_steps[completed[0]]), 4)
+            self.assertFalse(path.with_name(path.name + ".partial").exists())
+
+    def test_checkpoint_preserves_actual_affinity_when_topology_order_is_not_numeric(self):
+        processors = sorted(os.sched_getaffinity(0))
+        if len(processors) < 2:
+            self.skipTest("requires two available processors for the actual affinity control")
+        selected = [processors[1], processors[0]]
+        with tempfile.TemporaryDirectory() as temporary:
+            plan, prefix, path, steps, _ = self.checkpoint_fixture(Path(temporary), selected)
+            _, observed, _ = BUILD.read_checkpoint(plan, prefix, path)
+            self.assertEqual(plan["processor_affinity"]["selected_processor_ids"], selected)
+            for step in observed[BUILD.EXPECTED_ORDER[0]]:
+                self.assertEqual(step["processor_affinity"], sorted(selected))
+            self.assertEqual(observed, steps)
+
+    def test_resume_rejects_names_only_evidence_and_modified_stage_or_log(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            plan, prefix, path, steps, _ = self.checkpoint_fixture(Path(temporary))
+            original = path.read_bytes()
+            path.write_text(json.dumps({"build_input_id": plan["build_input_id"],
+                                        "completed": BUILD.EXPECTED_ORDER[:1]}))
+            with self.assertRaisesRegex(BUILD.ToolchainError, "names-only"):
+                BUILD.read_checkpoint(plan, prefix, path)
+            path.write_bytes(original)
+            (prefix / "kept").write_text("modified staged bytes")
+            with self.assertRaisesRegex(BUILD.ToolchainError, "staged tree changed"):
+                BUILD.read_checkpoint(plan, prefix, path)
+            (prefix / "kept").write_text("retained provider bytes")
+            Path(steps[BUILD.EXPECTED_ORDER[0]][2]["log_path"]).write_text("lost test evidence")
+            with self.assertRaisesRegex(BUILD.ToolchainError, "execution evidence differs"):
+                BUILD.read_checkpoint(plan, prefix, path)
+
+    def test_resume_rejects_missing_prior_evidence_even_with_recomputed_checkpoint_digest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            plan, prefix, path, _, _ = self.checkpoint_fixture(Path(temporary))
+            value = BUILD.read_json(path)
+            value["component_steps"] = {}
+            value.pop("checkpoint_sha256")
+            value["checkpoint_sha256"] = BUILD.canonical_sha256(value)
+            path.write_text(json.dumps(value))
+            with self.assertRaisesRegex(BUILD.ToolchainError, "evidence is incomplete"):
+                BUILD.read_checkpoint(plan, prefix, path)
+
+    def historical_provider_fixture(self, root: Path):
+        """Protocol-only package fixture, with no claim of historical upstream execution."""
+        prefix, manifest = self.fake_package(root / "base")
+        lock = BUILD.read_json(REPO_ROOT / self.contract()["release_lock"])
+        sources = {
+            name: {"version": lock["archives"][name]["version"],
+                   "archive_sha256": lock["archives"][name]["sha256"],
+                   "tree_sha256": lock["archives"][name]["tree_sha256"]}
+            for name in BUILD.EXPECTED_ORDER
+        }
+        sources["cmake"] = {"version": "4.4.2", "archive_sha256": "a" * 64,
+                            "tree_sha256": "b" * 64}
+        manifest_path = prefix / "share/laplace/toolchain-manifest.json"
+        linker_input = root / "protocol-only-linker-input.a"
+        linker_input.write_bytes(b"protocol-only fixture; not an actual linker archive\n")
+        linker_record = {"path": str(linker_input), "sha256": BUILD.sha256_file(linker_input),
+                         "size_bytes": linker_input.stat().st_size}
+        receipt = {
+            "schema": BUILD.PACKAGE_SCHEMA, "build_input_id": manifest["build_input_id"],
+            "package_tree": BUILD.package_tree(prefix),
+            "package": {"prefix": str(prefix), "consumer_manifest_path": str(manifest_path),
+                        "consumer_manifest_sha256": BUILD.sha256_file(manifest_path)},
+            "consumer_manifest": manifest, "installed_tools": manifest["tools"],
+            "installed_perl_modules": manifest["perl_modules"],
+            "source_inputs": sources, "source_generation_after": sources,
+            "component_steps": {},  # Missing historical step records remain honestly absent.
+            "compiler_driver_traces": {"c": {"fixture": "protocol-only"}},
+            "linker_map_inputs": [linker_record],
+            "activation": {"scope": "build-toolchain-only", "product_runtime_activation_eligible": False},
+        }
+        path = root / "historical-receipt.json"
+        path.write_text(json.dumps(receipt))
+        return path, receipt
+
+    def test_reuse_authenticates_original_provider_without_inventing_missing_test_records(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, receipt = self.historical_provider_fixture(root)
+            before = BUILD.package_tree(Path(receipt["package"]["prefix"]))
+            binding, observed = BUILD.verify_reuse_provider(self.contract(), REPO_ROOT,
+                                                            path, BUILD.sha256_file(path))
+            self.assertEqual(observed["component_steps"], {})
+            self.assertEqual(binding["prefix"], receipt["package"]["prefix"])
+            self.assertEqual(binding["package_tree"], before)
+            self.assertEqual(BUILD.package_tree(Path(binding["prefix"])), before)
+            with self.assertRaisesRegex(BUILD.ToolchainError, "digest differs"):
+                BUILD.verify_reuse_provider(self.contract(), REPO_ROOT, path, "0" * 64)
+
+    def test_reuse_rejects_changed_unchanged_source_or_provider_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, receipt = self.historical_provider_fixture(root)
+            original = path.read_bytes()
+            receipt["source_inputs"]["gnu-make"]["archive_sha256"] = "0" * 64
+            path.write_text(json.dumps(receipt))
+            with self.assertRaisesRegex(BUILD.ToolchainError, "unchanged provider source differs"):
+                BUILD.verify_reuse_provider(self.contract(), REPO_ROOT, path, BUILD.sha256_file(path))
+            path.write_bytes(original)
+            (Path(receipt["package"]["prefix"]) / "bin/make").write_bytes(b"modified provider")
+            with self.assertRaises(BUILD.ToolchainError):
+                BUILD.verify_reuse_provider(self.contract(), REPO_ROOT, path, BUILD.sha256_file(path))
+
+    def test_component_destination_does_not_replace_verified_dependency_tool_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, receipt = self.historical_provider_fixture(root)
+            provider = Path(receipt["package"]["prefix"])
+            stage, build, source = root / "new-cmake", root / "build", root / "source"
+            build.mkdir()
+            plan = {"prefix": str(stage), "build_directory": str(build), "work_directory": str(root),
+                    "bootstrap_inputs": {item["id"]: item for item in self.contract()["bootstrap"]["tools"]}}
+            environment = BUILD.build_environment(self.contract(), plan, "cmake", provider_prefix=provider)
+            command = BUILD.format_command(self.contract()["build"]["components"]["cmake"]["configure"],
+                source, build, stage, 6, plan["bootstrap_inputs"], provider_prefix=provider)
+            self.assertIn("--prefix=" + str(stage), command)
+            self.assertIn("-DCMAKE_MAKE_PROGRAM=" + str(provider / "bin/make"), command)
+            self.assertEqual(environment["MAKE"], str(provider / "bin/make"))
+            self.assertEqual(environment["PERL"], str(provider / "bin/perl"))
+            self.assertEqual(environment["CFLAGS"], "-B" + str(provider / "bin"))
+            self.assertFalse(stage.exists())
+            (provider / "bin/make").unlink()
+            with self.assertRaisesRegex(BUILD.ToolchainError, "omits selected Make"):
+                BUILD.format_command(["{make}"], source, build, stage, 6,
+                                     plan["bootstrap_inputs"], provider_prefix=provider)
+
+    def composed_fixture(self, root: Path):
+        """Authenticated protocol fixtures, NOT execution of CMake's 697 upstream tests."""
+        provider_path, historical = self.historical_provider_fixture(root)
+        contract = self.contract()
+        for key, value in (("build_root", root / "build"), ("work_root", root / "work"),
+                           ("stage_root", root / "stage")):
+            contract["logical_roots"][key] = str(value)
+        base, _ = BUILD.verify_reuse_provider(contract, REPO_ROOT, provider_path, BUILD.sha256_file(provider_path))
+        lock = BUILD.read_json(REPO_ROOT / contract["release_lock"])
+        entry = lock["archives"]["cmake"]
+        bootstrap = {item["id"]: item for item in contract["bootstrap"]["tools"]}
+        normalization = {"source_date_epoch": contract["environment"]["source_date_epoch"]}
+        affinity = {"selected_processor_ids": [min(os.sched_getaffinity(0))]}
+        identity = {"contract": contract, "provider": base, "bootstrap": bootstrap,
+                    "source": entry, "source_normalization": normalization,
+                    "processor_affinity": affinity, "recipe": {"fixture": "protocol-only"}}
+        bid = BUILD.canonical_sha256(identity)
+        build = root / "build" / bid
+        prefix = root / "stage" / bid / "cmake"
+        work = root / "work" / bid
+        source = {"cmake": {"version": entry["version"], "archive_sha256": entry["sha256"],
+                            "tree_sha256": entry["tree_sha256"]}}
+        inherited = {"disposition": "authenticated-historical-evidence-not-reexecuted",
+                     "source_receipt_sha256": base["source_receipt_sha256"],
+                     "retained_component_step_names": [],
+                     "not_reexecuted_components": [name for name in BUILD.EXPECTED_ORDER if name != "cmake"]}
+        plan = {"schema": BUILD.PLAN_SCHEMA, "build_input_id": bid, "identity": identity,
+                "repository": str(REPO_ROOT), "build_directory": str(build),
+                "work_directory": str(work), "prefix": str(prefix), "component_order": ["cmake"],
+                "source_inputs": source, "source_normalization": normalization,
+                "bootstrap_inputs": bootstrap, "recipe": identity["recipe"],
+                "provider": base, "parallel_jobs": 6, "processor_affinity": affinity,
+                "inherited_execution": inherited}
+        binary = prefix / "bin"
+        binary.mkdir(parents=True)
+        for name in ("cmake", "ctest", "cpack"):
+            executable = binary / name
+            executable.write_text("#!/bin/sh\nprintf '%s\\n' '" + name + " version 4.4.3'\n")
+            executable.chmod(0o755)
+        directory = build / "components/cmake"
+        directory.mkdir(parents=True)
+        selected_make = Path(base["prefix"]) / "bin/make"
+        values = {**BUILD.EXPECTED_CMAKE_TEST_CAPABILITY_CACHE,
+                  "CMAKE_MAKE_PROGRAM": str(selected_make), "CMake_TEST_EXPLICIT_MAKE_PROGRAM": str(selected_make)}
+        (directory / "CMakeCache.txt").write_text("".join(f"{key}:STRING={value}\n" for key, value in values.items()))
+        (directory / "CTestTestfile.cmake").write_text(
+            f'add_test("protocol-only" "--build-makeprogram" "{selected_make}")\n')
+        # Actual owner captures this inventory before BootstrapTest creates another tree.
+        configuration = BUILD.verify_cmake_test_configuration("cmake", directory, selected_make)
+        last_test = directory / "Testing/Temporary/LastTest.log"
+        last_test.parent.mkdir(parents=True)
+        last_test.write_text('"BootstrapTest" start time: fixture\n'
+            "-- running bootstrap: /protocol-only/bootstrap --parallel=6\n"
+            f"Makefile processor on this system is: {selected_make}\n"
+            f"CMake has bootstrapped.  Now run {selected_make}.\nTest Passed.\n"
+            '"BootstrapTest" end time: fixture\n')
+        secondary = directory / "Tests/BootstrapTest"
+        secondary.mkdir(parents=True)
+        (secondary / "CMakeCache.txt").write_text("CMAKE_MAKE_PROGRAM:FILEPATH=/usr/bin/gmake\n")
+        (secondary / "CTestTestfile.cmake").write_text(
+            'add_test("protocol-only-secondary" "--build-makeprogram" "/usr/bin/gmake")\n')
+        steps = []
+        for name in ("configure", "build", "test", "install"):
+            log = directory / (name + ".log")
+            log.write_text("protocol-only fixture; not actual upstream execution\n" +
+                ("697/697 Test #212: BootstrapTest .... Passed 1.00 sec\n100% tests passed out of 697\n"
+                 if name == "test" else name + "\n"))
+            command = BUILD.format_command(contract["build"]["components"]["cmake"][name],
+                work / "private-sources/cmake", directory, prefix, 6, bootstrap, provider_prefix=Path(base["prefix"]))
+            steps.append({"command": command, "working_directory": str(directory),
+                "execution_environment": {"PWD": str(directory)}, "processor_affinity": affinity["selected_processor_ids"],
+                "exit_code": 0, "log_path": str(log), "log_sha256": BUILD.sha256_file(log)})
+        steps[0]["test_capability_contract"] = configuration
+        steps[2]["test_result_contract"] = BUILD.verify_cmake_test_results(
+            "cmake", directory, directory / "test.log", selected_make, 6, BUILD.EXPECTED_CMAKE_TEST_RESULT_POLICY)
+        qualified = {"schema": BUILD.CMAKE_QUALIFICATION_SCHEMA, "build_input_id": bid, "plan": plan,
+            "build_plan_sha256": BUILD.canonical_sha256(plan), "source_inputs": source, "source_generation_after": source,
+            "component_steps": {"cmake": steps},
+            "source_normalization": {"cmake": {"source_date_epoch": normalization["source_date_epoch"],
+                                             "normalized_object_count": 1}},
+            "provider_before": base, "provider_after": base, "inherited_execution": inherited,
+            "installed_tools": BUILD.cmake_tool_receipts(prefix, "4.4.3"),
+            "compiler_driver_traces": {"fixture": "protocol-only"}, "linker_map_inputs": historical["linker_map_inputs"],
+            "bootstrap_inputs": bootstrap, "package_tree": BUILD.package_tree(prefix),
+            "consumer_activation_eligible": False, "product_runtime_activation_eligible": False}
+        qualification_path = build / "cmake-component-qualification.json"
+        qualification_path.write_text(json.dumps(qualified))
+        output = root / "selected-toolchain.json"
+        receipt = BUILD.compose_cmake_toolchain(qualification_path, BUILD.sha256_file(qualification_path), output)
+        return output, receipt, receipt["consumer_manifest"], qualification_path, qualified
+
+    def test_composed_selection_preserves_both_roots_and_original_perl_without_single_prefix_claim(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output, receipt, manifest, _, _ = self.composed_fixture(Path(temporary))
+            before = {name: BUILD.package_tree(Path(root["prefix"])) for name, root in manifest["provider_roots"].items()}
+            self.assertEqual(BUILD.verify_composed_toolchain_receipt(receipt, output), manifest)
+            self.assertNotIn("prefix", receipt["package"])
+            self.assertNotIn("prefix", manifest)
+            self.assertEqual(receipt["inherited_execution"]["retained_component_step_names"], [])
+            self.assertEqual(set(receipt["component_steps"]), {"cmake"})
+            for name, tool in manifest["tools"].items():
+                self.assertEqual(tool["provider_root"], "cmake" if name in ("cmake", "ctest", "cpack") else "base")
+                self.assertTrue(Path(tool["path"]).is_relative_to(Path(manifest["provider_roots"][tool["provider_root"]]["prefix"])))
+            self.assertEqual(before, {name: BUILD.package_tree(Path(root["prefix"]))
+                                     for name, root in manifest["provider_roots"].items()})
+
+    def test_qualified_replay_separates_original_configure_inventory_from_later_secondary_tree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, _, _, _, qualified = self.composed_fixture(Path(temporary))
+            configuration = qualified["component_steps"]["cmake"][0]["test_capability_contract"]
+            self.assertEqual([entry["path"] for entry in configuration["generated_make_program_references"]],
+                             ["CTestTestfile.cmake"])
+            result = qualified["component_steps"]["cmake"][2]["test_result_contract"]
+            self.assertEqual(result["secondary_generated_suite"]["other_make_reference_count"], 1)
+            self.assertEqual(result["secondary_generated_suite"]["disposition"],
+                             "configured-but-not-executed-by-bootstrap-test")
+            self.assertEqual(BUILD.verify_cmake_component_receipt(qualified), qualified["installed_tools"])
+            primary = Path(qualified["plan"]["build_directory"]) / "components/cmake/CTestTestfile.cmake"
+            primary.write_text(primary.read_text() + "# actual configure input changed\n")
+            with self.assertRaisesRegex(BUILD.ToolchainError, "configure test file changed"):
+                BUILD.verify_cmake_component_receipt(qualified)
+
+    def test_copied_aggregate_evidence_keeps_original_provider_and_manifest_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output, receipt, manifest, _, _ = self.composed_fixture(root)
+            copied = root / "published-receipt.json"
+            shutil.copy2(output, copied)
+            self.assertEqual(BUILD.verify_composed_toolchain_receipt(receipt, copied), manifest)
+            self.assertEqual(receipt["package"]["consumer_manifest_path"],
+                             str(root / "selected-toolchain-manifest.json"))
+
+    def test_composed_selection_rejects_modified_base_cmake_or_qualification_evidence(self):
+        for mutation in ("base", "cmake", "proof"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                output, receipt, manifest, qualification, _ = self.composed_fixture(Path(temporary))
+                if mutation == "proof":
+                    qualification.write_text(qualification.read_text() + " ")
+                else:
+                    tool = "make" if mutation == "base" else "cmake"
+                    Path(manifest["tools"][tool]["path"]).write_bytes(b"modified qualified bytes")
+                with self.assertRaises(BUILD.ToolchainError):
+                    BUILD.verify_composed_toolchain_receipt(receipt, output)
+
+    def test_component_qualification_keeps_exact_test_command_and_selected_suite_evidence(self):
+        for mutation in ("command", "suite"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                _, _, _, _, qualified = self.composed_fixture(Path(temporary))
+                if mutation == "command":
+                    qualified["component_steps"]["cmake"][2]["command"].append("-RBootstrapTest")
+                    pattern = "command or working directory differs"
+                else:
+                    log = Path(qualified["component_steps"]["cmake"][2]["log_path"])
+                    log.write_text(log.read_text().replace("100% tests passed out of 697", "100% tests passed out of 1"))
+                    qualified["component_steps"]["cmake"][2]["log_sha256"] = BUILD.sha256_file(log)
+                    pattern = "exact complete pass summary"
+                with self.assertRaisesRegex(BUILD.ToolchainError, pattern):
+                    BUILD.verify_cmake_component_receipt(qualified)
+
+
 if __name__ == "__main__":
     unittest.main()

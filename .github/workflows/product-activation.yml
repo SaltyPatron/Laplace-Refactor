@@ -457,8 +457,31 @@ jobs:
           test "$(jq -er '.phase' "$cluster_result")" = activated
           test "$(jq -er '.package_id' "$cluster_result")" = "$package_id"
           test "$(jq -er '.restart_proven' "$cluster_result")" = true
-          test "$(jq -er '.lifecycle_provider' "$cluster_result")" = pg_ctl
-          test "$(jq -er '.service_integration_required' "$cluster_result")" = false
+          python3 - "$cluster_result" "$package_id" <<'PY_POSTGRESQL_OWNER'
+          import json
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, str(Path.cwd() / "tools"))
+          from delivery import product_activation_runner as runner
+
+          cluster = runner.clusterctl
+          receipt = runner.load_json(Path(sys.argv[1]))
+          plan_path = runner.validate_cluster_result(receipt, sys.argv[2])
+          plan = cluster.load_json(plan_path)
+          contract = cluster.load_json(Path("contracts/postgresql-cluster.json"))
+          cluster.validate_plan(plan, contract)
+          if plan["plan_sha256"] != receipt["plan_sha256"]:
+              raise runner.RunnerActivationError("current lifecycle plan differs from activation")
+          if not cluster.service_lifecycle().persistent(plan):
+              raise runner.RunnerActivationError("persistent product lifecycle requires its canonical instance")
+          loaded = cluster.observe_loaded_live(plan, contract, Path("/"))
+          cluster.verify_loaded(plan, contract, loaded)
+          if str(loaded["system_identifier"]) != str(receipt["system_identifier"]):
+              raise runner.RunnerActivationError("current lifecycle database differs from activation")
+          current = cluster.lifecycle_result_fields(plan, loaded)
+          print(json.dumps({"receipt_lifecycle_provider": receipt["lifecycle_provider"],
+                            "current_lifecycle": current}, sort_keys=True))
+          PY_POSTGRESQL_OWNER
           test "$(jq -er '.package_id' "$unicode_result")" = "$package_id"
           test "$(jq -er '.package_id' "$highway_result")" = "$package_id"
 

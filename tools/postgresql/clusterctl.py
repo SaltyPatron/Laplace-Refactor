@@ -7,10 +7,12 @@ coverage.  This adapter owns the physical DEV/BAT policy:
 * the recurring product executor is ``laplace-runner``;
 * package releases, runtime selection, config, PGDATA, WAL, sockets, logs, receipts,
   Unicode, and Highway are all runner-owned state;
-* PostgreSQL is started/stopped with the PostgreSQL package's own ``pg_ctl``;
-* live process identity comes from PGDATA/postmaster.pid plus /proc, not systemd;
-* systemd is optional boot integration installed by setup-host, never a delivery
-  dependency and never a recurring privilege boundary;
+* canonical persistent PostgreSQL is supervised by the exact existing system unit;
+* isolated/relocated proof clusters retain the PostgreSQL package's ``pg_ctl``;
+* live identity still comes from PGDATA/postmaster.pid, SQL and /proc, with the
+  canonical system MainPID/cgroup additionally bound to that same postmaster;
+* only the existing fixed systemctl start/stop/restart grants control the system
+  owner; product/database execution remains under the runner identity;
 * ``/opt/laplace/runtime/refactor`` selects the candidate being proved while
   ``/opt/laplace/current`` is committed only after exact process/restart proof;
 * failed uncommitted candidate state is removed only after a stopped-postmaster proof;
@@ -503,6 +505,71 @@ def _pg_ctl_command(plan: dict[str, Any], action: str) -> list[str]:
     if action == "status":
         return [pg_ctl, "-D", instance["data_directory"], "status"]
     raise _core.ClusterError(f"unsupported pg_ctl product action: {action}")
+
+
+
+def service_lifecycle():
+    name = "laplace_postgresql_service_lifecycle"
+    if name not in sys.modules:
+        path = Path(__file__).with_name("service_lifecycle.py")
+        specification = importlib.util.spec_from_file_location(name, path)
+        if specification is None or specification.loader is None:
+            raise _core.ClusterError("cannot load persistent PostgreSQL service owner")
+        module = importlib.util.module_from_spec(specification)
+        sys.modules[name] = module
+        specification.loader.exec_module(module)
+    return sys.modules[name]
+
+
+LIFECYCLE_PROVIDERS = frozenset(("pg_ctl", "systemd-system"))
+
+
+def selected_lifecycle_provider(plan: dict[str, Any]) -> str:
+    owner = service_lifecycle()
+    return owner.PROVIDER if owner.persistent(plan) else LIFECYCLE_PROVIDER
+
+
+def execute_plan_command(
+    plan: dict[str, Any], label: str, command: Sequence[str], timeout: int = 1800
+) -> dict[str, Any]:
+    """Execute immutable plan intent through the actual selected physical owner."""
+    if plan.get("collision_observation_source") == "laplace_typed_fixture":
+        raise _core.ClusterError("typed fixture plans cannot execute real cluster lifecycle commands")
+    owner = service_lifecycle()
+    if owner.persistent(plan):
+        validate_plan(plan, load_json(owner.ROOT / "contracts/postgresql-cluster.json"))
+        for action in ("start", "stop"):
+            if list(command) == _pg_ctl_command(plan, action):
+                return owner.Owner(sys.modules[__name__]).action(plan, label, action, timeout)
+        if command and Path(command[0]).name == "pg_ctl":
+            raise _core.ClusterError("unsupported canonical pg_ctl command through lifecycle adapter")
+    return execute_activation_command(label, command, timeout)
+
+
+def lifecycle_result_fields(plan: dict[str, Any], loaded: dict[str, Any]) -> dict[str, Any]:
+    owner = service_lifecycle()
+    if not owner.persistent(plan):
+        return {"boot_enabled": False, "service_integration_required": False,
+                "lifecycle_provider": LIFECYCLE_PROVIDER}
+    observed = owner.Owner(sys.modules[__name__]).observe(plan, loaded)
+    return {"boot_enabled": True, "service_integration_required": True,
+            "lifecycle_provider": owner.PROVIDER, "cold_boot_proven": False,
+            "postgresql_service": observed}
+
+
+def valid_lifecycle_receipt(receipt: dict[str, Any]) -> bool:
+    """Accept authentic historical semantics without rewriting their provenance."""
+    provider = receipt.get("lifecycle_provider")
+    if provider == LIFECYCLE_PROVIDER:
+        return True
+    if provider != "systemd-system":
+        return False
+    observed = receipt.get("postgresql_service")
+    return (receipt.get("service_integration_required") is True and
+            receipt.get("boot_enabled") is True and receipt.get("cold_boot_proven") is False and
+            isinstance(observed, dict) and observed.get("provider") == provider and
+            observed.get("unit") == "laplace-refactor-postgresql.service" and
+            observed.get("boot_enabled") is True and observed.get("cold_boot_proven") is False)
 
 
 def build_plan(
@@ -1083,9 +1150,11 @@ def execute_cluster_activation(
     readiness: Any = None,
     existing_system_identifier: str | None = None,
 ) -> dict[str, Any]:
+    if root == Path("/") and plan.get("collision_observation_source") == "laplace_typed_fixture":
+        raise _core.ClusterError("a typed cluster fixture cannot control the live root")
     require_fixture_or_root(root, authorize_system_root)
     validate_plan(plan, contract)
-    execute = executor or execute_activation_command
+    execute = executor or (lambda label, command, timeout: execute_plan_command(plan, label, command, timeout))
     readiness_runner = readiness or await_postgresql_ready
     observe = observer or observe_loaded_live
     record = recorder or (lambda _stem, _document: None)
@@ -1142,9 +1211,7 @@ def execute_cluster_activation(
         {
             "phase": "activated",
             "restart_proven": True,
-            "boot_enabled": False,
-            "service_integration_required": False,
-            "lifecycle_provider": LIFECYCLE_PROVIDER,
+            **lifecycle_result_fields(plan, loaded_restart),
             "runtime_target": f"../releases/{plan['package_id']}",
             "cluster_plan_path": staged.get("cluster_plan_path"),
             "system_identifier": loaded_restart["system_identifier"],
@@ -1167,8 +1234,8 @@ def _rollback_uncommitted_candidate(
     data = Path(plan["instance"]["data_directory"])
     if (data / "PG_VERSION").exists() or (data / "postmaster.pid").exists():
         try:
-            execute_activation_command(
-                "stop-candidate-after-failure", _pg_ctl_command(plan, "stop"), 300
+            execute_plan_command(
+                plan, "stop-candidate-after-failure", _pg_ctl_command(plan, "stop"), 300
             )
         except Exception:
             pass
@@ -1261,7 +1328,7 @@ def activate_product(
             "error": str(error),
             "command_receipts": command_receipts,
             "active_pointer_committed": False,
-            "lifecycle_provider": LIFECYCLE_PROVIDER,
+            "lifecycle_provider": selected_lifecycle_provider(plan),
         }
         try:
             _rollback_uncommitted_candidate(plan, contract, staged)

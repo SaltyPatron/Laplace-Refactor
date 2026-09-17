@@ -10,6 +10,9 @@ import subprocess
 import sys
 from typing import Any, Sequence
 
+# Installed source modules remain exact package bytes, including prepublication reads.
+sys.dont_write_bytecode = True
+
 DEFAULT_SOURCE_ESTATE_ROOT = Path("/vault/Data")
 SOURCE_ESTATE_ENV = "LAPLACE_SOURCE_ESTATE_ROOT"
 DEFAULT_UNICODE_RELATIVE = Path("UCD/Public/UCD/latest")
@@ -154,27 +157,8 @@ def _live_runtime_state(
     psql = tool_root / "pgsql-18/bin/psql"
     if not psql.is_file() or psql.is_symlink():
         raise AdmissionGuardError(f"branch-built PostgreSQL client is unavailable: {psql}")
-    sql = """
-SELECT pg_catalog.json_build_object(
-  'activation_epoch_id',pg_catalog.encode(u.activation_epoch_id,'hex'),
-  'activation_epoch_fingerprint',pg_catalog.encode(u.epoch_fingerprint,'hex'),
-  'geometry_epoch',pg_catalog.encode(g.geometry_epoch,'hex'),
-  'perfcache_epoch',pg_catalog.encode(u.epoch_fingerprint,'hex'),
-  'numeric_epoch',pg_catalog.encode(h.activation_epoch_fingerprint,'hex')
-)::text
-FROM laplace.perfcache_active_control AS u
-JOIN laplace.unicode_root_generation AS g
-  ON g.activation_epoch_id=u.activation_epoch_id
- AND g.activation_epoch_fingerprint=u.epoch_fingerprint
-CROSS JOIN laplace.highway_registry_active_control AS h
-JOIN laplace.highway_registry_generation AS hg
-  ON hg.activation_epoch_id=h.activation_epoch_id
- AND hg.activation_epoch_fingerprint=h.activation_epoch_fingerprint
-WHERE u.singleton AND u.active_present
-  AND h.singleton AND h.active_present
-  AND hg.unicode_activation_epoch_id=u.activation_epoch_id
-  AND hg.unicode_activation_epoch_fingerprint=u.epoch_fingerprint;
-"""
+    from sources.runtime_state import LIVE_RUNTIME_SQL, RuntimeStateError, parse_live_state
+
     command = [
         str(psql),
         "--host", str(socket),
@@ -190,7 +174,7 @@ WHERE u.singleton AND u.active_present
     try:
         completed = subprocess.run(
             command,
-            input=sql,
+            input=LIVE_RUNTIME_SQL,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -202,31 +186,10 @@ WHERE u.singleton AND u.active_present
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip() or "no PostgreSQL diagnostic"
         raise AdmissionGuardError(f"live activation-state query failed: {detail[-4000:]}")
-    rows = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
-    if len(rows) != 1:
-        raise AdmissionGuardError(
-            f"live activation-state query returned {len(rows)} rows; expected one"
-        )
     try:
-        value = json.loads(rows[0])
-    except json.JSONDecodeError as error:
-        raise AdmissionGuardError("live activation-state query returned invalid JSON") from error
-    if not isinstance(value, dict):
-        raise AdmissionGuardError("live activation-state query did not return an object")
-    required = {
-        "activation_epoch_id": HEX128,
-        "activation_epoch_fingerprint": HEX256,
-        "geometry_epoch": HEX256,
-        "perfcache_epoch": HEX256,
-        "numeric_epoch": HEX256,
-    }
-    result: dict[str, str] = {}
-    for field, pattern in required.items():
-        candidate = value.get(field)
-        if not isinstance(candidate, str) or pattern.fullmatch(candidate) is None:
-            raise AdmissionGuardError(f"live activation state has invalid {field}")
-        result[field] = candidate
-    return result
+        return parse_live_state(completed.stdout)
+    except RuntimeStateError as error:
+        raise AdmissionGuardError(str(error)) from error
 
 
 def _matching_activation_generations(

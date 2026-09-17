@@ -260,7 +260,10 @@ laplace_pg_source_decomposition_plan_create(
     laplace_decomposition_xml_provider xml_provider;
     laplace_decomposition_provider_v1 providers[3];
     laplace_pg_source_grammar_owner* grammar_owner = NULL;
-    uint32_t maximum_depth = 8u;
+    /* Generic product admission must not invent a shallower syntax ceiling than
+     * the engine it is invoking. 4096 is the engine's current explicit machine
+     * window; a selected grammar receipt may impose a smaller declared bound. */
+    uint32_t maximum_depth = 4096u;
     uint64_t provider_count = 2u;
     laplace_pg_active_uax_authority uax_authority;
     laplace_digest256 uax_fingerprint;

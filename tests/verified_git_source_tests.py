@@ -255,6 +255,125 @@ class VerifiedGitSourceTests(unittest.TestCase):
         self.assertFalse(receipt['canonical_corpus_admission_completed'])
 
 
+    def ownership_environment(self):
+        # Git's own t0033 uses this switch to exercise real ownership checks
+        # without chown/root. Keep all persistent configuration private and exact.
+        config = self.root / 'ownership.gitconfig'
+        config.write_bytes(b'[user]\n\tname = Ownership fixture\n')
+        environment = {key: value for key, value in os.environ.items()
+                       if not key.startswith('GIT_')}
+        environment.update({'GIT_TEST_ASSUME_DIFFERENT_OWNER': '1',
+                            'GIT_CONFIG_NOSYSTEM': '1',
+                            'GIT_CONFIG_GLOBAL': str(config)})
+        return environment, config, config.read_bytes()
+
+    def test_shared_checkout_uses_only_invocation_local_ownership_exception(self):
+        locked = self.source_lock()
+        environment, config, original = self.ownership_environment()
+        with patch.dict(os.environ, environment, clear=True):
+            refused = subprocess.run(['git', '-C', str(self.checkout), 'status', '--porcelain'],
+                                     capture_output=True, check=False)
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn(b'dubious ownership', refused.stderr)
+            self.assertEqual(Q.verify_source(self.checkout, locked)['revision'], self.head)
+            manifest, files = self.observe()
+            self.assertEqual(manifest['commit'], self.head)
+            self.assertEqual(files['src/main.h'], (self.checkout / 'src/main.h').read_bytes())
+            again = subprocess.run(['git', '-C', str(self.checkout), 'status', '--porcelain'],
+                                   capture_output=True, check=False)
+            self.assertNotEqual(again.returncode, 0)
+            self.assertIn(b'dubious ownership', again.stderr)
+        self.assertEqual(config.read_bytes(), original)
+
+    def test_ownership_exception_does_not_trust_another_checkout(self):
+        other = self.root / 'other'
+        other.mkdir()
+        subprocess.run(['git', '-C', str(other), 'init', '-q'], check=True)
+        environment, config, original = self.ownership_environment()
+        with patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(V.git(self.checkout, 'rev-parse', 'HEAD').decode().strip(), self.head)
+            with self.assertRaisesRegex(V.GitCorpusError, 'dubious ownership'):
+                V.git(self.checkout, '-C', str(other), 'status', '--porcelain')
+        self.assertEqual(config.read_bytes(), original)
+
+    def test_git_owner_refuses_linked_checkout_and_linked_parent(self):
+        linked_checkout = self.root / 'linked-checkout'
+        linked_checkout.symlink_to(self.checkout, target_is_directory=True)
+        linked_parent = self.root / 'linked-parent'
+        linked_parent.symlink_to(self.root, target_is_directory=True)
+        for selected in (linked_checkout, linked_parent / self.checkout.name,
+                         Path('relative-checkout')):
+            with self.subTest(path=str(selected)), self.assertRaisesRegex(
+                    V.GitCorpusError, 'absolute physical directory'):
+                V.git(selected, 'rev-parse', 'HEAD')
+
+    @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
+    def test_shared_imported_grammar_build_keeps_exact_source_verification(self):
+        output = self.root / 'shared-imported-provider'
+        build = self.build_fixture(b'int fixture_value(void) { return 23; }\n', output)
+        origin = str(self.root / 'verified-shared-import')
+        self.command('remote', 'set-url', 'origin', origin)
+        locked = self.source_lock()
+        self.command('update-index', '--assume-unchanged', 'src/main.h')
+        environment, config, original = self.ownership_environment()
+        with patch.dict(os.environ, environment, clear=True):
+            receipt = json.loads(build().read_bytes())
+            self.assertEqual(receipt['grammar']['checkout_origin'], origin)
+            self.assertEqual(receipt['runtime']['checkout_origin'], origin)
+            self.assertEqual(ctypes.CDLL(receipt['library']['path']).fixture_value(), 23)
+            self.assertFalse(receipt['canonical_corpus_admission_completed'])
+            (self.checkout / 'src/main.h').write_text('constexpr int fixture = 23;\n')
+            with self.assertRaises(V.GitCorpusError):
+                Q.verify_source(self.checkout, locked)
+        self.assertEqual(config.read_bytes(), original)
+
+
+    @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
+    def test_grammar_build_resolves_parent_alias_once_and_checks_exact_shared_source(self):
+        output = self.root / 'parent-alias-provider'
+        self.build_fixture(b'int fixture_value(void) { return 29; }\n', output)
+        locked = self.source_lock()
+        linked_parent = self.root / 'source-parent'
+        linked_parent.symlink_to(self.root, target_is_directory=True)
+        selected = linked_parent / self.checkout.name
+        environment, config, original = self.ownership_environment()
+        with patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(Q.verify_source(selected, locked)['revision'], self.head)
+            Q.acquire(selected, self.root / 'grammar.json', 'fixture')
+            receipt_path = Q.build(selected, selected, self.root / 'grammar.json',
+                                   self.root / 'runtime.json', 'fixture', output)
+            receipt = json.loads(receipt_path.read_bytes())
+            self.assertEqual(receipt['grammar']['git_archive_sha256'],
+                             locked['git_archive_sha256'])
+            self.assertEqual(ctypes.CDLL(receipt['library']['path']).fixture_value(), 29)
+            self.assertFalse(receipt['canonical_corpus_admission_completed'])
+            (self.checkout / 'src/main.h').write_text('constexpr int fixture = 29;\n')
+            with self.assertRaises(V.GitCorpusError):
+                Q.verify_source(selected, locked)
+            with self.assertRaises(V.GitCorpusError):
+                Q.build(selected, selected, self.root / 'grammar.json',
+                        self.root / 'runtime.json', 'fixture', self.root / 'changed-provider')
+        self.assertFalse((self.root / 'changed-provider').exists())
+        self.assertEqual(config.read_bytes(), original)
+
+    def test_grammar_boundaries_still_reject_direct_checkout_links(self):
+        output = self.root / 'linked-provider'
+        self.build_fixture(b'int fixture_value(void) { return 31; }\n', output)
+        linked = self.root / 'linked-source'
+        linked.symlink_to(self.checkout, target_is_directory=True)
+        for invoke in (
+            lambda: Q.verify_source(linked, self.source_lock()),
+            lambda: Q.acquire(linked, self.root / 'grammar.json', 'fixture'),
+            lambda: Q.build(linked, self.checkout, self.root / 'grammar.json',
+                            self.root / 'runtime.json', 'fixture', output),
+            lambda: Q.build(self.checkout, linked, self.root / 'grammar.json',
+                            self.root / 'runtime.json', 'fixture', output),
+        ):
+            with self.assertRaisesRegex(V.GitCorpusError, 'non-symlink'):
+                invoke()
+        self.assertFalse(output.exists())
+
+
 class CommittedSourceReceiptTests(unittest.TestCase):
     def execute(self, committed):
         initial = {'schema':'laplace.admit-source/v1','persisted_profile':None,
@@ -286,7 +405,7 @@ class CommittedSourceReceiptTests(unittest.TestCase):
 
 
 class GitReadbackReceiptTests(unittest.TestCase):
-    def execute(self, witness='ab'*32, corrupt_last=False):
+    def execute(self, witness='ab'*32, corrupt_last=False, span_count=4):
         profile='\\x'+'12'*32
         artifacts=[{'path':'one.cpp','sha256':hashlib.sha256(b'one').hexdigest(),'byte_count':3},
                    {'path':'two.cpp','sha256':hashlib.sha256('λ'.encode()).hexdigest(),'byte_count':2}]
@@ -298,12 +417,15 @@ class GitReadbackReceiptTests(unittest.TestCase):
         returned={'structural_receipt_count':1,'structural_witness_fingerprint':witness,'records':records}
         result={'admission':{'profile_id':profile,'composition_working_set_receipt_id':'\\x'+'34'*32,
                             'source_fingerprint':'\\x'+'56'*32,'testimony_count':0,'evidence_node_count':0},
-                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':4}}
+                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':span_count}}
         identities={key:'78'*32 for key in ('source_epoch','identity_epoch','evidence_epoch','firmware_epoch',
                     'dependency_epoch','database_epoch','package_epoch','authority_fingerprint')}
-        with patch.object(A,'run_scalar',return_value=json.dumps(returned)):
-            return A.verify_git_readback(['psql'],result,{'manifest':{'artifacts':artifacts,'byte_count':5}},
-                                        identities,'90'*32,'91'*32,'92'*32)
+        with patch.object(A,'run_scalar',return_value=json.dumps(returned)) as scalar:
+            receipt = A.verify_git_readback(['psql'],result,{'manifest':{'artifacts':artifacts,'byte_count':5}},
+                                           identities,'90'*32,'91'*32,'92'*32)
+            self.readback_sql = scalar.call_args.args[1]
+            self.assertEqual(scalar.call_count, 1)
+            return receipt
 
     def test_readback_retains_semantic_witness_identity_and_all_exact_artifacts(self):
         result=self.execute()
@@ -312,14 +434,21 @@ class GitReadbackReceiptTests(unittest.TestCase):
         self.assertEqual(result['verified_byte_count'],5)
         self.assertTrue(result['all_artifacts_exact'])
 
+    def test_large_committed_profile_reaches_readback_with_its_own_finite_bound(self):
+        result = self.execute(span_count=5000001)
+        self.assertIn('5000001::numeric,5::numeric)', self.readback_sql)
+        self.assertTrue(result['all_artifacts_exact'])
+        self.assertEqual(result['verified_file_count'], 2)
+
     def test_missing_or_malformed_structural_witness_identity_is_rejected(self):
         for witness in (None,'malformed','\\x'+'ab'*32):
             with self.subTest(witness=witness), self.assertRaisesRegex(A.AdmissionError,'verified structural witness fingerprint'):
                 self.execute(witness)
 
     def test_changed_later_artifact_is_rejected(self):
-        with self.assertRaisesRegex(A.AdmissionError,'two.cpp'):
-            self.execute(corrupt_last=True)
+        for span_count in (4, 5000001):
+            with self.subTest(span_count=span_count), self.assertRaisesRegex(A.AdmissionError,'two.cpp'):
+                self.execute(corrupt_last=True, span_count=span_count)
 
 
 if __name__ == '__main__':

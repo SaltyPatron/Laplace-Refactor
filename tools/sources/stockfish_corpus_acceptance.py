@@ -28,7 +28,7 @@ from sources import verified_git
 from delivery import product_activation as activation
 from delivery import product_activation_runner as runner
 from delivery import receipt_estate
-from product import repository_inputs
+from product import repository_inputs, build_workspace_retention
 import admit_source_guard
 
 SCHEMA = 'laplace.stockfish-corpus-acceptance/v1'
@@ -106,7 +106,7 @@ def validate_package_binding(expected_sha: str, package_id: str, manifest: dict,
             'runner terminal receipt identity differs')
     require(aggregate.get('execution_owner') == runner.RUNNER_USER and
             aggregate.get('root_product_executor') is False and
-            aggregate.get('postgresql_lifecycle_provider') == runner.clusterctl.LIFECYCLE_PROVIDER,
+            aggregate.get('postgresql_lifecycle_provider') in runner.clusterctl.LIFECYCLE_PROVIDERS,
             'activation did not use the current runner-owned lifecycle')
     activation.validate_product_terminal_result(aggregate)
     runner.validate_package_installation(installation, manifest, Path(installation['source_physical_root']))
@@ -125,7 +125,7 @@ def retain_activation(source: Path, expected_sha: str, receipt_root: Path) -> Pa
             aggregate.get('result_sha256') == runner.document_identity(aggregate, 'result_sha256') and
             aggregate.get('execution_owner') == runner.RUNNER_USER and
             aggregate.get('root_product_executor') is False and
-            aggregate.get('postgresql_lifecycle_provider') == runner.clusterctl.LIFECYCLE_PROVIDER,
+            aggregate.get('postgresql_lifecycle_provider') in runner.clusterctl.LIFECYCLE_PROVIDERS,
             'retained activation is not an authenticated runner result')
     activation.validate_product_terminal_result(aggregate)
     # The result digest distinguishes repeat activations without overwriting any
@@ -209,6 +209,22 @@ def observe_native_receipts(receipt_root: Path, expected_sha: str, package_id: s
     return unicode, highway, matches, {'unicode': str(unicode_stored), 'highway': str(matches[0][3])}
 
 
+def resolve_installed_package_metadata(product: dict, installation: dict, plan: dict,
+                                       package_id: str) -> dict:
+    """Bind actual installation/plan identities before selecting retained bytes."""
+    stage = Path(installation['source_physical_root'])
+    relative = stage.relative_to(Path(product['package_stage_root']))
+    require(len(relative.parts) == 2 and HEX.fullmatch(relative.parts[0]) is not None and
+            relative.parts[1] == 'root', 'installed package omits its addressed build plan')
+    require(installation.get('package_id') == plan.get('package_id') == package_id and
+            installation.get('package_manifest_sha256') == plan.get('package_manifest_sha256'),
+            'installed package/activation plan manifest differs')
+    metadata = build_workspace_retention.resolve_package_metadata(
+        Path(product['package_manifest_root']), Path(product['package_stage_root']),
+        relative.parts[0], package_id, plan['package_manifest_sha256'])
+    return metadata
+
+
 def observe_activation(expected_sha: str, output: Path) -> dict:
     runner.require_runner()
     expected_build_fingerprint = repository_inputs.repository_build_fingerprint_at_commit(ROOT, expected_sha)
@@ -227,18 +243,15 @@ def observe_activation(expected_sha: str, output: Path) -> dict:
     receipt_root = Path(cluster_contract['instance']['receipt_directory'])
     evidence = receipt_root/'cluster-activation'/package_id
     installation = load(evidence/'package-installation.json')
-    stage = Path(installation['source_physical_root'])
-    relative = stage.relative_to(Path(product['package_stage_root']))
-    require(len(relative.parts) == 2 and HEX.fullmatch(relative.parts[0]) is not None and
-            relative.parts[1] == 'root', 'installed package omits its addressed build plan')
-    manifest_path = Path(product['package_manifest_root'])/relative.parts[0]/'package-manifest.json'
-    manifest = load(manifest_path)
     cluster_result = load(evidence/'activation-result.json')
     plan_path = runner.validate_cluster_result(cluster_result, package_id)
     plan = load(plan_path)
     cluster.validate_plan(plan, cluster_contract)
     require(plan['plan_sha256'] == cluster_result['plan_sha256'],
             'activated cluster plan differs from authenticated activation')
+    metadata = resolve_installed_package_metadata(product, installation, plan, package_id)
+    manifest_path = Path(metadata['manifest_path'])
+    manifest = metadata['manifest']
     runtime = Path(plan['runtime_link'])
     require(runtime.is_symlink() and os.readlink(runtime) == '../releases/'+package_id and
             runtime.resolve(strict=True) == release, 'live runtime selector differs from active package')
@@ -261,15 +274,25 @@ def observe_activation(expected_sha: str, output: Path) -> dict:
     cli = release/'bin/laplace-admit-source'
     require(cli.is_file() and not cli.is_symlink() and os.access(cli, os.X_OK),
             'installed generic source admission CLI is unavailable')
+    require(sha(manifest_path) == metadata['manifest_sha256'] and
+            sha(Path(metadata['receipt_path'])) == metadata['receipt_sha256'],
+            'selected package metadata changed during activation observation')
+    service_owner = cluster.service_lifecycle().observe_selected(cluster, plan, loaded)
+    if cluster_result.get('lifecycle_provider') == 'systemd-system':
+        cluster.lifecycle_result_fields(plan, loaded)
     snapshot = {'package_id': package_id, 'repository_commit': expected_sha,
         'repository_build_fingerprint': expected_build_fingerprint,
         'release': str(release), 'cli': str(cli), 'cli_sha256': sha(cli),
-        'manifest_path': str(manifest_path), 'manifest_sha256': sha(manifest_path),
+        'manifest_path': str(manifest_path), 'manifest_sha256': metadata['manifest_sha256'],
+        'package_metadata': {key: metadata[key] for key in (
+            'selection', 'plan_id', 'receipt_path', 'receipt_sha256', 'original_manifest_path',
+            'build_metadata')},
         'manifest': manifest, 'installation': installation,
         'runner_receipts': [{'path': str(p), 'document': d} for p,d,_,_ in matches],
         'native_receipt_paths': native_receipt_paths,
         'cluster_activation': cluster_result, 'unicode_activation': unicode,
-        'highway_activation': highway, 'cluster_plan': plan, 'loaded': loaded}
+        'highway_activation': highway, 'cluster_plan': plan, 'loaded': loaded,
+        'postgresql_service_owner': service_owner}
     save(output, snapshot)
     return snapshot
 
