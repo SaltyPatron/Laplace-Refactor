@@ -1,0 +1,1340 @@
+{
+  "schema": "laplace.stockfish-gnu-alias-qualification-record/v1",
+  "record_date": "2026-09-17",
+  "scope": "Completed hosted parser/native structural experiment and subsequent artifact-only adjudication. This record does not promote the candidate to installed provider, canonical source profile, semantic acceptance or performance acceptance.",
+  "canonical_delivery_receipt": {
+    "repository": "SaltyPatron/Laplace-Refactor",
+    "blob": "8a58e5a4b04373e1239896340715a49d857c7def"
+  },
+  "installed_state": {
+    "changed_by_experiment": false,
+    "selected_grammar_commit": "94fe0c1ba60dee178a4782c1082441631638f51b",
+    "persisted_source_profile": "c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab",
+    "diagnostic_count": 95,
+    "note": "The 71-diagnostic candidate is hosted qualification evidence only. The existing installed grammar and admitted source profile retain 95 diagnostics."
+  },
+  "product_source": {
+    "commit": "f510bc4dae608dd9f34ab8e5555c19350d14b039",
+    "tree": "54f5da72b2cd067925f2f4d2f1187eb77036dbed",
+    "manifest_blob": "5e8b8e8b20c5a77f09be93e1353c91457b633017"
+  },
+  "source": {
+    "repository": "official-stockfish/Stockfish",
+    "bytes": 1172144,
+    "commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+    "cpp_files": 72,
+    "files": 119,
+    "git_archive_sha256": "56b9d83ca09a419501cb412066ff1f80e89f71f57a55da095043d22a51bdd1a2",
+    "historical_manifest_sha256": "2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc",
+    "manifest": {
+      "bytes": 32492,
+      "path": "/build/laplace/work/gnu-alias-35254821053-1/evidence/stockfish/manifest.json",
+      "sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e"
+    },
+    "manifest_path_variance": "Fresh hosted manifest has its own checkout path; immutable Git tree, archive and every artifact bind the same input.",
+    "tree": "418af042b3c0aade628c1c98f13942659e67e64d",
+    "unchanged_between_variants": true
+  },
+  "grammar": {
+    "baseline_derivative_commit": "94fe0c1ba60dee178a4782c1082441631638f51b",
+    "baseline_grammar_blob": "ad4d5359e64b6c60501a15cebd90e425af58935a",
+    "candidate_grammar_blob": "89388c776ae4ba0f7294f670b8b33b4b42ad1da4",
+    "changed_rule": "alias_declaration",
+    "change": "After the alias name and before '=', accept repeat(choice($.attribute_declaration, $.attribute_specifier)) in place of repeat($.attribute_declaration).",
+    "generated_candidate": {
+      "archive": {
+        "bytes": 27258880,
+        "path": "/build/laplace/work/gnu-alias-35254821053-1/evidence/candidate-grammar.tar",
+        "sha256": "128b50f61ff4dcecf552c7c4034075d190e08ef2286b64fbd7324501b93a8446"
+      },
+      "changed_paths": [
+        "grammar.js",
+        "src/grammar.json",
+        "src/node-types.json",
+        "src/parser.c"
+      ],
+      "commit": "446e0b8b1a70952f9ff57330059dbc116b2ab065",
+      "published": false,
+      "tree": "bf8b3a9761084c9935f6ef26cf4652cfbc248485"
+    },
+    "generator": {
+      "actual_version": "tree-sitter 0.26.5",
+      "artifact": {
+        "archive_download_url": "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/actions/artifacts/10480207378/zip",
+        "created_at": "2026-09-17T04:22:10Z",
+        "digest": "sha256:043f838112100a2889eb28c29dea0de1f8a3bb619a45f6f79bdd273f9ece2cfb",
+        "expired": false,
+        "expires_at": "2026-10-01T04:22:07Z",
+        "id": 10480207378,
+        "name": "hosted-cpp-grammar-experiment-35181390710-1",
+        "node_id": "MDg6QXJ0aWZhY3QxMDQ4MDIwNzM3OA==",
+        "size_in_bytes": 14413749,
+        "updated_at": "2026-09-17T04:22:10Z",
+        "url": "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/actions/artifacts/10480207378",
+        "workflow_run": {
+          "head_branch": "qualify/cmake-source-443-20260916",
+          "head_repository_id": 1345590348,
+          "head_sha": "dba90fd7fc9bc735bca712f2c7ecc0fcacb24e6e",
+          "id": 35181390710,
+          "repository_id": 1345590348
+        }
+      },
+      "binary": {
+        "bytes": 12470680,
+        "path": "/build/laplace/work/gnu-alias-35254821053-1/work/tree-sitter",
+        "sha256": "83d9f2f0348b132a20a8de92863322cdfc65661fb623976ce6416cf612e9ea5e"
+      },
+      "retained_producer_run": 35181390710,
+      "reuse": "Identical previously built CLI; this experiment does not rebuild or reinstall it",
+      "source_commit": "470813116b99578956e67abb7138e993833af67a",
+      "zip_bytes": 14413749,
+      "zip_sha256": "043f838112100a2889eb28c29dea0de1f8a3bb619a45f6f79bdd273f9ece2cfb"
+    },
+    "control_inventory_blob": "1304ebf23108cc079982924026322c249f7f5b3c",
+    "prior_control_inventory_blob": "35b958c279832720f390602d1f347bcf63b7da7f",
+    "driver_blob": "8a78b0e65e23f04d78e95eb145e977db4bb4c81a",
+    "workflow_blob": "58f4c5efc6df11130e65a7a8126b091993296024",
+    "identity_memo_blob": "3b9e60aa3f2efa2780a2f745781a27390f735b8c"
+  },
+  "producer": {
+    "run": 35254821053,
+    "job": 105315742631,
+    "url": "https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35254821053",
+    "head": "af157a8f83da7868126e465a487b91bc7f7fe105",
+    "conclusion": "failure",
+    "failure": "RuntimeError('named CST changed outside target file')",
+    "artifact": {
+      "id": 10510989568,
+      "bytes": 21221497,
+      "sha256": "132ad567ac35d4658b1801f47f71a29d6c580fff663e139e739cf1473753881c",
+      "url": "https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35254821053/artifacts/10510989568"
+    },
+    "report_sha256": "847f5de705177db77d1bc0be1dc743fb36cf49857f235b70fbf3f1a8e9469dfd",
+    "commands_recorded": 326,
+    "final_postcomparison_pristine_source_checks_executed": false,
+    "final_checks_limit": "The producer stopped at its original strict named-tree assertion. Its subsequent final pristine-source checks were not executed. This adjudicator verifies retained restoration checks before native execution, without claiming those unrun final checks."
+  },
+  "prior_adjudication": {
+    "run": 35257310377,
+    "job": 105324020307,
+    "url": "https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35257310377",
+    "conclusion": "failure",
+    "reason": "Historical actions/upload-artifact upload omitted hidden source files; first absent member was stockfish/files/.clang-format. This did not identify a parser/native defect."
+  },
+  "adjudication": {
+    "run": 35258040884,
+    "job": 105326478408,
+    "url": "https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35258040884",
+    "head": "bcb3662de0852e1f469dfb04f99dea3701306360",
+    "conclusion": "success",
+    "status": "qualified-under-explicit-artifact-only-criterion",
+    "criterion": "full-corpus GNU alias correction with one exact main.cpp recovery-leaf reclassification/v1",
+    "completed_at": "2026-09-17T18:18:54Z",
+    "script_blob": "583d2b4f431f5ddc42a8d6bd05775a26ccacde55",
+    "workflow_blob": "042ed3d51613fc516134e716e7ba074442a4aa6a",
+    "artifact": {
+      "id": 10512793165,
+      "bytes": 21635952,
+      "sha256": "3c52451ead9dfbc0d38f901d8770abfe89c42a67ff80a83e4c597c5ae7c57511",
+      "url": "https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35258040884/artifacts/10512793165"
+    },
+    "performed": "Authenticate retained producer ZIP and inputs, recompute assertions from retained output, and supplement only omitted hidden source paths from the exact official immutable source. No compilation or parser/native test execution.",
+    "actual_result": {
+      "added": [],
+      "authentic_full_file_aliases": [
+        {
+          "end": 5787,
+          "name": "vec_i8x8_t",
+          "start": 5731,
+          "type": "int8x8_t"
+        },
+        {
+          "end": 5845,
+          "name": "vec_i16x8_t",
+          "start": 5788,
+          "type": "int16x8_t"
+        },
+        {
+          "end": 5903,
+          "name": "vec_i8x16_t",
+          "start": 5846,
+          "type": "int8x16_t"
+        },
+        {
+          "end": 5962,
+          "name": "vec_u16x8_t",
+          "start": 5904,
+          "type": "uint16x8_t"
+        },
+        {
+          "end": 6020,
+          "name": "vec_i32x4_t",
+          "start": 5963,
+          "type": "int32x4_t"
+        },
+        {
+          "end": 6078,
+          "name": "vec_t",
+          "start": 6022,
+          "type": "int16x8_t"
+        },
+        {
+          "end": 6135,
+          "name": "vec_i8_t",
+          "start": 6079,
+          "type": "int8x16_t"
+        },
+        {
+          "end": 6192,
+          "name": "psqt_vec_t",
+          "start": 6136,
+          "type": "int32x4_t"
+        }
+      ],
+      "baseline_diagnostics": 95,
+      "baseline_exact_persisted_diagnostic_coordinates": true,
+      "byte_order_controls": {
+        "deliberate_break_failures": 3,
+        "engine_and_test_binary_restored_exactly": true,
+        "header_restored_exactly": true,
+        "original_passes": 3,
+        "restored_passes": 3,
+        "source_clean_checks_before_native": 3
+      },
+      "candidate_diagnostics": 71,
+      "changed_complete_CST_files": [
+        "src/main.cpp",
+        "src/nnue/simd.h"
+      ],
+      "compatibility_limit": "Same source bytes and reduced diagnostics do not establish compatible canonical witnesses or a finalized profile. Numeric symbols/global unresolved references may change. The exact main.cpp recovery-leaf reclassification is an admitted syntactic delta, not tree equality.",
+      "compilation_executed": false,
+      "controls": {
+        "alias_per_variant": 18,
+        "assertions_recomputed_from_retained_CST": true,
+        "corpora": {
+          "baseline": {
+            "Passed": 198
+          },
+          "candidate": {
+            "Passed": 198
+          },
+          "inherited-c": {
+            "Passed": 85
+          }
+        },
+        "parser_reexecuted": false,
+        "prior_per_variant": 34
+      },
+      "criterion": "full-corpus GNU alias correction with one exact main.cpp recovery-leaf reclassification/v1",
+      "executable_semantics_verified": false,
+      "existing_canonical_witness_compatibility_claimed": false,
+      "finalized_profile_id_computed": false,
+      "full_CST_files_per_variant": 72,
+      "full_CST_outputs_rehashed": 144,
+      "generated_evidence_preflight": {
+        "all_present_in_original_zip": true,
+        "fallback_allowed": false,
+        "members": [
+          "generated/baseline/grammar.js",
+          "generated/baseline/src/grammar.json",
+          "generated/baseline/src/node-types.json",
+          "generated/baseline/src/parser.c",
+          "generated/baseline/src/scanner.c",
+          "generated/baseline/src/tree_sitter/parser.h",
+          "generated/baseline/src/tree_sitter/alloc.h",
+          "generated/baseline/src/tree_sitter/array.h",
+          "generated/candidate/grammar.js",
+          "generated/candidate/src/grammar.json",
+          "generated/candidate/src/node-types.json",
+          "generated/candidate/src/parser.c",
+          "generated/candidate/src/scanner.c",
+          "generated/candidate/src/tree_sitter/parser.h",
+          "generated/candidate/src/tree_sitter/alloc.h",
+          "generated/candidate/src/tree_sitter/array.h"
+        ]
+      },
+      "historical_zip_hidden_source_omission": true,
+      "immutable_hidden_source_supplements": [
+        {
+          "bytes": 1291,
+          "credential_header_sent": false,
+          "git_blob": "a470cc0b88d544f6b504950027c34245c7522fea",
+          "inventory_bytes": 1291,
+          "inventory_sha256": "b6095a2ffada423b2211e3d65bb45c74844f6b1f05263c58f0aeaff809cad9e0",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.clang-format",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.clang-format",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "b6095a2ffada423b2211e3d65bb45c74844f6b1f05263c58f0aeaff809cad9e0",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".clang-format",
+          "supplement_member": "source-supplements/b6095a2ffada423b2211e3d65bb45c74844f6b1f05263c58f0aeaff809cad9e0.source"
+        },
+        {
+          "bytes": 355,
+          "credential_header_sent": false,
+          "git_blob": "8f340d61fca5f2daad6be885e6cd3f0fbb043d17",
+          "inventory_bytes": 355,
+          "inventory_sha256": "ff1a36050a8891fdf58000a94d739f14eb9416957f56401940e3056b63627241",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.git-blame-ignore-revs",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.git-blame-ignore-revs",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "ff1a36050a8891fdf58000a94d739f14eb9416957f56401940e3056b63627241",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".git-blame-ignore-revs",
+          "supplement_member": "source-supplements/ff1a36050a8891fdf58000a94d739f14eb9416957f56401940e3056b63627241.source"
+        },
+        {
+          "bytes": 63,
+          "credential_header_sent": false,
+          "git_blob": "e4870c739e6b0f4118c874adf48f608796c83573",
+          "inventory_bytes": 63,
+          "inventory_sha256": "450658d7b29478a13d4eb188c340ce1046f7c32acce249d71397a784064e6d83",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.gitattributes",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.gitattributes",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "450658d7b29478a13d4eb188c340ce1046f7c32acce249d71397a784064e6d83",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".gitattributes",
+          "supplement_member": "source-supplements/450658d7b29478a13d4eb188c340ce1046f7c32acce249d71397a784064e6d83.source"
+        },
+        {
+          "bytes": 1983,
+          "credential_header_sent": false,
+          "git_blob": "4ec294a6e071b8610473b1d18980028c2878d478",
+          "inventory_bytes": 1983,
+          "inventory_sha256": "7ac0f699d4df7e1dd0a672f6ce70d4827753b83b61d332bcc3c482d09c21cc69",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/ISSUE_TEMPLATE/BUG-REPORT.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/ISSUE_TEMPLATE/BUG-REPORT.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "7ac0f699d4df7e1dd0a672f6ce70d4827753b83b61d332bcc3c482d09c21cc69",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/ISSUE_TEMPLATE/BUG-REPORT.yml",
+          "supplement_member": "source-supplements/7ac0f699d4df7e1dd0a672f6ce70d4827753b83b61d332bcc3c482d09c21cc69.source"
+        },
+        {
+          "bytes": 448,
+          "credential_header_sent": false,
+          "git_blob": "0666eb32fb0eb3b70f48bddaa4d66c33e5f9823d",
+          "inventory_bytes": 448,
+          "inventory_sha256": "644df000761c1ae3e80bb68ba98025921483645de974155d7db9e7e774c1f5a1",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/ISSUE_TEMPLATE/config.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/ISSUE_TEMPLATE/config.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "644df000761c1ae3e80bb68ba98025921483645de974155d7db9e7e774c1f5a1",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/ISSUE_TEMPLATE/config.yml",
+          "supplement_member": "source-supplements/644df000761c1ae3e80bb68ba98025921483645de974155d7db9e7e774c1f5a1.source"
+        },
+        {
+          "bytes": 886,
+          "credential_header_sent": false,
+          "git_blob": "b4fb5d3c0760707f891586c1297f42c00e206eb5",
+          "inventory_bytes": 886,
+          "inventory_sha256": "93d29f2f4171dca49a31c7a1301545e6b4522939bb85d830a92c53203cf97486",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/ci/arm_matrix.json",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/ci/arm_matrix.json",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "93d29f2f4171dca49a31c7a1301545e6b4522939bb85d830a92c53203cf97486",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/ci/arm_matrix.json",
+          "supplement_member": "source-supplements/93d29f2f4171dca49a31c7a1301545e6b4522939bb85d830a92c53203cf97486.source"
+        },
+        {
+          "bytes": 1222,
+          "credential_header_sent": false,
+          "git_blob": "d3a262b54e82d6d49ce50cc7d6ae3153abe53911",
+          "inventory_bytes": 1222,
+          "inventory_sha256": "56ad72fe6a93cf1d080be5b234c838a3b495a176e1f359269f05a03c8ac961f3",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/ci/libcxx17.imp",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/ci/libcxx17.imp",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "56ad72fe6a93cf1d080be5b234c838a3b495a176e1f359269f05a03c8ac961f3",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/ci/libcxx17.imp",
+          "supplement_member": "source-supplements/56ad72fe6a93cf1d080be5b234c838a3b495a176e1f359269f05a03c8ac961f3.source"
+        },
+        {
+          "bytes": 1396,
+          "credential_header_sent": false,
+          "git_blob": "ce31b602b75c147b29e1bd6a5021d47e58a63449",
+          "inventory_bytes": 1396,
+          "inventory_sha256": "949f6a820ece1a254e4d76fcc69b48e7fae3be59e672f3efc686d6331b38c931",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/ci/universal_matrix.json",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/ci/universal_matrix.json",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "949f6a820ece1a254e4d76fcc69b48e7fae3be59e672f3efc686d6331b38c931",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/ci/universal_matrix.json",
+          "supplement_member": "source-supplements/949f6a820ece1a254e4d76fcc69b48e7fae3be59e672f3efc686d6331b38c931.source"
+        },
+        {
+          "bytes": 3295,
+          "credential_header_sent": false,
+          "git_blob": "ea9ffe05325a52790cddc848efcacee5a9e50be3",
+          "inventory_bytes": 3295,
+          "inventory_sha256": "682f0906349e285a3ef8f7d139ec76945bd01f3c4d89d7b64c9b9754e4c00433",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/arm_compilation.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/arm_compilation.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "682f0906349e285a3ef8f7d139ec76945bd01f3c4d89d7b64c9b9754e4c00433",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/arm_compilation.yml",
+          "supplement_member": "source-supplements/682f0906349e285a3ef8f7d139ec76945bd01f3c4d89d7b64c9b9754e4c00433.source"
+        },
+        {
+          "bytes": 3610,
+          "credential_header_sent": false,
+          "git_blob": "7c5f79ce6b71ac771657bce6ac2066020a5839c3",
+          "inventory_bytes": 3610,
+          "inventory_sha256": "4cdb192369f249a9c8c8e63555a8380597a2507ad896aaa60b4273430c582d22",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/avx2_compilers.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/avx2_compilers.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "4cdb192369f249a9c8c8e63555a8380597a2507ad896aaa60b4273430c582d22",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/avx2_compilers.yml",
+          "supplement_member": "source-supplements/4cdb192369f249a9c8c8e63555a8380597a2507ad896aaa60b4273430c582d22.source"
+        },
+        {
+          "bytes": 2267,
+          "credential_header_sent": false,
+          "git_blob": "80bbb148d8ca763673560246d471fc61f7b748e3",
+          "inventory_bytes": 2267,
+          "inventory_sha256": "4230ccd6352d504e6fd15ad2e1fbe4615b56b9fd6dff852b614764a96b8ddbd7",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/clang-format.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/clang-format.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "4230ccd6352d504e6fd15ad2e1fbe4615b56b9fd6dff852b614764a96b8ddbd7",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/clang-format.yml",
+          "supplement_member": "source-supplements/4230ccd6352d504e6fd15ad2e1fbe4615b56b9fd6dff852b614764a96b8ddbd7.source"
+        },
+        {
+          "bytes": 2166,
+          "credential_header_sent": false,
+          "git_blob": "f23f19849ec70446d6213a6e002bffe2391c27d3",
+          "inventory_bytes": 2166,
+          "inventory_sha256": "ad3e3805708a08be8246ba4c5af6c81b8adbbd2d313575f0ada77c1097161435",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/codeql.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/codeql.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "ad3e3805708a08be8246ba4c5af6c81b8adbbd2d313575f0ada77c1097161435",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/codeql.yml",
+          "supplement_member": "source-supplements/ad3e3805708a08be8246ba4c5af6c81b8adbbd2d313575f0ada77c1097161435.source"
+        },
+        {
+          "bytes": 1591,
+          "credential_header_sent": false,
+          "git_blob": "9c3283d92f549404bfcc4744c41eed2726f6223f",
+          "inventory_bytes": 1591,
+          "inventory_sha256": "57897a631ffa7aac9aca507b3c5583629ac3135efd821e3f83a2e210a28ad97b",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/games.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/games.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "57897a631ffa7aac9aca507b3c5583629ac3135efd821e3f83a2e210a28ad97b",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/games.yml",
+          "supplement_member": "source-supplements/57897a631ffa7aac9aca507b3c5583629ac3135efd821e3f83a2e210a28ad97b.source"
+        },
+        {
+          "bytes": 1674,
+          "credential_header_sent": false,
+          "git_blob": "bd3d17b3b0bef77b4fb47d838c0b895de58eb836",
+          "inventory_bytes": 1674,
+          "inventory_sha256": "ba5822e2d779dc3a6146e80c813fc5a1371eceadcb66c3fe5c230b6d42de6028",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/iwyu.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/iwyu.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "ba5822e2d779dc3a6146e80c813fc5a1371eceadcb66c3fe5c230b6d42de6028",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/iwyu.yml",
+          "supplement_member": "source-supplements/ba5822e2d779dc3a6146e80c813fc5a1371eceadcb66c3fe5c230b6d42de6028.source"
+        },
+        {
+          "bytes": 6396,
+          "credential_header_sent": false,
+          "git_blob": "d7de2a24422f560de72cca0a39da338d4678e84e",
+          "inventory_bytes": 6396,
+          "inventory_sha256": "ef7e1a615ca21300166b0fa489323ebf58bd60ef0cdd15a37a87d1e3ac854c66",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/matetrack.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/matetrack.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "ef7e1a615ca21300166b0fa489323ebf58bd60ef0cdd15a37a87d1e3ac854c66",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/matetrack.yml",
+          "supplement_member": "source-supplements/ef7e1a615ca21300166b0fa489323ebf58bd60ef0cdd15a37a87d1e3ac854c66.source"
+        },
+        {
+          "bytes": 1887,
+          "credential_header_sent": false,
+          "git_blob": "7fcaff40f20c8b6f6e470bee2180cdaff72f56e1",
+          "inventory_bytes": 1887,
+          "inventory_sha256": "286f4913823fc72b6d6d6b61b0bc86a9fb365bddf0a59558e1c81969aa71e57b",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/msvc.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/msvc.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "286f4913823fc72b6d6d6b61b0bc86a9fb365bddf0a59558e1c81969aa71e57b",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/msvc.yml",
+          "supplement_member": "source-supplements/286f4913823fc72b6d6d6b61b0bc86a9fb365bddf0a59558e1c81969aa71e57b.source"
+        },
+        {
+          "bytes": 4448,
+          "credential_header_sent": false,
+          "git_blob": "8904d0f6fd299340a21d2ec0488dce1a31450f1b",
+          "inventory_bytes": 4448,
+          "inventory_sha256": "c3ecf4b40096d8b0f3af8555ffc0f261a783322105676759f97d2a366676a2ac",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/official_release.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/official_release.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "c3ecf4b40096d8b0f3af8555ffc0f261a783322105676759f97d2a366676a2ac",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/official_release.yml",
+          "supplement_member": "source-supplements/c3ecf4b40096d8b0f3af8555ffc0f261a783322105676759f97d2a366676a2ac.source"
+        },
+        {
+          "bytes": 3058,
+          "credential_header_sent": false,
+          "git_blob": "7a46d5bf6c0a4ebdd76a0021b806f3427edbde66",
+          "inventory_bytes": 3058,
+          "inventory_sha256": "772cfcf8c9b4df9aeb03bf87bef506c117639cf4c974cf02355c5b368c7c8bd9",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/sanitizers.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/sanitizers.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "772cfcf8c9b4df9aeb03bf87bef506c117639cf4c974cf02355c5b368c7c8bd9",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/sanitizers.yml",
+          "supplement_member": "source-supplements/772cfcf8c9b4df9aeb03bf87bef506c117639cf4c974cf02355c5b368c7c8bd9.source"
+        },
+        {
+          "bytes": 7860,
+          "credential_header_sent": false,
+          "git_blob": "6232dc5cc652abc7e80ed81430507554541e0e5d",
+          "inventory_bytes": 7860,
+          "inventory_sha256": "8d1bfbb594836f034a9bb73da7879596735b8292e6ee215020c812dbc93ae379",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/stockfish.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/stockfish.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "8d1bfbb594836f034a9bb73da7879596735b8292e6ee215020c812dbc93ae379",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/stockfish.yml",
+          "supplement_member": "source-supplements/8d1bfbb594836f034a9bb73da7879596735b8292e6ee215020c812dbc93ae379.source"
+        },
+        {
+          "bytes": 13416,
+          "credential_header_sent": false,
+          "git_blob": "b502b82ecfa7f56aec4c8f26384f59bf6057fdb0",
+          "inventory_bytes": 13416,
+          "inventory_sha256": "187c135c55eb9c4093e83fdb817c366e99006fd4dc13a7191765f9af7da849a9",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/tests.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/tests.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "187c135c55eb9c4093e83fdb817c366e99006fd4dc13a7191765f9af7da849a9",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/tests.yml",
+          "supplement_member": "source-supplements/187c135c55eb9c4093e83fdb817c366e99006fd4dc13a7191765f9af7da849a9.source"
+        },
+        {
+          "bytes": 11706,
+          "credential_header_sent": false,
+          "git_blob": "ce6406de5207b008d0d92b64edda8a863e66e661",
+          "inventory_bytes": 11706,
+          "inventory_sha256": "7e05f1ac044f44f1c6f733aefb0abdda422df31fcf9f20558b071e9cdfb28840",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/universal_compilation.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/universal_compilation.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "7e05f1ac044f44f1c6f733aefb0abdda422df31fcf9f20558b071e9cdfb28840",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/universal_compilation.yml",
+          "supplement_member": "source-supplements/7e05f1ac044f44f1c6f733aefb0abdda422df31fcf9f20558b071e9cdfb28840.source"
+        },
+        {
+          "bytes": 2746,
+          "credential_header_sent": false,
+          "git_blob": "ee245fda39853580277a6483730fb6b2aaacceec",
+          "inventory_bytes": 2746,
+          "inventory_sha256": "a380b1c10dd453ea349ccf27f47276d4a74d1b4004f6077925d6b21f05505454",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/upload_binaries.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/upload_binaries.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "a380b1c10dd453ea349ccf27f47276d4a74d1b4004f6077925d6b21f05505454",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/upload_binaries.yml",
+          "supplement_member": "source-supplements/a380b1c10dd453ea349ccf27f47276d4a74d1b4004f6077925d6b21f05505454.source"
+        },
+        {
+          "bytes": 1708,
+          "credential_header_sent": false,
+          "git_blob": "12f23c6839a5d30bf1e518fe3e48d8c004a5f682",
+          "inventory_bytes": 1708,
+          "inventory_sha256": "aecf8617c834e2e2799567f8498502c5408e6e47cab7c277ab08734543a2ab66",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.github/workflows/wasm_compilation.yml",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.github/workflows/wasm_compilation.yml",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "aecf8617c834e2e2799567f8498502c5408e6e47cab7c277ab08734543a2ab66",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".github/workflows/wasm_compilation.yml",
+          "supplement_member": "source-supplements/aecf8617c834e2e2799567f8498502c5408e6e47cab7c277ab08734543a2ab66.source"
+        },
+        {
+          "bytes": 345,
+          "credential_header_sent": false,
+          "git_blob": "584f7bd45f78cafb136a33add8bc05ac16f3f6cc",
+          "inventory_bytes": 345,
+          "inventory_sha256": "3dac258b0d1e44d98f9ff303b9e1759d5c69a1852e3c3588223158f50f387534",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/.gitignore",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/.gitignore",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "3dac258b0d1e44d98f9ff303b9e1759d5c69a1852e3c3588223158f50f387534",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": ".gitignore",
+          "supplement_member": "source-supplements/3dac258b0d1e44d98f9ff303b9e1759d5c69a1852e3c3588223158f50f387534.source"
+        },
+        {
+          "bytes": 17,
+          "credential_header_sent": false,
+          "git_blob": "dfdb8b771ce07609491fa2e83698969fd917a135",
+          "inventory_bytes": 17,
+          "inventory_sha256": "1d5d71dcc6ccd28ab46a335349ecc74742ca4b81f4fcad212f8d134f70f1f13e",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/scripts/.gitattributes",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/scripts/.gitattributes",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "1d5d71dcc6ccd28ab46a335349ecc74742ca4b81f4fcad212f8d134f70f1f13e",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": "scripts/.gitattributes",
+          "supplement_member": "source-supplements/1d5d71dcc6ccd28ab46a335349ecc74742ca4b81f4fcad212f8d134f70f1f13e.source"
+        },
+        {
+          "bytes": 17,
+          "credential_header_sent": false,
+          "git_blob": "dfdb8b771ce07609491fa2e83698969fd917a135",
+          "inventory_bytes": 17,
+          "inventory_sha256": "1d5d71dcc6ccd28ab46a335349ecc74742ca4b81f4fcad212f8d134f70f1f13e",
+          "manifest_sha256": "e1876db00952d81e5aa31c59aa148119c66dce5967a5f52c4d11b52e73614c4e",
+          "missing_producer_member": "stockfish/files/tests/.gitattributes",
+          "public_url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/edb0d9db6731067ec50ce619ff372b463bc4dd5d/tests/.gitattributes",
+          "reason": "Historical upload omitted a hidden source path; immutable official bytes independently match the authenticated manifest and pre-upload inventory.",
+          "sha256": "1d5d71dcc6ccd28ab46a335349ecc74742ca4b81f4fcad212f8d134f70f1f13e",
+          "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+          "source_path": "tests/.gitattributes",
+          "supplement_member": "source-supplements/1d5d71dcc6ccd28ab46a335349ecc74742ca4b81f4fcad212f8d134f70f1f13e.source"
+        }
+      ],
+      "installed_provider_changed": false,
+      "main_leaf_change": {
+        "baseline_named": true,
+        "baseline_type": "preproc_directive",
+        "candidate_named": false,
+        "candidate_type": "#endif",
+        "end": 1120,
+        "path": [
+          10,
+          2,
+          2,
+          3,
+          2,
+          0
+        ],
+        "same_error_parent_and_all_other_tree_fields": true,
+        "start": 1114
+      },
+      "native_whole": {
+        "baseline": {
+          "all_files_reconstructed": true,
+          "bytes": 1172144,
+          "files": 119,
+          "phase": "whole-native-source-plan",
+          "postgresql_admission": false,
+          "requests": 60766,
+          "semantic_testimony": 0,
+          "syntax_errors_or_missing": 95,
+          "witnesses": 197083
+        },
+        "candidate": {
+          "all_files_reconstructed": true,
+          "bytes": 1172144,
+          "files": 119,
+          "phase": "whole-native-source-plan",
+          "postgresql_admission": false,
+          "requests": 60759,
+          "semantic_testimony": 0,
+          "syntax_errors_or_missing": 71,
+          "witnesses": 197059
+        }
+      },
+      "parser_executed": false,
+      "postgresql_admission_executed": false,
+      "prior_adjudication_run": 35257310377,
+      "prior_adjudication_status": "failed: hidden source absent from historical uploaded ZIP",
+      "producer_artifact": 10510989568,
+      "producer_failure_reason": "RuntimeError('named CST changed outside target file')",
+      "producer_final_checks_limit": "The producer stopped at its original strict named-tree assertion. Its subsequent final pristine-source checks were not executed. This adjudicator verifies retained restoration checks before native execution, without claiming those unrun final checks.",
+      "producer_final_postcomparison_source_checks_ran": false,
+      "producer_head": "af157a8f83da7868126e465a487b91bc7f7fe105",
+      "producer_historical_status": "failed",
+      "producer_report_sha256": "847f5de705177db77d1bc0be1dc743fb36cf49857f235b70fbf3f1a8e9469dfd",
+      "producer_run": 35254821053,
+      "producer_zip_bytes": 21221497,
+      "producer_zip_sha256": "132ad567ac35d4658b1801f47f71a29d6c580fff663e139e739cf1473753881c",
+      "product_commit": "f510bc4dae608dd9f34ab8e5555c19350d14b039",
+      "product_declaration_changes": [
+        "RECIPE_PROGRAM_FINGERPRINT",
+        "SYNTAX_AUTHORITY_FINGERPRINT"
+      ],
+      "product_tree": "54f5da72b2cd067925f2f4d2f1187eb77036dbed",
+      "remote_refs_created": false,
+      "removed": [
+        [
+          "src/nnue/simd.h",
+          5747,
+          5747,
+          18
+        ],
+        [
+          "src/nnue/simd.h",
+          5776,
+          5777,
+          29
+        ],
+        [
+          "src/nnue/simd.h",
+          5786,
+          5786,
+          19
+        ],
+        [
+          "src/nnue/simd.h",
+          5805,
+          5805,
+          18
+        ],
+        [
+          "src/nnue/simd.h",
+          5833,
+          5834,
+          29
+        ],
+        [
+          "src/nnue/simd.h",
+          5844,
+          5844,
+          19
+        ],
+        [
+          "src/nnue/simd.h",
+          5863,
+          5863,
+          18
+        ],
+        [
+          "src/nnue/simd.h",
+          5891,
+          5892,
+          29
+        ],
+        [
+          "src/nnue/simd.h",
+          5902,
+          5902,
+          19
+        ],
+        [
+          "src/nnue/simd.h",
+          5921,
+          5921,
+          18
+        ],
+        [
+          "src/nnue/simd.h",
+          5949,
+          5950,
+          29
+        ],
+        [
+          "src/nnue/simd.h",
+          5961,
+          5961,
+          19
+        ],
+        [
+          "src/nnue/simd.h",
+          5980,
+          5980,
+          18
+        ],
+        [
+          "src/nnue/simd.h",
+          6008,
+          6009,
+          29
+        ],
+        [
+          "src/nnue/simd.h",
+          6019,
+          6019,
+          19
+        ],
+        [
+          "src/nnue/simd.h",
+          6033,
+          6033,
+          18
+        ],
+        [
+          "src/nnue/simd.h",
+          6066,
+          6067,
+          29
+        ],
+        [
+          "src/nnue/simd.h",
+          6077,
+          6077,
+          19
+        ],
+        [
+          "src/nnue/simd.h",
+          6093,
+          6093,
+          18
+        ],
+        [
+          "src/nnue/simd.h",
+          6123,
+          6124,
+          29
+        ],
+        [
+          "src/nnue/simd.h",
+          6134,
+          6134,
+          19
+        ],
+        [
+          "src/nnue/simd.h",
+          6152,
+          6152,
+          18
+        ],
+        [
+          "src/nnue/simd.h",
+          6180,
+          6181,
+          29
+        ],
+        [
+          "src/nnue/simd.h",
+          6191,
+          6191,
+          19
+        ]
+      ],
+      "schema": "laplace.gnu-alias-artifact-adjudication/v1",
+      "scope_limit": "Retained parser/native structural qualification with explicit immutable hidden-source supplementation; no compilation, parser run, installation, provider selection, PostgreSQL admission, finalized profile, semantic testimony or performance acceptance is performed here.",
+      "source_bytes": 1172144,
+      "source_evidence_mode": "authenticated retained ZIP plus exact immutable official hidden-source supplementation",
+      "source_files": 119,
+      "stage": "complete",
+      "status": "qualified-under-explicit-artifact-only-criterion",
+      "tests_reexecuted": false,
+      "unchanged_complete_CST_files": 70
+    }
+  },
+  "control_details": {
+    "historical_input_inventory_status": "source-only-unexecuted",
+    "historical_input_status_is_not_experiment_result": true,
+    "alias_inventory": {
+      "authentic": [
+        {
+          "attribute_nodes": [
+            "attribute_specifier"
+          ],
+          "expected_error_or_missing": 0,
+          "name": "vec_i8x8_t",
+          "name_field": "vec_i8x8_t",
+          "root": "alias_declaration",
+          "text": "using vec_i8x8_t __attribute__((may_alias))  = int8x8_t;",
+          "type": "int8x8_t",
+          "type_field": "int8x8_t"
+        },
+        {
+          "attribute_nodes": [
+            "attribute_specifier"
+          ],
+          "expected_error_or_missing": 0,
+          "name": "vec_i16x8_t",
+          "name_field": "vec_i16x8_t",
+          "root": "alias_declaration",
+          "text": "using vec_i16x8_t __attribute__((may_alias)) = int16x8_t;",
+          "type": "int16x8_t",
+          "type_field": "int16x8_t"
+        },
+        {
+          "attribute_nodes": [
+            "attribute_specifier"
+          ],
+          "expected_error_or_missing": 0,
+          "name": "vec_i8x16_t",
+          "name_field": "vec_i8x16_t",
+          "root": "alias_declaration",
+          "text": "using vec_i8x16_t __attribute__((may_alias)) = int8x16_t;",
+          "type": "int8x16_t",
+          "type_field": "int8x16_t"
+        },
+        {
+          "attribute_nodes": [
+            "attribute_specifier"
+          ],
+          "expected_error_or_missing": 0,
+          "name": "vec_u16x8_t",
+          "name_field": "vec_u16x8_t",
+          "root": "alias_declaration",
+          "text": "using vec_u16x8_t __attribute__((may_alias)) = uint16x8_t;",
+          "type": "uint16x8_t",
+          "type_field": "uint16x8_t"
+        },
+        {
+          "attribute_nodes": [
+            "attribute_specifier"
+          ],
+          "expected_error_or_missing": 0,
+          "name": "vec_i32x4_t",
+          "name_field": "vec_i32x4_t",
+          "root": "alias_declaration",
+          "text": "using vec_i32x4_t __attribute__((may_alias)) = int32x4_t;",
+          "type": "int32x4_t",
+          "type_field": "int32x4_t"
+        },
+        {
+          "attribute_nodes": [
+            "attribute_specifier"
+          ],
+          "expected_error_or_missing": 0,
+          "name": "vec_t",
+          "name_field": "vec_t",
+          "root": "alias_declaration",
+          "text": "using vec_t __attribute__((may_alias))      = int16x8_t;",
+          "type": "int16x8_t",
+          "type_field": "int16x8_t"
+        },
+        {
+          "attribute_nodes": [
+            "attribute_specifier"
+          ],
+          "expected_error_or_missing": 0,
+          "name": "vec_i8_t",
+          "name_field": "vec_i8_t",
+          "root": "alias_declaration",
+          "text": "using vec_i8_t __attribute__((may_alias))   = int8x16_t;",
+          "type": "int8x16_t",
+          "type_field": "int8x16_t"
+        },
+        {
+          "attribute_nodes": [
+            "attribute_specifier"
+          ],
+          "expected_error_or_missing": 0,
+          "name": "psqt_vec_t",
+          "name_field": "psqt_vec_t",
+          "root": "alias_declaration",
+          "text": "using psqt_vec_t __attribute__((may_alias)) = int32x4_t;",
+          "type": "int32x4_t",
+          "type_field": "int32x4_t"
+        }
+      ],
+      "generic": [
+        {
+          "attributes": [
+            "attribute_specifier",
+            "attribute_specifier"
+          ],
+          "name": "GNU argument and repeated attributes",
+          "text": "using Alias __attribute__((deprecated(\"old\"))) __attribute__((aligned(16))) = int;"
+        },
+        {
+          "attributes": [
+            "attribute_declaration",
+            "attribute_specifier"
+          ],
+          "name": "standard then GNU attribute",
+          "text": "using Alias [[deprecated]] __attribute__((aligned(16))) = int;"
+        },
+        {
+          "attributes": [
+            "attribute_specifier",
+            "attribute_declaration"
+          ],
+          "name": "GNU then standard attribute",
+          "text": "using Alias __attribute__((aligned(16))) [[deprecated]] = int;"
+        }
+      ],
+      "malformed": [
+        "using Alias __attribute__((may_alias) = int;",
+        "using __attribute__((may_alias)) = int;",
+        "using Alias __attribute__ may_alias = int;",
+        "using Alias __attribute__((may_alias)) = ;"
+      ],
+      "unchanged_controls": [
+        "using Alias = int;",
+        "using Alias [[deprecated]] = int;",
+        "using Alias = int (*)(int);"
+      ]
+    },
+    "actual_parser_control_results": {
+      "alias_count_per_variant": 18,
+      "authentic_aliases": 8,
+      "baseline_target_rejections_observed": true,
+      "malformed_rejections_observed": true,
+      "prior_count_per_variant": 34,
+      "prior_named_cst_equal": true,
+      "standard_alias_cst_equal": true
+    },
+    "upstream_corpus_results": {
+      "baseline": {
+        "Passed": 198
+      },
+      "candidate": {
+        "Passed": 198
+      },
+      "inherited-c": {
+        "Passed": 85
+      }
+    },
+    "native_source_fixture_records_per_variant": 13,
+    "native_shape_records_per_variant": 119,
+    "native_source_shape_field_count": 17,
+    "native_whole": {
+      "baseline": {
+        "all_files_reconstructed": true,
+        "bytes": 1172144,
+        "files": 119,
+        "phase": "whole-native-source-plan",
+        "postgresql_admission": false,
+        "requests": 60766,
+        "semantic_testimony": 0,
+        "syntax_errors_or_missing": 95,
+        "witnesses": 197083
+      },
+      "candidate": {
+        "all_files_reconstructed": true,
+        "bytes": 1172144,
+        "files": 119,
+        "phase": "whole-native-source-plan",
+        "postgresql_admission": false,
+        "requests": 60759,
+        "semantic_testimony": 0,
+        "syntax_errors_or_missing": 71,
+        "witnesses": 197059
+      }
+    },
+    "byte_order_tests": {
+      "byte-order-deliberate-break": {
+        "failed_tests": [
+          "PayloadByteOrderCanonicalizesInputPermutations",
+          "PayloadByteOrderMatchesUnsignedLexicographicOrder",
+          "PayloadByteOrderPreservesExactDuplicateDetection"
+        ],
+        "report": {
+          "bytes": 679644,
+          "path": "/build/laplace/work/gnu-alias-35254821053-1/evidence/byte-order/byte-order-deliberate-break.xml",
+          "sha256": "abb52a16eb78e68a590b89f6806969fc54754437bb7e4e21a6ddb15bf89afbdd"
+        },
+        "returncode": 1,
+        "tests": [
+          "PayloadByteOrderCanonicalizesInputPermutations",
+          "PayloadByteOrderMatchesUnsignedLexicographicOrder",
+          "PayloadByteOrderPreservesExactDuplicateDetection"
+        ]
+      },
+      "byte-order-original": {
+        "failed_tests": [],
+        "report": {
+          "bytes": 1237,
+          "path": "/build/laplace/work/gnu-alias-35254821053-1/evidence/byte-order/byte-order-original.xml",
+          "sha256": "eccc16258e8137c08d3befba948889b3ea142363a7476ba764713e4f30bfe05e"
+        },
+        "returncode": 0,
+        "tests": [
+          "PayloadByteOrderCanonicalizesInputPermutations",
+          "PayloadByteOrderMatchesUnsignedLexicographicOrder",
+          "PayloadByteOrderPreservesExactDuplicateDetection"
+        ]
+      },
+      "byte-order-restored": {
+        "failed_tests": [],
+        "report": {
+          "bytes": 1237,
+          "path": "/build/laplace/work/gnu-alias-35254821053-1/evidence/byte-order/byte-order-restored.xml",
+          "sha256": "300daa56ac390e917f61de394b01fa202a30d9e64d79737d2d2c2c88de6d8b93"
+        },
+        "returncode": 0,
+        "tests": [
+          "PayloadByteOrderCanonicalizesInputPermutations",
+          "PayloadByteOrderMatchesUnsignedLexicographicOrder",
+          "PayloadByteOrderPreservesExactDuplicateDetection"
+        ]
+      }
+    },
+    "byte_order_mutation_and_restoration": {
+      "change": "reverse only the first differing unsigned-byte comparison",
+      "initial_engine": {
+        "bytes": 2342024,
+        "path": "/build/laplace/build/gnu-alias-35254821053-1/engine/liblaplace_engine.so",
+        "sha256": "75b3f66cd3cfd66f6b1691904af9f13203fcf277f3f740af65382169b3c4e999"
+      },
+      "initial_tests": {
+        "bytes": 842696,
+        "path": "/build/laplace/build/gnu-alias-35254821053-1/tests/laplace_unicode_source_tests",
+        "sha256": "86d9eac3140da202e681bbc8e38e73296a820a0a21f07e7baeb527a53d319ecc"
+      },
+      "mutant_git_blob": "f8c1f248ac804f1e593f7ae629d0428b35f1c7d0",
+      "mutant_sha256": "f9506ef1efe9261b15f178e8c705bdaf0e83dcac9d752fcddf4887c71d09dc34",
+      "original_git_blob": "a090487e3244933c80ff30ddcf3f45df1a911376",
+      "original_sha256": "76a7baf0ea14fa378e516bf415072b2bac2b8b9625100e4c1f355f5e98e3a761",
+      "path": "engine/src/unicode_byte_order.hpp",
+      "product_commit": "f510bc4dae608dd9f34ab8e5555c19350d14b039",
+      "product_tree": "54f5da72b2cd067925f2f4d2f1187eb77036dbed",
+      "restored": true,
+      "restored_engine": {
+        "bytes": 2342024,
+        "path": "/build/laplace/build/gnu-alias-35254821053-1/engine/liblaplace_engine.so",
+        "sha256": "75b3f66cd3cfd66f6b1691904af9f13203fcf277f3f740af65382169b3c4e999"
+      },
+      "restored_header_git_blob": "a090487e3244933c80ff30ddcf3f45df1a911376",
+      "restored_header_sha256": "76a7baf0ea14fa378e516bf415072b2bac2b8b9625100e4c1f355f5e98e3a761",
+      "restored_tests": {
+        "bytes": 842696,
+        "path": "/build/laplace/build/gnu-alias-35254821053-1/tests/laplace_unicode_source_tests",
+        "sha256": "86d9eac3140da202e681bbc8e38e73296a820a0a21f07e7baeb527a53d319ecc"
+      },
+      "source_checkout": "/build/laplace/work/gnu-alias-35254821053-1/native-control-source",
+      "source_clean": true
+    },
+    "source_clean_checks_before_native": 3
+  },
+  "diagnostic_comparison": {
+    "key_fields": [
+      "source_path",
+      "start_byte",
+      "end_byte",
+      "full_flags"
+    ],
+    "baseline_exact_persisted_coordinates": true,
+    "baseline": 95,
+    "candidate": 71,
+    "removed": 24,
+    "added": 0,
+    "removed_error_rows": 8,
+    "removed_missing_rows": 16,
+    "all_removed_source_path": "src/nnue/simd.h",
+    "exact_removed_keys": [
+      [
+        "src/nnue/simd.h",
+        5747,
+        5747,
+        18
+      ],
+      [
+        "src/nnue/simd.h",
+        5776,
+        5777,
+        29
+      ],
+      [
+        "src/nnue/simd.h",
+        5786,
+        5786,
+        19
+      ],
+      [
+        "src/nnue/simd.h",
+        5805,
+        5805,
+        18
+      ],
+      [
+        "src/nnue/simd.h",
+        5833,
+        5834,
+        29
+      ],
+      [
+        "src/nnue/simd.h",
+        5844,
+        5844,
+        19
+      ],
+      [
+        "src/nnue/simd.h",
+        5863,
+        5863,
+        18
+      ],
+      [
+        "src/nnue/simd.h",
+        5891,
+        5892,
+        29
+      ],
+      [
+        "src/nnue/simd.h",
+        5902,
+        5902,
+        19
+      ],
+      [
+        "src/nnue/simd.h",
+        5921,
+        5921,
+        18
+      ],
+      [
+        "src/nnue/simd.h",
+        5949,
+        5950,
+        29
+      ],
+      [
+        "src/nnue/simd.h",
+        5961,
+        5961,
+        19
+      ],
+      [
+        "src/nnue/simd.h",
+        5980,
+        5980,
+        18
+      ],
+      [
+        "src/nnue/simd.h",
+        6008,
+        6009,
+        29
+      ],
+      [
+        "src/nnue/simd.h",
+        6019,
+        6019,
+        19
+      ],
+      [
+        "src/nnue/simd.h",
+        6033,
+        6033,
+        18
+      ],
+      [
+        "src/nnue/simd.h",
+        6066,
+        6067,
+        29
+      ],
+      [
+        "src/nnue/simd.h",
+        6077,
+        6077,
+        19
+      ],
+      [
+        "src/nnue/simd.h",
+        6093,
+        6093,
+        18
+      ],
+      [
+        "src/nnue/simd.h",
+        6123,
+        6124,
+        29
+      ],
+      [
+        "src/nnue/simd.h",
+        6134,
+        6134,
+        19
+      ],
+      [
+        "src/nnue/simd.h",
+        6152,
+        6152,
+        18
+      ],
+      [
+        "src/nnue/simd.h",
+        6180,
+        6181,
+        29
+      ],
+      [
+        "src/nnue/simd.h",
+        6191,
+        6191,
+        19
+      ]
+    ],
+    "exact_added_keys": [],
+    "remaining": 71,
+    "distinct_unrepaired_examples": [
+      "Two __extension__ aliases in src/misc.h",
+      "One parenthesized comma-expression recovery in src/position.cpp"
+    ],
+    "remaining_diagnostics_not_claimed_repaired": true
+  },
+  "hidden_source_supplementation": {
+    "paths": 26,
+    "bytes": 75851,
+    "unique_bodies": 25,
+    "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+    "credential_headers_sent": false,
+    "missing_nonhidden_source_fallback_allowed": false,
+    "generated_member_fallback_allowed": false,
+    "all_generated_members_present": true,
+    "generated_members_count": 16,
+    "exact_mappings_location": "adjudication.actual_result.immutable_hidden_source_supplements",
+    "retained_mapping_member": "immutable-hidden-source-supplements.json",
+    "body_path_pattern": "source-supplements/<sha256>.source",
+    "note": "These are exact recovered immutable source bytes. The original historical ZIP is unchanged and retained; its missing members are not represented as originally uploaded."
+  },
+  "claim_limits": {
+    "original_producer_failure_preserved": true,
+    "unrun_final_pristine_checks_not_claimed": true,
+    "all_simd_tree_fields_outside_aliases_unchanged_claimed": false,
+    "installed_provider_changed": false,
+    "postgresql_admission_executed": false,
+    "finalized_profile_id_computed": false,
+    "existing_canonical_witness_compatibility_claimed": false,
+    "executable_semantics_verified": false,
+    "performance_acceptance_claimed": false,
+    "configured_foundation_completion_claimed": false,
+    "identity_limit": "Same source bytes and reduced diagnostics do not establish compatible canonical witnesses or a finalized profile. Numeric symbols/global unresolved references may change. The exact main.cpp recovery-leaf reclassification is an admitted syntactic delta, not tree equality.",
+    "identity_consequence": "A changed grammar recipe and changed parse structure require their own bound interpretation/profile identity before installation or admission. Provider separation does not make changed canonical witness content interchangeable. Identical source bytes remain identical source content.",
+    "native_count_limit": "Native request/witness counts are unresolved source-plan records, not PostgreSQL durable witness counts or finalized canonical profile identities."
+  }
+}

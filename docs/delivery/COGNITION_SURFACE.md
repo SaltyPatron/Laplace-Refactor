@@ -7,23 +7,27 @@ Refactor native package; no additional public listener is required. The local
 command is /opt/laplace/current/bin/laplace-cognition, with cognition transport
 /opt/laplace/runtime/laplace-cognition.sock.
 
-The September 17, 2026 installation observation binds source
-`df158f21bfecaf4045d065b10c21cd92464ce3ec` and package
-`d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490`.
-[Main run 35231752869](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35231752869)
-passed package activation, installed substrate and the authenticated service
-proof. Its separate initial source-readback job timed out; the already committed
-source subsequently passed complete readback in
-[run 35242450404](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35242450404).
-The main workflow's original failed outcome remains unchanged.
+The current September 17, 2026 installation binds source
+`32f65922abfe358b9d690645781af676e8a8f575` and package
+`c2e6432f85c72d390b2cfd3cc343106f4fe7a4d34238b48e2cda2bebbc9758a6`.
+[Main run 35257154254](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35257154254)
+completed successfully, including native PostgreSQL qualification, package
+activation, installed substrate, authenticated service and full Stockfish source
+admission/readback/repeat. The
+[current corpus receipt](STOCKFISH_READBACK_JOIN_INSTALLED_20260917.md)
+records the exact source and replay scope.
 
-[Authenticated service reader 35233873945](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35233873945)
+[Authenticated service reader 35259227562](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35259227562)
 verified the enabled, active/running laplace-refactor-cognition.service user unit,
 selected-package health, exact installed browser assets, native cognition,
 OpenAI streaming/nonstreaming and MCP. Anonymous protected health and MCP requests
 returned HTTP 401; the selected operator bearer returned health HTTP 200 and a
 complete package-bound product-snapshot event. Warm restart to verified health
-took 0.917228 seconds. A cold machine boot was not tested.
+took 0.866559 seconds. A cold machine boot was not tested.
+
+The earlier df158/d12 source-readback timeout and its successful read-only
+recovery remain in the [historical successor proof](STOCKFISH_SUCCESSOR_READBACK_QUALIFICATION.json).
+The current main success does not alter that historical failed workflow.
 
 ## Browser access through the existing host gateway
 
@@ -31,24 +35,28 @@ The browser resolves assets and API/event requests relative to its served
 directory. Original strips /refactor/ and streams requests to the fixed loopback
 listener, preserving the caller's Authorization header.
 
-[Original delivery 35240399243](https://github.com/SaltyPatron/Laplace/actions/runs/35240399243)
-verified the actual forwarding route with nine GET requests: the canonical
-redirect, three public assets, anonymous rejection and authenticated success for
-health and summary, and a complete authenticated event frame. The final TLS
-check at 15:36:48 UTC verified the hostname, certificate and selected Refactor
-package at https://hart-server:8443/refactor/.
+[Original delivery 35256901378](https://github.com/SaltyPatron/Laplace/actions/runs/35256901378)
+completed the latest retained forwarding and TLS checks at 18:08:30 UTC.
+Its nine GET requests verified the canonical redirect, three public assets,
+anonymous rejection, authenticated health and summary, and a complete
+authenticated event frame. The TLS checks verified the hostname and certificate
+at https://hart-server:8443/refactor/. That route observation binds the preceding
+Refactor package
+`c7cd0ecfd651480ebb36f13932325f2f4c7d9da29a5c6257f97cb7b8d4393c20`;
+the subsequent current-package proof above verifies the same backend's loopback
+authority and protocol. A fresh TLS observation was not repeated after this
+package update.
 
-This was a server-local request through the configured LAN TLS route. A browser
+The retained Original tail artifact is
+[10513146983](https://github.com/SaltyPatron/Laplace/actions/runs/35256901378/artifacts/10513146983),
+376,993 bytes; ZIP SHA-256
+`74af349ac137e8e9ffcb75b01700c2ea492d2a542d3737caea3f826ae220f6c9`.
+
+These were server-local requests through the configured LAN TLS route. A browser
 on another machine was not exercised. Remote clients still need their ordinary
 network/DNS access and trust in the host's configured certificate authority.
 The loopback address remains available on the server or through an
 operator-established SSH forward.
-
-[Authenticated route reader 35241779535](https://github.com/SaltyPatron/Laplace/actions/runs/35241779535)
-verified artifact 10505532233 (4,527,079 bytes; ZIP SHA-256
-`dbb27abb0f11789cbe0bb2cf05f13395f9a9bc2ad83a90d9153925978ab7be3a`).
-Its cache/refactor-front-door.json member has SHA-256
-`f595e5f23ccde5e12dfd8a45d35264ace6149c0186704637f4058d0957a96cbd`.
 
 The Token button accepts the same operator bearer used by the existing managed
 Original API. It is held in the browser tab's session storage and sent in the
