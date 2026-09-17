@@ -1,4 +1,4 @@
-name: Read authenticated GNU alias experiment evidence
+name: Adjudicate authenticated retained GNU alias evidence
 on:
   workflow_dispatch:
   push:
@@ -8,171 +8,62 @@ permissions:
   actions: read
   contents: read
 jobs:
-  retained-gnu-alias-evidence:
+  retained-gnu-alias-adjudication:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONOPTIMIZE: ""
     steps:
-      - name: Authenticate the exact retained artifact and read completed native and parser evidence
+      - name: Establish ordinary hosted evidence paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          adjudication_root="/build/laplace/work/gnu-alias-adjudication-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$adjudication_root"
+          sudo install -d -m 0775 -o "$(id -u)" -g "$(id -g)" "$adjudication_root"
+          mkdir -p "$adjudication_root/evidence" "$adjudication_root/tmp"
+          printf 'ADJUDICATION_ROOT=%s\n' "$adjudication_root" >> "$GITHUB_ENV"
+          printf 'TMPDIR=%s/tmp\nTMP=%s/tmp\nTEMP=%s/tmp\n' \
+            "$adjudication_root" "$adjudication_root" "$adjudication_root" >> "$GITHUB_ENV"
+      - name: Authenticate adjudicator and revalidate retained artifact only
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import gzip, hashlib, io, json, os, pathlib, stat, urllib.request, zipfile
-          repository = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
-          artifact_id = 10510989568
-          run_id = 35254821053
-          head = "af157a8f83da7868126e465a487b91bc7f7fe105"
-          size = 21221497
-          digest = "132ad567ac35d4658b1801f47f71a29d6c580fff663e139e739cf1473753881c"
-          def fetch(url, limit):
-              request = urllib.request.Request(url, headers={
-                  "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+          import ast, base64, hashlib, json, os, pathlib, runpy, traceback, urllib.request
+          evidence = pathlib.Path(os.environ["ADJUDICATION_ROOT"], "evidence")
+          identity = "1119575cd31562304a736eecc9d442595879abf3"
+          try:
+              request = urllib.request.Request(
+                  "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/" + identity,
+                  headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
               request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
-              with urllib.request.urlopen(request, timeout=90) as response:
-                  body = response.read(limit + 1)
-              assert len(body) <= limit
-              return body
-          metadata = json.loads(fetch(repository + "/actions/artifacts/" + str(artifact_id), 1048576))
-          assert metadata["id"] == artifact_id and not metadata["expired"]
-          assert metadata["size_in_bytes"] == size and metadata["digest"] == "sha256:" + digest
-          assert metadata["workflow_run"]["id"] == run_id and metadata["workflow_run"]["head_sha"] == head
-          payload = fetch(repository + "/actions/artifacts/" + str(artifact_id) + "/zip", size)
-          assert len(payload) == size and hashlib.sha256(payload).hexdigest() == digest
-          with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-              entries = archive.infolist()
-              names = [entry.filename for entry in entries]
-              assert len(names) == len(set(names)) and len(names) <= 4096
-              for entry in entries:
-                  name = entry.filename
-                  path = pathlib.PurePosixPath(name)
-                  assert name and not path.is_absolute() and ".." not in path.parts
-                  assert "\\" not in name and "\0" not in name
-                  assert not stat.S_ISLNK(entry.external_attr >> 16)
-              def member(name, limit):
-                  entry = archive.getinfo(name)
-                  assert not entry.is_dir() and 0 <= entry.file_size <= limit
-                  with archive.open(entry) as stream:
-                      body = stream.read(limit + 1)
-                  assert len(body) == entry.file_size and len(body) <= limit
-                  return body
-              report_bytes = member("report.json", 2097152)
-              report = json.loads(report_bytes)
-              assert report["schema"] == "laplace.hosted-gnu-alias-experiment/v1"
-              assert report["product_commit"] == "f510bc4dae608dd9f34ab8e5555c19350d14b039"
-              assert report["product_tree"] == "54f5da72b2cd067925f2f4d2f1187eb77036dbed"
-              assert report["candidate_grammar_blob"] == "89388c776ae4ba0f7294f670b8b33b4b42ad1da4"
-              assert report["runner"]["run_id"] == str(run_id) and report["runner"]["workflow_sha"] == head
-              commands = report["commands"]
-              assert len(commands) <= 512
-              summary = {
-                  "artifact_id": artifact_id, "run_id": run_id, "head": head,
-                  "zip_bytes": size, "zip_sha256": digest,
-                  "report_sha256": hashlib.sha256(report_bytes).hexdigest(),
-                  "status": report["status"], "fatal_exception": report.get("fatal_exception"),
-                  "generator": report.get("generator"),
-                  "inherited_c_corpus": report.get("inherited_c_corpus"),
-                  "variants": {key: {"generation_status": value.get("generation_status"),
-                      "upstream_tests": value.get("upstream_tests")}
-                      for key, value in report["variants"].items()},
-                  "generated_grammar_delta": report.get("generated_grammar_delta"),
-                  "controls": report.get("controls"),
-                  "product_declaration_changes": report.get("product_declaration_changes"),
-                  "immutable_source_input": report.get("immutable_source_input"),
-                  "hosted_candidate": report.get("hosted_candidate"),
-                  "commands": [{"number": i+1, "label": item["label"],
-                      "returncode": item.get("returncode"), "elapsed_seconds": item.get("elapsed_seconds"),
-                      "timed_out": item.get("timed_out", False)} for i,item in enumerate(commands)],
-                  "full_native_corpus_ran": "whole_corpus_comparison" in report,
-                  "whole_corpus_comparison": report.get("whole_corpus_comparison"),
-                  "native_build": report.get("native_build"),
-                  "byte_order_controls": report.get("byte_order_controls"),
-                  "byte_order_mutation": report.get("byte_order_mutation"),
-                  "postgresql_admission_executed": report["postgresql_admission_executed"],
-                  "installed_provider_changed": report["installed_provider_changed"]}
-              print("GNU_ALIAS_RETAINED_REPORT " + json.dumps(summary, sort_keys=True), flush=True)
-              for name in ("whole119-baseline.json", "whole119-candidate.json"):
-                  if name in names:
-                      raw = member(name, 4194304)
-                      native = json.loads(raw)
-                      print("GNU_ALIAS_NATIVE_PROJECTION " + json.dumps({
-                          "member": name, "member_bytes": len(raw),
-                          "member_sha256": hashlib.sha256(raw).hexdigest(),
-                          "whole": native["whole"],
-                          "preceding_native_fixture_count": native["preceding_native_fixture_count"],
-                          "diagnostic_count": len(native["diagnostics"]),
-                          "shape_count": len(native["shapes"])
-                      }, sort_keys=True), flush=True)
-              manifest = json.loads(member("stockfish/manifest.json", 1048576))
-              matches = [(i, row) for i, row in enumerate(manifest["artifacts"]) if row["path"] == "src/main.cpp"]
-              assert len(matches) == 1
-              index, source_row = matches[0]
-              source = member("stockfish/files/src/main.cpp", 1048576)
-              assert hashlib.sha256(source).hexdigest() == source_row["sha256"]
-              trees = {}
-              retained = {}
-              for variant in ("baseline", "candidate"):
-                  selected = [row for row in commands if row["label"] == variant + "-full-cst-%03d" % index]
-                  assert len(selected) == 1 and selected[0]["returncode"] == 0
-                  item = selected[0]["compressed_stdout"]
-                  assert str(item["path"]).count("/evidence/") == 1
-                  name = str(item["path"]).split("/evidence/", 1)[1]
-                  compressed = member(name, 4194304)
-                  assert len(compressed) == item["bytes"] and hashlib.sha256(compressed).hexdigest() == item["sha256"]
-                  with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as stream:
-                      raw = stream.read(16777217)
-                  assert len(raw) <= 16777216
-                  parsed = json.loads(raw)
-                  trees[variant] = parsed["root"]
-                  retained[variant] = {"member": name, "compressed_bytes": len(compressed),
-                      "compressed_sha256": hashlib.sha256(compressed).hexdigest(),
-                      "cst_bytes": len(raw), "cst_sha256": hashlib.sha256(raw).hexdigest(),
-                      "has_error": parsed["has_error"]}
-              differences = []
-              def projection(node):
-                  return {k:v for k,v in node.items() if k != "children"}
-              def compare(left, right, path):
-                  a, b = projection(left), projection(right)
-                  if a != b or len(left["children"]) != len(right["children"]):
-                      differences.append({"path": path, "baseline": a, "candidate": b,
-                          "baseline_child_types": [n["type"] for n in left["children"]],
-                          "candidate_child_types": [n["type"] for n in right["children"]],
-                          "source_excerpt": source[min(left["start"],right["start"]):max(left["end"],right["end"])][:512].decode("utf-8", "strict")})
-                      assert len(differences) <= 128
-                      if left["type"] != right["type"] or len(left["children"]) != len(right["children"]):
-                          return
-                  for child_index, (a, b) in enumerate(zip(left["children"], right["children"], strict=True)):
-                      compare(a, b, path + [child_index])
-              compare(trees["baseline"], trees["candidate"], [])
-              ancestor_paths = []
-              for difference in differences:
-                  observation = {"path": difference["path"], "variants": {}}
-                  for variant in ("baseline", "candidate"):
-                      node = trees[variant]
-                      chain = [projection(node)]
-                      for ordinal in difference["path"]:
-                          node = node["children"][ordinal]
-                          chain.append(projection(node))
-                      observation["variants"][variant] = chain
-                  ancestor_paths.append(observation)
-              print("GNU_ALIAS_MAIN_CPP_CST_DIFF " + json.dumps({
-                  "path": "src/main.cpp", "source_sha256": source_row["sha256"],
-                  "source_bytes": len(source), "retained": retained,
-                  "differences": differences, "ancestor_paths": ancestor_paths}, sort_keys=True), flush=True)
-              if report["status"] != "passed-hosted-gnu-alias-qualification-only":
-                  for item in commands:
-                      if item.get("returncode") != 0 and item["label"] != "byte-order-deliberate-break":
-                          for field in ("stdout", "stderr"):
-                              path = pathlib.PurePosixPath(item[field])
-                              suffix = "/evidence/"
-                              assert str(path).count(suffix) == 1
-                              name = str(path).split(suffix, 1)[1]
-                              raw = member(name, 4194304)
-                              print("GNU_ALIAS_FAILED_COMMAND " + json.dumps({
-                                  "label": item["label"], "stream": field,
-                                  "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(),
-                                  "tail": raw.decode("utf-8", "replace")[-16000:]
-                              }, sort_keys=True), flush=True)
-
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  payload = response.read(1048577)
+              assert len(payload) <= 1048576
+              row = json.loads(payload)
+              assert row["sha"] == identity and row["encoding"] == "base64"
+              data = base64.b64decode(row["content"], validate=False)
+              assert hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() == identity
+              ast.parse(data, filename="adjudicate-retained-gnu.py")
+              source = evidence / "adjudicate-retained-gnu.py"
+              source.write_bytes(data)
+              print("Authenticated exact artifact-only adjudicator; AST parsing passed.", flush=True)
+              runpy.run_path(str(source), run_name="__main__")
+          except BaseException:
+              (evidence / "launcher-exception.txt").write_text(traceback.format_exc())
+              raise
           PY
+      - name: Retain adjudication and unchanged authenticated producer artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gnu-alias-artifact-adjudication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.ADJUDICATION_ROOT }}/evidence
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
