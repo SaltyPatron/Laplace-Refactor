@@ -1,0 +1,120 @@
+{
+  "schema": "laplace.installed-stockfish-execution-replay-summary/v1",
+  "source": "d2d8a3533d1000cd31f56c6fd92bc11365f0ebac",
+  "package_id": "b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903",
+  "official_stockfish_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+  "source_manifest_sha256": "2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc",
+  "profile": "\\x2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
+  "files": 119,
+  "bytes": 1172144,
+  "cpp_files": 72,
+  "readback": {
+    "all_artifacts_exact": true,
+    "database_row_counts": {
+      "attestation": 1114688,
+      "entity": 1172698,
+      "physicality": 1172837
+    },
+    "execution_witness_fingerprint": "72d55708a37ad0d3826ae563da6f73466d1bc2cfd875bb4dcad4d5eb915b4416",
+    "historical_structural_receipt_id": "7153d1a91f8f7ec3b8e30b23897225b6b4c3464964316bf1bea9d92f0e928365",
+    "schema": "laplace.verified-git-source-readback/v1",
+    "source_occurrence_count": 239,
+    "structural_execution_observation_count": 571626,
+    "structural_execution_receipt_count": 1,
+    "structural_execution_receipt_id": "77b5a4a0b4aa5519dcd4baeb889d93d7ab04867516edbc613b216e0a6dcb89d5",
+    "structural_receipt_count": 1,
+    "structural_witness_count": 571626,
+    "structural_witness_fingerprint": "9452e0acc7e18a8d6c2610c815cdcdd1a78ffee32a46fbc4a9f136301998cee5",
+    "verified_byte_count": 1172144,
+    "verified_file_count": 119
+  },
+  "repeat": {
+    "execution_witness_fingerprint": "72d55708a37ad0d3826ae563da6f73466d1bc2cfd875bb4dcad4d5eb915b4416",
+    "historical_structural_receipt_id": "7153d1a91f8f7ec3b8e30b23897225b6b4c3464964316bf1bea9d92f0e928365",
+    "source_occurrence_delta": 0,
+    "structural_execution_observation_delta": 0,
+    "structural_execution_receipt_delta": 0,
+    "structural_execution_receipt_id": "77b5a4a0b4aa5519dcd4baeb889d93d7ab04867516edbc613b216e0a6dcb89d5",
+    "structural_witness_delta": 0,
+    "substrate_row_deltas": {
+      "attestation": 0,
+      "entity": 0,
+      "physicality": 0
+    },
+    "verified_byte_count": 1172144,
+    "verified_file_count": 119
+  },
+  "first_output_sha256": "041129ae6c375adb709ab6bfeb0d5d648e2a0a0587d865f11474ed19118a6da0",
+  "repeat_output_sha256": "041129ae6c375adb709ab6bfeb0d5d648e2a0a0587d865f11474ed19118a6da0",
+  "times": {
+    "grammar-qualification": {
+      "started": "2026-09-17T12:12:36.720Z",
+      "ended": "2026-09-17T12:12:44.035Z",
+      "seconds": 7.314887046813965
+    },
+    "admission": {
+      "started": "2026-09-17T12:12:44.420Z",
+      "ended": "2026-09-17T12:14:10.153Z",
+      "seconds": 85.73285865783691
+    },
+    "repeat": {
+      "started": "2026-09-17T12:14:10.507Z",
+      "ended": "2026-09-17T12:15:06.460Z",
+      "seconds": 55.95370888710022
+    }
+  },
+  "artifact": {
+    "artifact_id": 10495964088,
+    "job_id": 105196806333,
+    "repository": "SaltyPatron/Laplace-Refactor",
+    "run_id": 35216221036,
+    "zip_bytes": 3017055,
+    "zip_sha256": "ef5c5cb5e1defbe2c916110ec68b9ae870693933e030c17d1b4224e3b47113a4"
+  },
+  "reader": {
+    "run": 35220249735,
+    "job": 105198318176,
+    "result": "passed"
+  },
+  "first_pass_global_entity_physicality_delta_measured": false,
+  "executable_semantics_verified": false,
+  "service": {
+    "activation_job": 105189724759,
+    "activation_result": "success",
+    "cognition_service": "laplace-refactor-cognition.service",
+    "cold_boot_proven": false,
+    "external_reachability_verified": false,
+    "health": {
+      "database": "laplace_refactor",
+      "highway_present": true,
+      "package_id": "b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903",
+      "status": "ready",
+      "unicode_present": true
+    },
+    "http_artifact_authentication": "passed",
+    "loopback_http_readiness_url": "http://127.0.0.1:55434",
+    "package": "b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903",
+    "postgresql_database": "laplace_refactor",
+    "postgresql_port": 55433,
+    "postgresql_provider": "systemd-system",
+    "postgresql_system_identifier": "7682119102860556519",
+    "public_readback_receipt_sha256": "8dbe65e75207c342ec0170048aaa0f8efa5f57a842a2ade6a198f70fe6bb638b",
+    "scope": "user",
+    "service_reader_job": 105197460824,
+    "service_reader_run": 35219987312,
+    "source": "d2d8a3533d1000cd31f56c6fd92bc11365f0ebac",
+    "unit": {
+      "ActiveState": "active",
+      "ControlGroup": "/user.slice/user-994.slice/user@994.service/app.slice/laplace-refactor-cognition.service",
+      "DropInPaths": "",
+      "FragmentPath": "/var/lib/agents/laplace-runner/.config/systemd/user/laplace-refactor-cognition.service",
+      "LoadState": "loaded",
+      "MainPID": "1866364",
+      "NeedDaemonReload": "no",
+      "SubState": "running",
+      "UnitFileState": "enabled",
+      "User": ""
+    },
+    "warm_restart_to_verified_health_seconds": 0.7712932559661567
+  }
+}

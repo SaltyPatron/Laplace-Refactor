@@ -1,0 +1,2097 @@
+{
+  "encoding": {
+    "byte_ranges": "Zero-based UTF-8 offsets, half-open [byte_start,byte_end); MISSING nodes may have empty ranges.",
+    "finding_coordinates": "Each [artifact_index,span_index] pair refers to the same node table.",
+    "grammar_kind_base": "0x4350500000000000",
+    "large_integers": "Integers outside JavaScript's exact signed safe range are decimal strings. All retained grammar_kind values preserve the exact persisted integer.",
+    "node_coordinate_scope": "artifact_index and span_index jointly identify a diagnostic only within input.source_profile_id and its authenticated manifest; these coordinates are not new canonical entity IDs.",
+    "source_line": "One-based source line from the authenticated extraction.",
+    "symbol_validation": "Node, parent and grandparent kind bases and low-16 symbol IDs were checked using exact BigInt arithmetic against extracted symbol metadata; no C ABI or unavailable symbol-name inference."
+  },
+  "executable_semantics_verified": false,
+  "findings": [
+    {
+      "construct": "for (Square s = sq; Bitboard dest = safe_destination(s, d); s += d)",
+      "coordinates": [
+        [
+          39,
+          1551
+        ]
+      ],
+      "finding": "The condition permits expression/comma_expression or empty; it does not permit a condition declaration.",
+      "followup": "The authentic isolated case is accepted without ERROR/MISSING by the executed three-rule derivative and canonical native regression. Product selection/installation and persisted coordinate recount remain separate.",
+      "grammar_rules": [
+        "_for_statement_body"
+      ],
+      "id": "for-condition-declaration",
+      "status": "confirmed-parser-limitation-corrected-in-hosted-derivative",
+      "execution_record": "STOCKFISH_CPP_PROVIDER_QUALIFICATION.json"
+    },
+    {
+      "construct": "operator float() const = delete;",
+      "coordinates": [
+        [
+          57,
+          112
+        ]
+      ],
+      "finding": "The conversion-operator declaration accepts '= expression'; it does not use the separate delete_method_clause.",
+      "followup": "The authentic isolated case is accepted without ERROR/MISSING by the executed three-rule derivative and canonical native regression. Product selection/installation and persisted coordinate recount remain separate.",
+      "grammar_rules": [
+        "operator_cast_declaration",
+        "delete_method_clause"
+      ],
+      "id": "deleted-conversion-operator",
+      "status": "confirmed-parser-limitation-corrected-in-hosted-derivative",
+      "execution_record": "STOCKFISH_CPP_PROVIDER_QUALIFICATION.json"
+    },
+    {
+      "construct": "(th->worker.get()->*member).load(...)",
+      "coordinates": [
+        [
+          94,
+          1132
+        ]
+      ],
+      "finding": "The authentic isolated Stockfish expression produces one ERROR and no MISSING under the locked, regenerated-baseline and candidate parsers. The candidate leaves pointer-member grammar behavior unchanged.",
+      "followup": "A separate generic correction requires precedence/associativity checks. Unchanged-CST parity is not valid-parse acceptance; eight of nine observed pointer cases retain ERROR/MISSING.",
+      "grammar_rules": [
+        "field_expression",
+        "binary_expression",
+        "_binary_fold_operator",
+        "_fold_operator",
+        "operator_name"
+      ],
+      "id": "pointer-to-member-operator",
+      "status": "reproduced-parser-limitation-unfixed-by-three-rule-derivative",
+      "execution_record": "STOCKFISH_CPP_PROVIDER_QUALIFICATION.json"
+    },
+    {
+      "construct": "using Ts::operator()...;",
+      "coordinates": [
+        [
+          103,
+          172
+        ]
+      ],
+      "finding": "The using declaration requires ';' after the identifier choice and has no pack-expansion ellipsis.",
+      "followup": "The authentic isolated case is accepted without ERROR/MISSING by the executed three-rule derivative and canonical native regression. Product selection/installation and persisted coordinate recount remain separate.",
+      "grammar_rules": [
+        "using_declaration"
+      ],
+      "id": "using-pack-expansion",
+      "status": "confirmed-parser-limitation-corrected-in-hosted-derivative",
+      "execution_record": "STOCKFISH_CPP_PROVIDER_QUALIFICATION.json"
+    },
+    {
+      "coordinates": [
+        [
+          39,
+          1574
+        ],
+        [
+          39,
+          1605
+        ],
+        [
+          39,
+          1617
+        ]
+      ],
+      "finding": "Recovery extends through nearby statements and the next function after the line-203 condition. These three rows may be cascading and are not three separately established grammar defects.",
+      "followup": "Reparse after a narrowly qualified condition fix and compare these same source coordinates.",
+      "id": "possible-cascade-from-for-condition",
+      "related_finding": "for-condition-declaration",
+      "status": "inference-not-isolated"
+    },
+    {
+      "construct": "(j = H2(moveKey), cuckoo[j] == moveKey)",
+      "coordinates": [
+        [
+          83,
+          13562
+        ]
+      ],
+      "finding": "The relevant assignment and parenthesized comma productions exist. The observed recovery is unresolved; the evidence does not establish that comma expressions are unsupported.",
+      "followup": "Reproduce the exact enclosing if condition and reduce it before assigning a root cause.",
+      "grammar_rules": [
+        "assignment_expression",
+        "parenthesized_expression",
+        "comma_expression"
+      ],
+      "id": "unresolved-assignment-comma-recovery",
+      "status": "unresolved"
+    },
+    {
+      "coordinates": [
+        [
+          80,
+          881
+        ],
+        [
+          80,
+          891
+        ],
+        [
+          80,
+          894
+        ],
+        [
+          80,
+          899
+        ],
+        [
+          80,
+          909
+        ],
+        [
+          80,
+          912
+        ],
+        [
+          80,
+          917
+        ],
+        [
+          80,
+          927
+        ],
+        [
+          80,
+          930
+        ],
+        [
+          80,
+          935
+        ],
+        [
+          80,
+          945
+        ],
+        [
+          80,
+          948
+        ],
+        [
+          80,
+          953
+        ],
+        [
+          80,
+          963
+        ],
+        [
+          80,
+          966
+        ],
+        [
+          80,
+          971
+        ],
+        [
+          80,
+          981
+        ],
+        [
+          80,
+          984
+        ],
+        [
+          80,
+          989
+        ],
+        [
+          80,
+          999
+        ],
+        [
+          80,
+          1002
+        ],
+        [
+          80,
+          1007
+        ],
+        [
+          80,
+          1017
+        ],
+        [
+          80,
+          1020
+        ]
+      ],
+      "finding": "Twenty-four rows occur around eight aliases with GNU __attribute__((may_alias)). alias_declaration repeats the standard attribute_declaration rule; the GNU attribute_specifier is a distinct rule.",
+      "followup": "Keep the GNU extension group distinct and qualify any generic attribute grammar change.",
+      "grammar_rules": [
+        "alias_declaration",
+        "attribute_declaration",
+        "attribute_specifier"
+      ],
+      "id": "gnu-alias-attribute-context",
+      "status": "locked-rule-mismatch-with-unisolated-recovery"
+    },
+    {
+      "coordinates": [
+        [
+          55,
+          234
+        ],
+        [
+          55,
+          244
+        ]
+      ],
+      "finding": "Two rows occur in __extension__ using aliases for signed/unsigned __int128. The compound extension/alias cause has not been isolated.",
+      "followup": "Reduce the exact extension and alias declarations before assigning a narrower cause.",
+      "id": "gnu-extension-alias-context",
+      "status": "contextual-association-not-isolated"
+    }
+  ],
+  "grammar": {
+    "commit": "8b5b49eb196bec7040441bee33b2c9a4838d6967",
+    "declared_lock_inputs": {
+      "external_scanners": [
+        {
+          "path": "src/scanner.c",
+          "sha256": "cf60387d290271f4d2fb558d0569b2b9ef879cb72206a9df5cc73b0b1a4b20ff"
+        }
+      ],
+      "generated_parsers": [
+        {
+          "path": "src/parser.c",
+          "sha256": "0007727b6e1fbc07657b6a4bf5dc39f524c6009fa347f9faaf180fa9ab17e999"
+        }
+      ],
+      "git_archive_sha256": "a162edeecfebe736bc561d826dd6d694b78ac970f70a1d4b6dbf5f07429a768a",
+      "verification_scope": "Values read from the frozen Refactor lock; parser/scanner/archive bytes were not independently rehashed in this classification review."
+    },
+    "lock_git_blob_sha1": "da364f3938a9d23fd54a1857431817c9b14a7453",
+    "lock_path": "dependencies/tree-sitter-grammars.lock.json",
+    "lock_repository_commit": "b042de4216e1d674effe5bd3e8ecf3ebc7aeddac",
+    "repository": "https://github.com/tree-sitter/tree-sitter-cpp",
+    "reviewed_source_files": [
+      {
+        "byte_count": 43970,
+        "git_blob_sha1": "ffbaf0f13b6bfd756635f50a484192f35f6fdd0e",
+        "path": "grammar.js",
+        "sha256": "4545b6bf72e8a38d3e9a6c9a3deb9dbce37dfce357133c1b9e3a172831234622",
+        "url": "https://github.com/tree-sitter/tree-sitter-cpp/blob/8b5b49eb196bec7040441bee33b2c9a4838d6967/grammar.js",
+        "verification": "exact UTF-8 bytes hashed and Git blob SHA1 matched to the locked upstream commit tree"
+      },
+      {
+        "byte_count": 458800,
+        "git_blob_sha1": "a091cbff0611375b03e738af6a438df6010ba9c3",
+        "path": "src/grammar.json",
+        "sha256": "3aa14b0b6ef87951ef9933d126f6d9774bc7d7dba11e7be1861820e381d36455",
+        "url": "https://github.com/tree-sitter/tree-sitter-cpp/blob/8b5b49eb196bec7040441bee33b2c9a4838d6967/src/grammar.json",
+        "verification": "exact UTF-8 bytes hashed and Git blob SHA1 matched to the locked upstream commit tree"
+      }
+    ],
+    "tree": "d5ed868917a07bcc8272f37e551d707e7a836f95"
+  },
+  "groups": [
+    {
+      "basis": "Unexpanded annotation/statement/declaration/string macros, including RESTRICT, sf_always_inline, stringify/dot_ver2, PRI macros, DISABLE_CLANG_LOOP_VEC, ENABLE_INCR_OPERATORS_ON and DEFINE_BUILD. Contextual association does not establish that expansion resolves every row.",
+      "count": 55,
+      "error_nodes": 31,
+      "id": "macro-expansion-context",
+      "missing_nodes": 24,
+      "nodes": [
+        [
+          39,
+          487,
+          "src/attacks.h",
+          97,
+          2953,
+          2961,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246561",
+          "4850464759608246585",
+          null
+        ],
+        [
+          54,
+          1224,
+          "src/misc.cpp",
+          209,
+          5761,
+          5761,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246595",
+          "4850464759608246655",
+          null
+        ],
+        [
+          54,
+          1230,
+          "src/misc.cpp",
+          209,
+          5765,
+          5765,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246595",
+          "4850464759608246655",
+          null
+        ],
+        [
+          54,
+          1316,
+          "src/misc.cpp",
+          220,
+          6131,
+          6131,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246595",
+          "4850464759608246655",
+          null
+        ],
+        [
+          54,
+          1325,
+          "src/misc.cpp",
+          220,
+          6156,
+          6164,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246616",
+          "4850464759608246595",
+          null
+        ],
+        [
+          60,
+          1486,
+          "src/nnue/features/full_threats.cpp",
+          192,
+          6297,
+          6306,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246548",
+          null
+        ],
+        [
+          64,
+          250,
+          "src/nnue/features/pp_3wide.cpp",
+          49,
+          1677,
+          1685,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246780",
+          "4850464759608246564",
+          null
+        ],
+        [
+          72,
+          1893,
+          "src/nnue/nnue_accumulator.cpp",
+          239,
+          9887,
+          9891,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246653",
+          null
+        ],
+        [
+          72,
+          1945,
+          "src/nnue/nnue_accumulator.cpp",
+          244,
+          10055,
+          10059,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246653",
+          null
+        ],
+        [
+          72,
+          2000,
+          "src/nnue/nnue_accumulator.cpp",
+          249,
+          10226,
+          10234,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246653",
+          null
+        ],
+        [
+          72,
+          2052,
+          "src/nnue/nnue_accumulator.cpp",
+          254,
+          10399,
+          10403,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246653",
+          null
+        ],
+        [
+          72,
+          2107,
+          "src/nnue/nnue_accumulator.cpp",
+          259,
+          10577,
+          10581,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246653",
+          null
+        ],
+        [
+          72,
+          2138,
+          "src/nnue/nnue_accumulator.cpp",
+          261,
+          10677,
+          10681,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246653",
+          null
+        ],
+        [
+          72,
+          2177,
+          "src/nnue/nnue_accumulator.cpp",
+          266,
+          10806,
+          10810,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246677",
+          null
+        ],
+        [
+          72,
+          2305,
+          "src/nnue/nnue_accumulator.cpp",
+          278,
+          11236,
+          11244,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246677",
+          null
+        ],
+        [
+          72,
+          2433,
+          "src/nnue/nnue_accumulator.cpp",
+          290,
+          11675,
+          11679,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246677",
+          null
+        ],
+        [
+          72,
+          2872,
+          "src/nnue/nnue_accumulator.cpp",
+          347,
+          13451,
+          13455,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246654",
+          null
+        ],
+        [
+          72,
+          2973,
+          "src/nnue/nnue_accumulator.cpp",
+          355,
+          13690,
+          13694,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246654",
+          null
+        ],
+        [
+          72,
+          3066,
+          "src/nnue/nnue_accumulator.cpp",
+          361,
+          13897,
+          13905,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246654",
+          null
+        ],
+        [
+          72,
+          3167,
+          "src/nnue/nnue_accumulator.cpp",
+          369,
+          14158,
+          14162,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246654",
+          null
+        ],
+        [
+          72,
+          3260,
+          "src/nnue/nnue_accumulator.cpp",
+          375,
+          14380,
+          14384,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246654",
+          null
+        ],
+        [
+          72,
+          3286,
+          "src/nnue/nnue_accumulator.cpp",
+          377,
+          14462,
+          14466,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246654",
+          null
+        ],
+        [
+          72,
+          3320,
+          "src/nnue/nnue_accumulator.cpp",
+          380,
+          14572,
+          14576,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246677",
+          null
+        ],
+        [
+          72,
+          4021,
+          "src/nnue/nnue_accumulator.cpp",
+          433,
+          16732,
+          16736,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246677",
+          null
+        ],
+        [
+          72,
+          4180,
+          "src/nnue/nnue_accumulator.cpp",
+          444,
+          17110,
+          17118,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246677",
+          null
+        ],
+        [
+          72,
+          4346,
+          "src/nnue/nnue_accumulator.cpp",
+          457,
+          17549,
+          17553,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246677",
+          null
+        ],
+        [
+          72,
+          4623,
+          "src/nnue/nnue_accumulator.cpp",
+          476,
+          18378,
+          18386,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246677",
+          null
+        ],
+        [
+          89,
+          3301,
+          "src/shm.h",
+          514,
+          16189,
+          16195,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246638",
+          "4850464759608246628",
+          null
+        ],
+        [
+          90,
+          1555,
+          "src/shm_unix.h",
+          231,
+          6969,
+          6975,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246638",
+          "4850464759608246628",
+          null
+        ],
+        [
+          91,
+          6571,
+          "src/syzygy/tbprobe.cpp",
+          886,
+          31733,
+          31733,
+          18,
+          false,
+          true,
+          "4850464759608246280",
+          "4850464759608246588",
+          "4850464759608246564",
+          null
+        ],
+        [
+          91,
+          6579,
+          "src/syzygy/tbprobe.cpp",
+          886,
+          31745,
+          31749,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246573",
+          "4850464759608246596",
+          null
+        ],
+        [
+          91,
+          6746,
+          "src/syzygy/tbprobe.cpp",
+          909,
+          32481,
+          32481,
+          18,
+          false,
+          true,
+          "4850464759608246280",
+          "4850464759608246588",
+          "4850464759608246564",
+          null
+        ],
+        [
+          91,
+          6754,
+          "src/syzygy/tbprobe.cpp",
+          909,
+          32493,
+          32497,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246573",
+          "4850464759608246596",
+          null
+        ],
+        [
+          91,
+          6794,
+          "src/syzygy/tbprobe.cpp",
+          916,
+          32728,
+          32728,
+          18,
+          false,
+          true,
+          "4850464759608246280",
+          "4850464759608246588",
+          "4850464759608246564",
+          null
+        ],
+        [
+          91,
+          6810,
+          "src/syzygy/tbprobe.cpp",
+          916,
+          32750,
+          32754,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246573",
+          "4850464759608246532",
+          null
+        ],
+        [
+          91,
+          6871,
+          "src/syzygy/tbprobe.cpp",
+          924,
+          32968,
+          32968,
+          18,
+          false,
+          true,
+          "4850464759608246280",
+          "4850464759608246588",
+          "4850464759608246564",
+          null
+        ],
+        [
+          91,
+          6879,
+          "src/syzygy/tbprobe.cpp",
+          924,
+          32980,
+          32984,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246573",
+          "4850464759608246596",
+          null
+        ],
+        [
+          91,
+          7563,
+          "src/syzygy/tbprobe.cpp",
+          1009,
+          36739,
+          36739,
+          18,
+          false,
+          true,
+          "4850464759608246280",
+          "4850464759608246588",
+          "4850464759608246564",
+          null
+        ],
+        [
+          91,
+          7571,
+          "src/syzygy/tbprobe.cpp",
+          1009,
+          36756,
+          36761,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246573",
+          "4850464759608246602",
+          null
+        ],
+        [
+          102,
+          1904,
+          "src/types.h",
+          362,
+          11743,
+          11743,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246595",
+          "4850464759608246548",
+          null
+        ],
+        [
+          102,
+          1912,
+          "src/types.h",
+          363,
+          11776,
+          11776,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246595",
+          "4850464759608246548",
+          null
+        ],
+        [
+          102,
+          1920,
+          "src/types.h",
+          364,
+          11807,
+          11807,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246595",
+          "4850464759608246548",
+          null
+        ],
+        [
+          102,
+          1928,
+          "src/types.h",
+          365,
+          11838,
+          11838,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246595",
+          "4850464759608246548",
+          null
+        ],
+        [
+          107,
+          46,
+          "src/universal/entry_arm64.cpp",
+          43,
+          1450,
+          1450,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          107,
+          54,
+          "src/universal/entry_arm64.cpp",
+          44,
+          1478,
+          1478,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          108,
+          39,
+          "src/universal/entry_riscv64.cpp",
+          39,
+          1445,
+          1445,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          108,
+          47,
+          "src/universal/entry_riscv64.cpp",
+          40,
+          1473,
+          1473,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          109,
+          63,
+          "src/universal/entry_x86.cpp",
+          61,
+          2366,
+          2366,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          109,
+          71,
+          "src/universal/entry_x86.cpp",
+          62,
+          2400,
+          2400,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          109,
+          79,
+          "src/universal/entry_x86.cpp",
+          63,
+          2426,
+          2426,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          109,
+          87,
+          "src/universal/entry_x86.cpp",
+          64,
+          2452,
+          2452,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          109,
+          95,
+          "src/universal/entry_x86.cpp",
+          65,
+          2481,
+          2481,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          109,
+          103,
+          "src/universal/entry_x86.cpp",
+          66,
+          2509,
+          2509,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          109,
+          111,
+          "src/universal/entry_x86.cpp",
+          67,
+          2538,
+          2538,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ],
+        [
+          109,
+          120,
+          "src/universal/entry_x86.cpp",
+          70,
+          2666,
+          2666,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246594",
+          "4850464759608246497",
+          null
+        ]
+      ]
+    },
+    {
+      "basis": "Conditional directives embedded in declarations/statements, #embed, and macro definitions/token pasting. Includes three rows inside RVV_SPARSE_PROPAGATE; grouping follows raw source structure, not proven root cause.",
+      "count": 13,
+      "error_nodes": 11,
+      "id": "preprocessor-structure",
+      "missing_nodes": 2,
+      "nodes": [
+        [
+          50,
+          886,
+          "src/incbin/incbin.h",
+          414,
+          13456,
+          13569,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246507",
+          "4850464759608246506",
+          null
+        ],
+        [
+          51,
+          86,
+          "src/main.cpp",
+          37,
+          1114,
+          1120,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246532",
+          "4850464759608246548",
+          null
+        ],
+        [
+          51,
+          228,
+          "src/main.cpp",
+          55,
+          1446,
+          1446,
+          18,
+          false,
+          true,
+          "4850464759608246283",
+          "4850464759608246653",
+          "4850464759608246548",
+          null
+        ],
+        [
+          52,
+          16,
+          "src/memory.cpp",
+          24,
+          845,
+          876,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246497",
+          0,
+          null
+        ],
+        [
+          55,
+          2897,
+          "src/misc.h",
+          339,
+          11167,
+          11192,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246585",
+          "4850464759608246583",
+          null
+        ],
+        [
+          66,
+          2399,
+          "src/nnue/layers/affine_transform.h",
+          290,
+          11645,
+          11645,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246595",
+          "4850464759608246602",
+          null
+        ],
+        [
+          67,
+          1108,
+          "src/nnue/layers/affine_transform_sparse_input.h",
+          178,
+          6769,
+          6772,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246572",
+          "4850464759608246533",
+          null
+        ],
+        [
+          67,
+          1136,
+          "src/nnue/layers/affine_transform_sparse_input.h",
+          179,
+          6855,
+          6856,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246619",
+          "4850464759608246619",
+          null
+        ],
+        [
+          67,
+          3516,
+          "src/nnue/layers/affine_transform_sparse_input.h",
+          385,
+          15472,
+          16353,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246501",
+          "4850464759608246573",
+          null
+        ],
+        [
+          67,
+          3529,
+          "src/nnue/layers/affine_transform_sparse_input.h",
+          401,
+          16347,
+          16348,
+          5,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608311807",
+          "4850464759608246501",
+          null
+        ],
+        [
+          67,
+          3531,
+          "src/nnue/layers/affine_transform_sparse_input.h",
+          401,
+          16351,
+          16353,
+          5,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608311807",
+          "4850464759608246501",
+          null
+        ],
+        [
+          110,
+          406,
+          "src/universal/nnue_embed.cpp",
+          73,
+          2539,
+          2545,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246572",
+          "4850464759608246533",
+          null
+        ],
+        [
+          110,
+          412,
+          "src/universal/nnue_embed.cpp",
+          75,
+          2570,
+          2576,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246642",
+          "4850464759608246640",
+          null
+        ]
+      ]
+    },
+    {
+      "basis": "Twenty-four rows around eight may_alias aliases and two extension-qualified 128-bit aliases.",
+      "count": 26,
+      "error_nodes": 10,
+      "id": "gnu-extension-recovery",
+      "missing_nodes": 16,
+      "nodes": [
+        [
+          55,
+          234,
+          "src/misc.h",
+          63,
+          1757,
+          1765,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246652",
+          "gnu-extension-alias-context"
+        ],
+        [
+          55,
+          244,
+          "src/misc.h",
+          64,
+          1794,
+          1800,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246572",
+          "4850464759608246533",
+          "gnu-extension-alias-context"
+        ],
+        [
+          80,
+          881,
+          "src/nnue/simd.h",
+          171,
+          5747,
+          5747,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246726",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          891,
+          "src/nnue/simd.h",
+          171,
+          5776,
+          5777,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          894,
+          "src/nnue/simd.h",
+          171,
+          5786,
+          5786,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          899,
+          "src/nnue/simd.h",
+          172,
+          5805,
+          5805,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246726",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          909,
+          "src/nnue/simd.h",
+          172,
+          5833,
+          5834,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          912,
+          "src/nnue/simd.h",
+          172,
+          5844,
+          5844,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          917,
+          "src/nnue/simd.h",
+          173,
+          5863,
+          5863,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246726",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          927,
+          "src/nnue/simd.h",
+          173,
+          5891,
+          5892,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          930,
+          "src/nnue/simd.h",
+          173,
+          5902,
+          5902,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          935,
+          "src/nnue/simd.h",
+          174,
+          5921,
+          5921,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246726",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          945,
+          "src/nnue/simd.h",
+          174,
+          5949,
+          5950,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          948,
+          "src/nnue/simd.h",
+          174,
+          5961,
+          5961,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          953,
+          "src/nnue/simd.h",
+          175,
+          5980,
+          5980,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246726",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          963,
+          "src/nnue/simd.h",
+          175,
+          6008,
+          6009,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          966,
+          "src/nnue/simd.h",
+          175,
+          6019,
+          6019,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          971,
+          "src/nnue/simd.h",
+          177,
+          6033,
+          6033,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246726",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          981,
+          "src/nnue/simd.h",
+          177,
+          6066,
+          6067,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          984,
+          "src/nnue/simd.h",
+          177,
+          6077,
+          6077,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          989,
+          "src/nnue/simd.h",
+          178,
+          6093,
+          6093,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246726",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          999,
+          "src/nnue/simd.h",
+          178,
+          6123,
+          6124,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          1002,
+          "src/nnue/simd.h",
+          178,
+          6134,
+          6134,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          1007,
+          "src/nnue/simd.h",
+          179,
+          6152,
+          6152,
+          18,
+          false,
+          true,
+          "4850464759608246314",
+          "4850464759608246726",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          1017,
+          "src/nnue/simd.h",
+          179,
+          6180,
+          6181,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ],
+        [
+          80,
+          1020,
+          "src/nnue/simd.h",
+          179,
+          6191,
+          6191,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246533",
+          "4850464759608246655",
+          "gnu-alias-attribute-context"
+        ]
+      ]
+    },
+    {
+      "basis": "Four rule-supported ordinary C++ grammar limitations, three possible cascade rows, and one unresolved assignment/comma recovery.",
+      "count": 8,
+      "error_nodes": 6,
+      "id": "ordinary-cpp-recovery",
+      "missing_nodes": 2,
+      "nodes": [
+        [
+          39,
+          1551,
+          "src/attacks.h",
+          203,
+          7325,
+          7538,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246731",
+          "4850464759608246731",
+          "for-condition-declaration"
+        ],
+        [
+          39,
+          1574,
+          "src/attacks.h",
+          205,
+          7401,
+          7417,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246564",
+          "4850464759608311807",
+          "possible-cascade-from-for-condition"
+        ],
+        [
+          39,
+          1605,
+          "src/attacks.h",
+          214,
+          7552,
+          7567,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246564",
+          "4850464759608246731",
+          "possible-cascade-from-for-condition"
+        ],
+        [
+          39,
+          1617,
+          "src/attacks.h",
+          215,
+          7577,
+          7577,
+          18,
+          false,
+          true,
+          "4850464759608246280",
+          "4850464759608246588",
+          "4850464759608246564",
+          "possible-cascade-from-for-condition"
+        ],
+        [
+          57,
+          112,
+          "src/movegen.h",
+          46,
+          1273,
+          1273,
+          19,
+          false,
+          true,
+          "4850464759608246273",
+          "4850464759608246746",
+          "4850464759608246695",
+          "deleted-conversion-operator"
+        ],
+        [
+          83,
+          13562,
+          "src/position.cpp",
+          1549,
+          53926,
+          53938,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246783",
+          "4850464759608246641",
+          "unresolved-assignment-comma-recovery"
+        ],
+        [
+          94,
+          1132,
+          "src/thread.h",
+          175,
+          6047,
+          6056,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246641",
+          "4850464759608246639",
+          "pointer-to-member-operator"
+        ],
+        [
+          103,
+          172,
+          "src/uci.cpp",
+          54,
+          1456,
+          1459,
+          29,
+          true,
+          false,
+          "4850464759608311807",
+          "4850464759608246726",
+          "4850464759608246583",
+          "using-pack-expansion"
+        ]
+      ]
+    }
+  ],
+  "input": {
+    "activation_unchanged": true,
+    "authenticated_reader": {
+      "artifact_verification": "The hosted reader checked producer run, unexpired artifact metadata digest, exact downloaded archive size and SHA256 before reading diagnostics.json.",
+      "emitted_json_sha256": "e6126f1022e017ca175c497a4c449f796ccf9b0cdd160503b4df3cd17bca9ac8",
+      "hash_scope": "Exact emitted JSON bytes after the log prefix, excluding timestamp/prefix and terminal newline; not the raw artifact member digest.",
+      "job_id": 105043502755,
+      "log_prefix": "PERSISTED_SYNTAX_DIAGNOSTICS ",
+      "workflow_run_id": 35171351580
+    },
+    "database_access": "repeatable-read read-only transaction; exact profile and ERROR/MISSING flags",
+    "diagnostics": {
+      "artifact_byte_count": 331918,
+      "artifact_id": 10476716479,
+      "artifact_sha256": "f857f717882a5310f4828bfcc564b0fa0b29ffb3ebac2496d98521fb68bd7386",
+      "member": "diagnostics.json",
+      "schema": "laplace.stockfish-persisted-syntax-diagnostics/v1",
+      "workflow_head_commit": "557d468b41b1a42c66dbb35e795b45e009ce9ae6",
+      "workflow_run_id": 35168832815
+    },
+    "installed_package_id": "912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe",
+    "manifest_sha256": "2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc",
+    "persisted_profile_counts": {
+      "error_count": 102,
+      "lossy_count": 0,
+      "malformed_count": 0,
+      "profile_id": "2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
+      "unknown_count": 0,
+      "unsupported_count": 0
+    },
+    "qualified_corpus_artifact_sha256": "a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007",
+    "repository": "SaltyPatron/Laplace-Refactor",
+    "source_profile_id": "2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
+    "stockfish_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+    "stockfish_repository": "https://github.com/official-stockfish/Stockfish"
+  },
+  "interpretation": {
+    "counts_are": "Persisted ERROR/MISSING nodes, not independent source defects; nested and cascading recovery may create multiple rows.",
+    "database_mutations": false,
+    "grouping_is": "An exhaustive manual source-context partition of existing rows; it does not change persisted flags, identities or profile classification.",
+    "limits": [
+      "No blanket harmless-preprocessor conclusion.",
+      "Successful preprocessing, compilation of every corpus branch, and executable semantics are not established by this classification.",
+      "Persisted unsupported_count=0 and unknown_count=0 do not establish that the grammar handles every valid C++ construct.",
+      "Canonical source/entity identities and source bytes remain unchanged; any corrected grammar needs explicit provenance and comparison evidence.",
+      "The earlier three-rule native plan reports 96 ERROR/MISSING nodes and the later pointer-member plan reports 95; neither replaces the historical persisted102 record or enumerates every changed coordinate."
+    ],
+    "persisted_parser_or_profile_changes_applied": false,
+    "hosted_derivative_parser_executed": true,
+    "hosted_execution_record": "STOCKFISH_CPP_PROVIDER_QUALIFICATION.json"
+  },
+  "node_columns": [
+    "artifact_index",
+    "span_index",
+    "path",
+    "source_line",
+    "byte_start",
+    "byte_end",
+    "syntax_flags",
+    "is_error",
+    "is_missing",
+    "grammar_kind",
+    "parent_grammar_kind",
+    "grandparent_grammar_kind",
+    "finding"
+  ],
+  "review_method": "The original review partitioned authenticated persisted diagnostics by exact source context. Later authenticated hosted experiments and canonical native qualification confirm three corrected syntax rules and retain the pointer-member error. Persisted rows and their grouping are unchanged.",
+  "reviewed_on": "2026-09-17",
+  "schema": "laplace.stockfish-syntax-diagnostic-classification/v1",
+  "source_files": [
+    {
+      "artifact_index": 39,
+      "path": "src/attacks.h",
+      "sha256": "561d2eb1268ba66e7aa065387a033e686a49925d8e8c58a75826239a358cb1f5"
+    },
+    {
+      "artifact_index": 50,
+      "path": "src/incbin/incbin.h",
+      "sha256": "70995329299ec55d414ad6df6929ddcfe0a43a40102cf6c05ff3c74ddd2765cb"
+    },
+    {
+      "artifact_index": 51,
+      "path": "src/main.cpp",
+      "sha256": "20ecc928260f46dfa3622ef0a4d810fe880322b1444659d155ce295be84b343a"
+    },
+    {
+      "artifact_index": 52,
+      "path": "src/memory.cpp",
+      "sha256": "7181c3b2c98d4ac247e7d0282b1cf265c9f00768a0e01e5adf8854de6ac24537"
+    },
+    {
+      "artifact_index": 54,
+      "path": "src/misc.cpp",
+      "sha256": "9a5a58e3404afc0a30de142b1b81049877b42cee308379654253c593b9e14513"
+    },
+    {
+      "artifact_index": 55,
+      "path": "src/misc.h",
+      "sha256": "fa97bd3c16ab7ea48f1e1e392f7723843daaa6aa0056a43127facb158ccc10d4"
+    },
+    {
+      "artifact_index": 57,
+      "path": "src/movegen.h",
+      "sha256": "8180128aafed4aacdfc75999b17e7cb64da250b6c94b87e06a2e1bf65b3a6276"
+    },
+    {
+      "artifact_index": 60,
+      "path": "src/nnue/features/full_threats.cpp",
+      "sha256": "4bd9602142ca97cb40ba3c02718236e0e15e41e29913d5917de599288dd23277"
+    },
+    {
+      "artifact_index": 64,
+      "path": "src/nnue/features/pp_3wide.cpp",
+      "sha256": "55dad256e38a27149d48958747131afa6c87a41f6b4771e12c6113bc82b6614f"
+    },
+    {
+      "artifact_index": 66,
+      "path": "src/nnue/layers/affine_transform.h",
+      "sha256": "b0a30ba12d1f11e8fddab66d8592c42ac3ca56233d0117ccf3bb9a9c27fefda2"
+    },
+    {
+      "artifact_index": 67,
+      "path": "src/nnue/layers/affine_transform_sparse_input.h",
+      "sha256": "5471180cbe69b91f7f39278bef5c79ce37f538307cb8f11d3f51fafe9a0eab14"
+    },
+    {
+      "artifact_index": 72,
+      "path": "src/nnue/nnue_accumulator.cpp",
+      "sha256": "4450e090389760851e7aebaf38bb9b1acf0bfca73130ded3e8677a22c7c0824c"
+    },
+    {
+      "artifact_index": 80,
+      "path": "src/nnue/simd.h",
+      "sha256": "3581a018aa6bafa18e130b7ca4c65c27bd59abb987a580ae96c0815e31e2da14"
+    },
+    {
+      "artifact_index": 83,
+      "path": "src/position.cpp",
+      "sha256": "79bb06e1f73768e1a7e6ce39766fde94f481327168cf0aa2580f55a0865f8dec"
+    },
+    {
+      "artifact_index": 89,
+      "path": "src/shm.h",
+      "sha256": "f0c660b640602b35f9fb324fb799cc37448e03c30b678200ce88f565d23a10d5"
+    },
+    {
+      "artifact_index": 90,
+      "path": "src/shm_unix.h",
+      "sha256": "155defb7084b0f81bedb37dbb65c1f399929d7a06952ace2b6cec9d8c5467a70"
+    },
+    {
+      "artifact_index": 91,
+      "path": "src/syzygy/tbprobe.cpp",
+      "sha256": "39d87629573a92ee75c30ea6d76bc53c8aaaa0ea16a706300a840de0a256bc32"
+    },
+    {
+      "artifact_index": 94,
+      "path": "src/thread.h",
+      "sha256": "d39544eea0dc30fa6edd541f5f87ed06af554ba0364161ab04a78b4b9757a897"
+    },
+    {
+      "artifact_index": 102,
+      "path": "src/types.h",
+      "sha256": "9a6bae5b151595eb80b56e90c4496fefa92e013f1772bcc7b3ce60c178bb95f6"
+    },
+    {
+      "artifact_index": 103,
+      "path": "src/uci.cpp",
+      "sha256": "a31fa10719b1d9ecaa23f774f14a5a995be65eeb52722798c2f2bb4255991b21"
+    },
+    {
+      "artifact_index": 107,
+      "path": "src/universal/entry_arm64.cpp",
+      "sha256": "8d344fa02d4a6315c49bae32a5182578557c8543a8f146cf6690495f48691bdf"
+    },
+    {
+      "artifact_index": 108,
+      "path": "src/universal/entry_riscv64.cpp",
+      "sha256": "85ef23b0eeb56620df3dfe149ed2f60b2b6fbee2f66944e22173ac3fd9f718dc"
+    },
+    {
+      "artifact_index": 109,
+      "path": "src/universal/entry_x86.cpp",
+      "sha256": "523fa2ebc9bcca8378ce5a8e46ec0fee21385cc50bfae4eadbcabda6ba3c7225"
+    },
+    {
+      "artifact_index": 110,
+      "path": "src/universal/nnue_embed.cpp",
+      "sha256": "a1c8960bb0f57ca54d83ea99c0170b79061ebeb103bacc7866212e4aba78a3a2"
+    }
+  ],
+  "status": "historical-persisted-partition-with-hosted-parser-followup",
+  "summary": {
+    "diagnostics": 102,
+    "error_nodes": 58,
+    "files": 24,
+    "missing_nodes": 44
+  },
+  "original_static_review": {
+    "status": "reviewed-context-partition-with-unresolved-parser-limitations",
+    "review_method": "Static inspection of exact locked upstream grammar rules against authenticated persisted syntax diagnostics; no isolated parser reproductions executed."
+  },
+  "hosted_followup": {
+    "qualification_record": "STOCKFISH_CPP_PROVIDER_QUALIFICATION.json",
+    "successful_run_id": 35186357806,
+    "successful_job_id": 105089158422,
+    "authenticated_reader_run_id": 35186585000,
+    "derivative_commit": "8ece5afbc1e97f8d4344355b15822110e8231056",
+    "runtime_version": "v0.26.13",
+    "full_native_files": 119,
+    "full_native_bytes": 1172144,
+    "cpp_files": 72,
+    "native_error_or_missing_nodes": 96,
+    "all_files_reconstructed": true,
+    "persisted_error_or_missing_nodes": 102,
+    "persisted_recount_executed": false,
+    "pointer_member_rule_fixed": false,
+    "executable_semantics_verified": false
+  },
+  "latest_pointer_member_followup": {
+    "qualification_record": "STOCKFISH_CPP_POINTER_MEMBER_QUALIFICATION.json",
+    "successful_run_id": 35195112861,
+    "successful_job_id": 105116391601,
+    "derivative_commit": "94fe0c1ba60dee178a4782c1082441631638f51b",
+    "runtime_version": "v0.26.13",
+    "full_native_files": 119,
+    "full_native_bytes": 1172144,
+    "cpp_files": 72,
+    "native_error_or_missing_nodes": 95,
+    "all_files_reconstructed": true,
+    "persisted_error_or_missing_nodes": 102,
+    "persisted_recount_executed": false,
+    "pointer_member_rule_fixed": true,
+    "exact_pointer_shape_controls_passed": 18,
+    "executable_semantics_verified": false
+  }
+}

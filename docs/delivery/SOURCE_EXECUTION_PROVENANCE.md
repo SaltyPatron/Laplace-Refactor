@@ -31,7 +31,7 @@ Successful source admission returns its exact current structural receipt ID in `
 
 The compiler owner normalizes embedded source locations with `-ffile-prefix-map=<frozen source root>=.`; its receipt still records actual compiler identity, arguments, source paths and final module hash. Actual hosted run 35201348488 / job 105136583074 passed 34 tests with zero skips, including full library equality across two directories, callable source/header location macros, a live assertion, changed semantic source and removal of only prefix normalization as a deliberate failure control. This reproducibility repair alone does not make historical unnormalized module bytes identical.
 
-The PostgreSQL contract compiles a second real provider from the same authenticated parser/header inventory in another directory with only prefix normalization removed. It then checks same-profile E/P reuse, unchanged historical evidence, exact old/current readback, one distinct observation and zero additional rows on identical replay. Deliberate corruptions cover both traces, both provider fingerprints, canonical syntax/content/physicality/geometry and receipt bindings. Native qualification passed on the exact merged source tree. Installed same-profile 119-file verification remains a separate requirement before claiming corpus replay succeeds. Source reconstruction does not prove executable C++ semantics or chess strength.
+The PostgreSQL contract compiles a second real provider from the same authenticated parser/header inventory in another directory with only prefix normalization removed. It then checks same-profile E/P reuse, unchanged historical evidence, exact old/current readback, one distinct observation and zero additional rows on identical replay. Deliberate corruptions cover both traces, both provider fingerprints, canonical syntax/content/physicality/geometry and receipt bindings. Native qualification passed on the exact merged source tree. Installed same-profile 119-file verification was still a separate requirement at that qualification; its completed delivery is recorded below. Source reconstruction does not prove executable C++ semantics or chess strength.
 
 Supplemental run 35203564666 / job 105143817570 passed 37 source/provider controls and 61 admission/CLI controls with zero skips. Normal run 35203565205 passed 718 native development tests, sanitizer and requirement checks, the host native/managed build and all 48 PostgreSQL core tests. Its C++ boundary reached the new combined assertion described above; the subsequent fifteen corruption and two schema controls were not reached in that failed run. These results do not claim current installation or a successful installed replay.
 
@@ -41,6 +41,47 @@ The immutable PostgreSQL evidence artifact is 10490249252, SHA-256 70861be62237a
 
 The main delivery of that same tree, run 35208985114, also passed all selected source/native, PostgreSQL and package proofs. Its actual PostgreSQL interval was 10:20:52–10:28:05 UTC: 48 core tests in 241.97 seconds and verified C++ in 191.43 seconds. Activation then selected package d854e1d89e71cbb75a7c94817973ed055f1d496caf712afd430327ebd884264a and stopped before recurring public reconciliation. The generated program was 73,445 bytes, above the former 65,536-byte envelope; its regular-file identity and SHA-256 exactly matched the authenticated package manifest. Read-only observer 35212394199 / job 105172753903 retained that fact in Git blob 71f691fb3497d32c02ab4cddb3f9e7c50dbc089d. This is a selected package with interrupted activation, not a completed installed proof.
 
-The correction gives this generated public program its own finite 128-KiB envelope. Exact manifest, path, regular-file and digest checks remain; the separate indexed-migration limit remains 64 KiB. An overflow reports observed and maximum bytes directly. Hosted qualifier 35212800267 / job 105174087996 passed all 34 activation-owner controls in 2.291 seconds and 68 source-corpus acceptance controls in 0.741 seconds, with zero skips. The new activation controls exercise the actual 73,445-byte size, the exact new limit, deliberately restored old-limit failure, limit-plus-one rejection despite a matching digest, changed bytes, malformed manifest bindings and a symlink. These controls invoke the real file/receipt owner with an explicit database transport stand-in; normal installed reconciliation and 119-file replay remain separate pending boundaries.
+The correction gives this generated public program its own finite 128-KiB envelope. Exact manifest, path, regular-file and digest checks remain; the separate indexed-migration limit remains 64 KiB. An overflow reports observed and maximum bytes directly. Hosted qualifier 35212800267 / job 105174087996 passed all 34 activation-owner controls in 2.291 seconds and 68 source-corpus acceptance controls in 0.741 seconds, with zero skips. The new activation controls exercise the actual 73,445-byte size, the exact new limit, deliberately restored old-limit failure, limit-plus-one rejection despite a matching digest, changed bytes, malformed manifest bindings and a symlink. These controls invoke the real file/receipt owner with an explicit database transport stand-in; normal installed reconciliation and 119-file replay were separate pending boundaries at that qualifier; the completed delivery is recorded below.
 
 Installed corpus acceptance now also requires positive execution row/receipt counts; exact current receipt, historical baseline and execution fingerprint identities; agreement with the same-backend admission metric; and every returned row's current structural receipt. Identical-current-provider replay must preserve those values and counts. The parser declaration remains unchanged through this repair so the historical profile is tested directly.
+
+## Completed installed reconciliation and old-profile replay
+
+PR 401 merged as `d2d8a3533d1000cd31f56c6fd92bc11365f0ebac`, tree
+`f4cd7e335af3ed78c3c8d58cd269e012e0524044`, exactly matching the qualified
+candidate. Its ordinary main run 35216221036 passed all selected checks, package
+proof, activation, persistent substrate readback and installed source acceptance.
+The former generated-SQL rejection is resolved: the selected package is
+`b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903`,
+and its public reconciliation receipt is
+`8dbe65e75207c342ec0170048aaa0f8efa5f57a842a2ade6a198f70fe6bb638b`.
+
+Installed source job 105196806333 used the unchanged historical profile
+`2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651`.
+Both CLI passes reconstructed 119 files and 1,172,144 bytes. The current readback
+contains 571,626 canonical witnesses, 571,626 current execution observations and one
+current v4 receipt. Historical baseline `7153d1a91f8f7ec3b8e30b23897225b6b4c3464964316bf1bea9d92f0e928365`
+and current receipt `77b5a4a0b4aa5519dcd4baeb889d93d7ab04867516edbc613b216e0a6dcb89d5`
+are both authenticated. Their separate current execution-witness fingerprint is
+`72d55708a37ad0d3826ae563da6f73466d1bc2cfd875bb4dcad4d5eb915b4416`.
+
+Identical-current-provider replay added zero Entities, Physicalities, Attestations,
+source occurrences, canonical witnesses, execution observations and execution receipts.
+The entire first and repeat JSON outputs are byte-identical. The first operation took
+85.732859 seconds and the repeat 55.953709 seconds, including exact native readback.
+No independent pre-first-pass global E/P count was captured; zero growth here applies
+to the measured identical-provider repeat. This proof does not establish executable
+C++ semantics, isolated PostgreSQL insertion throughput or recorded chess throughput.
+
+Authenticated reader run 35220249735 / job 105198318176 checked artifact 10495964088
+(3,017,055 bytes, ZIP SHA-256
+`ef5c5cb5e1defbe2c916110ec68b9ae870693933e030c17d1b4224e3b47113a4`)
+and bound both service artifacts to the same installed package and source. The
+[complete compact receipt](STOCKFISH_EXECUTION_REPLAY_QUALIFICATION.json) and
+[chess dependency guide](CHESS_DEPENDENCIES.md#current-installed-source-replay-and-service)
+retain exact counts and current loopback service availability.
+
+The parser derivative is promoted only after this same-profile proof. Its existing
+source/native qualification preserves the historical 102 diagnostic coordinates and
+separately reports 95 diagnostics for the new native source plan; actual successor
+PostgreSQL admission and replay remain pending normal delivery.

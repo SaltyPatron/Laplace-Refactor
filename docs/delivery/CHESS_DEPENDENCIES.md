@@ -282,12 +282,54 @@ not assert that product activation succeeded. Accepted main changes still run th
 separate calibration after successful product deployment; core benchmark scheduling
 is unchanged.
 
-## Measured hart-server configuration (2026-09-17)
+## Latest measured hart-server configuration (2026-09-17)
+
+[Candidate calibration 35168534734](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35168534734)
+measured the actual hart-server environment again and activated the resulting
+profiles. This later finite sweep selected:
+
+| Workload | Best measured setting in this sweep | Median result |
+| --- | --- | --- |
+| Official Stockfish 51-position depth-12 suite | Threads=2; Hash=64 MiB | 1,149,291.198 wall-clock nodes/second; 2.388286 seconds |
+| CuteChess complete Stockfish self-play, depth 8, time control 60 | Concurrency=8; each engine Threads=1 and Hash=16 MiB; ponder off | 4.982292 generated complete games/second |
+
+The selected game configuration completed 48 games and 7,488 plies across three
+measured samples, with zero capped diagnostic games. Sample rates ranged from
+4.640343 to 5.009943 generated complete games/second. The machine was the same
+Intel Core i7-6850K with six physical cores and twelve logical CPUs. These are
+environment-bound selections from the measured workload and resource grant;
+the changed analysis result does not establish a universal optimum or a
+performance regression against an identical searched workload.
+
+The measured official source executable and NNUE identities match the hashes in
+the historical calibration below. Actual invocation controls subsequently used
+the activated analysis profile's Threads=2/Hash=64 defaults and verified that an
+explicit Threads=1/Hash=16 caller setting wins. The games profile selected
+concurrency eight with Threads=1/Hash=16 and invoked CuteChess with the direct
+official source executable. Its retained controls completed full legal games,
+including two 156-ply games, and recorded the applied options, actual argv,
+profile/receipt identities and PGN hash. These controls prove configuration
+consumption; they do not repeat the measured throughput boundary.
+
+The calibration receipt SHA256 is
+`f55c41b1d1766b73615c366e8f516860a0b933fdbb5005b0b07d66d7b8dc3482`.
+The full evidence is retained in
+[artifact 10476786113](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35168534734/artifacts/10476786113),
+8,086,884 bytes; ZIP SHA256
+`bbe1e2caaa063f6b5d8be3d0f6ff7be113fbfcdc692167bd7bcdb7dbeb529608`.
+[Reader 35171351580](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35171351580)
+authenticated the receipt, actual arguments, input, transcript and PGN linkage.
+Recorded games and recorded games/second remain null. Neither 4.982292 nor the
+historical generated-game rates establish a 2,500-recorded-games/second result.
+Candidate calibration and profile application do not assert product activation.
+
+## Historical accepted-main calibration (2026-09-17)
+
 
 [Accepted-main run 35163097838](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35163097838)
 installed source `b042de4216e1d674effe5bd3e8ecf3ebc7aeddac` and completed
 the separate deployed machine calibration on hart-server. The host is an Intel
-Core i7-6850K with six physical cores and twelve logical CPUs. The latest retained
+Core i7-6850K with six physical cores and twelve logical CPUs. That retained
 finite sweep produced these provisional selections:
 
 | Workload | Best measured setting in this sweep | Median result |
@@ -325,14 +367,14 @@ Database recording was not measured: recorded games and recorded games/second
 are explicitly null. The 5.017007 value measures complete depth-eight game
 generation and cannot establish a 2,500-recorded-games/second result.
 
-The current raw transcripts, PGNs, machine observations and receipt are retained
+That run's raw transcripts, PGNs, machine observations and receipt are retained
 in [artifact chess-dependencies-35163097838-1](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35163097838/artifacts/10474698366),
 8,060,347 bytes; ZIP SHA256
 `5d9e6f96d52eb5e504828f7d4fe80873457ed4f4e372ca3e4d4e3dbb37ba0058`.
 The earlier
 [candidate run 35115292050](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35115292050)
-remains historical evidence; its Threads=6/Hash=64 choice is superseded by this
-latest finite sweep. The
+remains historical evidence; its Threads=6/Hash=64 choice was superseded by the
+b042 sweep, which was in turn followed by the later candidate measurement above. The
 [2026-09-15 run 34958542147](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/34958542147)
 capped games at 24 plies and remains a launch diagnostic.
 
@@ -401,7 +443,8 @@ resources cause a visible rejection instead of silent reuse.
 
 ## Installed Stockfish source corpus and exact replay
 
-The same accepted-main run completed actual installed admission of all 119 tracked
+Historical accepted-main run 35163097838 at source b042 completed actual installed admission
+of all 119 tracked
 files from the locked official Stockfish Git tree: 1,172,144 bytes, including 72
 C++ files. The installed CLI then reconstructed every file exactly. Repeating the
 same admission produced zero new entities, physicalities, attestations, source
@@ -423,9 +466,16 @@ counts are separate denominators and do not imply one physicality per entity.
 
 The source profile retains 102 Tree-sitter `ERROR` or `MISSING` syntax witnesses.
 The count excludes ancestor-only `HAS_ERROR` propagation. Their exact byte spans
-and flags are retained, but individual diagnostic classification remains pending.
-Exact byte reconstruction and zero-growth replay do not prove C++ preprocessing,
-name/type resolution, executable semantics or chess strength. The separately
+and flags are retained. The separate [diagnostic classification](STOCKFISH_SYNTAX_DIAGNOSTICS.md)
+records that historical profile, the three-rule native plan with 96 diagnostics,
+and the later pointer-member correction with 95. The pointer-member derivative
+passed 18 exact precedence/shape controls and reconstructed all 119 files through
+the selected native runtime; its [qualification record](STOCKFISH_CPP_POINTER_MEMBER_QUALIFICATION.json)
+binds the source and executed evidence. These native plans do not change the
+historical database's 102 retained witnesses or establish an installed successor
+profile. The same installed-profile mismatch was subsequently repaired and verified without
+changing that provider declaration; the completed current result is recorded below. Exact byte reconstruction and zero-growth replay
+do not prove C++ preprocessing, name/type resolution, executable semantics or chess strength. The separately
 authenticated NNUE is an engine build input; this code-source profile does not
 claim to have admitted its tensors as a model corpus.
 
@@ -436,3 +486,61 @@ The full acceptance report and both command outputs are retained in
 [Reader run 35165647185](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35165647185)
 independently authenticated the artifact and evidence digests, installed activation
 tuple, both readback denominators and all five zero replay deltas.
+
+## Current installed source replay and service
+
+[Accepted-main run 35216221036](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35216221036)
+completed at source `d2d8a3533d1000cd31f56c6fd92bc11365f0ebac`, package
+`b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903`.
+The generated public reconciliation program passed after its finite byte envelope
+was corrected. The original source profile
+`2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651`
+then admitted and reconstructed all 119 official Stockfish files, 1,172,144 bytes,
+including 72 C++ files. The parser declaration was unchanged for this proof.
+
+The repair preserves canonical structural witnesses and their historical v3 receipt,
+and records the current provider's authenticated execution separately. The installed
+readback contains 571,626 canonical witnesses, 571,626 current execution observations,
+one current v4 receipt and the same 239 source-occurrence rows. Its current receipt
+is `77b5a4a0b4aa5519dcd4baeb889d93d7ab04867516edbc613b216e0a6dcb89d5`;
+the historical baseline is
+`7153d1a91f8f7ec3b8e30b23897225b6b4c3464964316bf1bea9d92f0e928365`.
+
+| Installed CLI boundary | Actual result |
+| --- | --- |
+| Admission and exact readback | 85.732859 seconds |
+| Identical-provider repeat and exact readback | 55.953709 seconds |
+| Both returned source files/bytes | 119 / 1,172,144 |
+| Repeat Entity / Physicality / Attestation growth | 0 / 0 / 0 |
+| Repeat source-occurrence / canonical-witness growth | 0 / 0 |
+| Repeat execution-observation / execution-receipt growth | 0 / 0 |
+| Full admission and repeat JSON outputs | Byte-identical; SHA-256 `041129ae6c375adb709ab6bfeb0d5d648e2a0a0587d865f11474ed19118a6da0` |
+
+These are complete CLI operation timings, not isolated insertion rates or a
+recorded-games benchmark. The first current-provider admission and its identical
+repeat are distinct boundaries: the repeat proves no amplification. An independent
+pre-first-pass global Entity/Physicality count was not captured. Actual post-admission
+counts were 1,172,698 Entities, 1,172,837 Physicalities and 1,114,688 Attestations.
+Canonical content, structural form and execution/source observations remain separate
+identities; these counts do not imply one Physicality per Entity.
+
+The same installed package passed persistent PostgreSQL, Unicode, Highway, cognition
+and web readiness checks. `laplace-refactor-cognition.service` is enabled and
+active/running in the `laplace-runner` user manager. Its health binds the selected
+package and reports Unicode and Highway ready. Its verified HTTP endpoint is
+`http://127.0.0.1:55434`, on the server itself. Exact installed web assets and GET
+health passed there; external reachability was not tested and no external route is
+claimed. PostgreSQL is the persistent `laplace_refactor` instance on port 55433,
+system identifier `7682119102860556519`. Warm restart to verified service health
+was 0.771293256 seconds; a cold machine boot was not tested.
+
+[Reader run 35220249735](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35220249735)
+authenticated source artifact 10495964088 (3,017,055 bytes, ZIP SHA-256
+`ef5c5cb5e1defbe2c916110ec68b9ae870693933e030c17d1b4224e3b47113a4`)
+and the matching service restart and HTTP artifacts. The
+[compact replay qualification](STOCKFISH_EXECUTION_REPLAY_QUALIFICATION.json)
+retains exact source, package, artifact, receipt, count and timing identities.
+The separately qualified pointer-member grammar is a subsequent provider change;
+its installed successor acceptance remains pending normal delivery of this follow-up.
+The 95 native syntax diagnostics are not a claim of executable C++ semantics or
+chess playing strength.
