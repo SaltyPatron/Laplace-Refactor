@@ -1,4 +1,5 @@
 #include "laplace/unicode_root.h"
+#include "../engine/src/unicode_byte_order.hpp"
 #include "laplace/contract/unicode-source-manifest.h"
 
 #include <algorithm>
@@ -440,6 +441,82 @@ void CopyPinnedSourceSet(const fs::path& destination) {
         fs::create_directories(target.parent_path());
         fs::copy_file(SourceRoot() / relative, target,
                       fs::copy_options::overwrite_existing);
+    }
+}
+
+// Literal unsigned-byte order, not decoded little-endian codepoint order.
+const std::vector<std::vector<std::uint8_t>>& OrderedUnicodePayloadCases() {
+    static const std::vector<std::vector<std::uint8_t>> cases{
+        {},
+        {0x00},
+        {0x00, 0x00},
+        {0x00, 0x00, 0x00},
+        {0x00, 0x00, 0x80},
+        {0x00, 0x01},
+        {0x00, 0x01, 0x00, 0x00},
+        {0x00, 0x7f},
+        {0x00, 0x80},
+        {0x00, 0xff},
+        {0x01},
+        {0x01, 0x00},
+        {0x01, 0x00, 0x00},
+        {0x01, 0x00, 0x00, 0x00},
+        {0x01, 0x00, 0xff},
+        {0x01, 0xff},
+        {0x7f},
+        {0x7f, 0xff},
+        {0x80},
+        {0x80, 0x00},
+        {0x80, 0xff},
+        {0xff},
+        {0xff, 0x00},
+        {0xff, 0xff},
+    };
+    return cases;
+}
+
+TEST(UnicodeCoreProperties, PayloadByteOrderMatchesUnsignedLexicographicOrder) {
+    const auto& cases = OrderedUnicodePayloadCases();
+    for (std::size_t left = 0u; left < cases.size(); ++left) {
+        SCOPED_TRACE(left);
+        for (std::size_t right = 0u; right < cases.size(); ++right) {
+            SCOPED_TRACE(right);
+            const auto right_copy = cases[right];
+            EXPECT_EQ(laplace::internal::UnicodePayloadBytesLess(
+                          cases[left], right_copy),
+                      left < right);
+        }
+    }
+}
+
+TEST(UnicodeCoreProperties, PayloadByteOrderCanonicalizesInputPermutations) {
+    const auto& expected = OrderedUnicodePayloadCases();
+    auto input = expected;
+    std::reverse(input.begin(), input.end());
+    for (std::size_t shift = 0u; shift < expected.size(); ++shift) {
+        SCOPED_TRACE(shift);
+        auto sorted = input;
+        std::sort(sorted.begin(), sorted.end(),
+                  laplace::internal::UnicodePayloadBytesLess);
+        EXPECT_EQ(sorted, expected);
+        std::rotate(input.begin(), input.begin() + 1, input.end());
+    }
+}
+
+TEST(UnicodeCoreProperties, PayloadByteOrderPreservesExactDuplicateDetection) {
+    const auto& expected = OrderedUnicodePayloadCases();
+    for (const auto& duplicate : expected) {
+        auto sorted = expected;
+        sorted.push_back(duplicate);
+        std::reverse(sorted.begin(), sorted.end());
+        std::sort(sorted.begin(), sorted.end(),
+                  laplace::internal::UnicodePayloadBytesLess);
+        const auto repeated = std::adjacent_find(sorted.begin(), sorted.end());
+        ASSERT_NE(repeated, sorted.end());
+        EXPECT_EQ(*repeated, duplicate);
+        EXPECT_EQ(sorted.size(), expected.size() + 1u);
+        sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
+        EXPECT_EQ(sorted, expected);
     }
 }
 

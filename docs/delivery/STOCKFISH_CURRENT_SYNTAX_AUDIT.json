@@ -1,0 +1,290 @@
+{
+  "comparison": {
+    "historical_record_modified": false,
+    "key": [
+      "path",
+      "byte_start",
+      "byte_end",
+      "syntax_flags"
+    ],
+    "matches_are": "Exact full syntax_flags matches, not merely shared ERROR/MISSING membership.",
+    "method": "Index all 102 historical group nodes by exact path and decimal byte offsets/full syntax flags; require unique keys; match every current row; take the historical set difference. Coordinates remain scoped by each profile and authenticated manifest.",
+    "not_compared_as_identity": [
+      "span_index",
+      "grammar_kind"
+    ]
+  },
+  "groups": {
+    "gnu-extension-recovery": {
+      "diagnostics": 26,
+      "error_nodes": 10,
+      "files": {
+        "src/misc.h": 2,
+        "src/nnue/simd.h": 24
+      },
+      "missing_nodes": 16
+    },
+    "macro-expansion-context": {
+      "diagnostics": 55,
+      "error_nodes": 31,
+      "files": {
+        "src/attacks.h": 1,
+        "src/misc.cpp": 4,
+        "src/nnue/features/full_threats.cpp": 1,
+        "src/nnue/features/pp_3wide.cpp": 1,
+        "src/nnue/nnue_accumulator.cpp": 20,
+        "src/shm.h": 1,
+        "src/shm_unix.h": 1,
+        "src/syzygy/tbprobe.cpp": 10,
+        "src/types.h": 4,
+        "src/universal/entry_arm64.cpp": 2,
+        "src/universal/entry_riscv64.cpp": 2,
+        "src/universal/entry_x86.cpp": 8
+      },
+      "missing_nodes": 24
+    },
+    "ordinary-cpp-recovery": {
+      "diagnostics": 1,
+      "error_nodes": 1,
+      "files": {
+        "src/position.cpp": 1
+      },
+      "missing_nodes": 0
+    },
+    "preprocessor-structure": {
+      "diagnostics": 13,
+      "error_nodes": 11,
+      "files": {
+        "src/incbin/incbin.h": 1,
+        "src/main.cpp": 2,
+        "src/memory.cpp": 1,
+        "src/misc.h": 1,
+        "src/nnue/layers/affine_transform.h": 1,
+        "src/nnue/layers/affine_transform_sparse_input.h": 5,
+        "src/universal/nnue_embed.cpp": 2
+      },
+      "missing_nodes": 2
+    }
+  },
+  "inputs": {
+    "current": {
+      "artifact_bytes": 24943,
+      "artifact_id": 10507258870,
+      "artifact_metadata_verified": true,
+      "artifact_sha256": "9fa5b77a36a50a0d4a1530d96c28ad0fd9b1b9c1867603cbafbf0fcfb5c5dddd",
+      "job_id": 105289806130,
+      "manifest_sha256": "2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc",
+      "observer_git_blob": "acd8c361d6d74173ba4dd9d4358165b76597b1a7",
+      "package_id": "d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490",
+      "producer_repository": "SaltyPatron/Laplace",
+      "projection_git_blob": "bb648ba7c183fb36cff59211a83f0c66e7f5641d",
+      "source_profile_id": "c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab",
+      "structural_receipt_id": "d1f9cd77cda9b20f220d60644472a513e9e182ff279470e113844c0972667843",
+      "workflow_run_id": 35247042007
+    },
+    "historical": {
+      "commit": "df158f21bfecaf4045d065b10c21cd92464ce3ec",
+      "diagnostic_count": 102,
+      "git_blob": "60e84d20479c21f21d702f187fe1a8ed594b4d9d",
+      "path": "docs/delivery/STOCKFISH_SYNTAX_DIAGNOSTICS.json",
+      "source_profile_id": "2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651"
+    },
+    "repository": "SaltyPatron/Laplace-Refactor",
+    "selected_grammar": {
+      "commit": "94fe0c1ba60dee178a4782c1082441631638f51b",
+      "generated_grammar_json_git_blob": "04bb651c25f2b9d473e9289d19c8dc4b308d581c",
+      "grammar_js_git_blob": "ad4d5359e64b6c60501a15cebd90e425af58935a",
+      "repository": "SaltyPatron/Laplace-Refactor"
+    },
+    "stockfish": {
+      "commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+      "repository": "official-stockfish/Stockfish"
+    }
+  },
+  "limits": {
+    "current_error_count_changed": false,
+    "database_mutations": false,
+    "executable_semantics_verified": false,
+    "grammar_candidate_built": false,
+    "grouping": "Source-context partition, not proof that every row is an independent parser defect.",
+    "historical102_document_unchanged": true,
+    "macro_and_preprocessor_rows": "55 macro-context plus13 preprocessor-structure rows remain; they are not dismissed as harmless or relabeled.",
+    "parser_executed_for_audit": false,
+    "source_admission_executed": false
+  },
+  "removed_historical_rows": [
+    {
+      "byte_end": "7538",
+      "byte_start": "7325",
+      "finding": "for-condition-declaration",
+      "group": "ordinary-cpp-recovery",
+      "historical_artifact_index": 39,
+      "historical_span_index": 1551,
+      "is_error": true,
+      "is_missing": false,
+      "path": "src/attacks.h",
+      "source_line": 203,
+      "syntax_flags": "29"
+    },
+    {
+      "byte_end": "7417",
+      "byte_start": "7401",
+      "finding": "possible-cascade-from-for-condition",
+      "group": "ordinary-cpp-recovery",
+      "historical_artifact_index": 39,
+      "historical_span_index": 1574,
+      "is_error": true,
+      "is_missing": false,
+      "path": "src/attacks.h",
+      "source_line": 205,
+      "syntax_flags": "29"
+    },
+    {
+      "byte_end": "7567",
+      "byte_start": "7552",
+      "finding": "possible-cascade-from-for-condition",
+      "group": "ordinary-cpp-recovery",
+      "historical_artifact_index": 39,
+      "historical_span_index": 1605,
+      "is_error": true,
+      "is_missing": false,
+      "path": "src/attacks.h",
+      "source_line": 214,
+      "syntax_flags": "29"
+    },
+    {
+      "byte_end": "7577",
+      "byte_start": "7577",
+      "finding": "possible-cascade-from-for-condition",
+      "group": "ordinary-cpp-recovery",
+      "historical_artifact_index": 39,
+      "historical_span_index": 1617,
+      "is_error": false,
+      "is_missing": true,
+      "path": "src/attacks.h",
+      "source_line": 215,
+      "syntax_flags": "18"
+    },
+    {
+      "byte_end": "1273",
+      "byte_start": "1273",
+      "finding": "deleted-conversion-operator",
+      "group": "ordinary-cpp-recovery",
+      "historical_artifact_index": 57,
+      "historical_span_index": 112,
+      "is_error": false,
+      "is_missing": true,
+      "path": "src/movegen.h",
+      "source_line": 46,
+      "syntax_flags": "19"
+    },
+    {
+      "byte_end": "6056",
+      "byte_start": "6047",
+      "finding": "pointer-to-member-operator",
+      "group": "ordinary-cpp-recovery",
+      "historical_artifact_index": 94,
+      "historical_span_index": 1132,
+      "is_error": true,
+      "is_missing": false,
+      "path": "src/thread.h",
+      "source_line": 175,
+      "syntax_flags": "29"
+    },
+    {
+      "byte_end": "1459",
+      "byte_start": "1456",
+      "finding": "using-pack-expansion",
+      "group": "ordinary-cpp-recovery",
+      "historical_artifact_index": 103,
+      "historical_span_index": 172,
+      "is_error": true,
+      "is_missing": false,
+      "path": "src/uci.cpp",
+      "source_line": 54,
+      "syntax_flags": "29"
+    }
+  ],
+  "repair_candidates": [
+    {
+      "artifact_index": 80,
+      "construct": "using vec_i8x8_t __attribute__((may_alias)) = int8x8_t;",
+      "current_rule_fragment": "repeat($.attribute_declaration)",
+      "error_nodes": 8,
+      "expected_diagnostic_reduction": "Not claimed until execution; 24 rows are the observed target, not 24 independent defects.",
+      "grammar_js_line": 869,
+      "grammar_rule": "alias_declaration",
+      "id": "gnu-attribute-in-type-alias",
+      "missing_nodes": 16,
+      "path": "src/nnue/simd.h",
+      "persisted_diagnostics": 24,
+      "priority": "narrow first candidate",
+      "proposed_rule_fragment": "repeat(choice($.attribute_declaration, $.attribute_specifier))",
+      "qualification_needed": [
+        "Isolated exact Stockfish aliases with expected CST and zero ERROR/MISSING.",
+        "Preserve standard attribute aliases and nearby declaration behavior; malformed alias/attribute controls must still reject.",
+        "Regenerated parser provenance plus existing grammar/native regression suite.",
+        "Whole119 native diagnostic comparison and exact reconstruction before any persisted-profile recount."
+      ],
+      "source_basis": "The selected generated grammar accepts only standard attribute_declaration at this alias position. Its separate attribute_specifier rule already recognizes __attribute__ and __attribute with parenthesized argument_list. All eight affected aliases and all 24 ERROR/MISSING rows are present unchanged in the current projection.",
+      "source_lines": [
+        171,
+        172,
+        173,
+        174,
+        175,
+        177,
+        178,
+        179
+      ],
+      "status": "source-rule-mismatch-confirmed; candidate-not-executed"
+    },
+    {
+      "artifact_index": 55,
+      "constructs": [
+        "__extension__ using u128 = unsigned __int128;",
+        "__extension__ using i128 = signed __int128;"
+      ],
+      "error_nodes": 2,
+      "exclusion": "The third current misc.h diagnostic is the preprocessor-structure row at line339, not part of these two aliases.",
+      "id": "gnu-extension-type-alias",
+      "missing_nodes": 0,
+      "path": "src/misc.h",
+      "persisted_diagnostics": 2,
+      "source_basis": "The selected grammar recognizes __extension__ in other rules, while alias_declaration begins directly with using. A generic extension-qualified alias rule needs separate isolated qualification.",
+      "source_lines": [
+        63,
+        64
+      ],
+      "status": "separate limitation; no candidate built"
+    },
+    {
+      "artifact_index": 83,
+      "construct": "if (int j = H1(moveKey); cuckoo[j] == moveKey || (j = H2(moveKey), cuckoo[j] == moveKey))",
+      "error_nodes": 1,
+      "id": "assignment-comma-in-if-condition",
+      "missing_nodes": 0,
+      "path": "src/position.cpp",
+      "persisted_diagnostics": 1,
+      "qualification_needed": [
+        "Reduce the exact enclosing if condition and verify expected CST before changing precedence or conflicts."
+      ],
+      "source_basis": "The selected grammar includes condition initializers, comma expressions and parenthesized assignment support. This remaining row does not establish blanket absence of comma-expression support.",
+      "source_line": 1549,
+      "status": "unresolved recovery; retain until isolated"
+    }
+  ],
+  "reviewed_on": "2026-09-17",
+  "schema": "laplace.current-stockfish-syntax-classification/v1",
+  "status": "current-persisted-rows-compared-with-historical-source-context",
+  "summary": {
+    "diagnostics": 95,
+    "duplicate_comparison_keys": 0,
+    "error_nodes": 53,
+    "exact_historical_matches": 95,
+    "files": 21,
+    "missing_nodes": 42,
+    "removed_historical_rows": 7,
+    "unmatched_current_rows": 0
+  }
+}

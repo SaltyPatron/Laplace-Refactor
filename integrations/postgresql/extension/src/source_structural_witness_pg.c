@@ -919,16 +919,21 @@ static void verify_source_structural_roots(
         "span_index,parent_span_index,byte_start,byte_end,kind,grammar_kind,field_kind,"
         "sibling_ordinal,CASE WHEN octet_length(media_type)<=127 THEN media_type ELSE NULL END,depth,flags,syntax_flags,canonical_physicality_id FROM " LAPLACE_PG_SCHEMA
         ".source_structural_witness WHERE source_profile_id=$1 ORDER BY artifact_index,span_index";
+    /* Both sides are finite exact receipt/profile sets. FULL JOIN preserves
+     * missing-side corruption detection and prevents a stale one-row estimate
+     * from selecting a nested loop that repeatedly scans a whole receipt. */
     static const char execution_rows_sql[] =
         "SELECT e.trace_fingerprint,e.provider_fingerprint,s.canonical_entity_id,s.artifact_index,"
         "s.span_index,s.parent_span_index,s.byte_start,s.byte_end,s.kind,s.grammar_kind,s.field_kind,"
         "s.sibling_ordinal,CASE WHEN octet_length(s.media_type)<=127 THEN s.media_type ELSE NULL END,"
         "s.depth,s.flags,s.syntax_flags,s.canonical_physicality_id,s.trace_fingerprint,s.provider_fingerprint "
-        "FROM " LAPLACE_PG_SCHEMA ".source_structural_witness s LEFT JOIN "
-        LAPLACE_PG_SCHEMA ".source_structural_witness_execution e ON "
+        "FROM (SELECT * FROM " LAPLACE_PG_SCHEMA
+        ".source_structural_witness WHERE source_profile_id=$1) s FULL JOIN "
+        "(SELECT * FROM " LAPLACE_PG_SCHEMA ".source_structural_witness_execution "
+        "WHERE receipt_id=$2) e ON "
         "e.source_profile_id=s.source_profile_id AND e.artifact_index=s.artifact_index "
-        "AND e.span_index=s.span_index AND e.receipt_id=$2 "
-        "WHERE s.source_profile_id=$1 ORDER BY s.artifact_index,s.span_index";
+        "AND e.span_index=s.span_index "
+        "ORDER BY s.artifact_index,s.span_index";
     static const char witness_domain[] = "laplace.source-structural-witness-set/v3";
     static const char canonical_domain[] = "laplace.source-canonical-witness-set/v1";
     Oid types[2] = {BYTEAOID, BYTEAOID};
