@@ -501,7 +501,7 @@ including 72 C++ files. The parser declaration was unchanged for this proof.
 The repair preserves canonical structural witnesses and their historical v3 receipt,
 and records the current provider's authenticated execution separately. The installed
 readback contains 571,626 canonical witnesses, 571,626 current execution observations,
-one current v4 receipt and the same 239 source-occurrence rows. Its current receipt
+one current v4 receipt and 239 current source-occurrence rows. Its current receipt
 is `77b5a4a0b4aa5519dcd4baeb889d93d7ab04867516edbc613b216e0a6dcb89d5`;
 the historical baseline is
 `7153d1a91f8f7ec3b8e30b23897225b6b4c3464964316bf1bea9d92f0e928365`.
