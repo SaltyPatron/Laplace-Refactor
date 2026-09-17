@@ -1241,6 +1241,24 @@
       "covered_dimensions": ["producer parses the exact verified byte generation", "verification-to-parse TOCTOU elimination", "unknown source exclusion"]
     },
     {
+      "ctest_name": "UnicodeCoreProperties.PayloadByteOrderMatchesUnsignedLexicographicOrder",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["576 exact ordered byte-sequence pairs", "empty and equal payloads", "strict prefixes and embedded NUL", "unsigned high-byte ordering", "serialized little-endian byte order distinct from decoded numeric order"],
+      "defect_controls": ["reversed first-differing byte comparison in hosted qualifier"]
+    },
+    {
+      "ctest_name": "UnicodeCoreProperties.PayloadByteOrderCanonicalizesInputPermutations",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["24 rotations of reversed payload input", "exact canonical unsigned-byte ordering independent of input order"],
+      "defect_controls": ["reversed first-differing byte comparison in hosted qualifier"]
+    },
+    {
+      "ctest_name": "UnicodeCoreProperties.PayloadByteOrderPreservesExactDuplicateDetection",
+      "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
+      "covered_dimensions": ["24 exact duplicate payload cases", "duplicate adjacency and multiplicity retention", "canonical byte order after duplicate removal"],
+      "defect_controls": ["reversed first-differing byte comparison in hosted qualifier"]
+    },
+    {
       "ctest_name": "UnicodeCoreProperties.ParsesCompleteSourceAndCanonicalizesPayloads",
       "evidence_targets": ["LP-TEST-UNICODE-SOURCE-CONTRACT", "LP-TEST-UNICODE-ATOM-RECORD-CONTRACT"],
       "covered_dimensions": ["retained UnicodeData parsing", "PropertyValueAliases canonicalization", "First Last range integrity", "canonical and compatibility decomposition payloads", "simple case mapping payloads", "normalized parse receipt"],
