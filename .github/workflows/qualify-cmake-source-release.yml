@@ -78,4 +78,4 @@ jobs:
           print("RETAINED_PROVIDER_COMPARISON_COMPLETE " + json.dumps({
               "sources_authenticated": len(observations), "host_actions": False,
               "database_actions": False, "profile_mutations": False}), flush=True)
-                    PY
+          PY
