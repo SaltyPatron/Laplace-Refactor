@@ -1,69 +1,129 @@
-name: Read exact derived-container diagnostic
+name: Recover authenticated C++ dependency source objects
 on:
+  workflow_dispatch:
   push:
-    branches: [qualify/cmake-source-443-20260916]
+    branches: ["qualify/cmake-source-443-20260916"]
+    paths: [".github/workflows/qualify-cmake-source-release.yml"]
 permissions:
   contents: read
   actions: read
 jobs:
-  read-retained:
+  read-source-objects:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Authenticate immutable diagnostic and project named operands
+      - name: Authenticate existing object receipt and reconstruct exact source tree
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
           python3 - <<'PY'
-          import hashlib, io, json, os, urllib.request, zipfile, xml.etree.ElementTree as ET
-          base='https://api.github.com/repos/SaltyPatron/Laplace-Refactor'
-          def get(path):
-              request=urllib.request.Request(base+path,headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
-              request.add_unredirected_header('Authorization','Bearer '+os.environ['GH_TOKEN'])
-              with urllib.request.urlopen(request,timeout=60) as response:
-                  return response.read()
-          run=json.loads(get('/actions/runs/35183813555'))
-          assert run['head_sha']=='9c2f9e997fb01eb86f0763e143ac243b831178e4'
-          assert run['event']=='push' and run['head_branch']=='qualify/cmake-source-443-20260916'
-          artifact=json.loads(get('/actions/artifacts/10481293376'))
-          assert artifact['workflow_run']['id']==35183813555
-          assert not artifact['expired']
-          expected='475108b22598ba2fdfda8993b75cf4bc3543441d17ef264e6ab2650cfa4e4438'
-          assert artifact['digest']=='sha256:'+expected
-          data=get('/actions/artifacts/10481293376/zip')
-          assert len(data)==32240 and hashlib.sha256(data).hexdigest()==expected
-          archive=zipfile.ZipFile(io.BytesIO(data))
-          print(json.dumps({'artifact':10481293376,'run':35183813555,'zip_sha256':expected,'names':archive.namelist()},sort_keys=True))
-          for name in ('source.txt','diagnostic-only.diff','exit-code.txt'):
-              matches=[n for n in archive.namelist() if n==name or n.endswith('/'+name)]
-              assert len(matches)==1,(name,matches)
-              print('DIAGNOSTIC_MEMBER '+name)
-              print(archive.read(matches[0]).decode('utf-8'))
-          matches=[n for n in archive.namelist() if n=='ctest.log' or n.endswith('/ctest.log')]
-          assert len(matches)==1
-          lines=archive.read(matches[0]).decode('utf-8',errors='replace').splitlines()
-          selected=set()
-          for i,line in enumerate(lines):
-              if any(token in line for token in ('ERROR:','DETAIL:','CONTEXT:','Test #','tests passed','Total Test time','CMake Error','No tests were found','FAIL','PASS','LAPLACE_')):
-                  selected.update(range(max(0,i-2),min(len(lines),i+5)))
-          print('DIAGNOSTIC_RESULT_BEGIN')
-          print('\n'.join(lines[i] for i in sorted(selected)))
-          print('DIAGNOSTIC_RESULT_END')
-          matches=[n for n in archive.namelist() if n=='result.junit.xml' or n.endswith('/result.junit.xml')]
-          assert len(matches)==1
-          junit=ET.fromstring(archive.read(matches[0]))
-          print('PASSED_TEST_JUNIT '+json.dumps(junit.attrib,sort_keys=True))
-          for case in junit.iter('testcase'):
-              print('PASSED_TEST_CASE '+json.dumps(case.attrib,sort_keys=True))
-              assert not list(case.iter('failure')) and not list(case.iter('error'))
-          for output in junit.iter('system-out'):
-              for line in (output.text or '').splitlines():
-                  if any(token in line for token in ('derived direct CONTAINER','passed','ERROR:','DETAIL:','LAPLACE_QA_RECEIPT')):
-                      print(line)
-          for name in archive.namelist():
-              if name.endswith('executed-physicality-contract.sql'):
-                  source=archive.read(name)
-                  print('EXECUTED_SQL '+json.dumps({'path':name,'bytes':len(source),'sha256':hashlib.sha256(source).hexdigest()},sort_keys=True))
+          import hashlib, io, json, os, pathlib, re, subprocess, urllib.request, zipfile
+          repository = "SaltyPatron/Laplace-Refactor"
+          api = "https://api.github.com/repos/" + repository
+          def get(route, raw=False):
+              request = urllib.request.Request(api + route,
+                  headers={"Accept": "application/vnd.github+json",
+                           "X-GitHub-Api-Version": "2022-11-28"})
+              request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
+              with urllib.request.urlopen(request, timeout=120) as response:
+                  data = response.read()
+              return data if raw else json.loads(data)
+          def sha(data):
+              return hashlib.sha256(data).hexdigest()
+          def git_blob(data):
+              return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+          run_id, artifact_id = 35184357880, 10481079330
+          head = "e63dc9f84a8eb82fa02b9be08f64c703628fa2db"
+          archive_sha = "a37bdb002bae1a6630871254a4f0dd2cf0831b11ecaf6e6882f9e38d73ceded2"
+          run = get("/actions/runs/" + str(run_id))
+          meta = get("/actions/artifacts/" + str(artifact_id))
+          assert run["head_sha"] == head and run["status"] == "completed" and run["conclusion"] == "failure"
+          assert not meta["expired"] and meta["workflow_run"]["id"] == run_id
+          assert meta["workflow_run"]["head_sha"] == head and meta["digest"] == "sha256:" + archive_sha
+          data = get("/actions/artifacts/" + str(artifact_id) + "/zip", True)
+          assert len(data) == 132973 and sha(data) == archive_sha
+          archive = zipfile.ZipFile(io.BytesIO(data))
+          assert len(archive.namelist()) == len(set(archive.namelist()))
+          report_bytes = archive.read("report.json")
+          report = json.loads(report_bytes)
+          manifest_bytes = archive.read("derivative-manifest.json")
+          assert git_blob(manifest_bytes) == "c81a277dd6a2a0ce7c176ea019553d264b701778"
+          assert sha(manifest_bytes) == "b534b32861d89bca06b99397b8727e7eb8e3dec4fae9a9679d497ef652d41517"
+          manifest = json.loads(manifest_bytes)
+          assert report["schema"] == "laplace.grammar-dependency-object-preparation/v1"
+          assert report["status"] == "failed" and report["remote_refs_changed"] is False
+          assert report["product_lock_selected"] is False and report["provider_qualified"] is False
+          assert "dependency_commit" not in report and "proposed_lock" not in report
+          assert report["tracked_file_count"] == 86
+          assert re.fullmatch("[0-9a-f]{40}", report["dependency_tree"])
+          base = {item["path"]: item for item in manifest["official_base"]["tracked_files"]}
+          assert len(base) == 79 and manifest["official_base"]["tree"] == "d5ed868917a07bcc8272f37e551d707e7a836f95"
+          generated = {item["path"]: item for item in manifest["generated_files"]}
+          provenance = {item["path"]: item for item in manifest["tracked_provenance"]}
+          assert len(provenance) == 6 and not set(base).intersection(provenance)
+          provenance["provenance/DERIVATION.json"] = {
+              "git_blob": git_blob(manifest_bytes), "sha256": sha(manifest_bytes), "bytes": len(manifest_bytes)}
+          names = sorted(set(base) | set(provenance))
+          objects = report["created_objects"]
+          assert len(names) == len(objects) == 86 and all(item["kind"] == "blob" for item in objects)
+          expected_changed = {"grammar.js", "src/grammar.json", "src/node-types.json", "src/parser.c"}
+          assert set(manifest["derivation"]["changed_existing_paths"]) == expected_changed
+          assert set(report["changed_upstream_paths"]) == expected_changed
+          entries = []
+          observed_changed = set()
+          for name, item in zip(names, objects, strict=True):
+              assert re.fullmatch("[0-9a-f]{40}", item["sha"])
+              assert re.fullmatch("[0-9a-f]{64}", item["sha256"]) and item["bytes"] >= 0
+              mode = base[name]["mode"] if name in base else "100644"
+              assert mode in {"100644", "100755"}
+              if name in base:
+                  if item["sha"] != base[name]["git_blob"]:
+                      observed_changed.add(name)
+                  if name not in expected_changed:
+                      assert item["sha"] == base[name]["git_blob"] and item["bytes"] == base[name]["bytes"]
+              if name in generated:
+                  assert item["sha256"] == generated[name]["sha256"] and item["bytes"] == generated[name]["bytes"]
+              if name in provenance:
+                  assert item["sha"] == provenance[name]["git_blob"]
+                  assert item["sha256"] == provenance[name]["sha256"]
+                  if "bytes" in provenance[name]:
+                      assert item["bytes"] == provenance[name]["bytes"]
+              entries.append({"path": name, "mode": mode, "type": "blob", "sha": item["sha"]})
+          assert observed_changed == expected_changed
+          for item in manifest["workflow_publication_review"]["retained_upstream_workflows"]:
+              selected = entries[names.index(item["path"])]
+              observed = objects[names.index(item["path"])]
+              assert selected["sha"] == item["git_blob"] and observed["sha256"] == item["sha256"]
+          # Use Git itself to recompute the tree from the exact object receipt.
+          # Missing local bodies are permitted only here: their authenticated
+          # successful remote blob creations are the separately retained input.
+          scratch = pathlib.Path(os.environ["RUNNER_TEMP"]) / ("cpp-source-object-readback-" + os.environ["GITHUB_RUN_ID"])
+          scratch.mkdir()
+          environment = {key: value for key, value in os.environ.items()
+              if key not in {"GH_TOKEN", "GITHUB_TOKEN", "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS"}
+              and not key.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
+          environment.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "LC_ALL": "C"})
+          def git(*arguments, data=None):
+              return subprocess.run(["git", "-C", str(scratch), *arguments], input=data,
+                  env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                  timeout=60, check=True).stdout
+          git("init", "--quiet", "--object-format=sha1")
+          index = b"".join((e["mode"] + " " + e["sha"] + "\t" + e["path"]).encode() + b"\0" for e in entries)
+          git("update-index", "--info-only", "-z", "--index-info", data=index)
+          actual_tree = git("write-tree", "--missing-ok").decode().strip()
+          assert actual_tree == report["dependency_tree"]
+          print("GRAMMAR_DEPENDENCY_OBJECT_RECEIPT " + json.dumps({
+              "run_id": run_id, "head": head, "artifact_id": artifact_id,
+              "archive_sha256": archive_sha, "report_sha256": sha(report_bytes),
+              "status": report["status"], "failures": report["failures"],
+              "dependency_tree": actual_tree, "tracked_file_count": len(entries),
+              "changed_upstream_paths": sorted(observed_changed),
+              "local_git_tree_recomputed": True, "remote_refs_changed": False,
+              "remote_tree_creation_completed": False,
+              "private": report["repository_visibility"]["private"],
+          }, sort_keys=True))
+          print("GRAMMAR_DEPENDENCY_TREE_ENTRIES " + json.dumps({
+              "repository": repository, "tree": actual_tree, "entries": entries}, sort_keys=True))
+          print("GRAMMAR_DEPENDENCY_FAILURE " + archive.read("failure.txt").decode()[:8192])
           PY
