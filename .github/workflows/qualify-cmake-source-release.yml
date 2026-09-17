@@ -1,556 +1,97 @@
-name: Prepare fresh source providers without reserving the benchmark host
+name: Qualify measured profiles and managed build lifetime
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-concurrency:
-  group: laplace-cmake-component-qualification
-  cancel-in-progress: false
-env:
-  PYTHONDONTWRITEBYTECODE: "1"
-  GIT_OPTIONAL_LOCKS: "0"
-  TMPDIR: /build/laplace/work
-  TMP: /build/laplace/work
-  TEMP: /build/laplace/work
-  CMAKE_EVIDENCE: /build/laplace/work/cmake-component-qualification/${{ github.run_id }}-${{ github.run_attempt }}
+  actions: read
 jobs:
-  validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - name: Check every executable script before acquiring the shared host
-        shell: bash
-        run: |
-          python3 -B - <<'LINT'
-          import ast, pathlib, re, subprocess, yaml
-          path=pathlib.Path(".github/workflows/qualify-cmake-source-release.yml")
-          document=yaml.safe_load(path.read_text())
-          scripts=0
-          for step in document["jobs"]["qualify"]["steps"]:
-              body=step.get("run")
-              if body is None: continue
-              subprocess.run(["bash","-n"],input=body,text=True,check=True)
-              for match in re.finditer(r"<<'PY'\n(.*?)\nPY(?:\n|$)",body,re.S):
-                  ast.parse(match[1]); scripts+=1
-          assert scripts==3, scripts
-          print("All three Bash blocks and all three embedded Python programs parsed.")
-          LINT
   qualify:
-    needs: validate
-    if: github.repository == 'SaltyPatron/Laplace-Refactor'
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 40
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      TMPDIR: ${{ runner.temp }}
+      TMP: ${{ runner.temp }}
+      TEMP: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: b042de4216e1d674effe5bd3e8ecf3ebc7aeddac
           fetch-depth: 0
           persist-credentials: false
-      - name: Retain exact source and prepare existing-owner operation
+      - name: Authenticate prepared source leaves and execute behavior controls
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          umask 077
-          test "$(id -un)" = laplace-runner
-          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
-          test "$GITHUB_REF" = refs/heads/qualify/cmake-source-443-20260916
-          test "$(git rev-parse HEAD)" = b042de4216e1d674effe5bd3e8ecf3ebc7aeddac
-          test "$(git rev-parse HEAD^{tree})" = 17c155bb1db7c126c315e6f6dac41b594d614e56
-          test "$(git diff --name-only --no-renames HEAD "$GITHUB_SHA")" = .github/workflows/qualify-cmake-source-release.yml
-          test -z "$(git status --porcelain --untracked-files=all)"
           python3 -B - <<'PY'
-          import os, stat
-          from pathlib import Path
-          target=Path(os.environ["CMAKE_EVIDENCE"])
-          target.parent.mkdir(mode=0o700,exist_ok=True)
-          info=target.parent.lstat()
-          if not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.geteuid() or stat.S_IMODE(info.st_mode) not in (0o700,0o2700):
-              raise SystemExit("evidence parent is not a private owned directory")
-          target.mkdir(mode=0o700)
-          PY
-          git show "$GITHUB_SHA:.github/workflows/qualify-cmake-source-release.yml" > "$CMAKE_EVIDENCE/executed-workflow.yml"
-          git archive --format=tar HEAD tools contracts dependencies state > "$CMAKE_EVIDENCE/operator-source.tar"
-          cat > "$CMAKE_EVIDENCE/operate.py" <<'PY'
-          """Qualify CMake and its PostgreSQL consumer without changing installed selection."""
-          import hashlib, importlib.util, json, os, re, shutil, stat, subprocess, sys, tempfile, time
-          from pathlib import Path
-          ROOT=Path.cwd().resolve()
-          OUT=Path(os.environ["CMAKE_EVIDENCE"])
-          # These identities bind the already installed main delivery; source builds
-          # remain isolated until ordinary publication selection and activation.
-          BASE="b042de4216e1d674effe5bd3e8ecf3ebc7aeddac"
-          PACKAGE="912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe"
-          AGGREGATE="b3d3ae843cc2aad1a2ed41d7287aa763eb664278962e8d68086bbbc80e513eb8"
-          sys.path.insert(0,str(ROOT/"tools"))
-          from sources import stockfish_corpus_acceptance as activation
-          def module(name,relative):
-              spec=importlib.util.spec_from_file_location(name,ROOT/relative)
-              value=importlib.util.module_from_spec(spec)
-              sys.modules[name]=value
-              spec.loader.exec_module(value)
-              return value
-          toolchain=module("cmake_component_owner","tools/toolchain/build-package.py")
-          publication=module("cmake_publication_owner","tools/delivery/postgresql_package_publication.py")
-          publication_selection=module("cmake_publication_selection_owner","tools/delivery/recover_postgresql_publication.py")
-          postgres=module("cmake_pg_owner","tools/postgresql/build-package.py")
-          release=toolchain.load_release_module(ROOT)
-          contract=toolchain.read_json(ROOT/"contracts/toolchain-build.json")
-          toolchain.validate_contract(contract,ROOT)
-          started=time.monotonic()
-          deadline=started+1600
-          report={"schema":"laplace.cmake-component-operation/v1","status":"running",
-                  "source_commit":"b042de4216e1d674effe5bd3e8ecf3ebc7aeddac",
-                  "installed_repository_commit":BASE,"installed_package_id":PACKAGE,
-                  "component_scope":list(toolchain.EXPECTED_ORDER),"unchanged_components_reexecuted":True,
-                  "upstream_697_qualified":False,"upstream_697_executed_this_run":False,
-                  "consumer_plan_completed":False,
-                  "product_built":False,"postgresql_build_executed_this_run":False,
-                  "postgresql_qualified":False,"postgresql_publication_completed":False,
-                  "installed_selection_changed":False,
-                  "phases":[]}
-          before=None
-          plan=None
-          successor=None
-          consumer_arguments=None
-          def save():
-              report["elapsed_seconds"]=time.monotonic()-started
-              activation.save(OUT/"result.json",report)
-          def require(condition,message):
-              if not condition:
-                  raise RuntimeError(message)
-          def active(label):
-              # The current owner resolves durable package metadata and independently
-              # observes the selected PostgreSQL service; historical receipts stay intact.
-              value=activation.observe_activation(BASE,OUT/(label+".json"))
-              require(value["package_id"]==PACKAGE and any(
-                  item["document"].get("result_sha256")==AGGREGATE for item in value["runner_receipts"]),
-                  "installed package or activation aggregate differs")
-              return value
-          def command(name,argv,seconds=300):
-              entry={"name":name,"status":"running"}
-              report["phases"].append(entry);save()
-              began=time.monotonic()
-              maximum=min(seconds,int(deadline-time.monotonic())-120)
-              require(maximum>0,"CMake operation deadline exhausted before "+name)
-              try:
-                  with (OUT/(name+".stdout")).open("xb") as out,(OUT/(name+".stderr")).open("xb") as err:
-                      result=subprocess.run(["/usr/bin/timeout","--signal=TERM","--kill-after=15s",
-                                             str(maximum)+"s",*map(str,argv)],
-                                            cwd=ROOT,env=environment,stdout=out,stderr=err,
-                                            timeout=maximum+20,check=False)
-                      out.flush();err.flush();os.fsync(out.fileno());os.fsync(err.fileno())
-                  entry["exit_code"]=result.returncode
-                  require(result.returncode==0,name+" failed; exact output is retained")
-                  entry["status"]="passed"
-              except BaseException:
-                  entry["status"]="failed"
-                  raise
-              finally:
-                  entry["elapsed_seconds"]=time.monotonic()-began
-                  save()
-              return OUT/(name+".stdout")
-          def json_command(name,argv,seconds=300):
-              return toolchain.read_json(command(name,argv,seconds))
-          def save_copy(name,path,digest):
-              document=toolchain.authenticated_json(path,digest)
-              shutil.copyfile(path,OUT/name)
-              require(toolchain.sha256_file(OUT/name)==digest,"retained evidence changed: "+name)
-              return document
-          def physical_directory(path,create=False):
-              if create:
-                  path.mkdir(mode=0o750,parents=True,exist_ok=True)
-              require(path.is_dir() and not path.is_symlink(),"configured directory unavailable: "+str(path))
-              return path
-          environment=dict(os.environ)
-          removed=sorted(key for key in contract["environment"]["rejected_nonempty"] if environment.pop(key,None))
-          report["ambient_build_variable_names_removed"]=removed
-          toolchain.validate_environment(contract,environment)
-          save()
+          import ast,base64,hashlib,io,json,os,pathlib,subprocess,sys,urllib.request,zipfile,yaml
+          root=pathlib.Path.cwd()
+          out=pathlib.Path(os.environ["RUNNER_TEMP"])/"refactor-completion-qualification"
+          out.mkdir()
+          base="https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
+          def get(path):
+              request=urllib.request.Request(base+path,headers={"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+              request.add_unredirected_header("Authorization","Bearer "+os.environ["GH_TOKEN"])
+              with urllib.request.urlopen(request,timeout=60) as response:return response.read()
+          leaves={"tools/bindings/build-dotnet.py":"7f08e3ebb0339bae0dc641cc754b7826d06f1e25","cmake/LaplaceDotnetBindings.cmake":"4c15864d9ebdc47cda1f45c6f3d5cbc55828cd73","tests/CMakeLists.txt":"b72664861103c1a14eee8f4a2bf93da7132088f7","tests/chess_host_evidence_tests.py":"9ac89dcf4aa4fe1c1b90a3c2fa5f31b49bb15d29","tests/program_authority_tests.py":"d3e84eb1ffee907c431001a009f3f09fb199f98f","tools/dependencies/chess_profiles.py":"b5254cb7a45be475752912a0d33cc4595f6de02f","tools/dependencies/chess_tools.py":"a1b81bee8b16532de991abb1f6f40d7302c2dc8d","tests/chess_dependency_tests.py":"25f9185ed92fcedca1b9d622aa873585bc989262",".github/workflows/chess-calibration.yml":"7c3729c6a4bc095b64df907ce8bf1690d1c46441"}
+          assert subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()=="b042de4216e1d674effe5bd3e8ecf3ebc7aeddac"
+          for relative,digest in leaves.items():
+              record=json.loads(get("/git/blobs/"+digest))
+              assert record["sha"]==digest and record["encoding"]=="base64"
+              data=base64.b64decode(record["content"])
+              assert hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()==digest
+              path=root/relative
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_bytes(data)
+              if path.suffix==".py":ast.parse(data)
+              if path.suffix in (".yml",".yaml"):yaml.safe_load(data)
+          report={"source_base":"b042de4216e1d674effe5bd3e8ecf3ebc7aeddac","prepared_blobs":leaves,"checks":[]}
+          commands=[
+              ["python3","-B","tests/chess_dependency_tests.py","MeasuredChessProfiles"],
+              ["python3","-B","tests/chess_host_evidence_tests.py",
+               "HostEvidence.test_managed_build_without_host_descriptor_preserves_arguments_and_exit_status",
+               "HostEvidence.test_managed_child_cannot_retain_foreground_lock_and_missing_closure_is_detected"],
+              ["python3","-B","tests/program_authority_tests.py"]]
+          for index,command in enumerate(commands):
+              result=subprocess.run(command,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=180)
+              (out/(str(index)+".log")).write_text(result.stdout)
+              report["checks"].append({"command":command,"exit_code":result.returncode})
+              print(json.dumps(report["checks"][-1]))
+              print(result.stdout[-16000:])
           try:
-              require(re.fullmatch(r"[0-9a-f]{40}",BASE) is not None and
-                      re.fullmatch(r"[0-9a-f]{64}",PACKAGE) is not None and
-                      re.fullmatch(r"[0-9a-f]{64}",AGGREGATE) is not None,
-                      "fill the three exact finalized installed activation identities before operation")
-              before=active("activation-before")
-              published_path,published_sha=publication_selection.require_selected_state(
-                  toolchain.read_json(ROOT/"state/product-publication-selection.json"))
-              projection=toolchain.read_json(ROOT/"state/continuation.json")["product_activation_projection"]["postgresql_publication"]
-              require(projection=={"receipt":str(published_path),"receipt_sha256":published_sha},
-                      "product and PostgreSQL proof publication selectors differ")
-              save_copy("historical-publication.json",published_path,published_sha)
-              published=publication.verify_publication(published_path)
-              source_record=published["source_receipt"]
-              historical=save_copy("historical-postgresql-source.json",Path(source_record["path"]),source_record["sha256"])
-              selected=published["toolchain"]
-              old_receipt=Path(selected["source_receipt"])
-              old_sha=selected["source_receipt_sha256"]
-              require(old_sha==historical["build_toolchain"]["receipt_sha256"],
-                      "published historical toolchain receipt differs from the PostgreSQL source")
-              save_copy("historical-toolchain-receipt.json",old_receipt,old_sha)
-              old=toolchain.authenticated_json(old_receipt,old_sha)
-              report["historical_provider"]={"receipt":str(old_receipt),"receipt_sha256":old_sha,
-                  "prefix":old["package"]["prefix"],"scope":"historical provenance only; inaccessible private provider is not reused",
-                  "historical_steps_reexecuted":False}
-              pg_contract=postgres.read_json(ROOT/"contracts/postgresql-build.json")
-              runtime_owner=module("fresh_runtime_owner","tools/dependencies/build-runtime-graph.py")
-              runtime_contract=toolchain.read_json(ROOT/"contracts/postgresql-runtime-build.json")
-              runtime_contract["execution"].update({
-                  "build_root":"/build/laplace/build/refactor-postgresql-runtime",
-                  "stage_root":"/build/laplace/build/refactor-postgresql-runtime-stage"})
-              runtime_owner.validate_contract(runtime_contract)
-              activation.save(OUT/"runner-runtime-contract.json",runtime_contract)
-              report["historical_runtime"]={"selection":historical["runtime_package"],
-                  "scope":"inaccessible historical runtime is not reused; fresh source build required"}
-              activation.save(OUT/"runtime-compiler-preflight.json",runtime_owner.verify_compilers(runtime_contract))
-              activation.save(OUT/"postgresql-host-provider-preflight.json",
-                  postgres.verify_host_build_provider(pg_contract,ROOT))
-              original_archive=Path(contract["logical_roots"]["archive_root"])
-              lock_path=ROOT/contract["release_lock"]
-              lock=release.load_lock(lock_path)
-              lock_sha=toolchain.sha256_file(lock_path)
-              fresh_contract=json.loads(json.dumps(contract))
-              fresh_contract["logical_roots"].update({
-                  "archive_root":"/build/laplace/work/refactor-toolchain-source-archives",
-                  "source_generation":"/build/laplace/work/refactor-toolchain-source-generations/"+lock_sha,
-                  "build_root":"/build/laplace/build/refactor-toolchain",
-                  "work_root":"/build/laplace/work/refactor-toolchain",
-                  "stage_root":"/build/laplace/build/refactor-toolchain-stage"})
-              toolchain.validate_contract(fresh_contract,ROOT)
-              contract=fresh_contract
-              contract_path=OUT/"runner-toolchain-contract.json"
-              activation.save(contract_path,contract)
-              report["fresh_provider_contract"]={"path":str(contract_path),
-                  "sha256":toolchain.sha256_file(contract_path),"logical_roots":contract["logical_roots"],
-                  "scope":"exact canonical build/test/bootstrap contract; only physical storage roots differ"}
-              for key in ("archive_root","build_root","work_root","stage_root"):
-                  physical_directory(Path(contract["logical_roots"][key]),create=True)
-                  require(os.access(contract["logical_roots"][key],os.W_OK|os.X_OK),
-                          "fresh provider parent is not writable: "+key)
-              archive_root=Path(contract["logical_roots"]["archive_root"])
-              generation=Path(contract["logical_roots"]["source_generation"])
-              physical_directory(generation,create=True)
-              # Authenticate the host bootstrap before spending time rebuilding selected sources.
-              activation.save(OUT/"bootstrap-preflight.json",toolchain.verify_bootstrap(contract))
-              sources={}
-              for name in sorted(lock["archives"]):
-                  entry=lock["archives"][name]
-                  archive=archive_root/entry["filename"]
-                  require(not archive.is_symlink(),"archive path must not be a symlink: "+name)
-                  if not archive.exists():
-                      acquisition=Path(tempfile.mkdtemp(prefix="."+name+"-acquire-",dir=archive_root))
-                      try:
-                          incoming=acquisition/entry["filename"]
-                          cached=original_archive/entry["filename"]
-                          if cached.is_file() and not cached.is_symlink() and os.access(cached,os.R_OK):
-                              release.verify_entry(name,entry,original_archive)
-                              shutil.copyfile(cached,incoming)
-                          else:
-                              command("acquire-"+name,["/usr/bin/curl","--fail","--location","--proto","=https",
-                                  "--proto-redir","=https","--connect-timeout","15","--max-time","300",
-                                  "--max-filesize",str(entry["size_bytes"]),"--output",str(incoming),entry["url"]],330)
-                          release.verify_entry(name,entry,acquisition)
-                          os.link(incoming,archive,follow_symlinks=False)
-                      finally:
-                          shutil.rmtree(acquisition)
-                  archive_receipt=release.verify_entry(name,entry,archive_root)
-                  if not (generation/name).exists() and not (generation/name).is_symlink():
-                      temporary=Path(tempfile.mkdtemp(prefix="."+name+"-import-",dir=generation.parent))
-                      try:
-                          release.import_entry(name,entry,archive_root,temporary)
-                          release.verify_imported_entry(name,entry,archive_root,temporary)
-                          os.rename(temporary/name,generation/name)
-                      finally:
-                          shutil.rmtree(temporary)
-                  release.verify_imported_entry(name,entry,archive_root,generation)
-                  sources[name]=archive_receipt
-              activation.save(OUT/"selected-sources.json",{"lock_sha256":lock_sha,
-                  "source_generation":str(generation),"archives":sources})
-              pg_source=generation/pg_contract["source"]["entry"]
-              activation.save(OUT/"selected-postgresql-source.json",
-                  postgres.verify_release_import(pg_contract,ROOT,archive_root,pg_source))
-              arguments=[sys.executable,"-B","tools/toolchain/build-package.py",
-                  "--repository",str(ROOT),"--contract",str(contract_path)]
-              plan=json_command("toolchain-plan",arguments+["plan"],600)
-              build=Path(plan["build_directory"])
-              report.update(status="prepared",cmake_build_input_id=plan["build_input_id"],
-                  cmake_build_directory=str(build),full_toolchain_rebuild=True,
-                  next_operation="canonical14component toolchain,7runtimecomponents,PostgreSQL; physical build not started",
-                  selected_source_count=len(sources),runtime_contract_sha256=toolchain.sha256_file(OUT/"runner-runtime-contract.json"))
-              save()
-              raise SystemExit(0)
-              action="resume" if build.exists() else "build"
-              report.update(cmake_build_input_id=plan["build_input_id"],cmake_build_directory=str(build),
-                  cmake_action="full-toolchain-"+action,
-                  full_toolchain_rebuild=True)
-              completed_before=[]
-              if (build/"completed-components.json").exists():
-                  completed_before=toolchain.read_json(build/"completed-components.json").get("completed",[])
-              report["component_checkpoint_names_before"]=completed_before
-              save()
-              command("toolchain-build",arguments+[action],25200)
-              selected_path=build/"toolchain-package-receipt.json"
-              fresh=toolchain.read_json(selected_path)
-              require(fresh["build_input_id"]==plan["build_input_id"] and
-                      fresh["build_plan_sha256"]==toolchain.canonical_sha256(plan),
-                      "fresh complete toolchain receipt differs from plan")
-              verified=toolchain.verify_package(contract,Path(plan["prefix"]),fresh)
-              save_copy("fresh-toolchain-package-receipt.json",selected_path,toolchain.sha256_file(selected_path))
-              require(set(fresh["component_steps"])==set(toolchain.EXPECTED_ORDER),
-                      "fresh toolchain omits a selected component")
-              cmake_test=fresh["component_steps"]["cmake"][2]["test_result_contract"]
-              report.update(upstream_697_qualified=True,upstream_697_executed_this_run="cmake" not in completed_before,
-                  cmake_qualification_scope=("executed-and-verified-this-run" if "cmake" not in completed_before
-                      else "authenticated-retained-execution-reverified"),
-                  cmake_test_result=cmake_test,
-                  selected_toolchain_receipt=str(selected_path),
-                  selected_toolchain_receipt_sha256=toolchain.sha256_file(selected_path),
-                  selected_cmake=fresh["installed_tools"]["cmake"],
-                  fresh_toolchain_package_tree=verified["package_tree"])
-              for name in ("cmake","ctest","cpack"):
-                  log=command("selected-"+name+"-loader",["/usr/bin/ldd",fresh["installed_tools"][name]["path"]],30)
-                  require("not found" not in log.read_text(),"selected "+name+" has unresolved loader dependencies")
-              consumer_arguments=[sys.executable,"-B","tools/postgresql/build-package.py",
-                  "--repository",str(ROOT),"plan","--archive-root",str(archive_root),
-                  "--source-root",str(pg_source),"--toolchain-receipt",str(selected_path),
-                  "--runtime-receipt",str(runtime_path)]
-              report["consumer_inputs"]={"status":"verified","source_root":str(pg_source),
-                  "runtime_receipt":str(runtime_path),"runtime_receipt_sha256":runtime["receipt_sha256"],
-                  "historical_plan_required":False}
-              manifest=fresh["consumer_manifest"]
-              save()
-              successor_arguments=list(consumer_arguments)
-              successor_arguments[successor_arguments.index("--toolchain-receipt")+1]=str(selected_path)
-              successor=json_command("selected-provider-current-consumer-plan",successor_arguments)
-              require(successor["build_toolchain"]["build_input_id"]==manifest["build_input_id"],
-                      "PostgreSQL consumer plan selected another composed toolchain")
-              report.update(consumer_plan_completed=True,
-                  selected_consumer_plan=successor["build_input_id"],
-                  postgresql_build_directory=successor["build_directory"])
-              save()
-              pg_build=Path(successor["build_directory"])
-              pg_receipt_path=pg_build/"package-receipt.json"
-              pg_completed_before=pg_receipt_path.is_file()
-              if not pg_completed_before:
-                  pg_action="resume" if pg_build.exists() else "build"
-                  pg_arguments=list(successor_arguments)
-                  pg_arguments[pg_arguments.index("plan")]=pg_action
-                  report["postgresql_build_action"]=pg_action
-                  save()
-                  report["postgresql_build_executed_this_run"]=True
-                  save()
-                  command("postgresql-consumer-build",pg_arguments,6600)
-              pg_receipt=postgres.read_json(pg_receipt_path)
-              require(postgres.read_json(pg_build/"build-plan.json")==successor and
-                      pg_receipt["build_input_id"]==successor["build_input_id"] and
-                      pg_receipt["build_plan_sha256"]==postgres.canonical_sha256(successor) and
-                      pg_receipt["build_toolchain"]==successor["build_toolchain"] and
-                      pg_receipt["completed_targets"]==pg_contract["build"]["make_targets"] and
-                      pg_receipt["build_log_sha256"]==postgres.sha256_file(pg_build/"build.log"),
-                      "completed PostgreSQL receipt differs from its exact plan or execution log")
-              # Re-read the canonical io_uring test evidence and independently verify
-              # current package bytes and recursive loaded-object closure on replay.
-              io_uring=postgres.qualify_postgresql_io_uring(
-                  pg_contract,successor,pg_build,pg_build/"build.log")
-              qualification=pg_receipt["runtime_provider_qualification"]
-              require({key:value for key,value in qualification.items()
-                       if key not in ("receipt_path","receipt_sha256")}==io_uring,
-                      "PostgreSQL io_uring evidence differs from the completed receipt")
-              save_copy("postgresql-io-uring-qualification.json",
-                  Path(qualification["receipt_path"]),qualification["receipt_sha256"])
-              current_pg=json_command("postgresql-consumer-verify",
-                  [sys.executable,"-B","tools/postgresql/build-package.py","--repository",str(ROOT),
-                   "verify-package","--prefix",successor["staged_product_prefix"],
-                   "--toolchain-receipt",str(selected_path),
-                   "--closure-output",str(OUT/"postgresql-recursive-elf-closure.json")],1200)
-              for field in ("schema","prefix","version","configure","tree_sha256","file_count",
-                            "total_file_bytes","direct_elf_needed","runpath_verification",
-                            "recursive_elf_closure_verified"):
-                  require(current_pg[field]==pg_receipt[field],
-                          "PostgreSQL package re-verification differs: "+field)
-              closure_before=pg_receipt["recursive_elf_closure"]
-              closure_after=current_pg["recursive_elf_closure"]
-              for field in ("schema","verifier","summary","platform_abi_objects",
-                            "packaged_runtime_objects","verified","product_runtime_activated"):
-                  require(closure_before[field]==closure_after[field],
-                          "PostgreSQL recursive closure differs: "+field)
-              pg_receipt_sha=postgres.sha256_file(pg_receipt_path)
-              save_copy("postgresql-package-receipt.json",pg_receipt_path,pg_receipt_sha)
-              report.update(postgresql_qualified=True,
-                  postgresql_qualification_scope=("authenticated-retained-execution-reverified"
-                      if pg_completed_before else "executed-and-verified-this-run"),
-                  postgresql_package_receipt=str(pg_receipt_path),
-                  postgresql_package_receipt_sha256=pg_receipt_sha)
-              save()
-              publication_arguments=[sys.executable,"-B","tools/delivery/postgresql_package_publication.py"]
-              pub_plan=json_command("postgresql-publication-plan",
-                  publication_arguments+["plan","--postgresql-receipt",str(pg_receipt_path)],600)
-              published_successor=json_command("postgresql-publication",
-                  publication_arguments+["publish","--postgresql-receipt",str(pg_receipt_path)],1200)
-              require(published_successor==pub_plan,
-                      "published PostgreSQL package differs from its selected plan")
-              new_publication_path=Path(published_successor["receipt_path"])
-              verified_publication=json_command("postgresql-publication-verify",
-                  publication_arguments+["verify","--receipt",str(new_publication_path)],600)
-              require(verified_publication==published_successor,
-                      "new PostgreSQL publication changed on independent verification")
-              require(verified_publication["toolchain"]["source_receipt_sha256"]==toolchain.sha256_file(selected_path),
-                      "PostgreSQL publication lost its freshly qualified complete toolchain")
-              new_selection={"receipt":str(new_publication_path),
-                  "receipt_sha256":publication.sha256_file(new_publication_path)}
-              save_copy("published-postgresql-receipt.json",new_publication_path,
-                  new_selection["receipt_sha256"])
-              proposal={"schema":"laplace.postgresql-selection-update/v1",
-                  "source_commit":"b042de4216e1d674effe5bd3e8ecf3ebc7aeddac",
-                  "previous":projection,"selected":new_selection,
-                  "publication_id":verified_publication["publication_id"],
-                  "postgresql_build_input_id":successor["build_input_id"],
-                  "toolchain_build_input_id":manifest["build_input_id"],
-                  "updates":[
-                      {"path":"state/product-publication-selection.json",
-                       "field":["postgresql_publication"],"value":new_selection},
-                      {"path":"state/continuation.json",
-                       "field":["product_activation_projection","postgresql_publication"],
-                       "value":new_selection}],
-                  "historical_evidence_rewritten":False,
-                  "repository_selection_changed":False,
-                  "product_activation_occurred":False}
-              activation.save(OUT/"selection-update.json",proposal)
-              report.update(status="passed",postgresql_publication_completed=True,
-                  selected_postgresql_publication=new_selection,
-                  selection_update_proposal=str(OUT/"selection-update.json"))
-          
+              metadata=json.loads(get("/actions/artifacts/10474698366"))
+              assert metadata["workflow_run"]["id"]==35163097838 and metadata["size_in_bytes"]==8060347 and not metadata["expired"]
+              expected="5d9e6f96d52eb5e504828f7d4fe80873457ed4f4e372ca3e4d4e3dbb37ba0058"
+              assert metadata["digest"]=="sha256:"+expected
+              data=get("/actions/artifacts/10474698366/zip")
+              assert hashlib.sha256(data).hexdigest()==expected
+              archive=zipfile.ZipFile(io.BytesIO(data))
+              names=[name for name in archive.namelist() if name=="measurements/receipt.json"]
+              assert len(names)==1
+              measured=json.loads(archive.read(names[0]))
+              sys.path.insert(0,str(root/"tools/dependencies"))
+              import chess_profiles
+              selected=chess_profiles.recommendations(measured)
+              identity=chess_profiles.tool_identity(measured["tool_identity"])
+              signature=chess_profiles.host_signature(measured["host"])
+              report["actual_calibration_compatibility"]={"status":"passed","artifact":10474698366,
+                  "zip_sha256":expected,"selected":selected,"tool_identity":identity,
+                  "scope":"Parser and selection against authenticated actual report; hosted worker is not the measured machine."}
+              print(json.dumps(report["actual_calibration_compatibility"],sort_keys=True))
           except Exception as error:
-              report.update(status="failed",error={"type":type(error).__module__+"."+type(error).__name__,
-                                                  "message":str(error)[:2000]})
-          finally:
-              if plan is not None:
-                  # Preserve actual logs on every exit; never delete the addressed build for retry.
-                  for relative in ("build-plan.json","completed-components.json","toolchain-package-receipt.json","components/cmake/configure.log",
-                      "components/cmake/build.log","components/cmake/test.log","components/cmake/install.log",
-                      "components/cmake/Testing/Temporary/LastTest.log",
-                      "selected-toolchain.json","selected-toolchain-manifest.json") + tuple(
-                          "components/"+component+"/"+phase+".log"
-                          for component in ("perl","io-tty","ipc-run","texinfo","gnu-make","tcl","expect",
-                              "dejagnu","gnu-binutils","pkgconf","gnu-bison","flex","ninja")
-                          for phase in ("configure","build","test","install")):
-                      path=Path(plan["build_directory"])/relative
-                      if path.is_file() and not path.is_symlink() and path.stat().st_size<=256*1024*1024:
-                          target=OUT/"retained-build"/relative
-                          target.parent.mkdir(parents=True,exist_ok=True)
-                          shutil.copyfile(path,target)
-              if successor is not None:
-                  for relative in ("build-plan.json","package-receipt.json","build.log",
-                      "io-uring-qualification.json","recursive-elf-closure.json",
-                      "build-input-preflight.json","source-test-overlays-check-world.json",
-                      pg_contract["runtime_qualification"]["liburing"]["regress_log"],
-                      pg_contract["runtime_qualification"]["liburing"]["server_log"]):
-                      path=Path(successor["build_directory"])/relative
-                      if path.is_file() and not path.is_symlink() and path.stat().st_size<=256*1024*1024:
-                          target=OUT/"retained-postgresql-build"/relative
-                          target.parent.mkdir(parents=True,exist_ok=True)
-                          shutil.copyfile(path,target)
-              if before is not None:
-                  try:
-                      after=active("activation-after")
-                      require(activation.stable_activation(before)==activation.stable_activation(after),
-                              "installed product changed during CMake qualification")
-                      report["activation_unchanged"]=True
-                  except Exception as error:
-                      report.update(status="failed",activation_after_error={
-                          "type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:2000]})
-              save()
+              report["actual_calibration_compatibility"]={"status":"failed","error":str(error)}
+              print(json.dumps(report["actual_calibration_compatibility"],sort_keys=True))
+          report["status"]="passed" if all(check["exit_code"]==0 for check in report["checks"]) and report["actual_calibration_compatibility"]["status"]=="passed" else "failed"
+          (out/"result.json").write_text(json.dumps(report,indent=2,sort_keys=True)+"\n")
+          print("COMPLETION_QUALIFICATION_"+report["status"].upper())
           raise SystemExit(0 if report["status"]=="passed" else 1)
-          
           PY
-      - name: Verify prerequisites and acquire isolated source inputs without running builds
-        shell: bash
-        run: |
-          set -euo pipefail
-          timeout --signal=TERM --kill-after=20s 1800s \
-            python3 -B "$CMAKE_EVIDENCE/operate.py" \
-            > "$CMAKE_EVIDENCE/operation.stdout" 2> "$CMAKE_EVIDENCE/operation.stderr"
-      - name: Retain bounded partial build logs and report exact phase disposition
-        if: always()
-        shell: bash
-        run: |
-          python3 -B - <<'PY'
-          import json, os, pathlib, re, shutil
-          out=pathlib.Path(os.environ["CMAKE_EVIDENCE"])
-          path=out/"result.json"
-          if not path.is_file():
-              print("Operation did not produce a result; retained setup and process logs remain authoritative.")
-              raise SystemExit(0)
-          report=json.loads(path.read_text())
-          identity=report.get("cmake_build_input_id")
-          if isinstance(identity,str) and re.fullmatch("[0-9a-f]{64}",identity):
-              contract=json.loads((out/"runner-toolchain-contract.json").read_text())
-              if contract["logical_roots"]["build_root"]!="/build/laplace/build/refactor-toolchain":
-                  raise SystemExit("retained full-toolchain build root differs")
-              build=pathlib.Path(contract["logical_roots"]["build_root"])/identity
-              if str(build)==report.get("cmake_build_directory") and build.is_dir() and not build.is_symlink():
-                  for relative in ("build-plan.json","completed-components.json",
-                      "cmake-component-qualification.json","components/cmake/configure.log",
-                      "components/cmake/build.log","components/cmake/test.log",
-                      "components/cmake/install.log","components/cmake/Testing/Temporary/LastTest.log",
-                      "selected-toolchain.json","selected-toolchain-manifest.json"):
-                      source=build/relative
-                      if source.is_file() and not source.is_symlink() and source.stat().st_size<=256*1024*1024:
-                          target=out/"retained-build"/relative
-                          target.parent.mkdir(parents=True,exist_ok=True)
-                          shutil.copyfile(source,target)
-          pg_identity=report.get("selected_consumer_plan")
-          if isinstance(pg_identity,str) and re.fullmatch("[0-9a-f]{64}",pg_identity):
-              pg_contract=json.loads(pathlib.Path("contracts/postgresql-build.json").read_text())
-              pg_build=pathlib.Path(pg_contract["execution"]["build_root"])/pg_identity
-              plan_path=pg_build/"build-plan.json"
-              if (str(pg_build)==report.get("postgresql_build_directory") and pg_build.is_dir()
-                      and not pg_build.is_symlink() and plan_path.is_file()
-                      and not plan_path.is_symlink()):
-                  pg_plan=json.loads(plan_path.read_text())
-                  if (pg_plan.get("build_input_id")==pg_identity
-                          and pg_plan.get("build_directory")==str(pg_build)):
-                      for relative in ("build-plan.json","package-receipt.json","build.log",
-                          "io-uring-qualification.json","recursive-elf-closure.json",
-                          "build-input-preflight.json","source-test-overlays-check-world.json",
-                          pg_contract["runtime_qualification"]["liburing"]["regress_log"],
-                          pg_contract["runtime_qualification"]["liburing"]["server_log"]):
-                          source=pg_build/relative
-                          if (source.is_file() and not source.is_symlink()
-                                  and source.stat().st_size<=256*1024*1024):
-                              target=out/"retained-postgresql-build"/relative
-                              target.parent.mkdir(parents=True,exist_ok=True)
-                              shutil.copyfile(source,target)
-          if report.get("status") not in ("passed","failed","prepared"):
-              report["interrupted_previous_status"]=report.get("status")
-              report["status"]="interrupted"
-              report["operator_exit_without_terminal_receipt"]=True
-              temporary=out/"result-after-interruption.json"
-              temporary.write_text(json.dumps(report,sort_keys=True,indent=2)+"\n")
-              temporary.replace(path)
-          allowed=("status","error","activation_after_error","elapsed_seconds","source_commit",
-              "installed_repository_commit","installed_package_id","historical_provider",
-              "consumer_inputs","cmake_build_input_id","cmake_action","cmake_qualification_scope",
-              "upstream_697_qualified","upstream_697_executed_this_run","cmake_test_result",
-              "selected_toolchain_receipt","selected_toolchain_receipt_sha256",
-              "selected_consumer_plan","consumer_plan_completed","selected_cmake",
-              "retained_provider_roots","unchanged_components_reexecuted","full_toolchain_rebuild","fresh_provider_contract","fresh_toolchain_package_tree","historical_runtime","next_operation","selected_source_count","runtime_contract_sha256",
-              "product_built","postgresql_build_executed_this_run","postgresql_qualified",
-              "postgresql_publication_completed","postgresql_qualification_scope",
-              "postgresql_package_receipt","postgresql_package_receipt_sha256",
-              "selected_postgresql_publication","selection_update_proposal",
-              "installed_selection_changed","activation_unchanged","interrupted_previous_status",
-              "operator_exit_without_terminal_receipt","phases")
-          print(json.dumps({key:report[key] for key in allowed if key in report},sort_keys=True))
-          PY
-      - name: Retain operation evidence
+      - name: Retain qualification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cmake-component-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.CMAKE_EVIDENCE }}/
+          name: refactor-completion-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/refactor-completion-qualification/
           if-no-files-found: error
           retention-days: 90
