@@ -219,8 +219,11 @@ whole experiment. Refactor custom-stack, PostgreSQL and package proof, compositi
 and product activation steps use the
 same physical-host lock as the other repository's build, deploy and calibration
 commands. GitHub workflow concurrency alone cannot coordinate two repositories.
-The wrapper preserves the lock file's creator and group permissions and closes
-the descriptor in the invoked command so long-lived services cannot retain it.
+The wrapper preserves the lock file's creator and group permissions and retains
+the reservation through foreground execution and owned cleanup. The canonical
+managed-build child closes its inherited reservation descriptor on execution and
+disables persistent MSBuild/compiler servers; its supervising owner keeps the
+reservation until the build finishes.
 `LAPLACE_HOST_RESOURCE_LOCK` permits an explicitly selected equivalent lock on
 another host or in tests. Call the Python measurement tool directly only when its
 caller already owns the host lock or provides equivalent exclusive scheduling.
@@ -279,51 +282,157 @@ not assert that product activation succeeded. Accepted main changes still run th
 separate calibration after successful product deployment; core benchmark scheduling
 is unchanged.
 
-## Measured hart-server configuration (2026-09-16)
+## Measured hart-server configuration (2026-09-17)
 
-[Candidate calibration run 35115292050](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35115292050)
-completed on hart-server, the Intel Core i7-6850K machine with six physical cores
-and twelve logical CPUs. The retained measurement distinguishes a fixed-depth
-engine search from complete legal game generation.
+[Accepted-main run 35163097838](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35163097838)
+installed source `b042de4216e1d674effe5bd3e8ecf3ebc7aeddac` and completed
+the separate deployed machine calibration on hart-server. The host is an Intel
+Core i7-6850K with six physical cores and twelve logical CPUs. The latest retained
+finite sweep produced these provisional selections:
 
-| Workload | Provisional best measured setting | Median result |
+| Workload | Best measured setting in this sweep | Median result |
 | --- | --- | --- |
-| Stockfish upstream 51-position depth-12 suite | Threads=6; Hash=64 MiB | 3,342,731 wall-clock nodes/second; 2.265050 seconds |
-| CuteChess complete Stockfish self-play, depth 8, time control 60 | Concurrency=8; each engine Threads=1 and Hash=16 MiB; ponder off | 5.006408 completed games/second; 780.999642 plies/second |
+| Official Stockfish 51-position depth-12 suite | Threads=4; Hash=256 MiB | 2,216,083 wall-clock nodes/second; 2.220134 seconds |
+| CuteChess complete Stockfish self-play, depth 8, time control 60 | Concurrency=8; each engine Threads=1 and Hash=16 MiB; ponder off | 5.017007 generated complete games/second; 782.653027 plies/second |
 
 The engine sweep tested Threads=1,2,4,6,8,12 with Hash=16,64,256 MiB.
-The game sweep tested concurrency=1,2,4,6,8,12. Each configuration had one
-excluded warmup and three measured samples. Each tournament sample contained
-16 games from the standard starting position, with both color assignments.
-There was no maximum-move limit or adjudication. The independent legal PGN
-replay and final board outcome checks were required for completion.
+The game sweep tested concurrency=1,2,4,6,8,12. Each configuration had one excluded
+warmup and three measured samples. Each tournament sample contained 16 games from
+the standard starting position, with both color assignments and no maximum-move
+adjudication. Independent legal PGN replay and final-board outcome checks were
+required for completion.
 
-At concurrency eight, the three measured samples completed all 48 games and
-7,488 plies in 9.607963 seconds total, with zero capped diagnostic games.
-The sample game rates ranged from 4.974519 to 5.006779 games/second. The median
-sample took 3.195904 seconds; sampled peak RSS for that configuration was
-3,971,186,688 bytes. These are complete depth-eight generated games, not a
-depth-free playing-strength experiment.
+At concurrency eight, all three measured samples completed 48 games and 7,488
+plies in 9.575395 seconds total, with zero capped diagnostic games. Sample rates
+ranged from 4.997025 to 5.024594 generated games/second. The median sample took
+3.189153 seconds; sampled peak RSS was 3,853,979,648 bytes.
 
-The selected fixed-depth engine configuration had a median 7,571,451 searched
-nodes and 479,608,832 bytes sampled peak RSS. Thread and hash changes can change
-the search workload, so the recorded wall-clock NPS selection and elapsed times
-do not establish identical-work parallel speedup. The single-engine setting
-also does not prescribe six threads for every concurrent game.
+The selected engine configuration's wall-clock NPS ranged from 2,135,914 to
+2,309,242. Its median searched-node count was 5,103,673 and sampled peak RSS was
+596,750,336 bytes. SMP/hash settings can change the searched workload. These
+measurements do not establish identical-work parallel speedup, playing strength,
+or a universal machine optimum. Other applications, quotas, affinity, and memory
+headroom can change the applicable configuration.
 
-Database recording was not part of this experiment: its recorded-game count
-and recorded games/second are explicitly null. These results do not establish
-Laplace admission throughput, corpus deduplication, playing strength, or a
-2,500-recorded-games/second result. Actual installed service settings require
-their own configuration readback.
+The source executable is built directly from official Stockfish commit
+`edb0d9db6731067ec50ce619ff372b463bc4dd5d`; the measured executable SHA256 is
+`fe5f294eadb777e975aab62779edb78270aefb80b9cb125d5d31905233f3fc5a`.
+The selected NNUE SHA256 is
+`1a298aa575a085434d29027978dc36867fe9c5bcea9376654b7a8eba1e52dfc2`.
+A different build on the same host requires its own reconciled measurement.
 
-Retained transcripts, complete PGNs, source/binary identities and measurement
-receipts are in
-[artifact candidate-chess-dependencies-35115292050-1](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35115292050/artifacts/10454324046),
-ID `10454324046`, 8,061,662 bytes; ZIP SHA-256
-`96cd386325b57afab3a62780e77dd71e1f008f8517ebc6fcc5244b1666289a5d`.
+Database recording was not measured: recorded games and recorded games/second
+are explicitly null. The 5.017007 value measures complete depth-eight game
+generation and cannot establish a 2,500-recorded-games/second result.
 
+The current raw transcripts, PGNs, machine observations and receipt are retained
+in [artifact chess-dependencies-35163097838-1](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35163097838/artifacts/10474698366),
+8,060,347 bytes; ZIP SHA256
+`5d9e6f96d52eb5e504828f7d4fe80873457ed4f4e372ca3e4d4e3dbb37ba0058`.
 The earlier
+[candidate run 35115292050](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35115292050)
+remains historical evidence; its Threads=6/Hash=64 choice is superseded by this
+latest finite sweep. The
 [2026-09-15 run 34958542147](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/34958542147)
-ended every game at a 24-ply limit. Its game rates remain historical launch
-diagnostics and are superseded here for complete-game configuration.
+capped games at 24 plies and remains a launch diagnostic.
+
+## Applying a measured profile
+
+A completed calibration is activated through the existing source-tool entrypoint:
+
+```bash
+python3 tools/dependencies/chess_tools.py activate-profile \
+  --calibration-receipt /absolute/path/receipt.json \
+  --calibration-sha256 <receipt-sha256> \
+  --profile-mode both
+```
+
+Activation checks the explicit receipt digest, recomputes the recommendations
+from repeated completed samples, and verifies the selected source, executable,
+NNUE, Qt, benchmark contract and machine/resource identities. The completed
+calibration workflow performs this activation after the benchmark succeeds.
+Receipt bytes remain under
+`/opt/laplace/tools/chess/calibrations/<sha256>/receipt.json`; addressed profiles
+and the two current selections remain under `profiles/` in that same prefix.
+
+`run-profile` revalidates the selected profile before each invocation. A finite
+Stockfish command file can contain:
+
+```text
+position startpos
+go depth 8
+quit
+```
+
+Run it against the actual source executable:
+
+```bash
+python3 tools/dependencies/chess_tools.py run-profile \
+  --profile-mode analysis \
+  --uci-input /absolute/path/search.uci \
+  --profile-output /build/laplace/work/stockfish-profile-invocation-UNIQUE \
+  --profile-timeout 60
+```
+
+Measured Threads/Hash defaults are sent before the caller's UCI commands. Explicit
+caller settings therefore win, subject to the current resource grant. The protocol
+owner waits for each finite search's `bestmove` before sending the following
+command. It invokes the recorded source executable directly.
+
+For a two-game invocation with explicit lower resource settings:
+
+```bash
+python3 tools/dependencies/chess_tools.py run-profile \
+  --profile-mode games \
+  --profile-output /build/laplace/work/cutechess-profile-invocation-UNIQUE \
+  --profile-timeout 600 \
+  -- -games 2 -concurrency 1 -each option.Threads=1 option.Hash=16
+```
+
+Omitting those explicit overrides consumes the measured game configuration.
+Both engine slots use the recorded source Stockfish executable. Each invocation
+retains its actual argv, applied configuration, profile and calibration identities,
+logs, completion and generated PGN hash. Analysis also retains the caller input
+and exact UCI input sent. This invocation evidence does not reproduce the calibration
+rate or measure database recording. The default calibration lifetime is seven days;
+`--profile-max-age` explicitly selects another finite lifetime during activation.
+Changed binaries, NNUE, benchmark contract, machine controls or insufficient
+resources cause a visible rejection instead of silent reuse.
+
+## Installed Stockfish source corpus and exact replay
+
+The same accepted-main run completed actual installed admission of all 119 tracked
+files from the locked official Stockfish Git tree: 1,172,144 bytes, including 72
+C++ files. The installed CLI then reconstructed every file exactly. Repeating the
+same admission produced zero new entities, physicalities, attestations, source
+occurrences and structural witnesses.
+
+| Retained result | Actual observation |
+| --- | --- |
+| Structural witnesses | 571,626 |
+| Source occurrence rows | 239 |
+| Readback, each pass | 119 records; 119 resolved roots; 968,195 trajectory carriers |
+| First CLI admission plus exact readback | 129.581977 seconds |
+| Repeated CLI admission plus exact readback | 60.710632 seconds |
+| Repeat growth | Entity=0; physicality=0; attestation=0; occurrence=0; witness=0 |
+
+These timings include the complete CLI operation and exact readback; they are not
+isolated SQL insertion rates. The final database observation contained 1,172,698
+entities, 1,172,837 physicalities and 1,114,449 attestations. Those existing-state
+counts are separate denominators and do not imply one physicality per entity.
+
+The source profile retains 102 Tree-sitter `ERROR` or `MISSING` syntax witnesses.
+The count excludes ancestor-only `HAS_ERROR` propagation. Their exact byte spans
+and flags are retained, but individual diagnostic classification remains pending.
+Exact byte reconstruction and zero-growth replay do not prove C++ preprocessing,
+name/type resolution, executable semantics or chess strength. The separately
+authenticated NNUE is an engine build input; this code-source profile does not
+claim to have admitted its tensors as a model corpus.
+
+The full acceptance report and both command outputs are retained in
+[artifact stockfish-corpus-acceptance-35163097838-1](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35163097838/artifacts/10474447094),
+3,016,206 bytes; ZIP SHA256
+`a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007`.
+[Reader run 35165647185](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35165647185)
+independently authenticated the artifact and evidence digests, installed activation
+tuple, both readback denominators and all five zero replay deltas.

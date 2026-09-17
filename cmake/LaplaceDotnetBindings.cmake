@@ -18,6 +18,7 @@ function(laplace_configure_dotnet_bindings
     set(managed_dll
         "${managed_root}/Laplace.Managed/bin/Release/net10.0/Laplace.Managed.dll")
     set(nuget_config "${CMAKE_CURRENT_SOURCE_DIR}/managed/NuGet.Config")
+    set(build_driver "${CMAKE_CURRENT_SOURCE_DIR}/tools/bindings/build-dotnet.py")
 
     add_custom_command(
         OUTPUT "${generated_source}"
@@ -35,7 +36,8 @@ function(laplace_configure_dotnet_bindings
             "DOTNET_CLI_TELEMETRY_OPTOUT=1"
             "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1"
             "NUGET_PACKAGES=${managed_root}/packages"
-            "${LAPLACE_DOTNET_EXECUTABLE}" build "${project_path}"
+            "${Python3_EXECUTABLE}" "${build_driver}"
+            "${LAPLACE_DOTNET_EXECUTABLE}" "${project_path}"
             --configuration Release
             --nologo
             "-p:GeneratedIsaSource=${generated_source}"
@@ -43,6 +45,7 @@ function(laplace_configure_dotnet_bindings
             "-p:LaplaceManagedBuildRoot=${managed_root}"
             "-p:RestoreConfigFile=${nuget_config}"
         DEPENDS
+            "${build_driver}"
             "${generated_source}"
             "${highway_source}"
             "${project_path}"
@@ -55,6 +58,7 @@ function(laplace_configure_dotnet_bindings
     add_custom_target(laplace_dotnet_bindings ALL DEPENDS "${managed_dll}")
     add_dependencies(laplace_dotnet_bindings laplace_dotnet_generate)
 
+    set(LAPLACE_DOTNET_BUILD_DRIVER "${build_driver}" PARENT_SCOPE)
     set(LAPLACE_DOTNET_EXECUTABLE "${LAPLACE_DOTNET_EXECUTABLE}" PARENT_SCOPE)
     set(LAPLACE_DOTNET_GENERATED_SOURCE "${generated_source}" PARENT_SCOPE)
     set(LAPLACE_DOTNET_HIGHWAY_SOURCE "${highway_source}" PARENT_SCOPE)

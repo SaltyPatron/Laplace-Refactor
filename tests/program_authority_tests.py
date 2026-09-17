@@ -22,6 +22,7 @@ PROFILE_PATH = ROOT / "contracts" / "source-profile-model.json"
 ADMISSION_PATH = ROOT / "contracts" / "source-admission.json"
 OPERATION_PATH = ROOT / "contracts" / "operation-model.json"
 CONTINUATION_PATH = ROOT / "state" / "continuation.json"
+PUBLICATION_SELECTION_PATH = ROOT / "state" / "product-publication-selection.json"
 VAULT_INVENTORY_PATH = ROOT / "state" / "vault-inventory.json"
 VAULT_AUDIT_PATH = ROOT / "docs" / "audits" / "VAULT_SOURCE_MODEL_AUDIT_2026-08-29.md"
 VAULT_VALIDATOR_PATH = ROOT / "tools" / "audit" / "validate-vault-inventory.py"
@@ -1478,14 +1479,17 @@ def validate_continuation(document: dict, verify_physical: bool = True) -> None:
         "stable product-activation projection schema drift",
     )
     publication_projection = activation_projection.get("postgresql_publication", {})
-    publication_authority = progress.get(
-        "accepted_postgresql_product_package", {}
-    ).get("publication", {})
+    # The accepted package above is historical evidence. Current build selection
+    # may advance after a new package is qualified and published.
+    publication_selection = load(PUBLICATION_SELECTION_PATH)
+    publication_authority = publication_selection.get("postgresql_publication", {})
     require(
-        publication_projection.get("receipt") == publication_authority.get("receipt")
-        and publication_projection.get("receipt_sha256")
-        == publication_authority.get("receipt_sha256"),
-        "stable PostgreSQL publication projection differs from accepted package evidence",
+        publication_selection.get("schema") == "laplace.product-publication-selection/v1"
+        and publication_selection.get("classification")
+        == "authority-selected-development-publication"
+        and set(publication_authority) == {"receipt", "receipt_sha256"}
+        and publication_projection == publication_authority,
+        "stable PostgreSQL publication projection differs from current selected publication",
     )
     projected_successor = activation_projection.get(
         "successor_product_package", {}
@@ -2325,6 +2329,32 @@ class ProgramAuthorityTests(unittest.TestCase):
         accepted.pop("publication")
         with self.assertRaisesRegex(ValueError, "runner-readable publication"):
             validate_continuation(mutant, verify_physical=False)
+
+    def test_current_publication_can_advance_without_rewriting_historical_evidence(self) -> None:
+        # Synthetic selector identities exercise source-state coherence only;
+        # package qualification remains the publication owner's responsibility.
+        successor = {
+            "receipt": "/opt/laplace/receipts/postgresql/" + "a" * 64 + ".json",
+            "receipt_sha256": "b" * 64,
+        }
+        mutant = copy.deepcopy(self.continuation)
+        historical = copy.deepcopy(mutant["prior_highway_work"]["implementation_progress"])
+        mutant["product_activation_projection"]["postgresql_publication"] = successor
+        selection = load(PUBLICATION_SELECTION_PATH)
+        selection["postgresql_publication"] = successor
+        original_load = load
+        with mock.patch(__name__ + ".load", side_effect=lambda path:
+                        selection if path == PUBLICATION_SELECTION_PATH else original_load(path)):
+            validate_continuation(mutant, verify_physical=False)
+        self.assertEqual(mutant["prior_highway_work"]["implementation_progress"], historical)
+
+    def test_mutation_current_publication_projection_drift_is_detected(self) -> None:
+        for field in ("receipt", "receipt_sha256"):
+            with self.subTest(field=field):
+                mutant = copy.deepcopy(self.continuation)
+                mutant["product_activation_projection"]["postgresql_publication"][field] += "0"
+                with self.assertRaisesRegex(ValueError, "current selected publication"):
+                    validate_continuation(mutant, verify_physical=False)
 
     def test_mutation_inert_postgresql_package_is_promoted(self) -> None:
         mutant = copy.deepcopy(self.continuation)

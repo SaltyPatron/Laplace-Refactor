@@ -497,6 +497,127 @@ class HostEvidence(unittest.TestCase):
                     self.assertEqual(result.returncode, status, result.stderr)
                     self.assertTrue(self.lock_available(lock))
 
+
+    def managed_build_observer(self, root):
+        # Executable protocol fixture, not a .NET compilation claim. It observes
+        # the real exec/FD boundary and deliberately leaves a child alive.
+        executable = root / 'dotnet-observer'
+        executable.write_text(f'#!{sys.executable}\n' + textwrap.dedent("""
+            import json,os,sys,time
+            from pathlib import Path
+            root=Path(os.environ['MANAGED_OBSERVER_ROOT'])
+            try:
+                os.fstat(9)
+            except OSError:
+                inherited=False
+            else:
+                inherited=True
+            observation={'pid':os.getpid(),'argv':sys.argv[1:],
+                         'lock_inherited':inherited,
+                         'node_reuse':os.environ.get('MSBUILDDISABLENODEREUSE'),
+                         'cli_server':os.environ.get('DOTNET_CLI_USE_MSBUILD_SERVER'),
+                         'msbuild_server':os.environ.get('MSBUILDUSESERVER')}
+            (root/'managed.json').write_text(json.dumps(observation))
+            if os.environ.get('MANAGED_OBSERVER_DETACH')=='1':
+                child=os.fork()
+                if child==0:
+                    os.setsid()
+                    (root/'child-ready').write_text(str(os.getpid()))
+                    deadline=time.monotonic()+15
+                    while not (root/'release-child').exists() and time.monotonic()<deadline:
+                        time.sleep(.01)
+                    (root/'child-finished').touch()
+                    os._exit(0)
+            raise SystemExit(int(os.environ.get('MANAGED_OBSERVER_STATUS','0')))
+        """))
+        executable.chmod(0o750)
+        return executable
+
+    def test_managed_build_without_host_descriptor_preserves_arguments_and_exit_status(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = self.managed_build_observer(root)
+            arguments = [str(root/'project with spaces.csproj'), '--configuration', 'Release']
+            environment = os.environ | {'MANAGED_OBSERVER_ROOT':str(root),
+                                         'MSBUILDDISABLENODEREUSE':'0', 'MANAGED_OBSERVER_DETACH':'0',
+                                         'DOTNET_CLI_USE_MSBUILD_SERVER':'1', 'MSBUILDUSESERVER':'1'}
+            for status in (0, 7, 23):
+                with self.subTest(status=status):
+                    process = subprocess.Popen([sys.executable,
+                        str(ROOT/'tools/bindings/build-dotnet.py'), str(executable), *arguments],
+                        env=environment | {'MANAGED_OBSERVER_STATUS':str(status)},
+                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                    _, error = process.communicate(timeout=5)
+                    self.assertEqual(process.returncode, status, error)
+                    observed = json.loads((root/'managed.json').read_text())
+                    self.assertEqual(observed['pid'], process.pid)
+                    self.assertFalse(observed['lock_inherited'])
+                    self.assertEqual(observed['node_reuse'], '1')
+                    self.assertEqual(observed['cli_server'], '0')
+                    self.assertEqual(observed['msbuild_server'], '0')
+                    self.assertEqual(observed['argv'], ['build', *arguments,
+                        '--disable-build-servers', '-p:UseSharedCompilation=false',
+                        '-nodeReuse:false'])
+
+    def test_managed_child_cannot_retain_foreground_lock_and_missing_closure_is_detected(self):
+        driver = ROOT/'tools/bindings/build-dotnet.py'
+        for mutant in (False, True):
+            with self.subTest(mutant=mutant), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                lock = root/'host.lock'
+                executable = self.managed_build_observer(root)
+                selected_driver = driver
+                if mutant:
+                    source = driver.read_text()
+                    self.assertEqual(source.count('os.set_inheritable(9, False)'), 1)
+                    selected_driver = root/'build-dotnet-mutant.py'
+                    selected_driver.write_text(source.replace(
+                        'os.set_inheritable(9, False)', 'os.set_inheritable(9, True)', 1))
+                environment = os.environ | {'LAPLACE_HOST_RESOURCE_LOCK':str(lock),
+                    'MANAGED_OBSERVER_ROOT':str(root), 'MANAGED_OBSERVER_DETACH':'1',
+                    'MANAGED_OBSERVER_STATUS':'23'}
+                supervisor = textwrap.dedent("""
+                    import os,subprocess,sys,time
+                    from pathlib import Path
+                    root=Path(sys.argv[1])
+                    held=os.fstat(9)
+                    status=subprocess.call(sys.argv[2:],pass_fds=(9,))
+                    after=os.fstat(9)
+                    assert (held.st_dev,held.st_ino)==(after.st_dev,after.st_ino)
+                    (root/'foreground-ready').touch()
+                    deadline=time.monotonic()+10
+                    while not (root/'release-foreground').exists() and time.monotonic()<deadline:
+                        time.sleep(.01)
+                    raise SystemExit(status)
+                """)
+                process = subprocess.Popen(['bash',str(ROOT/'tools/host/run-exclusive.sh'),
+                    sys.executable,'-c',supervisor,str(root),
+                    sys.executable,str(selected_driver),str(executable),
+                    str(root/'project.csproj')],env=environment,
+                    stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                try:
+                    self.wait_file(root/'foreground-ready')
+                    self.wait_file(root/'child-ready')
+                    observed = json.loads((root/'managed.json').read_text())
+                    self.assertEqual(observed['lock_inherited'], mutant)
+                    self.assertFalse(self.lock_available(lock))
+                    (root/'release-foreground').touch()
+                    self.assertEqual(process.wait(timeout=3),23)
+                    self.assertFalse((root/'child-finished').exists())
+                    self.assertEqual(self.lock_available(lock), not mutant)
+                finally:
+                    (root/'release-foreground').touch()
+                    (root/'release-child').touch()
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=3)
+                    if (root/'child-ready').exists():
+                        self.wait_file(root/'child-finished')
+                deadline = time.monotonic()+3
+                while not self.lock_available(lock) and time.monotonic()<deadline:
+                    time.sleep(.01)
+                self.assertTrue(self.lock_available(lock))
+
     def test_real_detached_service_subprocess_does_not_retain_the_host_lock(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
