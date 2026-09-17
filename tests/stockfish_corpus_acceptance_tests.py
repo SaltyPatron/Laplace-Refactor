@@ -46,10 +46,14 @@ def fixtures():
         'profile':'verified-git-code','active_package_id':package,'tool_release':active['release'],
         'executable_semantics_verified':False,'verified_git_input':{'manifest':manifest},
         'admission':admission,'persisted_profile':{'claim_count':0},
+        'execution_metrics':{'last':{'valid':True,'structural_execution_receipt_id':'6'*64}},
         **{field:'f'*64 for field in ('geometry_epoch','perfcache_epoch','numeric_epoch',
             'native_source_fingerprint','native_reconstruction_fingerprint')},
         'readback':{'schema':'laplace.verified-git-source-readback/v1',
             'structural_witness_fingerprint':'7'*64,
+            'execution_witness_fingerprint':'8'*64,'structural_execution_receipt_id':'6'*64,
+            'historical_structural_receipt_id':'9'*64,
+            'structural_execution_observation_count':13,'structural_execution_receipt_count':1,
             'all_artifacts_exact':True,'structural_receipt_count':1,'verified_file_count':2,
             'verified_byte_count':5,'records':records,'source_occurrence_count':9,
             'structural_witness_count':13,'database_row_counts':{'entity':100,'physicality':100,'attestation':9}}}
@@ -111,6 +115,10 @@ class ReadbackTests(unittest.TestCase):
         result=subject.verify_repeat(self.first,copy.deepcopy(self.first),self.manifest,self.active)
         self.assertEqual(result['verified_file_count'],2)
         self.assertEqual(result['verified_byte_count'],5)
+        self.assertEqual(result['structural_execution_observation_delta'],0)
+        self.assertEqual(result['structural_execution_receipt_delta'],0)
+        for field in subject.EXECUTION_IDENTITY_FIELDS:
+            self.assertEqual(result[field],self.first['readback'][field])
         self.assertEqual(result['substrate_row_deltas'],{'entity':0,'physicality':0,'attestation':0})
 
     def test_physical_readback_work_can_change_without_canonical_change(self):
@@ -118,10 +126,9 @@ class ReadbackTests(unittest.TestCase):
         second['readback']['records'][0].update(database_operations=1,materialization_receipt_id='\\x'+'8'*64)
         subject.verify_repeat(self.first,second,self.manifest,self.active)
 
-    def test_canonical_reuse_accepts_different_structural_execution_receipts_and_bindings(self):
+    def test_canonical_reuse_accepts_different_artifact_bindings_in_the_same_execution(self):
         second=copy.deepcopy(self.first)
         for index,row in enumerate(second['readback']['records']):
-            row['structural_receipt_id']='\\x'+'8'*64
             row['source_binding_id']='\\x'+str(index+3)*64
         original_first,original_second=copy.deepcopy(self.first),copy.deepcopy(second)
         result=subject.verify_repeat(self.first,second,self.manifest,self.active)
@@ -131,8 +138,84 @@ class ReadbackTests(unittest.TestCase):
         for first_row,second_row in zip(self.first['readback']['records'],second['readback']['records']):
             self.assertEqual(len(first_row),20)
             self.assertEqual(len(second_row),20)
-            self.assertNotEqual(first_row['structural_receipt_id'],second_row['structural_receipt_id'])
+            self.assertEqual(first_row['structural_receipt_id'],second_row['structural_receipt_id'])
             self.assertNotEqual(first_row['source_binding_id'],second_row['source_binding_id'])
+
+    def test_each_result_requires_exact_nonzero_execution_identities(self):
+        for which in (0,1):
+            for field in subject.EXECUTION_IDENTITY_FIELDS:
+                for value in (None,False,17,'','a'*63,'a'*65,'AB'*32,'\\x'+'ab'*32,'0'*64):
+                    first,second=copy.deepcopy(self.first),copy.deepcopy(self.first)
+                    target=(first,second)[which]['readback']
+                    if value is None: target.pop(field)
+                    else: target[field]=value
+                    with self.subTest(result=which,field=field,value=value), self.assertRaisesRegex(
+                            ValueError,'verified execution identity'):
+                        subject.verify_repeat(first,second,self.manifest,self.active)
+
+    def test_each_result_requires_positive_integer_execution_counts(self):
+        for which in (0,1):
+            for field in subject.EXECUTION_COUNT_FIELDS:
+                for value in (None,False,0,-1,1.5,'1'):
+                    first,second=copy.deepcopy(self.first),copy.deepcopy(self.first)
+                    target=(first,second)[which]['readback']
+                    if value is None: target.pop(field)
+                    else: target[field]=value
+                    with self.subTest(result=which,field=field,value=value), self.assertRaisesRegex(
+                            ValueError,'invalid count: '+field):
+                        subject.verify_repeat(first,second,self.manifest,self.active)
+
+    def test_each_execution_count_rejects_amplification_and_disappearance(self):
+        for field in subject.EXECUTION_COUNT_FIELDS:
+            # Multiple retained provider executions are valid; identical replay
+            # must neither append another observation nor remove historical ones.
+            self.first['readback'][field]=20
+            for value in (19,21):
+                with self.subTest(field=field,value=value):
+                    self.check_bad(lambda r:r['readback'].__setitem__(field,value),'amplified persistent')
+            self.first=fixtures()[2]
+
+    def test_each_current_execution_identity_must_survive_repeat(self):
+        for field in subject.EXECUTION_IDENTITY_FIELDS:
+            second=copy.deepcopy(self.first)
+            second['readback'][field]='a'*64
+            if field=='structural_execution_receipt_id':
+                second['execution_metrics']['last'][field]='a'*64
+                for row in second['readback']['records']: row['structural_receipt_id']='\\x'+'a'*64
+            # Each result remains individually valid, proving this refusal is
+            # specifically the identical-replay contract rather than malformed data.
+            subject.validate_readback(second,self.manifest,self.active)
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError,'repeat changed current execution identity'):
+                subject.verify_repeat(self.first,second,self.manifest,self.active)
+
+    def test_each_result_binds_valid_admission_execution_metrics(self):
+        for which in (0,1):
+            for metrics in (None,{}, {'last':None}, {'last':{'valid':False,'structural_execution_receipt_id':'6'*64}},
+                            {'last':{'valid':True,'structural_execution_receipt_id':'a'*64}}):
+                first,second=copy.deepcopy(self.first),copy.deepcopy(self.first)
+                target=(first,second)[which]
+                if metrics is None: target.pop('execution_metrics')
+                else: target['execution_metrics']=metrics
+                with self.subTest(result=which,metrics=metrics), self.assertRaisesRegex(
+                        ValueError,'admitted current execution receipt'):
+                    subject.verify_repeat(first,second,self.manifest,self.active)
+
+    def test_readback_rows_cannot_substitute_another_consistent_structural_receipt(self):
+        for which in (0,1):
+            first,second=copy.deepcopy(self.first),copy.deepcopy(self.first)
+            for row in (first,second)[which]['readback']['records']:
+                row['structural_receipt_id']='\\x'+'a'*64
+            with self.subTest(result=which), self.assertRaisesRegex(ValueError,'bind the current structural receipt'):
+                subject.verify_repeat(first,second,self.manifest,self.active)
+
+    def test_retained_provider_history_does_not_have_to_be_a_fresh_single_execution(self):
+        self.first['readback'].update(structural_execution_observation_count=39,
+                                      structural_execution_receipt_count=3)
+        before=copy.deepcopy(self.first)
+        result=subject.verify_repeat(self.first,copy.deepcopy(self.first),self.manifest,self.active)
+        self.assertEqual(self.first,before)
+        self.assertEqual(result['structural_execution_observation_delta'],0)
+        self.assertEqual(result['structural_execution_receipt_delta'],0)
 
     def test_each_result_requires_a_lowercase_semantic_witness_fingerprint(self):
         for which in (0,1):
@@ -151,6 +234,8 @@ class ReadbackTests(unittest.TestCase):
             second=copy.deepcopy(self.first)
             second['readback']['structural_witness_fingerprint']='9'*64
             if changed_execution:
+                second['readback']['structural_execution_receipt_id']='8'*64
+                second['execution_metrics']['last']['structural_execution_receipt_id']='8'*64
                 for index,row in enumerate(second['readback']['records']):
                     row['structural_receipt_id']='\\x'+'8'*64
                     row['source_binding_id']='\\x'+str(index+3)*64

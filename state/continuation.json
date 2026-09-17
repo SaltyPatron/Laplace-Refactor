@@ -2167,8 +2167,8 @@
     "classification": "observed-development-state-not-product-law",
     "correction": "Keep canonical span rows and v1-v3 evidence; add authenticated v4 current execution observations and stable canonical witness fingerprint, explicit metrics/CLI selection, source-location reproducibility fix.",
     "current_119_same_profile_replay": "pending",
-    "current_installation": "pending",
-    "current_native_qualification": "Corrected occurrence-provenance fixture pending ordinary required qualification; retained prior native/core passes and named failure below.",
+    "current_installation": "Package d854e1d89e71cbb75a7c94817973ed055f1d496caf712afd430327ebd884264a selected; public reconciliation interrupted by old65536-byte envelope. Full activation is not yet proven.",
+    "current_native_qualification": "Passed exact corrected head b314 in normal run35206242161; 718 native, sanitizer/requirements,48 PG core, real two-provider C++ readback/replay,15 corruption and2 schema controls, PG product and package proofs.",
     "diagnostic": {
       "activation_job": 105131148335,
       "canonical_entity_and_physicality_identical": true,
@@ -2180,6 +2180,75 @@
       "replay": false,
       "run": 35198079402
     },
+    "execution_observation_diagnostic": {
+      "actual_test_seconds": 150.87,
+      "correction": "Assert exact old/current occurrence payload equality excluding only source fingerprint and derived A-ID, exact unique scoped delta and unchanged history; identical-provider replay must preserve all identities and have zero row growth.",
+      "evidence_blob": "030c45e624fe94a79f6b1eb806c8b45450cf9928",
+      "job": 105149687363,
+      "new_sql_blob": "5f52edcc20e27efaa6090c57a176dce3245ca093",
+      "result": "Changed provider preserved exact profile/E/P and old canonical history; existing trace-bound source observation changed composition and added9 scoped attestations; new execution rows180/receipts1.",
+      "run": 35205361290,
+      "source": "57b6dc84cfa9b12b1ea87b4601749411d19cc4c7"
+    },
+    "failed_initial_qualification": {
+      "head": "f6d2afd31ba3b17e8fe474f86eb554900ae8560c",
+      "host_native_managed_build": "passed",
+      "installed": false,
+      "native_development_passed": 718,
+      "new_corruption_controls": "not reached",
+      "postgresql_core_passed": 48,
+      "postgresql_core_seconds": 244.48,
+      "requirements": "passed",
+      "run": 35203565205,
+      "sanitizer": "passed",
+      "verified_cpp": "Existing four-file180-witness controls passed; new second-provider combined fixture failed after successful admission."
+    },
+    "main_delivery": {
+      "run": 35208985114,
+      "commit": "6f0d04753344d43081c78ee85d9c258cc973dc67",
+      "status": "failed at installed public reconciliation after package selection",
+      "hosted": "passed",
+      "custom_pg": {
+        "job": 105162884973,
+        "result": "passed",
+        "actual_start": "2026-09-17T10:20:52.175514Z",
+        "actual_end": "2026-09-17T10:28:05.629509Z",
+        "core_passed": 48,
+        "core_seconds": 241.97,
+        "verified_cpp_seconds": 191.43
+      },
+      "postgresql_product_job": 105167085030,
+      "package_product_job": 105169387069,
+      "package_product_result": "passed",
+      "activation_job": 105171045703,
+      "same_old_profile_119_replay": "not reached"
+    },
+    "merged": {
+      "commit": "6f0d04753344d43081c78ee85d9c258cc973dc67",
+      "pr": 400,
+      "tree": "31df018fd800db186a9a2aeedd5339f8eeaebfe6"
+    },
+    "normal_qualification": {
+      "artifact": {
+        "bytes": 35770,
+        "id": 10490249252,
+        "sha256": "70861be62237ad5eba7df54b2b981c2d4209f2b94a03e69977010afbf9f9db2d"
+      },
+      "corruption_controls": 15,
+      "evidence_blob": "1df626974ee46cb8443880761b24efb4ba75ea21",
+      "head": "b314c3305b943498063e31fe10252875f2a14629",
+      "native_development_passed": 718,
+      "package_product_job": 105158602991,
+      "postgresql_core_passed": 48,
+      "postgresql_core_seconds": 244.43,
+      "postgresql_job": 105153942780,
+      "postgresql_product_job": 105157178561,
+      "result": "passed",
+      "run": 35206242161,
+      "schema_controls": 2,
+      "tree": "31df018fd800db186a9a2aeedd5339f8eeaebfe6",
+      "verified_cpp_seconds": 191.94
+    },
     "provider_reproducibility": {
       "actual_tests": 34,
       "job": 105136583074,
@@ -2189,41 +2258,46 @@
       "skips": 0
     },
     "remaining": [
-      "Run actual changed native/schema/PG controls and normal required qualification.",
-      "Install accepted repair and complete same-profile119-file exact readback/replay with unchanged historical evidence.",
+      "Complete corrected activation, then same-old-profile119-file exact readback and identical-current-provider zero-growth replay with unchanged historical evidence.",
       "Integrate separately qualified parser derivative and report current95 diagnostic recount without claiming executable semantics.",
       "Complete the deferred fresh source toolchain/runtime/PostgreSQL provider when shorter user-facing delivery no longer needs the shared reservation."
     ],
-    "normal_qualification": {
-      "run": 35203565205,
-      "head": "f6d2afd31ba3b17e8fe474f86eb554900ae8560c",
-      "native_development_passed": 718,
-      "sanitizer": "passed",
-      "requirements": "passed",
-      "host_native_managed_build": "passed",
-      "postgresql_core_passed": 48,
-      "postgresql_core_seconds": 244.48,
-      "verified_cpp": "Existing four-file180-witness controls passed; new second-provider combined fixture failed after successful admission.",
-      "new_corruption_controls": "not reached",
-      "installed": false
-    },
-    "execution_observation_diagnostic": {
-      "run": 35205361290,
-      "job": 105149687363,
-      "source": "57b6dc84cfa9b12b1ea87b4601749411d19cc4c7",
-      "evidence_blob": "030c45e624fe94a79f6b1eb806c8b45450cf9928",
-      "actual_test_seconds": 150.87,
-      "result": "Changed provider preserved exact profile/E/P and old canonical history; existing trace-bound source observation changed composition and added9 scoped attestations; new execution rows180/receipts1.",
-      "correction": "Assert exact old/current occurrence payload equality excluding only source fingerprint and derived A-ID, exact unique scoped delta and unchanged history; identical-provider replay must preserve all identities and have zero row growth.",
-      "new_sql_blob": "5f52edcc20e27efaa6090c57a176dce3245ca093"
-    },
     "supplemental_qualification": {
-      "run": 35203564666,
+      "acceptance_cli_controls": 61,
       "job": 105143817570,
       "provider_controls": 37,
-      "acceptance_cli_controls": 61,
-      "skips": 0,
-      "result": "passed"
+      "result": "passed",
+      "run": 35203564666,
+      "skips": 0
+    },
+    "activation_envelope_repair": {
+      "evidence_blob": "71f691fb3497d32c02ab4cddb3f9e7c50dbc089d",
+      "observer_run": 35212394199,
+      "observer_job": 105172753903,
+      "actual_program_bytes": 73445,
+      "actual_matches_manifest_sha256": "2c163ad9803d7cbd0b89a508a590d4e99a74e10df2f293f38da97648f6bc2fef",
+      "correction": "Give only the recurring public reconciliation program a finite128KiB envelope, preserving path/regular-file/digest checks and the indexed migration64KiB limit.",
+      "runner_blob": "19842ade06b918df91508836f8977a706c6f024f",
+      "test_blob": "0a67829edc7fca6b4d1af85bf77b9e2e4dd4cb81",
+      "qualification": {
+        "run": 35212800267,
+        "job": 105174087996,
+        "status": "passed",
+        "activation_owner_tests": 34,
+        "activation_seconds": 2.291,
+        "corpus_acceptance_tests": 68,
+        "corpus_seconds": 0.741,
+        "skips": 0
+      },
+      "installed_retry": "pending normal delivery"
+    },
+    "exact_execution_replay_acceptance": {
+      "owner_blob": "badb012dab8616efb12c402a364d9045feffe575",
+      "tests_blob": "ae41b0d33b4fc3eabe4f98e9c8defe1c99194556",
+      "controls": "Require positive execution counts, exact current/baseline identities, same-backend receipt binding, every readback row bound to current receipt, and identical-provider zero amplification.",
+      "actual_tests": 68,
+      "result": "passed",
+      "installed_119": "pending"
     }
   },
   "source_witness_replay_diagnostic_20260917": {

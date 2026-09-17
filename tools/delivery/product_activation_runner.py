@@ -32,6 +32,10 @@ RUNNER_USER = "laplace-runner"
 RESULT_SCHEMA = "laplace.product-activation-result/v1"
 SQL_FAILURE_SCHEMA = "laplace.product-sql-failure/v1"
 MAX_FAILURE_OUTPUT_BYTES = 128 * 1024
+# This generated program includes recurring source-schema reconciliation as well
+# as readback functions. Its observed current payload is 73,445 bytes.
+# Keep this program's finite envelope separate from the indexed migration limit.
+MAX_PUBLIC_READBACK_SQL_BYTES = 128 * 1024
 
 
 def load_module(name: str, path: Path) -> Any:
@@ -359,14 +363,20 @@ COMMIT;
 def reconcile_public_readback(
     plan: dict[str, Any], cluster_contract: dict[str, Any], package: dict[str, Any]
 ) -> dict[str, Any]:
-    """Apply the packaged read-only function boundary to existing extensions too."""
+    """Apply the authenticated generated reconciliation program to existing extensions."""
     relative = f"pgsql-{plan['postgresql_major']}/share/extension/laplace-public-readback.sql"
     path = Path(plan["package_root"]) / relative
     entries = [item for item in package["files"] if item.get("path") == relative]
     if (len(entries) != 1 or entries[0].get("kind") != "file"
             or path.is_symlink() or not path.is_file()
-            or path.stat().st_size > 65536
-            or entries[0].get("sha256") != clusterctl.sha256_file(path)):
+            or entries[0].get("sha256") is None):
+        raise RunnerActivationError("packaged public readback binding bytes differ")
+    size = path.stat().st_size
+    if size > MAX_PUBLIC_READBACK_SQL_BYTES:
+        raise RunnerActivationError(
+            "packaged public readback reconciliation exceeds its byte envelope: "
+            f"observed={size} maximum={MAX_PUBLIC_READBACK_SQL_BYTES}")
+    if entries[0]["sha256"] != clusterctl.sha256_file(path):
         raise RunnerActivationError("packaged public readback binding bytes differ")
     sql = ("BEGIN;\nSET LOCAL lock_timeout = '30s';\n"
            + path.read_text(encoding="utf-8")

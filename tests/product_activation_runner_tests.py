@@ -1022,5 +1022,98 @@ class IndexedCognitionSuccessorReconciliationTests(unittest.TestCase):
             self.assertEqual(result, {"deferred": True})
 
 
+class PublicReadbackReconciliationEnvelopeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.owner = load_module("tools/delivery/product_activation_runner.py")
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="laplace-public-binding-", dir=ROOT)
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.relative = "pgsql-18/share/extension/laplace-public-readback.sql"
+        self.path = self.root / self.relative
+        self.path.parent.mkdir(parents=True)
+        self.plan = {"postgresql_major": 18, "package_root": str(self.root)}
+        self.contract = {"instance": {"admin_role": "laplace_admin"}}
+        self.package = {"package_id": "42" * 32, "files": []}
+        self.result = {"schema": "laplace.public-readback-bindings/v1",
+                       "functions": 3, "owner": "laplace_admin"}
+
+    def payload(self, size: int) -> bytes:
+        prefix = b"-- generated reconciliation fixture\nSELECT 1;\n-- "
+        data = prefix + b"x" * (size - len(prefix) - 1) + b"\n"
+        self.path.write_bytes(data)
+        self.package["files"] = [{"path": self.relative, "kind": "file",
+                                 "sha256": hashlib.sha256(data).hexdigest()}]
+        return data
+
+    def test_current_generated_size_and_exact_finite_boundary_reach_sql_owner(self) -> None:
+        for size in (73445, self.owner.MAX_PUBLIC_READBACK_SQL_BYTES):
+            with self.subTest(size=size):
+                data = self.payload(size)
+                command = {"fixture": "server result boundary"}
+                with mock.patch.object(self.owner, "runner_sql",
+                        return_value=(self.result, command)) as sql:
+                    receipt = self.owner.reconcile_public_readback(
+                        self.plan, self.contract, self.package)
+                sql.assert_called_once()
+                arguments = sql.call_args.args
+                self.assertIn(data.decode(), arguments[2])
+                self.assertEqual(arguments[3:], ("reconcile-public-readback-bindings",
+                    "laplace-runner", "laplace_admin", 120))
+                self.assertEqual(receipt["script_sha256"],
+                                 hashlib.sha256(data).hexdigest())
+                self.assertEqual(receipt["receipt_sha256"],
+                                 self.owner.document_identity(receipt, "receipt_sha256"))
+
+    def test_previous_cap_is_a_deliberate_failure_for_the_current_program_size(self) -> None:
+        self.payload(73445)
+        with mock.patch.object(self.owner, "MAX_PUBLIC_READBACK_SQL_BYTES", 65536), \
+             mock.patch.object(self.owner, "runner_sql") as sql:
+            with self.assertRaisesRegex(self.owner.RunnerActivationError,
+                                        "observed=73445 maximum=65536"):
+                self.owner.reconcile_public_readback(self.plan, self.contract, self.package)
+            sql.assert_not_called()
+
+    def test_excess_bytes_are_refused_even_with_their_exact_manifest_hash(self) -> None:
+        self.payload(self.owner.MAX_PUBLIC_READBACK_SQL_BYTES + 1)
+        with mock.patch.object(self.owner, "runner_sql") as sql:
+            with self.assertRaisesRegex(self.owner.RunnerActivationError, "byte envelope"):
+                self.owner.reconcile_public_readback(self.plan, self.contract, self.package)
+            sql.assert_not_called()
+
+    def test_changed_bytes_with_valid_size_are_refused_before_sql(self) -> None:
+        self.payload(73445)
+        self.path.write_bytes(b"X" + self.path.read_bytes()[1:])
+        with mock.patch.object(self.owner, "runner_sql") as sql:
+            with self.assertRaisesRegex(self.owner.RunnerActivationError, "binding bytes differ"):
+                self.owner.reconcile_public_readback(self.plan, self.contract, self.package)
+            sql.assert_not_called()
+
+    def test_missing_duplicate_wrong_kind_and_wrong_path_manifest_bindings_are_refused(self) -> None:
+        self.payload(73445)
+        original = copy.deepcopy(self.package["files"][0])
+        for entries in ([], [original, original], [{**original, "kind": "symlink"}],
+                        [{**original, "path": "elsewhere.sql"}]):
+            with self.subTest(entries=entries), mock.patch.object(
+                    self.owner, "runner_sql") as sql:
+                self.package["files"] = entries
+                with self.assertRaisesRegex(self.owner.RunnerActivationError, "binding bytes differ"):
+                    self.owner.reconcile_public_readback(self.plan, self.contract, self.package)
+                sql.assert_not_called()
+
+    def test_symlink_refused_even_when_target_bytes_match_manifest(self) -> None:
+        data = self.payload(73445)
+        target = self.root / "same-bytes.sql"
+        target.write_bytes(data)
+        self.path.unlink()
+        self.path.symlink_to(target)
+        with mock.patch.object(self.owner, "runner_sql") as sql:
+            with self.assertRaisesRegex(self.owner.RunnerActivationError, "binding bytes differ"):
+                self.owner.reconcile_public_readback(self.plan, self.contract, self.package)
+            sql.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

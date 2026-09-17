@@ -38,6 +38,9 @@ READBACK_DIGEST_FIELDS = ('source_profile_id','structural_receipt_id','source_bi
 READBACK_COUNT_FIELDS = ('artifact_index','output_bytes','resolved_nodes','trajectory_carriers',
     'codepoint_count','maximum_depth','verified_witnesses','database_operations','version')
 READBACK_FIELDS = {'path','sha256','root_content_id',*READBACK_DIGEST_FIELDS,*READBACK_COUNT_FIELDS}
+EXECUTION_IDENTITY_FIELDS = ('execution_witness_fingerprint','structural_execution_receipt_id',
+    'historical_structural_receipt_id')
+EXECUTION_COUNT_FIELDS = ('structural_execution_observation_count','structural_execution_receipt_count')
 
 
 def require(condition: bool, message: str) -> None:
@@ -380,6 +383,15 @@ def validate_readback(result: dict, manifest: dict, active: dict) -> None:
     witness_fingerprint = readback.get('structural_witness_fingerprint')
     require(isinstance(witness_fingerprint,str) and HEX.fullmatch(witness_fingerprint) is not None,
             'source readback omitted a verified structural witness fingerprint')
+    for field in EXECUTION_IDENTITY_FIELDS:
+        identity = readback.get(field)
+        require(isinstance(identity,str) and HEX.fullmatch(identity) is not None and
+                identity != '0'*64, 'source readback omitted a verified execution identity: ' + field)
+    metrics = result.get('execution_metrics')
+    execution = metrics.get('last') if isinstance(metrics,dict) else None
+    require(isinstance(execution,dict) and execution.get('valid') is True and
+            execution.get('structural_execution_receipt_id') == readback['structural_execution_receipt_id'],
+            'source readback does not bind the admitted current execution receipt')
     require(readback.get('schema') == 'laplace.verified-git-source-readback/v1' and
             readback.get('all_artifacts_exact') is True and
             number(readback.get('structural_receipt_count'),'structural_receipt_count') == 1 and
@@ -411,9 +423,11 @@ def validate_readback(result: dict, manifest: dict, active: dict) -> None:
                 actual['structural_receipt_id']==records[0]['structural_receipt_id'] and
                 actual['recipe_id']==records[0]['recipe_id'],
                 'native readback rows do not share the verified structural receipt and recipe')
+        require(actual['structural_receipt_id'] == '\\x'+readback['structural_execution_receipt_id'],
+                'native readback row does not bind the current structural receipt')
     require(len({row['source_binding_id'] for row in records})==len(records),
             'native readback repeated a distinct artifact source binding')
-    for field in ('source_occurrence_count','structural_witness_count'):
+    for field in ('source_occurrence_count','structural_witness_count',*EXECUTION_COUNT_FIELDS):
         number(readback.get(field), field, 1)
     counts = readback.get('database_row_counts')
     require(isinstance(counts, dict) and set(counts) == {'entity','physicality','attestation'},
@@ -434,19 +448,23 @@ def verify_repeat(first: dict, second: dict, manifest: dict, active: dict) -> di
     a,b = first['readback'],second['readback']
     require(a['structural_witness_fingerprint'] == b['structural_witness_fingerprint'],
             'repeat changed the semantic structural witness fingerprint')
-    # Structural execution receipts and their artifact bindings may vary with
-    # canonical reuse. Both complete native results remain individually checked;
-    # the semantic witness, canonical roots, exact bytes and source scope agree.
+    for field in EXECUTION_IDENTITY_FIELDS:
+        require(a[field] == b[field], 'repeat changed current execution identity: ' + field)
+    # Identical admission reuses its exact current execution and historical anchor.
+    # Physical readback work and artifact bindings may vary with canonical reuse;
+    # both native results still bind that same execution and exact source content.
     root_fields = ('path','artifact_index','source_profile_id','root_content_id',
                    'recipe_id','sha256','output_bytes',
                    'output_fingerprint','codepoint_count')
     for x,y in zip(a['records'],b['records']):
         require(all(key in x and key in y and x[key] == y[key] for key in root_fields),
                 'repeat changed an exact source root')
-    for field in ('source_occurrence_count','structural_witness_count','database_row_counts'):
+    for field in ('source_occurrence_count','structural_witness_count','database_row_counts',*EXECUTION_COUNT_FIELDS):
         require(a[field] == b[field], 'repeat amplified persistent state: ' + field)
     return {'verified_file_count':manifest['file_count'], 'verified_byte_count':manifest['byte_count'],
         'source_occurrence_delta':0, 'structural_witness_delta':0,
+        'structural_execution_observation_delta':0, 'structural_execution_receipt_delta':0,
+        **{field:b[field] for field in EXECUTION_IDENTITY_FIELDS},
         'substrate_row_deltas':{field:b['database_row_counts'][field]-a['database_row_counts'][field]
                                 for field in ('entity','physicality','attestation')}}
 
