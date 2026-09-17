@@ -704,7 +704,7 @@ BEGIN
             'ORDER BY p.physicality_id LIMIT $3'
         INTO plan USING ARRAY[q.anchor_entity_id],q.relation_mask,4097,q.goal_entity_id;
     IF position('physicality_entity_lookup_idx' in plan::text)=0
-       OR (plan #>> '{0,Plan,Actual Rows}')::integer<>2 THEN
+       OR (plan #>> '{0,Plan,Actual Rows}')::numeric<>2 THEN
         RAISE EXCEPTION 'direct container lookup did not select both goal physicalities through its entity index: %',plan;
     END IF;
     RAISE NOTICE 'direct-container indexed query plan: %',plan;

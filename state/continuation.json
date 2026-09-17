@@ -516,6 +516,63 @@
     "remaining_acceptance": "Current PR253 hosted native/sanitizer/requirements checks and ordinary main deployment must still pass before installed indexed cognition is claimed.",
     "tested_source": "e2517e9de3b30989b7196678adbccc799038b130"
   },
+  "indexed_container_goal_repair_20260917": {
+    "activation_result_sha256": "ccd5004af658d2b51d0fc82185386fc4f0eaa62c5a55c4467b12694198464b88",
+    "activation_scope": "PostgreSQL, Unicode and Highway activation completed; the subsequent installed cognition proof failed before gateway restart and full acceptance.",
+    "canonical_prompt_replay": {
+      "first_constituent_output": "A",
+      "prompt": "AA",
+      "prompt_persistence_receipt_id": null,
+      "trunk_entity_id": "7043ee24af19f09e5b2ee122ed257088"
+    },
+    "classification": "observed-development-state-not-product-law",
+    "defect": "The goal-bound AA -> A -> AA program exceeded metadata workspace while first selecting every container of the shared atom A. Native candidate selection failed before materialization; the already-admitted prompt identity was reused correctly.",
+    "failed_job": 105052898809,
+    "failed_run": 35172058662,
+    "failure": {
+      "artifact": 10477892824,
+      "artifact_bytes": 2991,
+      "artifact_sha256": "d4cc15776a8a8a4b01cee38131086bc14242e68300e3d089fe182bdf9112ecd4",
+      "reader_job": 105053816928,
+      "reader_run": 35174735672,
+      "sha256": "4aaaaac83f9841debdba26b905f294e653811505d8f6a2579d979807c0229b73"
+    },
+    "installed_package_id": "56cdb7118be6322ec8ecf7d586ead2cc39711ae6854d9ed93e22aa8f601134c5",
+    "installed_repository_commit": "2e62b2260a145de41596c7f4ab2c4aff65e07352",
+    "observed_at_utc": "2026-09-17T02:27:39Z",
+    "preserved": "No prompt change, corpus deletion, memory increase, request-depth reduction, unconditional goal filter, or shortened witness set.",
+    "proof_boundary": "The source correction and volume/multihop/tie/mutation regressions must pass normal qualification and actual installed cognition before this delivery is complete.",
+    "remaining": [
+      "actual corrected installed cognition and gateway verification",
+      "actual deployed source readback and replay",
+      "fresh source toolchain/runtime/PostgreSQL publication remains a separate pending operation"
+    ],
+    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe.",
+    "controlled_qualification": {
+      "run": 35176178856,
+      "attempt": 2,
+      "job": 105066635113,
+      "actual_started_at_utc": "2026-09-17T04:06:42.056498Z",
+      "actual_ended_at_utc": "2026-09-17T04:09:49.611505Z",
+      "core_elapsed_seconds": 187.530966,
+      "core_passed": 33,
+      "core_failed": 1,
+      "core_unexecuted": 14,
+      "selected_physical_unexecuted": 2,
+      "artifact": {
+        "id": 10480366088,
+        "bytes": 20209,
+        "sha256": "60ed94e5f5ebd46b10969162ecb06b2f94c77170bf3a5c08c74c306b6f5bab00"
+      },
+      "authenticated_reader": {
+        "run": 35180951428,
+        "job": 105072768002
+      },
+      "failure": "The new indexed-plan test cast PostgreSQL 18.6 EXPLAIN Actual Rows text 2.00 directly to integer. Direct-goal parity, the 4096-container bounded result and expected ordinary-mutant exhaustion completed before this fixture conversion failure.",
+      "correction": "Compare the parsed EXPLAIN count as exact numeric against 2. The provider and its resource limits are unchanged; 2 and 2.00 compare equal, while 2.5 does not.",
+      "status": "Minimal fixture correction published for normal qualification; no corrected installed acceptance claim."
+    }
+  },
   "isolated_unpublished_work": {
     "base_commit": "ed2b4f42db10e61c33ab83dc0fc462c2f07f8465",
     "branch": "codex/complete-laplace-20260831",
@@ -566,6 +623,40 @@
   },
   "measured_chess_profile_consumer_20260917": {
     "activation_status": "Merged in PR397. Actual candidate profile activation, direct UCI defaults, explicit caller overrides, and complete legal CuteChess games passed. Main 2e62 installed its package before a later populated-corpus cognition proof failed; that run's deployed calibration and source readback were skipped.",
+    "actual_candidate_evidence": {
+      "actual_invocations": {
+        "complete_legal_games": 2,
+        "defaults_verified": true,
+        "direct_official_executables": true,
+        "distinct_move_sequences": 1,
+        "explicit_1_thread_16_mib_override_verified": true,
+        "plies": 312
+      },
+      "analysis": {
+        "hash_mib": 64,
+        "median_wall_nodes_per_second": 1149291.1975636713,
+        "threads": 2
+      },
+      "artifact": 10476786113,
+      "artifact_bytes": 8086884,
+      "artifact_sha256": "bbe1e2caaa063f6b5d8be3d0f6ff7be113fbfcdc692167bd7bcdb7dbeb529608",
+      "authenticated_reader": {
+        "job": 105043502755,
+        "run": 35171351580
+      },
+      "calibration_receipt_sha256": "f55c41b1d1766b73615c366e8f516860a0b933fdbb5005b0b07d66d7b8dc3482",
+      "generation": {
+        "concurrency": 8,
+        "games": 48,
+        "hash_mib": 16,
+        "median_complete_legal_games_per_second": 4.982292158357136,
+        "plies": 7488,
+        "threads": 1
+      },
+      "job": 105035839343,
+      "run": 35168534734,
+      "scope": "Finite measured host/configuration/workload result. Generated games are not recorded PostgreSQL games; no playing-strength or universal-best claim."
+    },
     "classification": "observed-development-state-not-product-law",
     "database_recording": false,
     "implementation": "Canonical chess_tools activate-profile and run-profile consume an authenticated calibration receipt, preserve caller overrides and invoke the selected official source executables directly.",
@@ -580,41 +671,7 @@
       "status": "passed"
     },
     "receipt_binding": "Compatible observed hardware and resource configuration, selected source/executable/NNUE/Qt identities, benchmark implementation, contract and maximum age must match. The execution receipt names hart-server; compatibility is not restricted by a unique physical-machine identifier.",
-    "recorded_games_per_second": null,
-    "actual_candidate_evidence": {
-      "run": 35168534734,
-      "job": 105035839343,
-      "artifact": 10476786113,
-      "artifact_bytes": 8086884,
-      "artifact_sha256": "bbe1e2caaa063f6b5d8be3d0f6ff7be113fbfcdc692167bd7bcdb7dbeb529608",
-      "calibration_receipt_sha256": "f55c41b1d1766b73615c366e8f516860a0b933fdbb5005b0b07d66d7b8dc3482",
-      "analysis": {
-        "threads": 2,
-        "hash_mib": 64,
-        "median_wall_nodes_per_second": 1149291.1975636713
-      },
-      "generation": {
-        "concurrency": 8,
-        "threads": 1,
-        "hash_mib": 16,
-        "median_complete_legal_games_per_second": 4.982292158357136,
-        "games": 48,
-        "plies": 7488
-      },
-      "actual_invocations": {
-        "direct_official_executables": true,
-        "defaults_verified": true,
-        "explicit_1_thread_16_mib_override_verified": true,
-        "complete_legal_games": 2,
-        "plies": 312,
-        "distinct_move_sequences": 1
-      },
-      "authenticated_reader": {
-        "run": 35171351580,
-        "job": 105043502755
-      },
-      "scope": "Finite measured host/configuration/workload result. Generated games are not recorded PostgreSQL games; no playing-strength or universal-best claim."
-    }
+    "recorded_games_per_second": null
   },
   "observed_at_utc": "2026-08-31T06:05:30Z",
   "prior_highway_work": {
@@ -2127,38 +2184,5 @@
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
     "physical_verification_command": "LAPLACE_VERIFY_CONTINUATION_PHYSICAL=1 python3 tests/program_authority_tests.py",
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use"
-  },
-  "indexed_container_goal_repair_20260917": {
-    "classification": "observed-development-state-not-product-law",
-    "observed_at_utc": "2026-09-17T02:27:39Z",
-    "installed_repository_commit": "2e62b2260a145de41596c7f4ab2c4aff65e07352",
-    "installed_package_id": "56cdb7118be6322ec8ecf7d586ead2cc39711ae6854d9ed93e22aa8f601134c5",
-    "activation_result_sha256": "ccd5004af658d2b51d0fc82185386fc4f0eaa62c5a55c4467b12694198464b88",
-    "activation_scope": "PostgreSQL, Unicode and Highway activation completed; the subsequent installed cognition proof failed before gateway restart and full acceptance.",
-    "failed_run": 35172058662,
-    "failed_job": 105052898809,
-    "failure": {
-      "sha256": "4aaaaac83f9841debdba26b905f294e653811505d8f6a2579d979807c0229b73",
-      "artifact": 10477892824,
-      "artifact_bytes": 2991,
-      "artifact_sha256": "d4cc15776a8a8a4b01cee38131086bc14242e68300e3d089fe182bdf9112ecd4",
-      "reader_run": 35174735672,
-      "reader_job": 105053816928
-    },
-    "canonical_prompt_replay": {
-      "prompt": "AA",
-      "trunk_entity_id": "7043ee24af19f09e5b2ee122ed257088",
-      "first_constituent_output": "A",
-      "prompt_persistence_receipt_id": null
-    },
-    "defect": "The goal-bound AA -> A -> AA program exceeded metadata workspace while first selecting every container of the shared atom A. Native candidate selection failed before materialization; the already-admitted prompt identity was reused correctly.",
-    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe.",
-    "preserved": "No prompt change, corpus deletion, memory increase, request-depth reduction, unconditional goal filter, or shortened witness set.",
-    "proof_boundary": "The source correction and volume/multihop/tie/mutation regressions must pass normal qualification and actual installed cognition before this delivery is complete.",
-    "remaining": [
-      "actual corrected installed cognition and gateway verification",
-      "actual deployed source readback and replay",
-      "fresh source toolchain/runtime/PostgreSQL publication remains a separate pending operation"
-    ]
   }
 }
