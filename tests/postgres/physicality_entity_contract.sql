@@ -365,6 +365,7 @@ END $derived_only$;
 DO $derived_direct_container$
 DECLARE result laplace.cognition_observation_persisted_result;
     replay laplace.cognition_observation_persisted_result;
+    warm_replay laplace.cognition_observation_persisted_result;
     anchor bytea; goal bytea; unrelated bytea;
     before jsonb:=physicality_entity_contract.counts();
 BEGIN
@@ -377,8 +378,8 @@ BEGIN
     END IF;
     result:=physicality_entity_contract.query(anchor,goal,8,1);
     replay:=physicality_entity_contract.query(anchor,goal,8,1);
-    IF result IS DISTINCT FROM replay
-       OR (result.execution).status IS DISTINCT FROM 0
+    warm_replay:=physicality_entity_contract.query(anchor,goal,8,1);
+    IF (result.execution).status IS DISTINCT FROM 0
        OR (result.execution).final_remaining_required_count IS DISTINCT FROM 0::numeric
        OR cardinality(result.answers) IS DISTINCT FROM 1
        OR (result.answers[1]).entity_id IS DISTINCT FROM goal
@@ -392,8 +393,47 @@ BEGIN
        OR result.provider_batch_count IS DISTINCT FROM 1::numeric
        OR result.provider_trajectory_bytes IS NULL OR result.provider_trajectory_bytes<=0
        OR physicality_entity_contract.counts() IS DISTINCT FROM before THEN
-        RAISE EXCEPTION 'derived-only direct CONTAINER goal lost its authenticated native edge: %',result;
+        RAISE EXCEPTION 'derived-only direct CONTAINER goal lost its authenticated native edge: %',result
+            USING DETAIL=jsonb_build_object(
+                'anchor',encode(anchor,'hex'),'goal',encode(goal,'hex'),
+                'replay_equal',result IS NOT DISTINCT FROM replay,
+                'goal_equal',(result.answers[1]).entity_id IS NOT DISTINCT FROM goal,
+                'canonical_counts_equal',physicality_entity_contract.counts() IS NOT DISTINCT FROM before,
+                'before_counts',before,'after_counts',physicality_entity_contract.counts(),
+                'result',to_jsonb(result),'replay',to_jsonb(replay))::text;
     END IF;
+
+    -- The preceding CREATE TABLE invalidates the backend's perfcache control
+    -- snapshot. Its first pin charges the real active-control SELECT; the next
+    -- pin reuses that synchronized state. Keep semantic content/readset identity
+    -- exact across that work difference, and require full receipt equality only
+    -- between the two executions with the same warm physical plan.
+    IF (to_jsonb(result)-'execution') IS DISTINCT FROM (to_jsonb(replay)-'execution')
+       OR ((to_jsonb(result)->'execution')-ARRAY[
+            'database_operations','resolution_receipt_id','forward_receipt_id',
+            'final_state_id','layer_trace_fingerprint','output_fingerprint','result_fingerprint'])
+          IS DISTINCT FROM ((to_jsonb(replay)->'execution')-ARRAY[
+            'database_operations','resolution_receipt_id','forward_receipt_id',
+            'final_state_id','layer_trace_fingerprint','output_fingerprint','result_fingerprint'])
+       OR replay IS DISTINCT FROM warm_replay
+       OR (result.execution).database_operations IS DISTINCT FROM
+          (replay.execution).database_operations+1::numeric
+       OR (replay.execution).database_operations IS NULL
+       OR (replay.execution).database_operations<=0
+       OR (result.execution).database_operations>128::numeric THEN
+        RAISE EXCEPTION 'derived direct CONTAINER cold/warm replay changed semantic identity or actual work accounting'
+            USING DETAIL=jsonb_build_object(
+                'anchor',encode(anchor,'hex'),'goal',encode(goal,'hex'),
+                'answers_equal',result.answers IS NOT DISTINCT FROM replay.answers,
+                'readset_equal',result.provider_readset_id IS NOT DISTINCT FROM replay.provider_readset_id,
+                'warm_replay_equal',replay IS NOT DISTINCT FROM warm_replay,
+                'canonical_counts_equal',physicality_entity_contract.counts() IS NOT DISTINCT FROM before,
+                'before_counts',before,'after_counts',physicality_entity_contract.counts(),
+                'result',to_jsonb(result),'replay',to_jsonb(replay),
+                'warm_replay',to_jsonb(warm_replay))::text;
+    END IF;
+    RAISE NOTICE 'derived direct CONTAINER exact cold/warm answer and readset verified; database operations cold=%, warm=%; full warm replay equal',
+        (result.execution).database_operations,(replay.execution).database_operations;
 
     -- A view's original source is not automatically a child of its descriptor
     -- root. Select that exact admitted source and prove the fixture distinction

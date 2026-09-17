@@ -526,6 +526,90 @@
       "trunk_entity_id": "7043ee24af19f09e5b2ee122ed257088"
     },
     "classification": "observed-development-state-not-product-law",
+    "cold_warm_diagnostic": {
+      "actual_ended_at_utc": "2026-09-17T04:51:01Z",
+      "actual_started_at_utc": "2026-09-17T04:48:26.175704Z",
+      "answers_and_provider_readset_equal": true,
+      "artifact": {
+        "bytes": 42031,
+        "id": 10480604145,
+        "sha256": "18a19e767336bfe414e7b48c7bf3075e64bb1ba77cca123d22208a92ebecba3e"
+      },
+      "canonical_counts_equal": true,
+      "cause": "Fixture DDL invalidates the backend perfcache control snapshot. The next pin performs and charges a real active-control SELECT; a repeated pin reuses the synchronized state. Cost-derived execution receipt identities correctly differ.",
+      "correction": "Compare all semantic answers, paths, provider readset and stable execution fields across cold/warm calls; retain actual work differences; require the complete second and third warm results to match. Production provider and accounting remain unchanged.",
+      "database_operations": {
+        "cold": 11,
+        "warm": 10
+      },
+      "goal_equal": true,
+      "job": 105078971015,
+      "proof_blob": "1249c05a57581f9bdfc6d693ffbe31f13cbfd29e",
+      "run": 35182985171,
+      "source_commit": "e480ec28fd0908fbd964e0a65c17c76ab2f40c34",
+      "test_elapsed_seconds": 155.33
+    },
+    "controlled_qualification": {
+      "artifact": {
+        "bytes": 32240,
+        "id": 10481293376,
+        "sha256": "475108b22598ba2fdfda8993b75cf4bc3543441d17ef264e6ab2650cfa4e4438"
+      },
+      "canonical_counts_unchanged": true,
+      "cold_warm_semantic_equality_and_full_warm_replay": "passed",
+      "completed_at_utc": "2026-09-17T05:04:27Z",
+      "goals_and_negative_provenance_controls": "passed",
+      "job": 105081459490,
+      "run": 35183813555,
+      "source_commit": "83e336f84bca8eeb8b0ebcb865f991bedb94ea14",
+      "status": "Corrected targeted C++ and derived-reflection boundary passed; ordinary candidate and installed acceptance remain required.",
+      "test_source_blob": "3b5281cd0463be61ce349d6b7c84442242e666e2"
+    },
+    "controlled_qualification_history": [
+      {
+        "actual_ended_at_utc": "2026-09-17T04:09:49.611505Z",
+        "actual_started_at_utc": "2026-09-17T04:06:42.056498Z",
+        "artifact": {
+          "bytes": 20209,
+          "id": 10480366088,
+          "sha256": "60ed94e5f5ebd46b10969162ecb06b2f94c77170bf3a5c08c74c306b6f5bab00"
+        },
+        "attempt": 2,
+        "authenticated_reader": {
+          "job": 105072768002,
+          "run": 35180951428
+        },
+        "core_elapsed_seconds": 187.530966,
+        "core_failed": 1,
+        "core_passed": 33,
+        "core_unexecuted": 14,
+        "correction": "Compare the parsed EXPLAIN count as exact numeric against 2. The provider and its resource limits are unchanged; 2 and 2.00 compare equal, while 2.5 does not.",
+        "failure": "The new indexed-plan test cast PostgreSQL 18.6 EXPLAIN Actual Rows text 2.00 directly to integer. Direct-goal parity, the 4096-container bounded result and expected ordinary-mutant exhaustion completed before this fixture conversion failure.",
+        "job": 105066635113,
+        "run": 35176178856,
+        "selected_physical_unexecuted": 2,
+        "status": "Minimal fixture correction published for normal qualification; no corrected installed acceptance claim."
+      },
+      {
+        "actual_ended_at_utc": "2026-09-17T04:29:41.936824Z",
+        "actual_started_at_utc": "2026-09-17T04:20:49.731512Z",
+        "artifact": {
+          "bytes": 53121,
+          "id": 10480657359,
+          "sha256": "73241976928a99275ab0dfeaae9a8af37f62fa11b6f9a9129b439d5fd1028aed"
+        },
+        "core_elapsed_seconds": 241.608504,
+        "core_failed": 0,
+        "core_passed": 48,
+        "failure": "The new fixture incorrectly required complete cold/warm execution-receipt equality. A diagnostic rerun proved identical semantic answers and readset with one real extra perfcache synchronization query in the first call.",
+        "highway_elapsed_seconds": 137.62,
+        "job": 105074072677,
+        "run": 35181067517,
+        "source_commit": "ce4328efec8aed403080ded6c16bca8a720d8e07",
+        "status": "All 48 core and Highway tests passed; derived-container reflection replay fixture failed.",
+        "verified_cpp_elapsed_seconds": 152.907
+      }
+    ],
     "defect": "The goal-bound AA -> A -> AA program exceeded metadata workspace while first selecting every container of the shared atom A. Native candidate selection failed before materialization; the already-admitted prompt identity was reused correctly.",
     "failed_job": 105052898809,
     "failed_run": 35172058662,
@@ -547,31 +631,7 @@
       "actual deployed source readback and replay",
       "fresh source toolchain/runtime/PostgreSQL publication remains a separate pending operation"
     ],
-    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe.",
-    "controlled_qualification": {
-      "run": 35176178856,
-      "attempt": 2,
-      "job": 105066635113,
-      "actual_started_at_utc": "2026-09-17T04:06:42.056498Z",
-      "actual_ended_at_utc": "2026-09-17T04:09:49.611505Z",
-      "core_elapsed_seconds": 187.530966,
-      "core_passed": 33,
-      "core_failed": 1,
-      "core_unexecuted": 14,
-      "selected_physical_unexecuted": 2,
-      "artifact": {
-        "id": 10480366088,
-        "bytes": 20209,
-        "sha256": "60ed94e5f5ebd46b10969162ecb06b2f94c77170bf3a5c08c74c306b6f5bab00"
-      },
-      "authenticated_reader": {
-        "run": 35180951428,
-        "job": 105072768002
-      },
-      "failure": "The new indexed-plan test cast PostgreSQL 18.6 EXPLAIN Actual Rows text 2.00 directly to integer. Direct-goal parity, the 4096-container bounded result and expected ordinary-mutant exhaustion completed before this fixture conversion failure.",
-      "correction": "Compare the parsed EXPLAIN count as exact numeric against 2. The provider and its resource limits are unchanged; 2 and 2.00 compare equal, while 2.5 does not.",
-      "status": "Minimal fixture correction published for normal qualification; no corrected installed acceptance claim."
-    }
+    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe."
   },
   "isolated_unpublished_work": {
     "base_commit": "ed2b4f42db10e61c33ab83dc0fc462c2f07f8465",
