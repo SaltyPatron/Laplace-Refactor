@@ -1,4 +1,4 @@
-name: Read exact historical chess ID bytes and current API payload
+name: Observe canonical CA-verified LAN routes and managed owner
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -12,68 +12,63 @@ env:
   PGCONNECT_TIMEOUT: "5"
   PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
   OBSERVER_SOURCE: |
-    import datetime,hashlib,json,os,pathlib,subprocess
+    import datetime,hashlib,http.client,ipaddress,json,os,pathlib,re,socket,ssl,stat
     def emit(k,v):print(k+" "+json.dumps(v,sort_keys=True),flush=True)
-    def digest(p):
-     h=hashlib.sha256()
-     with p.open("rb") as f:
-      for b in iter(lambda:f.read(1048576),b""):h.update(b)
-     return h.hexdigest()
-    emit("CURRENT_NARROW_OBSERVATION",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"readOnly":True,"noHostReservation":True})
-    try:
-     r=subprocess.run(["systemctl","show","laplace-api.service","--property=MainPID","--value"],capture_output=True,text=True,timeout=10)
-     p=pathlib.Path("/proc")/str(int(r.stdout.strip()))
-     names={"Laplace.Endpoints.OpenAICompat.dll"}
-     a=[x.decode() for x in (p/"cmdline").read_bytes().split(b"\0") if x and pathlib.Path(x.decode(errors="replace")).name in names]
-     rows=[]
-     for name in a:
-      q=pathlib.Path(name)
-      if not q.is_absolute():q=(p/"cwd").resolve()/q
-      q=q.resolve(strict=True);s=q.stat()
-      rows.append({"path":str(q),"bytes":s.st_size,"sha256":digest(q),"device":s.st_dev,"inode":s.st_ino})
-     emit("CURRENT_API_PAYLOAD",{"pid":int(p.name),"recognizedPayloads":rows})
-    except (OSError,ValueError,subprocess.TimeoutExpired) as e:emit("CURRENT_API_PAYLOAD",{"errorType":type(e).__name__})
-    base=pathlib.Path("/build/laplace/recovery/native-install/35174504991-1/corpus/measurement")
-    def read(path,limit):
-     p=pathlib.Path(path)
-     if not p.is_absolute():raise ValueError("nonabsolute historical path")
-     r=p.resolve(strict=True)
-     if not r.is_relative_to(base.resolve(strict=True)):raise ValueError("historical path outside selected measurement")
-     if r.stat().st_size>limit:raise ValueError("historical evidence exceeds read bound")
-     return r,r.read_bytes()
-    try:
-     receipt,data=read(base/"corpus-recording.json",4194304)
-     value=json.loads(data)
-     selected=value["source"]["selectionManifest"]
-     p=pathlib.Path(selected["path"])
-     p,data=read(p,16777216)
-     first=json.loads(data.splitlines()[0])
-     chunks=value["phases"][0]["corpusEvidence"].get("chunkManifest")
-     if chunks is None:
-      candidates=list(base.glob("*/chunks.jsonl"))
-      if len(candidates)!=1:raise ValueError("chunk inventory not uniquely located")
-      chunks={"path":str(candidates[0])}
-     q,data=read(chunks["path"],16777216)
-     descriptor=json.loads(data.splitlines()[0])
-     body,raw=read(descriptor["body"]["path"],67108864)
-     doc=json.loads(raw)
-     emit("HISTORICAL_PLAYING_ID_BYTES",{"parentStatus":value.get("status"),"selection":{"path":str(p),"sha256":digest(p),"firstPlayingId":first.get("playingId")},"firstChunkBody":{"path":str(body),"bytes":len(raw),"sha256":hashlib.sha256(raw).hexdigest(),"declaredSha256":descriptor["body"].get("sha256"),"firstPlayingId":doc["games"][0].get("playingId")},"chunkInventory":{"path":str(q),"sha256":digest(q)}})
-    except (OSError,ValueError,KeyError,IndexError,TypeError) as e:
-     emit("HISTORICAL_PLAYING_ID_BYTES",{"errorType":type(e).__name__,"detail":str(e)[:256]})
-     try:emit("HISTORICAL_MEASUREMENT_FILENAMES",{"files":[str(p.relative_to(base)) for p in list(base.glob("*"))[:32]]})
-     except OSError:pass
-    sql="""SELECT coalesce(json_agg(row_to_json(j)), '[]'::json)::text FROM (
-     SELECT DISTINCT ON (source_name) source_name,status,files_done,files_total,entities::text,attestations::text,started_at,ended_at
-     FROM laplace.ingest_run_journal ORDER BY source_name,started_at DESC LIMIT 32
-    ) j"""
-    env=dict(os.environ,PGHOST="/var/run/postgresql",PGPORT="5432",PGUSER="laplace_admin",PGDATABASE="laplace",PGCONNECT_TIMEOUT="5",PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=10000")
-    try:
-     r=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-q","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],env=env,capture_output=True,text=True,timeout=20)
-     result={"exitCode":r.returncode}
-     if r.returncode==0:result["latestSources"]=json.loads(r.stdout)
-     else:result["errorType"]="psql_nonzero"
-     emit("CURRENT_FOUNDATION_PROGRESS",result)
-    except (OSError,ValueError,subprocess.TimeoutExpired) as e:emit("CURRENT_FOUNDATION_PROGRESS",{"errorType":type(e).__name__})
+    emit("CURRENT_LAN_SCOPE",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"readOnly":True,"noHostReservation":True,"credentialsRead":False})
+    helper=pathlib.Path("/usr/local/libexec/laplace-managed-deploy")
+    raw=helper.read_bytes()
+    git_sha=hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+    emit("CURRENT_INSTALLED_MANAGED_OWNER",{"path":str(helper),"bytes":len(raw),"sha256":hashlib.sha256(raw).hexdigest(),"gitBlob":git_sha,"expectedSource":"ee2995b65e0f0182ae0776a9524443a6240d72b5","expectedBlob":"c87daff9fc8a8e4a48657a3a55bfed41dd9bb46d","sourceBytesMatch":git_sha=="c87daff9fc8a8e4a48657a3a55bfed41dd9bb46d"})
+    path=pathlib.Path("/var/lib/laplace-managed/lan.json")
+    assert not path.is_symlink() and stat.S_ISREG(path.stat().st_mode) and path.stat().st_uid==0 and not path.stat().st_mode&0o022 and path.stat().st_size<=4096
+    settings=json.loads(path.read_text())
+    assert set(settings)=={"address","network","hostname"} and all(isinstance(v,str) for v in settings.values())
+    address=ipaddress.ip_address(settings["address"]);network=ipaddress.ip_network(settings["network"])
+    assert address.version==4 and network.version==4 and address in network and any(network.subnet_of(ipaddress.ip_network(block)) for block in ("10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"))
+    assert re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,62}",settings["hostname"])
+    emit("CURRENT_PUBLIC_LAN_SETTINGS",settings)
+    socket.setdefaulttimeout(5)
+    try:emit("CURRENT_HOSTNAME_DNS",{"hostname":settings["hostname"],"addresses":sorted({row[4][0] for row in socket.getaddrinfo(settings["hostname"],8443,type=socket.SOCK_STREAM)})})
+    except OSError as e:emit("CURRENT_HOSTNAME_DNS",{"errorType":type(e).__name__})
+    def lan_https_request(settings, context, method, path, headers, body=None):
+        """Connect to the provisioned LAN IP; retain hostname SNI/cert/Host checks.
+    
+        Linux commonly resolves its own hostname to 127.0.1.1. The LAN-only nginx
+        listener is intentionally not there. Never change system DNS, disable TLS
+        validation, use environment proxies, or follow redirects carrying secrets.
+        """
+        connection = http.client.HTTPSConnection(settings["hostname"], 8443, context=context, timeout=15)
+        try:
+            raw = socket.create_connection((settings["address"], 8443), timeout=15)
+            try:
+                connection.sock = context.wrap_socket(raw, server_hostname=settings["hostname"])
+            except BaseException:
+                raw.close()
+                raise
+            connection.request(method, path, body=body, headers=headers)
+            with connection.getresponse() as response:
+                payload = response.read(1024 * 1024 + 1)
+                if len(payload) > 1024 * 1024:
+                    raise ValueError("LAN TLS response exceeds verification limit")
+                if not 200 <= response.status < 300:
+                    raise ValueError(f"LAN TLS verification returned HTTP {response.status}")
+                return response.status, response.headers, payload
+        finally:
+            connection.close()
+    
+    
+    context=ssl.create_default_context(cafile="/opt/laplace/share/laplace/managed-services-ca.crt")
+    for route in ("/","/health/ready"):
+     row={"connectAddress":settings["address"],"hostname":settings["hostname"],"port":8443,"route":route,"caVerified":True,"methodSourceBlob":"c87daff9fc8a8e4a48657a3a55bfed41dd9bb46d"}
+     try:
+      status,headers,payload=lan_https_request(settings,context,"GET",route,{"Accept":"application/json"})
+      row.update(httpStatus=status,bodyBytes=len(payload),contentType=headers.get("Content-Type"))
+      try:
+       value=json.loads(payload)
+       if isinstance(value,dict):row["health"]={k:v for k,v in value.items() if k in ("status","live","ready","service") and isinstance(v,(str,int,bool,type(None)))}
+      except (UnicodeDecodeError,ValueError):pass
+     except (OSError,ValueError,http.client.HTTPException) as e:row.update(errorType=type(e).__name__,detail=str(e)[:256])
+     emit("CURRENT_CANONICAL_LAN_ROUTE",row)
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -86,18 +81,18 @@ jobs:
           import ast,hashlib,os
           source=os.environ["OBSERVER_SOURCE"].encode()
           identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
-          assert identity=="ef0d6efca361639fffcadcb26025ef4bd9fd4870",identity
+          assert identity=="18f38ef67c43cd66472a7fc8340b686e5d43e55f",identity
           ast.parse(source)
-          print("Authenticated bounded historical ID observer; Python syntax passed without host execution.")
+          print("Authenticated canonical LAN observer; Python syntax passed without host execution.")
           PY
   observe:
     needs: validate
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
     timeout-minutes: 10
     env:
-      EVIDENCE: /build/laplace/work/original-historical-id-observer-${{ github.run_id }}-${{ github.run_attempt }}
+      EVIDENCE: /build/laplace/work/original-canonical-lan-observer-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Read only the fixed historical ID and current payload facts
+      - name: Observe exact configured LAN route with hostname and CA validation
         shell: bash
         run: |
           set -euo pipefail
@@ -107,7 +102,7 @@ jobs:
           python3 - <<'PY'
           import ast,hashlib,os
           source=os.environ["OBSERVER_SOURCE"].encode()
-          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="ef0d6efca361639fffcadcb26025ef4bd9fd4870"
+          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="18f38ef67c43cd66472a7fc8340b686e5d43e55f"
           ast.parse(source)
           PY
           timeout --signal=TERM --kill-after=5s 90s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
@@ -115,7 +110,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: original-historical-id-observer-${{ github.run_id }}-${{ github.run_attempt }}
+          name: original-canonical-lan-observer-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.EVIDENCE }}/
           if-no-files-found: error
           retention-days: 30
