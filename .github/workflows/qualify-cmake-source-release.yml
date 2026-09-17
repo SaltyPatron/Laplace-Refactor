@@ -9,10 +9,6 @@ jobs:
   qualify:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      TMPDIR: ${{ runner.temp }}
-      TMP: ${{ runner.temp }}
-      TEMP: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -23,6 +19,9 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TMPDIR: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          TEMP: ${{ runner.temp }}
         run: |
           python3 -B - <<'PY'
           import ast,base64,hashlib,io,json,os,pathlib,subprocess,sys,urllib.request,zipfile,yaml
