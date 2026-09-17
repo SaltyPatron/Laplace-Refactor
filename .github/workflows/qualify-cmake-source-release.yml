@@ -1,47 +1,46 @@
-name: Cancel superseded completed-proof cleanup
+name: Qualify pointer-to-member C++ syntax
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: write
+  actions: read
 jobs:
-  cancel-superseded-cleanup:
+  pointer-member:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 60
+    env:
+      QUALIFICATION_ROOT: ${{ github.workspace }}/laplace-pointer-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Revalidate exact supersession and request ordinary cancellation
+      - name: Read exact hosted experiment
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 - <<'PY'
-          import json,os,urllib.request
-          base="https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
-          def request(path,method="GET"):
-              req=urllib.request.Request(base+path,method=method,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
-              with urllib.request.urlopen(req,timeout=30) as response:
-                  body=response.read()
-                  return response.status,json.loads(body) if body else None
-          _,pr=request("/pulls/398")
-          assert pr["head"]["sha"]=="1c23fa0a7c8c044c26ef91da3656e8f08e8a3948", "current owner changed"
-          _,run=request("/actions/runs/35184451666")
-          assert run["head_sha"]=="727debeb4e72f4a6356c7c7980f8e16ad37d2df9"
-          assert run["head_branch"]=="fix/ci-execution-owners-20260916" and run["run_attempt"]==1
-          if run["status"]=="completed":
-              print("SUPERSEDED_PROOF_ALREADY_TERMINAL "+json.dumps({"run":run["id"],"conclusion":run["conclusion"]}))
-          else:
-              _,jobs=request("/actions/runs/35184451666/jobs?filter=latest&per_page=100")
-              active=[job for job in jobs["jobs"] if job["status"]!="completed"]
-              assert len(active)==1 and active[0]["id"]==105090702716, "active work changed"
-              job=active[0]
-              steps={step["number"]:step for step in job["steps"]}
-              assert steps[6]["name"]=="Prove exact current-change PostgreSQL 18.6 package runtime"
-              assert steps[6]["status"]=="completed" and steps[6]["conclusion"]=="success"
-              assert steps[8]["name"]=="Clean disposable PostgreSQL-product workspace" and steps[8]["status"]=="in_progress"
-              assert all(step["number"]==8 for step in job["steps"] if step["status"]=="in_progress")
-              print("EXACT_SUPERSEDED_PROOF "+json.dumps({"run":run["id"],"head":run["head_sha"],"replacement":pr["head"]["sha"],"job":job["id"],"completedProof":steps[6],"remainingCleanup":steps[8],"retention":"Existing successful QA artifacts and durable proof receipts preserved; no host or database mutation."},sort_keys=True),flush=True)
-              status,_=request("/actions/runs/35184451666/cancel","POST")
-              assert status==202,status
-              print("ORDINARY_CANCELLATION_ACCEPTED "+json.dumps({"run":35184451666,"httpStatus":status,"force":False}),flush=True)
+          import hashlib,os,pathlib,urllib.request
+          root=pathlib.Path(os.environ['QUALIFICATION_ROOT'])
+          root.mkdir(mode=0o700)
+          blob='ed62770dd304eeeca082f358d4934e15195b4f44'
+          req=urllib.request.Request('https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/'+blob,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github.raw+json'})
+          with urllib.request.urlopen(req,timeout=60) as response: data=response.read()
+          assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==blob
+          (root/'experiment.py').write_bytes(data)
+          (root/'evidence'/'inputs').mkdir(parents=True)
+          (root/'evidence'/'inputs'/'experiment.py').write_bytes(data)
+          compile(data,str(root/'experiment.py'),'exec')
+          print('AUTHENTICATED_POINTER_EXPERIMENT '+blob,flush=True)
           PY
+      - name: Generate and execute actual C and C++ syntax controls
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: python3 "$QUALIFICATION_ROOT/experiment.py"
+      - name: Retain exact syntax experiment
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pointer-member-experiment-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.QUALIFICATION_ROOT }}/evidence
+          if-no-files-found: error
+          retention-days: 30
