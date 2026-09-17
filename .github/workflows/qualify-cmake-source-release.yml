@@ -1,4 +1,4 @@
-name: Read bounded Original PostgreSQL crash evidence
+name: Qualify canonical runtime checkpoint replay
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -6,128 +6,50 @@ permissions:
   contents: read
 env:
   PYTHONDONTWRITEBYTECODE: "1"
-  TMPDIR: /build/laplace/work
-  TMP: /build/laplace/work
-  TEMP: /build/laplace/work
-  PGCONNECT_TIMEOUT: "5"
-  PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
-  OBSERVER_SOURCE: |
-    import datetime,json,os,pathlib,re,subprocess
-    def emit(name,value):
-        print(name+" "+json.dumps(value,sort_keys=True),flush=True)
-    def run(command,timeout=20):
-        try:
-            result=subprocess.run(command,capture_output=True,text=True,timeout=timeout)
-            return {"exitCode":result.returncode,"stdout":result.stdout,"stderr":result.stderr}
-        except (OSError,subprocess.TimeoutExpired) as error:
-            return {"error":type(error).__name__}
-    emit("OBSERVATION",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"scope":"read-only provisional host state; no reservation or mutation"})
-    lock=pathlib.Path("/build/laplace/work/host-resource.lock")
-    try:
-        ls=lock.stat()
-        locks=pathlib.Path("/proc/locks").read_text().splitlines()
-        pattern=f"{os.major(ls.st_dev):02x}:{os.minor(ls.st_dev):02x}:{ls.st_ino}"
-        emit("HOST_LOCK",{"device":ls.st_dev,"inode":ls.st_ino,"entries":[x for x in locks if pattern in x]})
-    except OSError as error:
-        emit("HOST_LOCK",{"error":type(error).__name__})
-    known={"pipeline.sh","product-ci.sh","test-parallel.sh","ensure-foundation.sh","Laplace.Cli.dll","laplace-apply-queue","provision-postgresql.py","measure-installed-chess-corpus.py","managed-publish.sh","publish-applications.sh","laplace-managed-deploy","Stockfish","stockfish","cutechess-cli","ctest","cmake","ninja","dotnet","psql","postgres","VBCSCompiler.dll"}
-    for proc in pathlib.Path("/proc").iterdir():
-        if not proc.name.isdigit():continue
-        try:
-            if proc.stat().st_uid!=os.getuid():continue
-            command=(proc/"cmdline").read_bytes().split(b"\0")
-            names=sorted({pathlib.Path(x.decode("utf-8","replace")).name for x in command if x and b"\n" not in x and b" " not in x}.intersection(known))
-            fds=[]
-            if "ls" in globals():
-                for fd in (proc/"fd").iterdir():
-                    try:
-                        st=fd.stat()
-                        if st.st_dev==ls.st_dev and st.st_ino==ls.st_ino:fds.append(int(fd.name))
-                    except OSError:pass
-            if not names and not fds:continue
-            stat=(proc/"stat").read_text();tail=stat.rsplit(")",1)[1].split()
-            emit("RECOGNIZED_PROCESS",{"pid":int(proc.name),"ppid":int(tail[1]),"state":tail[0],"startTicks":int(tail[19]),"comm":(proc/"comm").read_text().strip(),"owners":names,"hostLockFds":fds})
-        except (OSError,ValueError):pass
-    psql="/opt/laplace/pgsql-18/bin/psql"
-    def sql(query):
-        command=[psql,"-X","-A","-t","-v","ON_ERROR_STOP=1","-h","/var/run/postgresql","-p","5432","-U","laplace_admin","-d","laplace","-c",query]
-        result=run(command)
-        if result.get("exitCode")==0:
-            try:return json.loads(result["stdout"])
-            except ValueError:return {"error":"non-JSON database response"}
-        return {"exitCode":result.get("exitCode"),"error":result.get("error","database observation unavailable"),"stderr":result.get("stderr","")[:2048]}
-    value=sql("""SELECT json_build_object(
-    'backendPid',pg_backend_pid(),'postmasterStarted',pg_postmaster_start_time(),
-    'serverVersion',current_setting('server_version'),'sharedPreloadLibraries',current_setting('shared_preload_libraries'),
-    'logPath',pg_current_logfile(),'maps',pg_read_file('/proc/self/maps'),
-    'extensions',(SELECT json_object_agg(extname,extversion) FROM pg_extension WHERE extname IN ('laplace_substrate','laplace_geom')))""")
-    maps=value.pop("maps","")
-    value["selectedNativeMappings"]=[x for x in maps.splitlines() if any(s in x for s in ("liblaplace_core","liblaplace_dynamics","laplace_substrate","laplace_execution","laplace_geom"))]
-    emit("ORIGINAL_POSTGRES",value)
-    for path in ("/opt/laplace/lib/liblaplace_core.so","/opt/laplace/lib/postgresql/18/laplace_substrate.so","/opt/laplace/lib/postgresql/18/laplace_geom.so"):
-        try:
-            p=pathlib.Path(path).resolve(strict=True);st=p.stat()
-            emit("INSTALLED_NATIVE_IDENTITY",{"selected":path,"resolved":str(p),"device":st.st_dev,"inode":st.st_ino,"bytes":st.st_size})
-        except OSError as error:emit("INSTALLED_NATIVE_IDENTITY",{"selected":path,"error":type(error).__name__})
-    log=sql("""SELECT json_build_object('path',pg_current_logfile(),'tail',CASE WHEN pg_current_logfile() IS NULL THEN '' ELSE pg_read_file(pg_current_logfile(),greatest((pg_stat_file(pg_current_logfile())).size-1048576,0),1048576,true) END)""")
-    tail=log.pop("tail","")
-    selected=[]
-    for line in tail.splitlines():
-        if re.search(r"\b(PANIC|FATAL|ERROR|LOG):",line) and re.search(r"terminated|signal|server process|out of memory|memory|shut|restart|reinitializ|database system|invalid|segmentation|checkpoint|could not",line,re.I):
-            selected.append(line[:4096])
-    log["selectedLines"]=selected[-160:]
-    emit("ORIGINAL_POSTGRES_LOG",log)
-    for unit in ("laplace-postgresql.service","laplace-api.service","laplace-mcp.service","laplace-lichess.service"):
-        result=run(["systemctl","show",unit,"--property=Id,ActiveState,SubState,MainPID,UnitFileState"])
-        result["properties"]=dict(x.split("=",1) for x in result.pop("stdout","").splitlines() if "=" in x);result.pop("stderr",None)
-        emit("SERVICE_STATE",{"unit":unit,**result})
-    kernel=run(["journalctl","-k","--since","2026-09-17 01:16:00 UTC","--until","2026-09-17 01:20:00 UTC","--no-pager","-o","short-iso"])
-    lines=[x[:4096] for x in kernel.pop("stdout","").splitlines() if re.search(r"oom|killed process|out of memory|segfault|trap|postgres",x,re.I)]
-    emit("KERNEL_WINDOW",{"exitCode":kernel.get("exitCode"),"error":kernel.get("error"),"access":kernel.get("stderr","")[:1024],"selectedLines":lines[-100:]})
-    core=run(["coredumpctl","--since","2026-09-17 01:16:00 UTC","--until","2026-09-17 01:20:00 UTC","--no-pager","list","postgres"])
-    emit("POSTGRES_COREDUMP_WINDOW",{"exitCode":core.get("exitCode"),"error":core.get("error"),"access":core.get("stderr","")[:1024],"lines":core.get("stdout","").splitlines()[-30:]})
 jobs:
-  validate:
+  runtime-replay:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Authenticate and parse the bounded observation owner
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 54665b6f0a645455469195e1bc7f041edfc587c0
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Execute complete canonical runtime owner tests
         shell: bash
-        run: |
-          python3 - <<'PY'
-          import ast,hashlib,os
-          source=os.environ["OBSERVER_SOURCE"].encode()
-          identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
-          assert identity=="84fa9212700b94567529a8131b73d8d731191eab",identity
-          ast.parse(source)
-          print("Authenticated Original observer84fa921; Python syntax passed without host execution.")
-          PY
-  observe:
-    needs: validate
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 5
-    env:
-      EVIDENCE: /build/laplace/work/original-pg-crash-observer-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - name: Read Original database, process, lock and crash evidence
-        shell: bash
+        env:
+          TMPDIR: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          TEMP: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          umask 077
-          test "$(id -un)" = laplace-runner
-          mkdir "$EVIDENCE"
-          python3 - <<'PY'
-          import ast,hashlib,os
-          source=os.environ["OBSERVER_SOURCE"].encode()
-          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="84fa9212700b94567529a8131b73d8d731191eab"
-          ast.parse(source)
+          test "$(git rev-parse HEAD)" = 54665b6f0a645455469195e1bc7f041edfc587c0
+          test "$(git rev-parse HEAD^{tree})" = c867033ce78bea44595b5bd85b4cb98c254d9ace
+          python3 -B tests/runtime_build_graph_tests.py -v
+      - name: Prove the serialization regression test detects the original ordering defect
+        shell: bash
+        env:
+          TMPDIR: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          TEMP: ${{ runner.temp }}
+        run: |
+          python3 -B - <<'PY'
+          import pathlib,subprocess,sys
+          path=pathlib.Path("tools/dependencies/build-runtime-graph.py")
+          original=path.read_bytes()
+          old=b"set(provider) != set(dimensions)"
+          assert original.count(old)==1
+          try:
+              path.write_bytes(original.replace(old,b"list(provider) != dimensions"))
+              result=subprocess.run([sys.executable,"-B","tests/runtime_build_graph_tests.py",
+                  "RuntimeBuildGraphTests.test_host_provider_dimensions_survive_canonical_checkpoint_roundtrip"],
+                  capture_output=True,text=True)
+              assert result.returncode!=0,result.stdout+result.stderr
+              assert "runtime-provider observation mismatch: liburing" in result.stderr,result.stderr
+              print("Original ordered-key defect was detected by the actual serialized checkpoint roundtrip.")
+              print(result.stderr)
+          finally:
+              path.write_bytes(original)
+          subprocess.run(["git","diff","--exit-code"],check=True)
           PY
-          timeout --signal=TERM --kill-after=5s 180s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
-      - name: Retain the bounded read-only observation
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: original-pg-crash-observer-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.EVIDENCE }}/
-          if-no-files-found: error
-          retention-days: 30
