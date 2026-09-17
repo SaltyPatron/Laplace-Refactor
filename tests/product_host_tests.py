@@ -593,6 +593,79 @@ class CognitionOwnerTests(unittest.TestCase):
             self.fail("unexpected manager operation: " + repr(operation))
         return subprocess.CompletedProcess(arguments, 0, "", "")
 
+    def managed_credential(self):
+        path = self.root / "operator.env"
+        path.write_text("LAPLACE_OPERATOR_TOKEN=" + "test-only-secret-" * 4 + "\n")
+        return path
+
+    def test_explicit_http_authority_updates_owned_unit_and_persists_without_global_template_change(self):
+        self.service.ensure()
+        unit = self.service.user_unit.read_bytes()
+        credential = self.managed_credential()
+        with mock.patch.object(cognition_owner, "MANAGED_OPERATOR_FILE", credential), \
+                mock.patch("sys.path", [str(REPOSITORY / "tools"), *sys.path]):
+            observed = self.service.ensure(http_auth="managed-operator")
+            self.assertEqual(observed["http_auth"],
+                {"mode": "managed-operator", "credential_source": str(credential)})
+            selected_unit = self.service.user_unit.read_bytes()
+            marker = self.marker.read_bytes()
+            self.assertIn(("--api-operator-token-file " + str(credential)).encode(), selected_unit)
+            self.assertNotIn(b"test-only-secret", selected_unit + marker)
+            self.assertNotEqual(selected_unit, unit)
+            self.assertEqual(self.service.ensure()["http_auth"], observed["http_auth"])
+            self.assertEqual(self.service.user_unit.read_bytes(), selected_unit)
+            self.assertEqual(self.marker.read_bytes(), marker)
+            self.assertEqual(self.service.desired("system"),
+                (self.repository / "packaging/systemd" / cognition_owner.UNIT).read_bytes())
+        self.assertNotIn(b"operator-token", (self.repository / "packaging/systemd/user" / cognition_owner.UNIT).read_bytes())
+
+    def test_http_authority_failed_enable_restores_exact_prior_unit_and_selection(self):
+        self.service.ensure()
+        before = (self.service.user_unit.read_bytes(), self.marker.read_bytes())
+        self.fail_enable = True
+        with mock.patch.object(cognition_owner, "MANAGED_OPERATOR_FILE", self.managed_credential()), \
+                mock.patch("sys.path", [str(REPOSITORY / "tools"), *sys.path]):
+            with self.assertRaisesRegex(cognition_owner.ServiceError, "command failed"):
+                self.service.ensure(http_auth="managed-operator")
+        self.assertEqual((self.service.user_unit.read_bytes(), self.marker.read_bytes()), before)
+        self.assertEqual(self.service.verify()["http_auth"], {"mode": "none"})
+
+    def test_missing_or_malformed_selected_credential_refuses_before_service_mutation(self):
+        self.service.ensure()
+        before = (self.service.user_unit.read_bytes(), self.marker.read_bytes())
+        credential = self.root / "invalid.env"
+        for content in (None, "LAPLACE_OPERATOR_TOKEN=$(do-not-evaluate)\n"):
+            if content is not None:
+                credential.write_text(content)
+            self.calls.clear()
+            with mock.patch.object(cognition_owner, "MANAGED_OPERATOR_FILE", credential), \
+                    mock.patch("sys.path", [str(REPOSITORY / "tools"), *sys.path]):
+                with self.assertRaises(ValueError):
+                    self.service.ensure(http_auth="managed-operator")
+            self.assertEqual(self.calls, [])
+            self.assertEqual((self.service.user_unit.read_bytes(), self.marker.read_bytes()), before)
+
+    def test_selected_http_authority_does_not_adopt_or_modify_existing_system_owner(self):
+        self.install_system()
+        before = self.service.system_unit.read_bytes()
+        with mock.patch.object(cognition_owner, "MANAGED_OPERATOR_FILE", self.managed_credential()), \
+                mock.patch("sys.path", [str(REPOSITORY / "tools"), *sys.path]):
+            with self.assertRaisesRegex(cognition_owner.ServiceError, "owned user-service"):
+                self.service.ensure(http_auth="managed-operator")
+        self.assertEqual(self.service.system_unit.read_bytes(), before)
+        self.assertFalse(self.marker.exists())
+        self.assertFalse(self.service.user_unit.exists())
+
+    def test_http_authority_receipt_rejects_unknown_selection_even_with_valid_hash(self):
+        self.service.ensure()
+        value = json.loads(self.marker.read_bytes())
+        value["http_auth"] = "arbitrary-file-or-command"
+        value["receipt_sha256"] = cognition_owner.digest(cognition_owner.canonical(
+            {key: item for key, item in value.items() if key != "receipt_sha256"}))
+        self.marker.write_bytes(cognition_owner.canonical(value))
+        with self.assertRaisesRegex(cognition_owner.ServiceError, "another owner"):
+            self.service.verify()
+
     def install_system(self):
         self.service.system_unit.write_bytes(self.service.desired("system"))
 

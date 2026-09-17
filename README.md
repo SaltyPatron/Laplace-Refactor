@@ -25,8 +25,12 @@ The machine-readable authority load order is `contracts/authority-stack.json`. I
 the complete invention, typed recipe model, universal source-admission law, acceptance
 boundary, and only then the observed checkpoint at `state/continuation.json`. A resumed
 implementation session validates that order before selecting work. In particular, the
-controlled Unicode PostgreSQL/Tier-0 activation path is integration-proven while the
-selected PostgreSQL 18.6 product cluster and product Unicode root remain inactive.
+selected PostgreSQL 18.6 product cluster and native Unicode/Highway runtime were
+activated and read back in main run 35216221036 on 2026-09-17. The
+[installed cognition surface guide](docs/delivery/COGNITION_SURFACE.md) records the
+exact source/package, enabled service and verified loopback browser/API endpoint,
+and distinguishes that observed installation from pending gateway access. Complete
+product acceptance remains a separate claim.
 
 The executable baseline currently contains the fixed BLAKE3-128 identity contract,
 complete Unicode-position encoding, ordered recursive composition, run-span identity

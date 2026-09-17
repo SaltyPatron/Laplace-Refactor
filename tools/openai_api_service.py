@@ -380,6 +380,18 @@ def load_bearer_token(path: Path | None) -> str | None:
     return token
 
 
+def load_operator_token(path: Path) -> str:
+    """Read the existing managed operator.env contract; never evaluate shell input."""
+    try:
+        with path.open("rb") as stream:
+            raw = stream.read(65537)
+    except OSError as error:
+        raise ValueError(f"cannot read managed operator credential file {path}: {type(error).__name__}") from None
+    match = re.fullmatch(rb"LAPLACE_OPERATOR_TOKEN=([A-Za-z0-9_=/+-]{32,})\n?", raw)
+    if len(raw) > 65536 or match is None:
+        raise ValueError("managed operator credential file does not match its single-assignment contract")
+    return match.group(1).decode("ascii")
+
 def is_loopback(host: str) -> bool:
     return host in {"127.0.0.1", "::1", "localhost"}
 
@@ -666,15 +678,18 @@ def main() -> int:
     parser.add_argument("--database", default=DEFAULT_DATABASE)
     parser.add_argument("--database-role", default=DEFAULT_DATABASE_ROLE)
     parser.add_argument("--web-root", type=Path, default=default_web_root())
-    parser.add_argument("--bearer-token-file", type=Path, default=None)
+    auth = parser.add_mutually_exclusive_group()
+    auth.add_argument("--bearer-token-file", type=Path, default=None)
+    auth.add_argument("--operator-token-file", type=Path, default=None)
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
     if not 1 <= args.database_port <= 65535:
         parser.error("--database-port must be between 1 and 65535")
-    token = load_bearer_token(args.bearer_token_file)
+    token = (load_operator_token(args.operator_token_file) if args.operator_token_file is not None
+             else load_bearer_token(args.bearer_token_file))
     if not is_loopback(args.listen) and token is None:
-        parser.error("non-loopback listening requires --bearer-token-file")
+        parser.error("non-loopback listening requires --bearer-token-file or --operator-token-file")
     Handler.cognition_socket = args.cognition_socket
     Handler.cognition_client = args.cognition_client
     Handler.inspect_binary = args.inspect

@@ -204,6 +204,58 @@ int main(int argc, char** argv) {
     if (result == 0) result = Check("int f() { return 1 }\n", provider, true, true);
     if (result == 0) result = Check("int f( { @ return 1; }\n", provider, true, false);
     if (result == 0) result = Check("int f() { if (1) }\n", provider, true, true, true);
+    // Authentic Stockfish syntax at edb0d9db6731067ec50ce619ff372b463bc4dd5d.
+    // Source byte ranges and hashes are retained in the selected derivative's
+    // provenance/authentic-fixtures.json. The old official provider rejects
+    // each accepted target, providing the deliberate regression counterexample.
+    struct SyntaxCase {
+        const char* name;
+        const char* source;
+        bool expect_error;
+        bool expect_missing;
+    };
+    const SyntaxCase regression_cases[] = {
+        {"for-condition-declaration", R"CPP(void fixture() {
+        for (Square s = sq; Bitboard dest = safe_destination(s, d); s += d)
+        {
+            attacks |= dest;
+            if (occupied & dest)
+                break;
+        }
+}
+)CPP", false, false},
+        {"deleted-conversion-operator", R"CPP(struct Conversion {
+    operator float() const = delete;
+};
+)CPP", false, false},
+        {"using-pack-expansion", R"CPP(template<typename... Ts>
+struct overload: Ts... {
+    using Ts::operator()...;
+};
+)CPP", false, false},
+        {"pointer-to-member-call", R"CPP(void fixture() {
+    sum += (th->worker.get()->*member).load(std::memory_order_relaxed);
+}
+)CPP", false, false},
+        {"dot-pointer-to-member-call", R"CPP(void fixture() {
+    (obj.*member_function_ptr)(42);
+}
+)CPP", false, false},
+        {"broken-condition", R"CPP(void f() { for (; int value = ; ) {} }
+)CPP", true, true},
+        {"deleted-conversion-missing-semicolon", R"CPP(struct C { operator float() const = delete };
+)CPP", true, true},
+        {"namespace-pack-not-admitted", R"CPP(namespace N {} using namespace N...;
+)CPP", true, false},
+        {"enum-pack-not-admitted", R"CPP(enum class E { a }; using enum E...;
+)CPP", true, false},
+    };
+    for (const auto& syntax_case : regression_cases) {
+        if (result != 0) break;
+        result = Check(syntax_case.source, provider, syntax_case.expect_error, syntax_case.expect_missing);
+        if (result != 0)
+            std::fprintf(stderr, "C++ grammar regression %s failed: status=%d\n", syntax_case.name, result);
+    }
     if (result == 0 && argc > 2) result = CheckCorpus(argc, argv, provider);
     laplace_tree_sitter_grammar_close(&grammar);
     return result;

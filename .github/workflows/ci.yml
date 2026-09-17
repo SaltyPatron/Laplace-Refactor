@@ -51,6 +51,8 @@ jobs:
           python3 tests/receipt_estate_tests.py
           python3 tests/receipt_estate_runner_tests.py
           python3 tests/product_build_workspace_retention_tests.py
+      - name: Prove browser directory and authenticated stream behavior
+        run: node --test tests/browser_surface_paths_tests.cjs
       - name: Prove durable product service and cold-boot contracts
         run: python3 tests/product_service_state_tests.py
       - name: Prove installed source-corpus workflow and receipt contracts

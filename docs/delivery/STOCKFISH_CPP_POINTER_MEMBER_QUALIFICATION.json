@@ -1,0 +1,114 @@
+{
+  "boundaries": {
+    "executable_semantics_verified": false,
+    "installed_provider_changed": false,
+    "performance_comparison_proven": false,
+    "postgresql_admission_proven": false,
+    "remaining_syntax_diagnostics": 95
+  },
+  "dependency": {
+    "dependency_commit": "94fe0c1ba60dee178a4782c1082441631638f51b",
+    "dependency_git_archive": {
+      "bytes": 27258880,
+      "sha256": "048dd9e42051ac037c87bfcefd9d3966f4b052b5dfef811b9b862e564c3204ae"
+    },
+    "dependency_parent": "8ece5afbc1e97f8d4344355b15822110e8231056",
+    "dependency_tree": "b33986de36171b1766ab39282dffb0dc97f66e2c",
+    "pointer_derivation_blob": "b0cd7514569d42ae4883f712057fd01d74e4b4b2",
+    "pointer_derivation_sha256": "f8b5a96c1495b6732a0abe41145ad63f07ff736b7bbb4b722648c95b28420b07",
+    "status": "prepared-unpublished-dependency-objects",
+    "tracked_file_count": 90,
+    "retained_branch": "dependencies/tree-sitter-cpp-pointer-member-20260917",
+    "preparation_status_is_historical": true
+  },
+  "historical_diagnostic_counts": {
+    "official_installed": 102,
+    "pointer_member_native": 95,
+    "three_rule_native": 96
+  },
+  "native": {
+    "accepted_regressions": 5,
+    "artifact_id": 10485363567,
+    "artifact_sha256": "9658bb0e4c8827561801afd244d79ca101aaf6db4357de75c07105f2145a149d",
+    "compiled_translation_units": 13,
+    "elapsed_seconds": 3.487,
+    "engine_sha256": "d80c6c3fd465480875134cb52a4a6020f2ed1865f0bc9227f00d61044253c8d7",
+    "grammar_lock_blob": "eaebd9a8cba151e98d25fde8442adc5258f55f1f",
+    "head": "15618c5781e7f51a64649136f3ad2948d4026563",
+    "job_id": 105116391601,
+    "local_candidate": "61a58f0296681489b3c4ed6f92c3f3b5ba0e1d29",
+    "local_tree": "acbf340ce55839f907feea1172d7bc4b0528cdfe",
+    "malformed_regressions": 4,
+    "native_source_plan": {
+      "all_files_reconstructed": true,
+      "bytes": 1172144,
+      "files": 119,
+      "phase": "whole-native-source-plan",
+      "postgresql_admission": false,
+      "requests": 60766,
+      "semantic_testimony": 0,
+      "syntax_errors_or_missing": 95,
+      "witnesses": 197083
+    },
+    "official_counterexample": {
+      "baseline_cases_completed": 4,
+      "command": [
+        "/home/runner/work/_temp/cpp-selected-runtime-35195112861-1/build/tests/laplace_verified_cpp_source_probe",
+        "/home/runner/work/_temp/cpp-selected-runtime-35195112861-1/evidence/providers/official/provider.so"
+      ],
+      "elapsed_seconds": 0.09,
+      "expected_rejection_observed": true,
+      "failure_target": "for-condition-declaration",
+      "native_probe_sha256": "d3faa1b1e7c2724f07c2534aa118050bb643b3c0dfb83d9a359e202e0b99bf5f",
+      "postgresql_admission_executed": false,
+      "provider_sha256": "0191dcdb345190e28788c56148ecb5977f01acaa85733f92d62bb46d06bf96fd",
+      "returncode": 16,
+      "schema": "laplace.cpp-provider-deliberate-control/v1"
+    },
+    "parent": "af0f3cf48de13005875f78888271ec8ccdf332c4",
+    "preceding_fixture_outputs": 13,
+    "probe_blob": "4c4fce47b75c827b2694e46208d4358809d28c9c",
+    "probe_sha256": "d3faa1b1e7c2724f07c2534aa118050bb643b3c0dfb83d9a359e202e0b99bf5f",
+    "provider_sha256": "f942fae5ffec5bd88472abac896408ffff841456c55ff99dd43b070174aff567",
+    "registered_contracts_passed": 2,
+    "run_id": 35195112861,
+    "runtime": {
+      "git_archive_sha256": "033a2ceab11bd6cebbcddba8d5e1d8127bc9e49446d0cd74bf10f991fa80ade3",
+      "licenses": [
+        {
+          "path": "LICENSE",
+          "sha256": "c5cfb43042b6b72045f4ba997834d0a7786d2793d91680868b5815b39f14fc78"
+        }
+      ],
+      "revision": "d97971e24500218865c05ed1febdee2acf41bae1",
+      "upstream": "https://github.com/tree-sitter/tree-sitter.git",
+      "version": "v0.26.13"
+    }
+  },
+  "promotion_order": "Finish the existing installed-profile witness replay diagnosis before changing provider/profile identities; then use normal qualification and activation.",
+  "repository": "SaltyPatron/Laplace-Refactor",
+  "schema": "laplace.cpp-pointer-member-delivery-proof/v1",
+  "status": "qualified-source-and-selected-native-runtime",
+  "syntax": {
+    "artifact_id": 10485272137,
+    "artifact_sha256": "145f27ed9dbe80c30c2ec3090e0d35b350a19e624529c2754c0e72c35471eb19",
+    "baseline_cpp_passed": 198,
+    "candidate_cpp_passed": 198,
+    "exact_assertions_passed": 50,
+    "head": "46afbda34b278d28d20d8b3f19e025ca9280efab",
+    "inherited_c_passed": 85,
+    "job_id": 105113304137,
+    "owned_golden": {
+      "base_blob": "273afad947371be38fbb635a90dbdd90a1ceceb5",
+      "blob": "410e7b96fad67983a1f0c656960aa15c45ae32b3",
+      "changed_expected_CST_lines": [
+        2234,
+        2236
+      ],
+      "fixture_source_unchanged": true,
+      "path": "test/corpus/declarations.txt"
+    },
+    "pointer_shape_controls_passed": 18,
+    "run_id": 35194152219
+  }
+}

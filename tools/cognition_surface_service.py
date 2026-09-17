@@ -53,7 +53,9 @@ def main() -> int:
     parser.add_argument("--socket", type=Path, default=DEFAULT_SOCKET)
     parser.add_argument("--api-listen", default=DEFAULT_API_LISTEN)
     parser.add_argument("--api-port", type=int, default=DEFAULT_API_PORT)
-    parser.add_argument("--api-bearer-token-file", type=Path, default=None)
+    auth = parser.add_mutually_exclusive_group()
+    auth.add_argument("--api-bearer-token-file", type=Path, default=None)
+    auth.add_argument("--api-operator-token-file", type=Path, default=None)
     args = parser.parse_args()
 
     core = sibling("laplace-cognition-core-service")
@@ -69,6 +71,8 @@ def main() -> int:
     ]
     if args.api_bearer_token_file is not None:
         api_command.extend(["--bearer-token-file", str(args.api_bearer_token_file)])
+    if args.api_operator_token_file is not None:
+        api_command.extend(["--operator-token-file", str(args.api_operator_token_file)])
 
     processes: list[subprocess.Popen[bytes]] = []
     stopping = False

@@ -186,6 +186,7 @@ class InstalledHttpReadinessTests(unittest.TestCase):
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 fixture["calls"].append(self.path)
+                fixture.setdefault("authorization", []).append(self.headers.get("Authorization"))
                 if "wire_prefix" in fixture:
                     try:
                         self.connection.sendall(fixture["wire_prefix"])
@@ -205,6 +206,9 @@ class InstalledHttpReadinessTests(unittest.TestCase):
                     return
                 status, media, body = fixture["responses"].get(
                     self.path, (404, "text/plain", b"not found"))
+                if fixture.get("required_token") and self.path not in {"/", "/app.js", "/styles.css"}:
+                    if self.headers.get("Authorization") != "Bearer " + fixture["required_token"]:
+                        status, media, body = 401, "application/json", b'{"error":"unauthorized"}'
                 self.send_response(status)
                 self.send_header("Content-Type", media)
                 self.send_header("Content-Length", str(len(body)))
@@ -240,6 +244,24 @@ class InstalledHttpReadinessTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             worker.join(timeout=2)
+
+    def test_selected_authority_rejects_anonymous_health_and_stream_then_reads_bound_assets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = self.fixture(Path(directory))
+            fixture["required_token"] = "proof-fixture-only"
+            output = fixture["root"] / "authenticated-readiness.json"
+            with self.server(fixture), \
+                    mock.patch.object(self.proof, "AUTH_TOKEN", fixture["required_token"]), \
+                    mock.patch.object(self.proof, "AUTH_SELECTION", {"mode": "managed-operator"}):
+                self.proof.prove_readiness(output, fixture["package_id"],
+                    fixture["product_receipt"], root=fixture["root"])
+            report = json.loads(output.read_text())
+            self.assertEqual(report["status"], "passed")
+            self.assertEqual(report["anonymous_protected_status"], 401)
+            self.assertEqual(report["http_auth"], {"mode": "managed-operator"})
+            self.assertEqual(fixture["calls"][:3], ["/health", "/api/v1/stream", "/health"])
+            self.assertEqual(fixture["authorization"], [None, None, "Bearer proof-fixture-only", None, None, None])
+            self.assertNotIn("proof-fixture-only", output.read_text())
 
     def test_gets_exact_selected_assets_and_retains_bound_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -453,6 +475,9 @@ class InstalledHttpReadinessTests(unittest.TestCase):
 
     def test_default_cli_keeps_existing_full_gateway_proof(self) -> None:
         with mock.patch.object(self.proof, "prove") as full, \
+                mock.patch.object(self.proof, "selected_http_authority", return_value=({"mode": "none"}, None)), \
+                mock.patch.object(self.proof, "AUTH_TOKEN", None), \
+                mock.patch.object(self.proof, "AUTH_SELECTION", {"mode": "none"}), \
                 mock.patch.object(self.proof, "prove_readiness") as readiness, \
                 mock.patch("sys.argv", ["proof", "--output", "/tmp/proof.json", "--package-id", "ab" * 32]):
             self.assertEqual(self.proof.main(), 0)
@@ -559,6 +584,130 @@ class FullGatewayProofLifecycleTests(unittest.TestCase):
         self.assertIn("always() && env.LAPLACE_INSTALLED_GATEWAY_PROOF != ''", step)
         self.assertIn('.status == "passed"', step)
         self.assertNotIn("--include-source-ingestion", step)
+
+
+class ManagedOperatorTransportTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import sys
+        spec = importlib.util.spec_from_file_location("managed_operator_api_tests",
+            ROOT / "tools/openai_api_service.py")
+        cls.api = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = cls.api
+        spec.loader.exec_module(cls.api)
+        spec = importlib.util.spec_from_file_location("managed_operator_gateway_proof_tests", LIVE)
+        cls.proof = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.proof)
+
+    def test_existing_assignment_is_parsed_without_shell_and_plain_tokens_are_preserved(self):
+        token = "fixture-only-AZ09_=/+-" * 3
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "operator.env"
+            for newline in ("", "\n"):
+                path.write_text("LAPLACE_OPERATOR_TOKEN=" + token + newline)
+                self.assertEqual(self.api.load_operator_token(path), token)
+            for invalid in ('export LAPLACE_OPERATOR_TOKEN=' + token,
+                            'LAPLACE_OPERATOR_TOKEN="' + token + '"',
+                            "LAPLACE_OPERATOR_TOKEN=$(do-not-evaluate)",
+                            "LAPLACE_OPERATOR_TOKEN=" + token + "\nOTHER=value\n",
+                            "LAPLACE_OPERATOR_TOKEN=short",
+                            "LAPLACE_OPERATOR_TOKEN=" + "a" * 65536):
+                path.write_text(invalid)
+                with self.assertRaises(ValueError) as raised:
+                    self.api.load_operator_token(path)
+                self.assertNotIn(invalid, str(raised.exception))
+            path.write_text(token + "\n")
+            self.assertEqual(self.api.load_bearer_token(path), token)
+            self.assertIsNone(self.api.load_bearer_token(None))
+
+    def test_actual_argument_parser_keeps_standalone_and_explicit_authorities_distinct(self):
+        import sys
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "operator.env"
+            token = "fixture-only-" * 4
+            path.write_text("LAPLACE_OPERATOR_TOKEN=" + token + "\n")
+            server = mock.Mock()
+            with mock.patch.object(self.api, "ThreadingHTTPServer", return_value=server), \
+                    mock.patch.object(self.api.Handler, "bearer_token", None):
+                for arguments, expected in (([], None), (["--operator-token-file", str(path)], token)):
+                    with mock.patch.object(sys, "argv", ["api", *arguments]):
+                        self.assertEqual(self.api.main(), 0)
+                    self.assertEqual(self.api.Handler.bearer_token, expected)
+                with mock.patch.object(sys, "argv", ["api", "--operator-token-file", str(path),
+                                                   "--bearer-token-file", str(path)]):
+                    with self.assertRaises(SystemExit) as error:
+                        self.api.main()
+                    self.assertEqual(error.exception.code, 2)
+
+    @contextmanager
+    def actual_gateway(self):
+        import http.client
+        token = "fixture-only-" * 4
+        package = "ab" * 32
+        api = self.api
+        class Handler(api.Handler):
+            bearer_token = token
+            web_root = ROOT / "product/web"
+            def log_message(self, *_args):
+                pass
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        with mock.patch.object(api, "health_payload", return_value={
+                "status": "ready", "package_id": package,
+                "unicode_present": True, "highway_present": True}), \
+                mock.patch.object(api, "inspect_value", return_value={
+                    "schema": "laplace.inspect.summary/v1", "counts": {}}), \
+                mock.patch.object(self.proof, "BASE", f"http://127.0.0.1:{server.server_port}"), \
+                mock.patch.object(self.proof, "AUTH_TOKEN", token):
+            worker.start()
+            try:
+                yield server, token, package
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=2)
+
+    def test_full_gateway_owner_accepts_expected_401_and_continues_through_real_event_stream(self):
+        with self.actual_gateway() as (_, token, package):
+            retained = {}
+            with mock.patch.object(self.proof, "json_http",
+                    side_effect=RuntimeError("controlled boundary after actual authority proof")), \
+                    mock.patch.object(self.proof, "AUTH_SELECTION", {"mode": "managed-operator"}):
+                with self.assertRaisesRegex(RuntimeError, "controlled boundary after actual"):
+                    self.proof.execute_gateway_proof(package, include_source_ingestion=False,
+                        retain=lambda phase, value: retained.update({phase: value}))
+            self.assertEqual(list(retained), ["browser", "http_authority", "product_events"])
+            self.assertEqual(retained["http_authority"]["anonymous_mcp_status"], 401)
+            self.assertTrue(retained["product_events"]["complete_frame"])
+            with self.assertRaisesRegex(RuntimeError, "HTTP 401"):
+                self.proof.http("POST", "/mcp", {}, timeout=2, authorized=False)
+
+    def test_real_handler_enforces_bearer_on_api_mcp_and_event_stream(self):
+        import http.client
+        with self.actual_gateway() as (server, token, package):
+            for method, path, body in (("GET", "/health", None),
+                    ("GET", "/api/v1/stream", None), ("POST", "/mcp", b"{}")):
+                for header in ({}, {"Authorization": "Bearer wrong"}):
+                    connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+                    connection.request(method, path, body=body, headers=header)
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, 401)
+                    response.read()
+                    connection.close()
+            connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+            connection.request("GET", "/health", headers={"Authorization": "Bearer " + token})
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(json.loads(response.read())["cognition"]["package_id"], package)
+            connection.close()
+            observed = self.proof.prove_product_event(package)
+            self.assertEqual(observed["event"], "product-snapshot")
+            self.assertTrue(observed["complete_frame"])
+            self.assertEqual(observed["package_id"], package)
+            self.assertNotIn(token, json.dumps(observed))
+            with mock.patch.object(self.proof, "AUTH_TOKEN", "wrong"):
+                with self.assertRaisesRegex(RuntimeError, "stream is unavailable"):
+                    self.proof.prove_product_event(package)
 
 if __name__ == "__main__":
     unittest.main()

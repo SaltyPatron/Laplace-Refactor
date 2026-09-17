@@ -3,6 +3,8 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const HEX128 = /^[0-9a-f]{32}$/i;
+  const surfaceBase = new URL(".", window.location.href);
+  const surfaceUrl = path => new URL(path.replace(/^\/+/, ""), surfaceBase);
 
   const state = {
     token: sessionStorage.getItem("laplace.apiToken") || "",
@@ -49,7 +51,7 @@
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {}),
     };
-    const response = await fetch(path, { ...options, headers });
+    const response = await fetch(surfaceUrl(path), { ...options, headers });
     const type = response.headers.get("content-type") || "";
     const value = type.includes("application/json") ? await response.json() : await response.text();
     if (!response.ok) {
@@ -480,28 +482,130 @@
     }
   }
 
-  function startEvents() {
-    if (state.events) return;
-    if (state.token) {
-      setStatus("#event-connection", "EventSource cannot attach bearer headers in remote mode.");
-      return;
+  function showProductEvent(data) {
+    const value = JSON.parse(data);
+    const article = document.createElement("article");
+    article.className = "event-item";
+    article.innerHTML = `<div class="event-meta"><span>${escapeHtml(value.kind)}</span><time>${new Date((value.timestamp || 0) * 1000).toLocaleTimeString()}</time></div><pre class="json-view compact">${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+    $("#event-feed").prepend(article);
+  }
+
+  async function readEvents(response, active) {
+    if (!response.body) throw new Error("The event response has no readable stream.");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    active.reader = reader;
+    let pending = "", event = "", data = [], frameLength = 0, eventId = null;
+    try {
+      while (!active.controller.signal.aborted) {
+        const chunk = await reader.read();
+        if (active.controller.signal.aborted || state.events !== active) return;
+        pending += decoder.decode(chunk.value, { stream: !chunk.done });
+        let newline;
+        while ((newline = pending.indexOf("\n")) >= 0) {
+          const line = pending.slice(0, newline).replace(/\r$/, "");
+          pending = pending.slice(newline + 1);
+          if (line === "") {
+            if (eventId !== null) active.lastEventId = eventId;
+            if (data.length && event === "product-snapshot") {
+              showProductEvent(data.join("\n"));
+              setStatus("#event-connection", "Live");
+            } else if (data.length && event === "error") {
+              const value = JSON.parse(data.join("\n"));
+              setStatus("#event-connection", value.error || "The server reported an event error.");
+            }
+            event = ""; data = []; frameLength = 0; eventId = null;
+          } else {
+            frameLength += line.length;
+            if (frameLength > 1024 * 1024) throw new Error("An event exceeded the 1048576-character transport frame limit.");
+            if (line.startsWith(":")) continue;
+            const colon = line.indexOf(":");
+            const field = colon < 0 ? line : line.slice(0, colon);
+            const value = colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
+            if (field === "event") event = value;
+            if (field === "data") data.push(value);
+            if (field === "id" && !value.includes("\0")) eventId = value;
+          }
+        }
+        if (pending.length + frameLength > 1024 * 1024) {
+          throw new Error("An event exceeded the 1048576-character transport frame limit.");
+        }
+        // An unterminated final frame is not an event; reconnect at EOF as EventSource did.
+        if (chunk.done) return;
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+      if (active.reader === reader) active.reader = null;
     }
-    const source = new EventSource("/api/v1/stream");
-    state.events = source;
-    $("#events-toggle").textContent = "Stop";
-    source.addEventListener("product-snapshot", event => {
-      setStatus("#event-connection", "Live");
-      const value = JSON.parse(event.data);
-      const article = document.createElement("article");
-      article.className = "event-item";
-      article.innerHTML = `<div class="event-meta"><span>${escapeHtml(value.kind)}</span><time>${new Date((value.timestamp || 0) * 1000).toLocaleTimeString()}</time></div><pre class="json-view compact">${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
-      $("#event-feed").prepend(article);
+  }
+
+  function eventRetry(active) {
+    return new Promise(resolve => {
+      const done = () => {
+        clearTimeout(timer);
+        active.controller.signal.removeEventListener("abort", done);
+        resolve();
+      };
+      const timer = setTimeout(done, 3000);
+      active.controller.signal.addEventListener("abort", done, { once: true });
     });
   }
 
+  async function streamEvents(active) {
+    while (state.events === active && !active.controller.signal.aborted) {
+      try {
+        const response = await fetch(surfaceUrl("/api/v1/stream"), {
+          headers: { Accept: "text/event-stream", ...authHeaders(),
+            ...(active.lastEventId ? { "Last-Event-ID": active.lastEventId } : {}) },
+          cache: "no-store", redirect: "error", signal: active.controller.signal,
+        });
+        if (state.events !== active || active.controller.signal.aborted) {
+          if (response.body) await response.body.cancel().catch(() => {});
+          return;
+        }
+        if (response.status === 401 || response.status === 403) {
+          if (response.body) await response.body.cancel().catch(() => {});
+          stopEvents();
+          setStatus("#event-connection", "Event authentication failed. Set a valid API token and start again.");
+          return;
+        }
+        if (response.status === 204) {
+          if (response.body) await response.body.cancel().catch(() => {});
+          stopEvents();
+          setStatus("#event-connection", "The server ended event delivery.");
+          return;
+        }
+        const media = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+        if (!response.ok || media !== "text/event-stream") {
+          if (response.body) await response.body.cancel().catch(() => {});
+          throw new Error(response.ok ? "The server did not return an event stream." : `Event request returned HTTP ${response.status}.`);
+        }
+        await readEvents(response, active);
+      } catch (error) {
+        if (active.controller.signal.aborted || state.events !== active) return;
+        setStatus("#event-connection", error.message);
+      }
+      if (active.controller.signal.aborted || state.events !== active) return;
+      setStatus("#event-connection", "Reconnecting…");
+      await eventRetry(active);
+    }
+  }
+
+  function startEvents() {
+    if (state.events) return;
+    const active = { controller: new AbortController(), reader: null, lastEventId: "" };
+    state.events = active;
+    $("#events-toggle").textContent = "Stop";
+    setStatus("#event-connection", "Connecting…");
+    void streamEvents(active);
+  }
+
   function stopEvents() {
-    state.events?.close();
+    const active = state.events;
     state.events = null;
+    active?.controller.abort();
+    if (active?.reader) void active.reader.cancel().catch(() => {});
     $("#events-toggle").textContent = "Start";
     setStatus("#event-connection", "Stopped");
   }
@@ -532,7 +636,8 @@
     state.token = value.trim();
     if (state.token) sessionStorage.setItem("laplace.apiToken", state.token);
     else sessionStorage.removeItem("laplace.apiToken");
-    refreshHealth().catch(error => toast(error.message, "error"));
+    if (state.events) { stopEvents(); startEvents(); }
+    refreshHealth().then(refreshExplore).catch(error => toast(error.message, "error"));
   }
 
   function bind() {

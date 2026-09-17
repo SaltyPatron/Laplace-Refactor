@@ -1,0 +1,438 @@
+{
+  "artifact": {
+    "artifact_id": 10481758203,
+    "bytes": 19735930,
+    "head": "d7da5e820a60aee30599bf8abd0b16d022c79a6b",
+    "job_id": 105089158422,
+    "member_sha256": {
+      "input.json": "e4abfbe7194b896983498b6a7a198629e32eacb6ef22b8f8f7c038e84cc484a9",
+      "native-build-retention.json": "a299a181ddce5506d20174c43381848a679c04d163efd9dd0d006d66ffaf242c",
+      "official-control.json": "d57c95c452added86562202eb3cc8b463608f2af2247d4dd3dcf0b94f0d0f1a0",
+      "preparation-result.json": "2b6e5f5710f0b75e511478cccd100f876b78bdd53309d37b4012a8aa9efe0f77",
+      "providers/candidate/build-receipt.json": "680ca4243217ea70979133c9ea646b926e4eeb5427fabdce77d379ac91ecfd8b",
+      "providers/official/build-receipt.json": "f6b6e61537e8e04cc0fe39266244fe0bee229216410bd39c90e101ea939d112c",
+      "providers/pgn/build-receipt.json": "cc7eb7744ff86ffd90b312838fcbd389122cc21365da3e9d754ade2efaae018e",
+      "public-acquisition.json": "dc38f409e57b125231d7f217b261706ae1a58403e6149f7872bb5328ad2602e2",
+      "qualification.json": "f793407f130d7818de60de1bb9cefde72f6256f4ca4d3f9caf9d5427f2c3b143",
+      "runtime-compilation-observation.json": "14aae86dd4976e5360c4215f37fbf66d8fbddc53fac34bd6149981c772b249ac",
+      "stockfish-native.json": "dfcb07dc5f6509583df4b0a0a2d7673902fee88e04a182387134f912db6ee5b7"
+    },
+    "run_id": 35186357806,
+    "sha256": "d3869e90096cd21dcccf37d0e44c46363bfe81f8ace12cd6272e2f868d69af82"
+  },
+  "authenticated_reader": {
+    "emitted_json_sha256": "35f18ce90fec02774cbd5933e9bc694a829d6df704826cc3b4afb9616fc58f6d",
+    "hash_scope": "Exact JSON following CPP_SELECTED_NATIVE_AUTHENTICATED_REPORT, excluding log timestamp/prefix/newline; not an artifact member digest.",
+    "head": "1b2e3f9feb3ba2288d04249de6830e1c28f8672e",
+    "job_id": 105089851651,
+    "run_id": 35186585000,
+    "workflow_blob": "8a35a934eb1cdb5ec98ac58b4f4aa1571cc0d59e"
+  },
+  "boundaries": {
+    "executable_semantics_verified": false,
+    "installed_provider_changed": false,
+    "persisted102_diagnostics_recounted": false,
+    "pointer_member_fix_included": false,
+    "postgresql_admission_executed": false,
+    "remote_product_refs_changed": false,
+    "native96_diagnostic_coordinates_enumerated": false
+  },
+  "canonical_provider": {
+    "candidate_library_sha256": "da79de1fde948eed0c2ed20525c0d65b2226eaf3146cb30e4e7dc9c2fa24255b",
+    "official_library_sha256": "1bfc87c28fd0be644ff15f8a0363d612bd915916ee28c489320b152b237be7df",
+    "owner": "tools/sources/qualify_grammar.py",
+    "owner_git_blob": "b9a52114a35ca2a7cc190a95b25dc46d5e576c0f",
+    "owner_modified": false,
+    "receipts_sha256": {
+      "candidate": "680ca4243217ea70979133c9ea646b926e4eeb5427fabdce77d379ac91ecfd8b",
+      "official": "f6b6e61537e8e04cc0fe39266244fe0bee229216410bd39c90e101ea939d112c",
+      "pgn": "cc7eb7744ff86ffd90b312838fcbd389122cc21365da3e9d754ade2efaae018e"
+    },
+    "recipe": "laplace.grammar-provider-build/v1"
+  },
+  "derivative": {
+    "actual_parent": "e63dc9f84a8eb82fa02b9be08f64c703628fa2db",
+    "corrected_rules": [
+      "_for_statement_body",
+      "operator_cast_declaration",
+      "using_declaration"
+    ],
+    "credential_free_public_fetch": true,
+    "derivation_blob": "c81a277dd6a2a0ce7c176ea019553d264b701778",
+    "derivation_sha256": "b534b32861d89bca06b99397b8727e7eb8e3dec4fae9a9679d497ef652d41517",
+    "generated_files": [
+      {
+        "bytes": 44564,
+        "path": "grammar.js",
+        "sha256": "3a47547ab927ff4262d7c760ca6df6f86e1c56012848867c17f24ba7e1360bd1"
+      },
+      {
+        "bytes": 460858,
+        "path": "src/grammar.json",
+        "sha256": "58ea3ae4c0952319a5f72e703ad7411406690afa9b881dbd1d9e741c110b5766"
+      },
+      {
+        "bytes": 164589,
+        "path": "src/node-types.json",
+        "sha256": "ae67d1ea3c71f074d2ba17e223fae31f0c099534c0c8df54bdecbf679cb30bae"
+      },
+      {
+        "bytes": 25906544,
+        "path": "src/parser.c",
+        "sha256": "7c07d847115c87936f04a3cbf7999ea996ba0d0b1759e069667dad365e8a7ba5"
+      },
+      {
+        "bytes": 5169,
+        "path": "src/scanner.c",
+        "sha256": "cf60387d290271f4d2fb558d0569b2b9ef879cb72206a9df5cc73b0b1a4b20ff"
+      },
+      {
+        "bytes": 7624,
+        "path": "src/tree_sitter/parser.h",
+        "sha256": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2"
+      },
+      {
+        "bytes": 985,
+        "path": "src/tree_sitter/alloc.h",
+        "sha256": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea"
+      },
+      {
+        "bytes": 13720,
+        "path": "src/tree_sitter/array.h",
+        "sha256": "4483dc3d37ab62fc8cabd5cfbd7de8267a2b1e3b12da3a90a5b8b324dacd5498"
+      }
+    ],
+    "generator_commit": "470813116b99578956e67abb7138e993833af67a",
+    "generator_version": "0.26.5",
+    "git_archive_bytes": 27197440,
+    "git_archive_sha256": "e0be65c894548c136ad059942375d89750381a6d3a2138cd383eb70b213fcb9f",
+    "inherited_c_commit": "7fa1be1b694b6e763686793d97da01f36a0e5c12",
+    "patch_git_blob": "48fa8889b7a9e64304dc2e38dcfdba044cc162c8",
+    "patch_sha256": "f8ee9de5eb9de1e2b96fa6d5db0a110fbb9d6e1c8df017793ceb45e56c409d12",
+    "revision": "8ece5afbc1e97f8d4344355b15822110e8231056",
+    "schema": "laplace.cpp-derivative-public-acquisition/v1",
+    "tracked_clean": true,
+    "tracked_files": 86,
+    "tree": "cd00239b00007a65e70fde9c8163233e5f651095",
+    "upstream": "https://github.com/SaltyPatron/Laplace-Refactor",
+    "upstream_base": "8b5b49eb196bec7040441bee33b2c9a4838d6967"
+  },
+  "full_stockfish_native": {
+    "all_files_reconstructed": true,
+    "bytes": 1172144,
+    "cpp_files": 72,
+    "elapsed_seconds": 2.065,
+    "files": 119,
+    "manifest_sha256": "48f598b60beb3cab6450bdba0f5ff6a6f0988337eb107d325730e7ca2c63eb74",
+    "measurement_scope": "Native source decomposition plus exact reconstruction; not chess game generation or recorded-game throughput.",
+    "phase": "whole-native-source-plan",
+    "postgresql_admission": false,
+    "requests": 60766,
+    "semantic_testimony": 0,
+    "source_archive_sha256": "56b9d83ca09a419501cb412066ff1f80e89f71f57a55da095043d22a51bdd1a2",
+    "source_commit": "edb0d9db6731067ec50ce619ff372b463bc4dd5d",
+    "syntax_errors_or_missing": 96,
+    "witnesses": 197083
+  },
+  "persisted_baseline": {
+    "diagnostics_artifact": {
+      "artifact_byte_count": 331918,
+      "artifact_id": 10476716479,
+      "artifact_sha256": "f857f717882a5310f4828bfcc564b0fa0b29ffb3ebac2496d98521fb68bd7386",
+      "member": "diagnostics.json",
+      "schema": "laplace.stockfish-persisted-syntax-diagnostics/v1",
+      "workflow_head_commit": "557d468b41b1a42c66dbb35e795b45e009ce9ae6",
+      "workflow_run_id": 35168832815
+    },
+    "error_or_missing_nodes": 102,
+    "profile_id": "2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
+    "unchanged_by_this_qualification": true
+  },
+  "pointer_member": {
+    "cases": [
+      {
+        "all_three_variants": {
+          "error_nodes": 1,
+          "has_error": true,
+          "missing_nodes": 0,
+          "valid": false
+        },
+        "case": "pointer-shape-01",
+        "input_sha256": "5196bf3bb8c54b3a4ea723916eb18b58c10d61c470d527840ba0abd9aec6f926"
+      },
+      {
+        "all_three_variants": {
+          "error_nodes": 1,
+          "has_error": true,
+          "missing_nodes": 0,
+          "valid": false
+        },
+        "case": "pointer-shape-02",
+        "input_sha256": "6d125f58cdab80c62752952667605317f7b3d141d7349a6f73d85a785464db87"
+      },
+      {
+        "all_three_variants": {
+          "error_nodes": 1,
+          "has_error": true,
+          "missing_nodes": 0,
+          "valid": false
+        },
+        "case": "pointer-shape-03",
+        "input_sha256": "94d12343637237b3d1aeb4935fc74b67b3e8f3df58a54fd45677f2e93a0763b6"
+      },
+      {
+        "all_three_variants": {
+          "error_nodes": 1,
+          "has_error": true,
+          "missing_nodes": 0,
+          "valid": false
+        },
+        "case": "pointer-shape-04",
+        "input_sha256": "8a7f983b4b70f04d8f5045f3804f4234f9b6f24d6fee2686f7e336f3062d9e25"
+      },
+      {
+        "all_three_variants": {
+          "error_nodes": 1,
+          "has_error": true,
+          "missing_nodes": 0,
+          "valid": false
+        },
+        "case": "pointer-shape-05",
+        "input_sha256": "12b283921352550c651b22e88e17c841eea9a32b85eeb444df0a8a26995b9a42"
+      },
+      {
+        "all_three_variants": {
+          "error_nodes": 0,
+          "has_error": true,
+          "missing_nodes": 1,
+          "valid": false
+        },
+        "case": "pointer-shape-06",
+        "input_sha256": "11b034287248fb59d4bb3a7d9d7ef65719cf53ab2e37d9be06db41d8f920fd76"
+      },
+      {
+        "all_three_variants": {
+          "error_nodes": 0,
+          "has_error": false,
+          "missing_nodes": 0,
+          "valid": true
+        },
+        "case": "pointer-shape-07",
+        "input_sha256": "c8382b9a53ee25bef82d5a43e187f3277ca900e2f0a13080634b47925e4fe3f8"
+      },
+      {
+        "all_three_variants": {
+          "error_nodes": 1,
+          "has_error": true,
+          "missing_nodes": 0,
+          "valid": false
+        },
+        "case": "pointer-shape-08",
+        "input_sha256": "2d3f436ed419566ce640df07f813ce85f93596edbd0a104688e9820ec492e7b1"
+      },
+      {
+        "all_three_variants": {
+          "error_nodes": 1,
+          "has_error": true,
+          "missing_nodes": 0,
+          "valid": false
+        },
+        "case": "pointer-to-member-operator",
+        "input_sha256": "44d75f644aa649e0642f6c0f814d0152ea5f3b516cb1f12d0f77646e2902e69c",
+        "locked_sexp": "(translation_unit (function_definition type: (primitive_type) declarator: (function_declarator declarator: (identifier) parameters: (parameter_list)) body: (compound_statement (expression_statement (assignment_expression left: (identifier) right: (call_expression function: (field_expression argument: (parenthesized_expression (call_expression function: (field_expression argument: (field_expression argument: (identifier) field: (field_identifier)) field: (field_identifier)) arguments: (argument_list)) (ERROR (identifier))) field: (field_identifier)) arguments: (argument_list (qualified_identifier scope: (namespace_identifier) name: (identifier)))))))))"
+      }
+    ],
+    "conclusion": "The authentic ->* case and seven other pointer cases retain ERROR/MISSING in all three variants. Only shape07 is error-free. No pointer-member fix or general precedence-correctness claim.",
+    "experiment": {
+      "artifact_bytes": 14413749,
+      "artifact_id": 10480207378,
+      "artifact_sha256": "043f838112100a2889eb28c29dea0de1f8a3bb619a45f6f79bdd273f9ece2cfb",
+      "elapsed_seconds": 253.548,
+      "head": "dba90fd7fc9bc735bca712f2c7ecc0fcacb24e6e",
+      "job_id": 105074088139,
+      "report_member": "report.json",
+      "run_id": 35181390710
+    },
+    "parity_does_not_establish_correct_parse": true,
+    "reader": {
+      "archive_and_report_member_authenticated": true,
+      "emitted_json_sha256": "7a6d1af5fce61654a8e4401c87b391bddff9d04401576100644ff2127e4a6e23",
+      "hash_scope": "exact JSON bytes following GRAMMAR_EXPERIMENT_REPORT log prefix, excluding timestamp and newline; not raw artifact report member",
+      "head": "c8012bd95f92bfbf573255310a4d442553b38fee",
+      "job_id": 105075146319,
+      "run_id": 35181733196
+    },
+    "rule_changed": false,
+    "unchanged_cst_parity": true
+  },
+  "product_candidate": {
+    "changed_paths": [
+      "dependencies/tree-sitter-grammars.lock.json",
+      "tests/verified_cpp_source_probe.cpp"
+    ],
+    "local_commit": "bb680b269d425e504e55df2714204dccd71ee576",
+    "parent_commit": "ce4328efec8aed403080ded6c16bca8a720d8e07",
+    "parent_tree": "0d144df0c2d36cb327c9d1ff78ebb79061cbe847",
+    "patch_sha256": "6323086fd2c7d22dd08630947f4c6deef6a2175fff164bf029bf7b095b9a95df",
+    "remote_product_ref_created": false,
+    "tracked_clean": true,
+    "tree": "3b31f451bd3acfad722cd8893d38c4df298a2c3c"
+  },
+  "proposed_product_leaves": {
+    "grammar_lock": {
+      "base_blob": "da364f3938a9d23fd54a1857431817c9b14a7453",
+      "bytes": 274852,
+      "git_blob": "0433ef054fd5ff21977616688ce0087f741cdcb4",
+      "other299_entries_unchanged": true,
+      "path": "dependencies/tree-sitter-grammars.lock.json",
+      "sha256": "8978e6b56b72c174436529f4e3990b3a08ae3364aaf73df860e4df793699d5a3"
+    },
+    "native_probe": {
+      "base_blob": "397c746089008a16c7f46b565bac17285e04b9f2",
+      "git_blob": "246cb95c380211a11db11ad50dce09700bd8238c",
+      "path": "tests/verified_cpp_source_probe.cpp",
+      "sha256": "87a9efb2cd15265fda625b2d49069f9c7c526d621edd4b457500f50c9f378176"
+    }
+  },
+  "retained_operator_failures": [
+    {
+      "annotation_retrieved": false,
+      "cause": "Invalid runner context in job env; moved actual root initialization into first shell step.",
+      "head": "f99ad3affa5d01194b51fb7f5726490c8fbd8f42",
+      "jobs_started": 0,
+      "run_id": 35185810074
+    },
+    {
+      "artifact_id": 10482506403,
+      "artifact_sha256": "deb61a8d8bd983b2994f3c1a06c017b0078b63f965d3c82962f6d6074dc402ce",
+      "cause": "Native tests and full119 succeeded; final observer incorrectly expected amalgamated lib.c. Corrected to unchanged canonical 13-unit non-amalgamated build and retained evidence before assertions.",
+      "head": "ffb2cd438fef9c97a7f1b455ee3f33b5ff3f9c6b",
+      "job_id": 105087908759,
+      "run_id": 35185940077
+    }
+  ],
+  "runtime": {
+    "amalgamated": "OFF",
+    "archive_sha256": "cbb3736935591311f7e96f4bc4b923011de8c8c30b991edb972539dbacbef794",
+    "compilation_observation_sha256": "14aae86dd4976e5360c4215f37fbf66d8fbddc53fac34bd6149981c772b249ac",
+    "git_archive_sha256": "033a2ceab11bd6cebbcddba8d5e1d8127bc9e49446d0cd74bf10f991fa80ade3",
+    "licenses": [
+      {
+        "path": "LICENSE",
+        "sha256": "c5cfb43042b6b72045f4ba997834d0a7786d2793d91680868b5815b39f14fc78"
+      }
+    ],
+    "native_engine_sha256": "b4431eb3c1bb1fd2ebd810194e9323dd2df09e25d2683a8fd53716fd7379ed5f",
+    "native_probe_sha256": "729c4d2d41751ce8e5bed51dd7e218572d5e9a99293924a08ca26dbd64823028",
+    "revision": "d97971e24500218865c05ed1febdee2acf41bae1",
+    "translation_units": [
+      {
+        "name": "alloc.c",
+        "object_sha256": "50c84e21b703c1cc247b05a296509bd2a0d0536078a84644aaceca4802410296",
+        "source_sha256": "c7d15b9015568f439af4adf28ead9e2bd14901221819276727c11227a29576da"
+      },
+      {
+        "name": "get_changed_ranges.c",
+        "object_sha256": "1bbfd2bc72e54f183598461c08381674f013b25c4be9c79f3b8e4db41e2e0d3f",
+        "source_sha256": "6fcee7d2663ac67d88b9e79a03ff4854dde1e8d30d3c985d945bad8017532c52"
+      },
+      {
+        "name": "language.c",
+        "object_sha256": "e2bfbb88f9853217accc3c2dd7e46be5534a1282e06387deeb109069b183a44d",
+        "source_sha256": "785c8271fac8c975f3bc605e98e455da439000c1b016354700719155903709f2"
+      },
+      {
+        "name": "lexer.c",
+        "object_sha256": "8e12168bd74e000fd49bc1668f294ef4dbd64d2689d8cca26cb34e438c9711e9",
+        "source_sha256": "4c740aa267fce15f3ff10911656276113898c7b53fc1124ff9d028a1ff40df55"
+      },
+      {
+        "name": "node.c",
+        "object_sha256": "d06de5c2de1fdf32a840fe0813fd4449147c9f60a737b52625775e23d63009b5",
+        "source_sha256": "356417378bc34c5fe8a96f591467aeaef4a224667aee72593f182d960c6d4393"
+      },
+      {
+        "name": "parser.c",
+        "object_sha256": "1189e77d0bac39d4c5825d22aa2998352b18fe23b7f2eab5fd67fae1bdadfc6e",
+        "source_sha256": "f5201aab1ad960da5f61040e650417acab71c63f68b26be25e9357f86132d75a"
+      },
+      {
+        "name": "point.c",
+        "object_sha256": "73daff9043f65626225163ebd9e3dfb3210a969d3a6f2f947113b5fe4be7b0e2",
+        "source_sha256": "04a101f16f40a651814c0f307fadf3f351d0f24013fa6d8b89c85bf1c6a5e717"
+      },
+      {
+        "name": "query.c",
+        "object_sha256": "d3865c277a2e0e313a0f551bf93ae22b8e1bd448aa597f804c95895f561727c2",
+        "source_sha256": "c99a2b438a41c265460ef87e28c365b01d659d0874c5348b9295ef0179be5b54"
+      },
+      {
+        "name": "stack.c",
+        "object_sha256": "fd2e8b3755d319a58b8a78db955589771c016c688ca546ebf6fdfdbb78f06b4b",
+        "source_sha256": "f70b7e5823e82901801193562908037db4c1a73721e48da0fe54cdb2a6b5856d"
+      },
+      {
+        "name": "subtree.c",
+        "object_sha256": "88d4f6876cc3e3246b621bb8be1818cfd7797476219c71c92e1d1ed44ffc716a",
+        "source_sha256": "3377720167dec6abb6157c97e2173d33d8b89978fd28552663e0b1fa241883bd"
+      },
+      {
+        "name": "tree.c",
+        "object_sha256": "fcbfae85e1057cadcd242ae85ab90a3dcfad0a4ef8027ecd96f9390dbdf0ee93",
+        "source_sha256": "06f7fece283fd9eb0eed3209b159ba82dba2daf3b7fbf5959bd21c527d8aac55"
+      },
+      {
+        "name": "tree_cursor.c",
+        "object_sha256": "19a9dad6e418ec923f1a6bce37c65040fc8c93a07bec537a92008282af33e36f",
+        "source_sha256": "bb4680fb1a9d641d4089f2fb404ec0aa24a02d687b3ad861c51501f4a900618e"
+      },
+      {
+        "name": "wasm_store.c",
+        "object_sha256": "1dd67954e3b35221a8c549a2289bed7e655ed8ca04c2b82eda51cdbff07bd1e4",
+        "source_sha256": "cd11708e306a570d36d13a26a2141764ae72b2d6e7d9dbcbd2fdc0a5f2da31ab"
+      }
+    ],
+    "upstream": "https://github.com/tree-sitter/tree-sitter.git",
+    "version": "v0.26.13"
+  },
+  "schema": "laplace.stockfish-cpp-provider-qualification/v1",
+  "scope": "The existing provider build owner and selected runtime executed in hosted native qualification. This record does not select or install the derivative and does not recount persisted PostgreSQL diagnostics.",
+  "status": "passed-hosted-canonical-provider-and-native-source-plan",
+  "tests": {
+    "authentic_accepted_cases": 3,
+    "malformed_controls": 4,
+    "native_fixture_cases_completed": 11,
+    "official_provider_control": {
+      "baseline_cases_completed": 4,
+      "expected_rejection_observed": true,
+      "failure_target": "for-condition-declaration",
+      "returncode": 16
+    },
+    "registered_native_contracts": [
+      "source.verified-cpp-native-contract",
+      "source.verified-grammar-loader-contract"
+    ],
+    "registered_passed": 2,
+    "upstream_experiment": {
+      "artifact_bytes": 14413749,
+      "artifact_id": 10480207378,
+      "artifact_sha256": "043f838112100a2889eb28c29dea0de1f8a3bb619a45f6f79bdd273f9ece2cfb",
+      "cpp_cases_passed_per_variant": 198,
+      "cst_executions": 63,
+      "elapsed_seconds": 253.548,
+      "explicit_assertions_passed": 34,
+      "head": "dba90fd7fc9bc735bca712f2c7ecc0fcacb24e6e",
+      "inherited_c_cases_passed": 85,
+      "job_id": 105074088139,
+      "parse_executions": 679,
+      "report_member": "report.json",
+      "run_id": 35181390710,
+      "unique_cases": 283,
+      "variants": [
+        "locked",
+        "regenerated-baseline",
+        "candidate"
+      ]
+    }
+  }
+}

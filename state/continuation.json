@@ -80,6 +80,138 @@
     "state": "implementation-and-controlled-integration-proven-canonical-unicode-persistence-tier-correct-source-testimony-product-activation-incomplete"
   },
   "classification": "observed-development-state-not-product-law",
+  "cpp_pointer_provider_followup_20260917": {
+    "base_commit": "d2d8a3533d1000cd31f56c6fd92bc11365f0ebac",
+    "classification": "observed-development-state-not-product-law",
+    "dependency_commit": "94fe0c1ba60dee178a4782c1082441631638f51b",
+    "executable_semantics_verified": false,
+    "grammar_lock_blob": "eaebd9a8cba151e98d25fde8442adc5258f55f1f",
+    "historical_diagnostic_coordinates_unchanged": 102,
+    "installed_successor_profile_verified": false,
+    "native_diagnostic_counts": {
+      "pointer_member": 95,
+      "three_rule": 96
+    },
+    "observed_at_utc": "2026-09-17T12:23:38Z",
+    "physical_qa_scheduling": "After Original's proof-tail and first140/geometry measurement reservation; no overlapping build work.",
+    "probe_blob": "4c4fce47b75c827b2694e46208d4358809d28c9c",
+    "qualification": {
+      "boundaries": {
+        "executable_semantics_verified": false,
+        "installed_provider_changed": false,
+        "performance_comparison_proven": false,
+        "postgresql_admission_proven": false,
+        "remaining_syntax_diagnostics": 95
+      },
+      "dependency": {
+        "dependency_commit": "94fe0c1ba60dee178a4782c1082441631638f51b",
+        "dependency_git_archive": {
+          "bytes": 27258880,
+          "sha256": "048dd9e42051ac037c87bfcefd9d3966f4b052b5dfef811b9b862e564c3204ae"
+        },
+        "dependency_parent": "8ece5afbc1e97f8d4344355b15822110e8231056",
+        "dependency_tree": "b33986de36171b1766ab39282dffb0dc97f66e2c",
+        "pointer_derivation_blob": "b0cd7514569d42ae4883f712057fd01d74e4b4b2",
+        "pointer_derivation_sha256": "f8b5a96c1495b6732a0abe41145ad63f07ff736b7bbb4b722648c95b28420b07",
+        "preparation_status_is_historical": true,
+        "retained_branch": "dependencies/tree-sitter-cpp-pointer-member-20260917",
+        "status": "prepared-unpublished-dependency-objects",
+        "tracked_file_count": 90
+      },
+      "historical_diagnostic_counts": {
+        "official_installed": 102,
+        "pointer_member_native": 95,
+        "three_rule_native": 96
+      },
+      "native": {
+        "accepted_regressions": 5,
+        "artifact_id": 10485363567,
+        "artifact_sha256": "9658bb0e4c8827561801afd244d79ca101aaf6db4357de75c07105f2145a149d",
+        "compiled_translation_units": 13,
+        "elapsed_seconds": 3.487,
+        "engine_sha256": "d80c6c3fd465480875134cb52a4a6020f2ed1865f0bc9227f00d61044253c8d7",
+        "grammar_lock_blob": "eaebd9a8cba151e98d25fde8442adc5258f55f1f",
+        "head": "15618c5781e7f51a64649136f3ad2948d4026563",
+        "job_id": 105116391601,
+        "local_candidate": "61a58f0296681489b3c4ed6f92c3f3b5ba0e1d29",
+        "local_tree": "acbf340ce55839f907feea1172d7bc4b0528cdfe",
+        "malformed_regressions": 4,
+        "native_source_plan": {
+          "all_files_reconstructed": true,
+          "bytes": 1172144,
+          "files": 119,
+          "phase": "whole-native-source-plan",
+          "postgresql_admission": false,
+          "requests": 60766,
+          "semantic_testimony": 0,
+          "syntax_errors_or_missing": 95,
+          "witnesses": 197083
+        },
+        "official_counterexample": {
+          "baseline_cases_completed": 4,
+          "command": [
+            "/home/runner/work/_temp/cpp-selected-runtime-35195112861-1/build/tests/laplace_verified_cpp_source_probe",
+            "/home/runner/work/_temp/cpp-selected-runtime-35195112861-1/evidence/providers/official/provider.so"
+          ],
+          "elapsed_seconds": 0.09,
+          "expected_rejection_observed": true,
+          "failure_target": "for-condition-declaration",
+          "native_probe_sha256": "d3faa1b1e7c2724f07c2534aa118050bb643b3c0dfb83d9a359e202e0b99bf5f",
+          "postgresql_admission_executed": false,
+          "provider_sha256": "0191dcdb345190e28788c56148ecb5977f01acaa85733f92d62bb46d06bf96fd",
+          "returncode": 16,
+          "schema": "laplace.cpp-provider-deliberate-control/v1"
+        },
+        "parent": "af0f3cf48de13005875f78888271ec8ccdf332c4",
+        "preceding_fixture_outputs": 13,
+        "probe_blob": "4c4fce47b75c827b2694e46208d4358809d28c9c",
+        "probe_sha256": "d3faa1b1e7c2724f07c2534aa118050bb643b3c0dfb83d9a359e202e0b99bf5f",
+        "provider_sha256": "f942fae5ffec5bd88472abac896408ffff841456c55ff99dd43b070174aff567",
+        "registered_contracts_passed": 2,
+        "run_id": 35195112861,
+        "runtime": {
+          "git_archive_sha256": "033a2ceab11bd6cebbcddba8d5e1d8127bc9e49446d0cd74bf10f991fa80ade3",
+          "licenses": [
+            {
+              "path": "LICENSE",
+              "sha256": "c5cfb43042b6b72045f4ba997834d0a7786d2793d91680868b5815b39f14fc78"
+            }
+          ],
+          "revision": "d97971e24500218865c05ed1febdee2acf41bae1",
+          "upstream": "https://github.com/tree-sitter/tree-sitter.git",
+          "version": "v0.26.13"
+        }
+      },
+      "promotion_order": "Finish the existing installed-profile witness replay diagnosis before changing provider/profile identities; then use normal qualification and activation.",
+      "repository": "SaltyPatron/Laplace-Refactor",
+      "schema": "laplace.cpp-pointer-member-delivery-proof/v1",
+      "status": "qualified-source-and-selected-native-runtime",
+      "syntax": {
+        "artifact_id": 10485272137,
+        "artifact_sha256": "145f27ed9dbe80c30c2ec3090e0d35b350a19e624529c2754c0e72c35471eb19",
+        "baseline_cpp_passed": 198,
+        "candidate_cpp_passed": 198,
+        "exact_assertions_passed": 50,
+        "head": "46afbda34b278d28d20d8b3f19e025ca9280efab",
+        "inherited_c_passed": 85,
+        "job_id": 105113304137,
+        "owned_golden": {
+          "base_blob": "273afad947371be38fbb635a90dbdd90a1ceceb5",
+          "blob": "410e7b96fad67983a1f0c656960aa15c45ae32b3",
+          "changed_expected_CST_lines": [
+            2234,
+            2236
+          ],
+          "fixture_source_unchanged": true,
+          "path": "test/corpus/declarations.txt"
+        },
+        "pointer_shape_controls_passed": 18,
+        "run_id": 35194152219
+      }
+    },
+    "source_review": "Parent and independent bundle review passed",
+    "status": "qualified source/native derivative prepared for normal delivery after completed same-profile repair"
+  },
   "development_inputs": {
     "data_root": {
       "authority": false,
@@ -2163,11 +2295,153 @@
     "supersedes_observation_scope": "This installed b042 observation supersedes earlier pending source-admission and absent-gateway disposition text. Earlier active_work and product_activation_projection history remains historical and does not describe the currently installed package or service ownership."
   },
   "source_witness_execution_repair_20260917": {
+    "activation_envelope_repair": {
+      "actual_matches_manifest_sha256": "2c163ad9803d7cbd0b89a508a590d4e99a74e10df2f293f38da97648f6bc2fef",
+      "actual_program_bytes": 73445,
+      "correction": "Give only the recurring public reconciliation program a finite128KiB envelope, preserving path/regular-file/digest checks and the indexed migration64KiB limit.",
+      "evidence_blob": "71f691fb3497d32c02ab4cddb3f9e7c50dbc089d",
+      "installed_retry": "passed in main 35216221036, activation job 105189724759; public reconciliation receipt 8dbe65e75207c342ec0170048aaa0f8efa5f57a842a2ade6a198f70fe6bb638b",
+      "observer_job": 105172753903,
+      "observer_run": 35212394199,
+      "qualification": {
+        "activation_owner_tests": 34,
+        "activation_seconds": 2.291,
+        "corpus_acceptance_tests": 68,
+        "corpus_seconds": 0.741,
+        "job": 105174087996,
+        "run": 35212800267,
+        "skips": 0,
+        "status": "passed"
+      },
+      "runner_blob": "19842ade06b918df91508836f8977a706c6f024f",
+      "test_blob": "0a67829edc7fca6b4d1af85bf77b9e2e4dd4cb81"
+    },
     "base_commit": "92dd91a568d5b764879ab20ffdc739b7db05b902",
     "classification": "observed-development-state-not-product-law",
+    "completed_reconciliation_delivery": {
+      "activation_job": 105189724759,
+      "bytes": 1172144,
+      "commit": "d2d8a3533d1000cd31f56c6fd92bc11365f0ebac",
+      "executable_semantics_verified": false,
+      "files": 119,
+      "first_pass_global_entity_physicality_delta_measured": false,
+      "installed_substrate_job": 105196805831,
+      "package_id": "b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903",
+      "profile": "\\x2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651",
+      "proof_blob": "a04e04c7f0662d41373a216ea3e77cb3ee79d49d",
+      "proof_file": "docs/delivery/STOCKFISH_EXECUTION_REPLAY_QUALIFICATION.json",
+      "readback": {
+        "all_artifacts_exact": true,
+        "database_row_counts": {
+          "attestation": 1114688,
+          "entity": 1172698,
+          "physicality": 1172837
+        },
+        "execution_witness_fingerprint": "72d55708a37ad0d3826ae563da6f73466d1bc2cfd875bb4dcad4d5eb915b4416",
+        "historical_structural_receipt_id": "7153d1a91f8f7ec3b8e30b23897225b6b4c3464964316bf1bea9d92f0e928365",
+        "schema": "laplace.verified-git-source-readback/v1",
+        "source_occurrence_count": 239,
+        "structural_execution_observation_count": 571626,
+        "structural_execution_receipt_count": 1,
+        "structural_execution_receipt_id": "77b5a4a0b4aa5519dcd4baeb889d93d7ab04867516edbc613b216e0a6dcb89d5",
+        "structural_receipt_count": 1,
+        "structural_witness_count": 571626,
+        "structural_witness_fingerprint": "9452e0acc7e18a8d6c2610c815cdcdd1a78ffee32a46fbc4a9f136301998cee5",
+        "verified_byte_count": 1172144,
+        "verified_file_count": 119
+      },
+      "reader": {
+        "job": 105198318176,
+        "result": "passed",
+        "run": 35220249735
+      },
+      "repeat": {
+        "execution_witness_fingerprint": "72d55708a37ad0d3826ae563da6f73466d1bc2cfd875bb4dcad4d5eb915b4416",
+        "historical_structural_receipt_id": "7153d1a91f8f7ec3b8e30b23897225b6b4c3464964316bf1bea9d92f0e928365",
+        "source_occurrence_delta": 0,
+        "structural_execution_observation_delta": 0,
+        "structural_execution_receipt_delta": 0,
+        "structural_execution_receipt_id": "77b5a4a0b4aa5519dcd4baeb889d93d7ab04867516edbc613b216e0a6dcb89d5",
+        "structural_witness_delta": 0,
+        "substrate_row_deltas": {
+          "attestation": 0,
+          "entity": 0,
+          "physicality": 0
+        },
+        "verified_byte_count": 1172144,
+        "verified_file_count": 119
+      },
+      "run": 35216221036,
+      "service": {
+        "activation_job": 105189724759,
+        "activation_result": "success",
+        "cognition_service": "laplace-refactor-cognition.service",
+        "cold_boot_proven": false,
+        "external_reachability_verified": false,
+        "health": {
+          "database": "laplace_refactor",
+          "highway_present": true,
+          "package_id": "b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903",
+          "status": "ready",
+          "unicode_present": true
+        },
+        "http_artifact_authentication": "passed",
+        "loopback_http_readiness_url": "http://127.0.0.1:55434",
+        "package": "b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903",
+        "postgresql_database": "laplace_refactor",
+        "postgresql_port": 55433,
+        "postgresql_provider": "systemd-system",
+        "postgresql_system_identifier": "7682119102860556519",
+        "public_readback_receipt_sha256": "8dbe65e75207c342ec0170048aaa0f8efa5f57a842a2ade6a198f70fe6bb638b",
+        "scope": "user",
+        "service_reader_job": 105197460824,
+        "service_reader_run": 35219987312,
+        "source": "d2d8a3533d1000cd31f56c6fd92bc11365f0ebac",
+        "unit": {
+          "ActiveState": "active",
+          "ControlGroup": "/user.slice/user-994.slice/user@994.service/app.slice/laplace-refactor-cognition.service",
+          "DropInPaths": "",
+          "FragmentPath": "/var/lib/agents/laplace-runner/.config/systemd/user/laplace-refactor-cognition.service",
+          "LoadState": "loaded",
+          "MainPID": "1866364",
+          "NeedDaemonReload": "no",
+          "SubState": "running",
+          "UnitFileState": "enabled",
+          "User": ""
+        },
+        "warm_restart_to_verified_health_seconds": 0.7712932559661567
+      },
+      "source_artifact": {
+        "artifact_id": 10495964088,
+        "job_id": 105196806333,
+        "repository": "SaltyPatron/Laplace-Refactor",
+        "run_id": 35216221036,
+        "zip_bytes": 3017055,
+        "zip_sha256": "ef5c5cb5e1defbe2c916110ec68b9ae870693933e030c17d1b4224e3b47113a4"
+      },
+      "source_job": 105196806333,
+      "status": "passed",
+      "times": {
+        "admission": {
+          "ended": "2026-09-17T12:14:10.153Z",
+          "seconds": 85.73285865783691,
+          "started": "2026-09-17T12:12:44.420Z"
+        },
+        "grammar-qualification": {
+          "ended": "2026-09-17T12:12:44.035Z",
+          "seconds": 7.314887046813965,
+          "started": "2026-09-17T12:12:36.720Z"
+        },
+        "repeat": {
+          "ended": "2026-09-17T12:15:06.460Z",
+          "seconds": 55.95370888710022,
+          "started": "2026-09-17T12:14:10.507Z"
+        }
+      }
+    },
     "correction": "Keep canonical span rows and v1-v3 evidence; add authenticated v4 current execution observations and stable canonical witness fingerprint, explicit metrics/CLI selection, source-location reproducibility fix.",
-    "current_119_same_profile_replay": "pending",
-    "current_installation": "Package d854e1d89e71cbb75a7c94817973ed055f1d496caf712afd430327ebd884264a selected; public reconciliation interrupted by old65536-byte envelope. Full activation is not yet proven.",
+    "current_119_same_profile_replay": "passed in installed main 35216221036; authenticated reader 35220249735 / 105198318176",
+    "current_installation": "Package b13c3ca7dd94cb691f00371e1bfe28496f8d231405bc4f3e2daac4b023916903 from source d2d8a3533d1000cd31f56c6fd92bc11365f0ebac activated successfully; persistent substrate, cognition service, loopback HTTP readiness and old-profile119 admission/replay passed.",
     "current_native_qualification": "Passed exact corrected head b314 in normal run35206242161; 718 native, sanitizer/requirements,48 PG core, real two-provider C++ readback/replay,15 corruption and2 schema controls, PG product and package proofs.",
     "diagnostic": {
       "activation_job": 105131148335,
@@ -2179,6 +2453,14 @@
       "only_mismatched_field": "trace_fingerprint",
       "replay": false,
       "run": 35198079402
+    },
+    "exact_execution_replay_acceptance": {
+      "actual_tests": 68,
+      "controls": "Require positive execution counts, exact current/baseline identities, same-backend receipt binding, every readback row bound to current receipt, and identical-provider zero amplification.",
+      "installed_119": "passed; all seven measured repeat deltas zero; identical full JSON output",
+      "owner_blob": "badb012dab8616efb12c402a364d9045feffe575",
+      "result": "passed",
+      "tests_blob": "ae41b0d33b4fc3eabe4f98e9c8defe1c99194556"
     },
     "execution_observation_diagnostic": {
       "actual_test_seconds": 150.87,
@@ -2204,24 +2486,24 @@
       "verified_cpp": "Existing four-file180-witness controls passed; new second-provider combined fixture failed after successful admission."
     },
     "main_delivery": {
-      "run": 35208985114,
+      "activation_job": 105171045703,
       "commit": "6f0d04753344d43081c78ee85d9c258cc973dc67",
-      "status": "failed at installed public reconciliation after package selection",
-      "hosted": "passed",
       "custom_pg": {
-        "job": 105162884973,
-        "result": "passed",
-        "actual_start": "2026-09-17T10:20:52.175514Z",
         "actual_end": "2026-09-17T10:28:05.629509Z",
+        "actual_start": "2026-09-17T10:20:52.175514Z",
         "core_passed": 48,
         "core_seconds": 241.97,
+        "job": 105162884973,
+        "result": "passed",
         "verified_cpp_seconds": 191.43
       },
-      "postgresql_product_job": 105167085030,
+      "hosted": "passed",
       "package_product_job": 105169387069,
       "package_product_result": "passed",
-      "activation_job": 105171045703,
-      "same_old_profile_119_replay": "not reached"
+      "postgresql_product_job": 105167085030,
+      "run": 35208985114,
+      "same_old_profile_119_replay": "not reached",
+      "status": "failed at installed public reconciliation after package selection"
     },
     "merged": {
       "commit": "6f0d04753344d43081c78ee85d9c258cc973dc67",
@@ -2249,6 +2531,7 @@
       "tree": "31df018fd800db186a9a2aeedd5339f8eeaebfe6",
       "verified_cpp_seconds": 191.94
     },
+    "observed_at_utc": "2026-09-17T12:23:38Z",
     "provider_reproducibility": {
       "actual_tests": 34,
       "job": 105136583074,
@@ -2258,9 +2541,8 @@
       "skips": 0
     },
     "remaining": [
-      "Complete corrected activation, then same-old-profile119-file exact readback and identical-current-provider zero-growth replay with unchanged historical evidence.",
-      "Integrate separately qualified parser derivative and report current95 diagnostic recount without claiming executable semantics.",
-      "Complete the deferred fresh source toolchain/runtime/PostgreSQL provider when shorter user-facing delivery no longer needs the shared reservation."
+      "Complete normal qualification and installation of the separately qualified parser derivative, retaining the distinct historical102 and native95 diagnostic counts without claiming executable semantics.",
+      "Complete the deferred fresh source toolchain/runtime/PostgreSQL provider after Original's short delivery and measurement work releases the shared host reservation."
     ],
     "supplemental_qualification": {
       "acceptance_cli_controls": 61,
@@ -2269,35 +2551,6 @@
       "result": "passed",
       "run": 35203564666,
       "skips": 0
-    },
-    "activation_envelope_repair": {
-      "evidence_blob": "71f691fb3497d32c02ab4cddb3f9e7c50dbc089d",
-      "observer_run": 35212394199,
-      "observer_job": 105172753903,
-      "actual_program_bytes": 73445,
-      "actual_matches_manifest_sha256": "2c163ad9803d7cbd0b89a508a590d4e99a74e10df2f293f38da97648f6bc2fef",
-      "correction": "Give only the recurring public reconciliation program a finite128KiB envelope, preserving path/regular-file/digest checks and the indexed migration64KiB limit.",
-      "runner_blob": "19842ade06b918df91508836f8977a706c6f024f",
-      "test_blob": "0a67829edc7fca6b4d1af85bf77b9e2e4dd4cb81",
-      "qualification": {
-        "run": 35212800267,
-        "job": 105174087996,
-        "status": "passed",
-        "activation_owner_tests": 34,
-        "activation_seconds": 2.291,
-        "corpus_acceptance_tests": 68,
-        "corpus_seconds": 0.741,
-        "skips": 0
-      },
-      "installed_retry": "pending normal delivery"
-    },
-    "exact_execution_replay_acceptance": {
-      "owner_blob": "badb012dab8616efb12c402a364d9045feffe575",
-      "tests_blob": "ae41b0d33b4fc3eabe4f98e9c8defe1c99194556",
-      "controls": "Require positive execution counts, exact current/baseline identities, same-backend receipt binding, every readback row bound to current receipt, and identical-provider zero amplification.",
-      "actual_tests": 68,
-      "result": "passed",
-      "installed_119": "pending"
     }
   },
   "source_witness_replay_diagnostic_20260917": {
