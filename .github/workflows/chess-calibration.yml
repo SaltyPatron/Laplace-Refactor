@@ -86,15 +86,62 @@ jobs:
             --output "$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/measurements" \
             --hash-mib 16,64,256 --depth 12 --samples 3 --warmups 1 \
             --games 16 --game-depth 8 --game-time-control 60 --timeout 600 --overall-timeout 1800 "${limits[@]}"
-      - name: Activate completed calibration defaults and retain the local receipt
+      - name: Activate measured profiles and execute their direct source commands
         run: |
-          receipt="$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/measurements/receipt.json"
+          output="$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          receipt="$output/measurements/receipt.json"
           receipt_sha=$(sha256sum "$receipt")
           receipt_sha="${receipt_sha%% *}"
           python3 tools/dependencies/chess_tools.py activate-profile \
             --calibration-receipt "$receipt" --calibration-sha256 "$receipt_sha" \
-            --profile-mode both \
-            | tee "$RUNNER_TEMP/chess-calibration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/profile-activation.json"
+            --profile-mode both | tee "$output/profile-activation.json"
+          # This complete step retains the same shared host reservation from
+          # activation through both UCI routes and the uncapped game invocation.
+          cat > "$output/profile-analysis-defaults.uci" <<'UCI'
+          position startpos
+          go depth 8
+          quit
+          UCI
+          python3 tools/dependencies/chess_tools.py run-profile \
+            --profile-mode analysis --uci-input "$output/profile-analysis-defaults.uci" \
+            --profile-output "$output/profile-analysis-defaults" --profile-timeout 60 \
+            | tee "$output/profile-analysis-defaults-summary.json"
+          cat > "$output/profile-analysis-overrides.uci" <<'UCI'
+          setoption name Threads value 1
+          setoption name Hash value 16
+          position startpos
+          go depth 8
+          quit
+          UCI
+          python3 tools/dependencies/chess_tools.py run-profile \
+            --profile-mode analysis --uci-input "$output/profile-analysis-overrides.uci" \
+            --profile-output "$output/profile-analysis-overrides" --profile-timeout 60 \
+            | tee "$output/profile-analysis-overrides-summary.json"
+          python3 tools/dependencies/chess_tools.py run-profile \
+            --profile-mode games --profile-output "$output/profile-games-defaults" \
+            --profile-timeout 180 -- -games 2 -engine name=Source-A -engine name=Source-B \
+            | tee "$output/profile-games-defaults-summary.json"
+          python3 -B - "$output" <<'PYTHON'
+          import json
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, str(Path("tools/dependencies").resolve()))
+          import chess_benchmark
+          import chess_pgn
+          output = Path(sys.argv[1])
+          provider = chess_pgn.load_provider(output / "measurements/validation-provider")
+          pgn = output / "profile-games-defaults/games.pgn"
+          validation = chess_benchmark.validate_pgn(pgn.read_text(), 2, provider=provider)
+          result = {"schema": "laplace.chess-profile-game-invocation-validation/v1",
+                    "scope": "two uncapped games with selected measured engine settings and concurrency",
+                    "validation": validation,
+                    "pgn_sha256": chess_benchmark.tools.digest(pgn),
+                    "database_recording_capacity_measured": False,
+                    "throughput_measured": False, "playing_strength_inferred": False}
+          (output / "profile-games-defaults-validation.json").write_text(
+              json.dumps(result, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(result, sort_keys=True))
+          PYTHON
       - name: Retain exact execution context separately from product activation
         if: always()
         shell: bash
