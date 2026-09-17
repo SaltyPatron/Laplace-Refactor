@@ -1,96 +1,122 @@
-name: Qualify GNU alias grammar against immutable Stockfish source
+name: Read authenticated GNU alias experiment evidence
 on:
   workflow_dispatch:
   push:
     branches: ["qualify/cmake-source-443-20260916"]
     paths: [".github/workflows/qualify-cmake-source-release.yml"]
 permissions:
-  contents: read
   actions: read
+  contents: read
 jobs:
-  gnu-alias-source-qualification:
+  retained-gnu-alias-evidence:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    env:
-      PYTHONDONTWRITEBYTECODE: "1"
-      GIT_CONFIG_NOSYSTEM: "1"
-      GIT_CONFIG_GLOBAL: "/dev/null"
-      GIT_TERMINAL_PROMPT: "0"
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: f510bc4dae608dd9f34ab8e5555c19350d14b039
-          persist-credentials: false
-      - name: Establish ordinary hosted build and evidence paths
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$RUNNER_ENVIRONMENT" = github-hosted
-          qualification_root="/build/laplace/work/gnu-alias-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          qualification_build="/build/laplace/build/gnu-alias-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          test ! -e "$qualification_root"
-          test ! -e "$qualification_build"
-          sudo install -d -m 0775 -o "$(id -u)" -g "$(id -g)" \
-            "$qualification_root" "$qualification_build"
-          mkdir -p "$qualification_root/evidence/inputs" "$qualification_root/tmp"
-          printf 'QUALIFICATION_ROOT=%s\n' "$qualification_root" >> "$GITHUB_ENV"
-          printf 'QUALIFICATION_BUILD=%s\n' "$qualification_build" >> "$GITHUB_ENV"
-          printf 'TMPDIR=%s/tmp\nTMP=%s/tmp\nTEMP=%s/tmp\n' \
-            "$qualification_root" "$qualification_root" "$qualification_root" >> "$GITHUB_ENV"
-      - name: Install ordinary hosted compiler tools
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes cmake ninja-build jq build-essential
-      - name: Authenticate the prepared experiment and parser helper
+      - name: Authenticate the exact retained artifact and read completed native and parser evidence
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import ast, base64, hashlib, json, os, pathlib, urllib.request
-          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"], "evidence/inputs")
-          assets = {
-              "prior-experiment.py": "fe2781ef8a80795b20ba4a6f559950be891d0b46",
-              "gnu-alias-experiment.py": "8a78b0e65e23f04d78e95eb145e977db4bb4c81a",
-          }
-          for name, identity in assets.items():
-              request = urllib.request.Request(
-                  "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/" + identity,
-                  headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+          import hashlib, io, json, os, pathlib, stat, urllib.request, zipfile
+          repository = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
+          artifact_id = 10510989568
+          run_id = 35254821053
+          head = "af157a8f83da7868126e465a487b91bc7f7fe105"
+          size = 21221497
+          digest = "132ad567ac35d4658b1801f47f71a29d6c580fff663e139e739cf1473753881c"
+          def fetch(url, limit):
+              request = urllib.request.Request(url, headers={
+                  "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
               request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
-              with urllib.request.urlopen(request, timeout=60) as response:
-                  row = json.load(response)
-              assert row["sha"] == identity and row["encoding"] == "base64"
-              data = base64.b64decode(row["content"], validate=False)
-              assert hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() == identity
-              ast.parse(data, filename=name)
-              (root / name).write_bytes(data)
-          print("Authenticated both immutable Python owners; AST parsing passed.")
+              with urllib.request.urlopen(request, timeout=90) as response:
+                  body = response.read(limit + 1)
+              assert len(body) <= limit
+              return body
+          metadata = json.loads(fetch(repository + "/actions/artifacts/" + str(artifact_id), 1048576))
+          assert metadata["id"] == artifact_id and not metadata["expired"]
+          assert metadata["size_in_bytes"] == size and metadata["digest"] == "sha256:" + digest
+          assert metadata["workflow_run"]["id"] == run_id and metadata["workflow_run"]["head_sha"] == head
+          payload = fetch(repository + "/actions/artifacts/" + str(artifact_id) + "/zip", size)
+          assert len(payload) == size and hashlib.sha256(payload).hexdigest() == digest
+          with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+              entries = archive.infolist()
+              names = [entry.filename for entry in entries]
+              assert len(names) == len(set(names)) and len(names) <= 4096
+              for entry in entries:
+                  name = entry.filename
+                  path = pathlib.PurePosixPath(name)
+                  assert name and not path.is_absolute() and ".." not in path.parts
+                  assert "\\" not in name and "\0" not in name
+                  assert not stat.S_ISLNK(entry.external_attr >> 16)
+              def member(name, limit):
+                  entry = archive.getinfo(name)
+                  assert not entry.is_dir() and 0 <= entry.file_size <= limit
+                  with archive.open(entry) as stream:
+                      body = stream.read(limit + 1)
+                  assert len(body) == entry.file_size and len(body) <= limit
+                  return body
+              report_bytes = member("report.json", 2097152)
+              report = json.loads(report_bytes)
+              assert report["schema"] == "laplace.hosted-gnu-alias-experiment/v1"
+              assert report["product_commit"] == "f510bc4dae608dd9f34ab8e5555c19350d14b039"
+              assert report["product_tree"] == "54f5da72b2cd067925f2f4d2f1187eb77036dbed"
+              assert report["candidate_grammar_blob"] == "89388c776ae4ba0f7294f670b8b33b4b42ad1da4"
+              assert report["runner"]["run_id"] == str(run_id) and report["runner"]["workflow_sha"] == head
+              commands = report["commands"]
+              assert len(commands) <= 512
+              summary = {
+                  "artifact_id": artifact_id, "run_id": run_id, "head": head,
+                  "zip_bytes": size, "zip_sha256": digest,
+                  "report_sha256": hashlib.sha256(report_bytes).hexdigest(),
+                  "status": report["status"], "fatal_exception": report.get("fatal_exception"),
+                  "generator": report.get("generator"),
+                  "inherited_c_corpus": report.get("inherited_c_corpus"),
+                  "variants": {key: {"generation_status": value.get("generation_status"),
+                      "upstream_tests": value.get("upstream_tests")}
+                      for key, value in report["variants"].items()},
+                  "generated_grammar_delta": report.get("generated_grammar_delta"),
+                  "controls": report.get("controls"),
+                  "product_declaration_changes": report.get("product_declaration_changes"),
+                  "immutable_source_input": report.get("immutable_source_input"),
+                  "hosted_candidate": report.get("hosted_candidate"),
+                  "commands": [{"number": i+1, "label": item["label"],
+                      "returncode": item.get("returncode"), "elapsed_seconds": item.get("elapsed_seconds"),
+                      "timed_out": item.get("timed_out", False)} for i,item in enumerate(commands)],
+                  "full_native_corpus_ran": "whole_corpus_comparison" in report,
+                  "whole_corpus_comparison": report.get("whole_corpus_comparison"),
+                  "native_build": report.get("native_build"),
+                  "byte_order_controls": report.get("byte_order_controls"),
+                  "byte_order_mutation": report.get("byte_order_mutation"),
+                  "postgresql_admission_executed": report["postgresql_admission_executed"],
+                  "installed_provider_changed": report["installed_provider_changed"]}
+              print("GNU_ALIAS_RETAINED_REPORT " + json.dumps(summary, sort_keys=True), flush=True)
+              for name in ("whole119-baseline.json", "whole119-candidate.json"):
+                  if name in names:
+                      raw = member(name, 4194304)
+                      native = json.loads(raw)
+                      print("GNU_ALIAS_NATIVE_PROJECTION " + json.dumps({
+                          "member": name, "member_bytes": len(raw),
+                          "member_sha256": hashlib.sha256(raw).hexdigest(),
+                          "whole": native["whole"],
+                          "preceding_native_fixture_count": native["preceding_native_fixture_count"],
+                          "diagnostic_count": len(native["diagnostics"]),
+                          "shape_count": len(native["shapes"])
+                      }, sort_keys=True), flush=True)
+              if report["status"] != "passed-hosted-gnu-alias-qualification-only":
+                  for item in commands:
+                      if item.get("returncode") != 0 and item["label"] != "byte-order-deliberate-break":
+                          for field in ("stdout", "stderr"):
+                              path = pathlib.PurePosixPath(item[field])
+                              suffix = "/evidence/"
+                              assert str(path).count(suffix) == 1
+                              name = str(path).split(suffix, 1)[1]
+                              raw = member(name, 4194304)
+                              print("GNU_ALIAS_FAILED_COMMAND " + json.dumps({
+                                  "label": item["label"], "stream": field,
+                                  "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(),
+                                  "tail": raw.decode("utf-8", "replace")[-16000:]
+                              }, sort_keys=True), flush=True)
+
           PY
-      - name: Generate parsers and verify byte order and complete native corpus
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os, pathlib, runpy, traceback
-          evidence = pathlib.Path(os.environ["QUALIFICATION_ROOT"], "evidence")
-          try:
-              runpy.run_path(str(evidence / "inputs/gnu-alias-experiment.py"), run_name="__main__")
-          except BaseException:
-              (evidence / "launcher-exception.txt").write_text(traceback.format_exc())
-              raise
-          PY
-      - name: Retain exact sources parser outputs native evidence and partial failures
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: gnu-alias-source-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.QUALIFICATION_ROOT }}/evidence
-          if-no-files-found: warn
-          compression-level: 6
-          retention-days: 30
