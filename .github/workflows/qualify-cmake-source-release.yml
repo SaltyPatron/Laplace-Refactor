@@ -1,42 +1,121 @@
-name: Release unstarted Refactor waiter for queued host observation
+name: Read exact historical chess ID bytes and current API payload
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: write
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  TMPDIR: /build/laplace/work
+  TMP: /build/laplace/work
+  TEMP: /build/laplace/work
+  PGCONNECT_TIMEOUT: "5"
+  PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
+  OBSERVER_SOURCE: |
+    import datetime,hashlib,json,os,pathlib,subprocess
+    def emit(k,v):print(k+" "+json.dumps(v,sort_keys=True),flush=True)
+    def digest(p):
+     h=hashlib.sha256()
+     with p.open("rb") as f:
+      for b in iter(lambda:f.read(1048576),b""):h.update(b)
+     return h.hexdigest()
+    emit("CURRENT_NARROW_OBSERVATION",{"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"readOnly":True,"noHostReservation":True})
+    try:
+     r=subprocess.run(["systemctl","show","laplace-api.service","--property=MainPID","--value"],capture_output=True,text=True,timeout=10)
+     p=pathlib.Path("/proc")/str(int(r.stdout.strip()))
+     names={"Laplace.Endpoints.OpenAICompat.dll"}
+     a=[x.decode() for x in (p/"cmdline").read_bytes().split(b"\0") if x and pathlib.Path(x.decode(errors="replace")).name in names]
+     rows=[]
+     for name in a:
+      q=pathlib.Path(name)
+      if not q.is_absolute():q=(p/"cwd").resolve()/q
+      q=q.resolve(strict=True);s=q.stat()
+      rows.append({"path":str(q),"bytes":s.st_size,"sha256":digest(q),"device":s.st_dev,"inode":s.st_ino})
+     emit("CURRENT_API_PAYLOAD",{"pid":int(p.name),"recognizedPayloads":rows})
+    except (OSError,ValueError,subprocess.TimeoutExpired) as e:emit("CURRENT_API_PAYLOAD",{"errorType":type(e).__name__})
+    base=pathlib.Path("/build/laplace/recovery/native-install/35174504991-1/corpus/measurement")
+    def read(path,limit):
+     p=pathlib.Path(path)
+     if not p.is_absolute():raise ValueError("nonabsolute historical path")
+     r=p.resolve(strict=True)
+     if not r.is_relative_to(base.resolve(strict=True)):raise ValueError("historical path outside selected measurement")
+     if r.stat().st_size>limit:raise ValueError("historical evidence exceeds read bound")
+     return r,r.read_bytes()
+    try:
+     receipt,data=read(base/"corpus-recording.json",4194304)
+     value=json.loads(data)
+     selected=value["source"]["selectionManifest"]
+     p=pathlib.Path(selected["path"])
+     p,data=read(p,16777216)
+     first=json.loads(data.splitlines()[0])
+     chunks=value["phases"][0]["corpusEvidence"].get("chunkManifest")
+     if chunks is None:
+      candidates=list(base.glob("*/chunks.jsonl"))
+      if len(candidates)!=1:raise ValueError("chunk inventory not uniquely located")
+      chunks={"path":str(candidates[0])}
+     q,data=read(chunks["path"],16777216)
+     descriptor=json.loads(data.splitlines()[0])
+     body,raw=read(descriptor["body"]["path"],67108864)
+     doc=json.loads(raw)
+     emit("HISTORICAL_PLAYING_ID_BYTES",{"parentStatus":value.get("status"),"selection":{"path":str(p),"sha256":digest(p),"firstPlayingId":first.get("playingId")},"firstChunkBody":{"path":str(body),"bytes":len(raw),"sha256":hashlib.sha256(raw).hexdigest(),"declaredSha256":descriptor["body"].get("sha256"),"firstPlayingId":doc["games"][0].get("playingId")},"chunkInventory":{"path":str(q),"sha256":digest(q)}})
+    except (OSError,ValueError,KeyError,IndexError,TypeError) as e:
+     emit("HISTORICAL_PLAYING_ID_BYTES",{"errorType":type(e).__name__,"detail":str(e)[:256]})
+     try:emit("HISTORICAL_MEASUREMENT_FILENAMES",{"files":[str(p.relative_to(base)) for p in list(base.glob("*"))[:32]]})
+     except OSError:pass
+    sql="""SELECT coalesce(json_agg(row_to_json(j)), '[]'::json)::text FROM (
+     SELECT DISTINCT ON (source_name) source_name,status,files_done,files_total,entities::text,attestations::text,started_at,ended_at
+     FROM laplace.ingest_run_journal ORDER BY source_name,started_at DESC LIMIT 32
+    ) j"""
+    env=dict(os.environ,PGHOST="/var/run/postgresql",PGPORT="5432",PGUSER="laplace_admin",PGDATABASE="laplace",PGCONNECT_TIMEOUT="5",PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=10000")
+    try:
+     r=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-q","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],env=env,capture_output=True,text=True,timeout=20)
+     result={"exitCode":r.returncode}
+     if r.returncode==0:result["latestSources"]=json.loads(r.stdout)
+     else:result["errorType"]="psql_nonzero"
+     emit("CURRENT_FOUNDATION_PROGRESS",result)
+    except (OSError,ValueError,subprocess.TimeoutExpired) as e:emit("CURRENT_FOUNDATION_PROGRESS",{"errorType":type(e).__name__})
 jobs:
-  cancel-unstarted-waiter:
-    runs-on: ubuntu-24.04
+  validate:
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Revalidate exact unstarted candidate and request ordinary cancellation
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Authenticate and parse the bounded observation owner
         shell: bash
         run: |
           python3 - <<'PY'
-          import json,os,urllib.request
-          base="https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
-          def request(path,method="GET"):
-              req=urllib.request.Request(base+path,method=method,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
-              with urllib.request.urlopen(req,timeout=30) as response:
-                  data=response.read()
-                  return response.status,json.loads(data) if data else None
-          _,run=request("/actions/runs/35176178856")
-          assert run["head_sha"]=="c23d17ab9997ed0e87dc8e9d0165b6208ae7db18", "candidate changed"
-          assert run["head_branch"]=="fix/ci-execution-owners-20260916", "branch changed"
-          assert run["run_attempt"]==1, "attempt changed"
-          if run["status"]=="completed":
-              print("EXACT_WAITER_ALREADY_TERMINAL "+json.dumps({"status":run["status"],"conclusion":run["conclusion"]}))
-          else:
-              _,job=request("/actions/jobs/105058994751")
-              assert job["run_id"]==35176178856 and job["status"]=="in_progress", "job changed"
-              steps={s["number"]:s for s in job["steps"]}
-              assert steps[3]["name"]=="Observe retained Highway admission evidence without database mutation" and steps[3]["status"]=="in_progress", "initial observation no longer active"
-              assert all(steps[n]["status"] in ("pending","queued") for n in (5,6,7,8,9,10,11,12,13,14,15)), "preparation or execution already started"
-              print("EXACT_UNSTARTED_WAITER "+json.dumps({"run":run["id"],"head":run["head_sha"],"job":job["id"],"step":steps[3],"preparationStarted":False,"privateCleanupCondition":"prepare_custom_stack.outputs.started == true","retry":"same cancelled PG job after observer; retain successful hosted checks"},sort_keys=True),flush=True)
-              status,body=request("/actions/runs/35176178856/cancel","POST")
-              assert status==202, status
-              print("ORDINARY_CANCELLATION_ACCEPTED "+json.dumps({"run":35176178856,"httpStatus":status,"force":False}),flush=True)
+          import ast,hashlib,os
+          source=os.environ["OBSERVER_SOURCE"].encode()
+          identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
+          assert identity=="ef0d6efca361639fffcadcb26025ef4bd9fd4870",identity
+          ast.parse(source)
+          print("Authenticated bounded historical ID observer; Python syntax passed without host execution.")
           PY
+  observe:
+    needs: validate
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 10
+    env:
+      EVIDENCE: /build/laplace/work/original-historical-id-observer-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Read only the fixed historical ID and current payload facts
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(id -un)" = laplace-runner
+          mkdir "$EVIDENCE"
+          python3 - <<'PY'
+          import ast,hashlib,os
+          source=os.environ["OBSERVER_SOURCE"].encode()
+          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="ef0d6efca361639fffcadcb26025ef4bd9fd4870"
+          ast.parse(source)
+          PY
+          timeout --signal=TERM --kill-after=5s 90s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
+      - name: Retain the bounded read-only observation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: original-historical-id-observer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE }}/
+          if-no-files-found: error
+          retention-days: 30
