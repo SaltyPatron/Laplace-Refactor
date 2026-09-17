@@ -1156,7 +1156,9 @@ def validate_recorded_test_execution(
         raise GraphError(f"component controlled test loader paths mismatch: {identifier}")
     provider = execution.get("provider_observation")
     dimensions = policy.get("provider_dimensions", [])
-    if not isinstance(provider, dict) or list(provider) != dimensions:
+    # Canonical checkpoint JSON sorts object keys; dimension membership is
+    # the contract, while observations remain bound by the checkpoint digest.
+    if not isinstance(provider, dict) or set(provider) != set(dimensions):
         raise GraphError(f"component runtime-provider observation mismatch: {identifier}")
     evidence = policy.get("source_evidence")
     if evidence is None:

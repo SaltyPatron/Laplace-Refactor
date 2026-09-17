@@ -230,6 +230,78 @@ class RuntimeBuildGraphTests(unittest.TestCase):
         with self.assertRaisesRegex(BUILD.GraphError, "signal mismatch"):
             BUILD.validate_recorded_test_execution(component, signaled)
 
+    def test_host_provider_dimensions_survive_canonical_checkpoint_roundtrip(self) -> None:
+        component = copy.deepcopy(
+            next(item for item in self.contract()["components"] if item["id"] == "liburing")
+        )
+        execution = passing_test_execution(component)
+        execution.update(
+            process_return_code=2,
+            exit_code=2,
+            disposition="failed-under-observed-runtime-provider",
+            provider_observation={
+                "kernel_sysname": "Linux",
+                "kernel_release": "fixture",
+                "kernel_version": "fixture-version",
+                "machine": "x86_64",
+                "io_uring_disabled": 0,
+            },
+            source_evidence=copy.deepcopy(component["test_policy"]["source_evidence"]),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build_root = root / "build"
+            staged_prefix = root / "stage"
+            component_root = build_root / "components" / "liburing"
+            component_root.mkdir(parents=True)
+            (component_root / "build.log").write_text("exact observed test outcome\n", encoding="utf-8")
+            staged_prefix.mkdir()
+            (staged_prefix / "liburing.so").write_bytes(b"exact staged fixture")
+            plan = {"build_input_id": "9" * 64, "components": [component]}
+            written = BUILD.write_component_checkpoint(
+                plan, build_root, staged_prefix, component, 0, None, execution
+            )
+            path = BUILD.checkpoint_path(build_root, "liburing")
+            serialized = BUILD.read_json(path)
+            self.assertNotEqual(
+                list(serialized["test_execution"]["provider_observation"]),
+                component["test_policy"]["provider_dimensions"],
+            )
+            completed = BUILD.completed_component_checkpoints(plan, build_root, staged_prefix)
+            self.assertEqual(completed, [written])
+            self.assertEqual(completed[0]["test_execution"]["process_return_code"], 2)
+            self.assertEqual(
+                completed[0]["test_execution"]["product_activation_gate"],
+                "separate-selected-runtime-provider-qualification",
+            )
+            serialized["test_execution"]["provider_observation"]["kernel_release"] = "changed"
+            BUILD.write_json_atomic(path, serialized)
+            with self.assertRaisesRegex(BUILD.GraphError, "checkpoint digest mismatch"):
+                BUILD.completed_component_checkpoints(plan, build_root, staged_prefix)
+
+    def test_host_provider_dimension_membership_remains_exact_after_serialization(self) -> None:
+        component = next(
+            item for item in self.contract()["components"] if item["id"] == "liburing"
+        )
+        execution = passing_test_execution(component)
+        execution["provider_observation"] = {
+            name: 0 if name == "io_uring_disabled" else "fixture"
+            for name in component["test_policy"]["provider_dimensions"]
+        }
+        execution["source_evidence"] = copy.deepcopy(component["test_policy"]["source_evidence"])
+        serialized = json.loads(json.dumps(execution, sort_keys=True))
+        BUILD.validate_recorded_test_execution(component, serialized)
+        for name in component["test_policy"]["provider_dimensions"]:
+            with self.subTest(missing=name):
+                mutated = copy.deepcopy(serialized)
+                del mutated["provider_observation"][name]
+                with self.assertRaisesRegex(BUILD.GraphError, "runtime-provider observation mismatch"):
+                    BUILD.validate_recorded_test_execution(component, mutated)
+        mutated = copy.deepcopy(serialized)
+        mutated["provider_observation"]["undeclared_dimension"] = "fixture"
+        with self.assertRaisesRegex(BUILD.GraphError, "runtime-provider observation mismatch"):
+            BUILD.validate_recorded_test_execution(component, mutated)
+
     def test_compile_only_lz4_regression_is_rejected(self) -> None:
         contract = self.contract()
         contract["components"][1]["test"] = "compile-only"
