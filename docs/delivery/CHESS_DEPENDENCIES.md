@@ -592,3 +592,38 @@ https://hart-server:8443/refactor/ route, verified from the server with hostname
 and certificate validation. A remote client was not tested.
 The [operator guide](COGNITION_SURFACE.md) describes the actual service,
 operator bearer, loopback endpoint and retained route evidence.
+
+## Current installed readback correction and repeat
+
+[Main run 35257154254](https://github.com/SaltyPatron/Laplace-Refactor/actions/runs/35257154254)
+installed source `32f65922abfe358b9d690645781af676e8a8f575`, package
+`c2e6432f85c72d390b2cfd3cc343106f4fe7a4d34238b48e2cda2bebbc9758a6`,
+and completed all selected native, PostgreSQL, activation and source checks.
+The readback query now avoids the demonstrated stale-statistics left-join plan
+while preserving complete canonical/execution witness matching and exposing
+extra same-receipt rows. All 18 actual corruption controls passed.
+
+The unchanged current profile reconstructs all 119 files / 1,172,144 bytes and
+retains 571,627 canonical witnesses, 239 current source-occurrence rows and
+1,143,254 execution observations across two receipts. The measured repeat adds
+zero Entities, Physicalities, Attestations, source occurrences, canonical
+witnesses, execution observations or execution receipts. Complete first/repeat
+CLI operations took 57.821330 / 57.228730 seconds; both JSON outputs have SHA-256
+`d00a2ba185d9f2f8e519863fd32626d5e66b283eebdcf23852dccc161c3e75d0`.
+These are source-admission/readback timings, not recorded chess throughput.
+The [current installed proof](STOCKFISH_READBACK_JOIN_INSTALLED_20260917.md)
+retains exact provenance and the unmeasured initial cross-package write boundary.
+
+The same package passed actual anonymous HTTP 401, authenticated health 200 and
+complete authenticated package-bound SSE, native cognition, OpenAI and MCP.
+Use the existing https://hart-server:8443/refactor/ route described in the
+[surface guide](COGNITION_SURFACE.md). Its latest server-local TLS observation
+belongs to the preceding c7cd package; this package's loopback service/protocol
+proof is current. Remote-client reachability was not tested.
+
+The installed grammar remains at 95 persisted syntax diagnostics. A separate
+[GNU-alias qualification](STOCKFISH_GNU_ALIAS_QUALIFICATION_20260917.md)
+reconstructed the same 119 source files with 71 candidate diagnostics, preserving
+an explicitly bounded recovery-leaf difference and all historical failures.
+That candidate is not installed, has no finalized profile, and does not establish
+executable semantics or chess strength.
