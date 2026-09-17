@@ -1,4 +1,4 @@
-name: Qualify derived C++ provider through the selected native runtime
+name: Authenticate selected C++ native qualification evidence
 on:
   workflow_dispatch:
   push:
@@ -6,364 +6,137 @@ on:
     paths: [".github/workflows/qualify-cmake-source-release.yml"]
 permissions:
   contents: read
+  actions: read
 jobs:
-  selected-native-provider:
+  read-selected-native:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 10
     env:
-      PRODUCT_PARENT_COMMIT: "ce4328efec8aed403080ded6c16bca8a720d8e07"
-      PRODUCT_PARENT_TREE: "0d144df0c2d36cb327c9d1ff78ebb79061cbe847"
-      DERIVATIVE_COMMIT: "8ece5afbc1e97f8d4344355b15822110e8231056"
-      DERIVATIVE_TREE: "cd00239b00007a65e70fde9c8163233e5f651095"
-      PYTHONDONTWRITEBYTECODE: "1"
-      GIT_CONFIG_NOSYSTEM: "1"
-      GIT_CONFIG_GLOBAL: "/dev/null"
-      GIT_TERMINAL_PROMPT: "0"
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Establish the actual runner-owned qualification path
+      - name: Authenticate actual successful artifact and native qualification receipts
         shell: bash
         run: |
-          set -euo pipefail
-          printf 'QUALIFICATION_ROOT=%s/cpp-selected-runtime-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ env.PRODUCT_PARENT_COMMIT }}
-          persist-credentials: false
-      - name: Authenticate preparation owner and create the exact local candidate
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$PRODUCT_PARENT_COMMIT"
-          test "$(git rev-parse 'HEAD^{tree}')" = "$PRODUCT_PARENT_TREE"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          test ! -e "$QUALIFICATION_ROOT"
-          mkdir -p "$QUALIFICATION_ROOT/evidence" "$QUALIFICATION_ROOT/sources"
           python3 - <<'PY'
-          import base64, hashlib, json, os, pathlib, urllib.request
-          identity = "1dda50584c752ffd2338f7aca18f1e0167956d83"
-          expected = "0b26cf233c538e05b035ac3d2e1f776346ec617e2b9cbc2f5237738602a7840a"
-          request = urllib.request.Request(
-              "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/" + identity,
-              headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
-          request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
-          with urllib.request.urlopen(request, timeout=60) as response:
-              row = json.load(response)
-          assert row["sha"] == identity and row["encoding"] == "base64"
-          data = base64.b64decode(row["content"])
-          assert hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() == identity
-          assert hashlib.sha256(data).hexdigest() == expected
-          pathlib.Path(os.environ["QUALIFICATION_ROOT"], "evidence/prepare-local-candidate.py").write_bytes(data)
-          PY
-          python3 -m py_compile "$QUALIFICATION_ROOT/evidence/prepare-local-candidate.py"
-          python3 "$QUALIFICATION_ROOT/evidence/prepare-local-candidate.py"
-      - name: Install the normal hosted build tools
-        run: sudo apt-get update && sudo apt-get install --yes jq ninja-build
-      - name: Acquire the ordinary exact native dependencies and source fixtures
-        shell: bash
-        run: |
-          set -euo pipefail
-          unset GIT_ASKPASS SSH_ASKPASS GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GH_TOKEN GITHUB_TOKEN
-          ./tools/dependencies/acquire-locked-git.sh dependencies/lock.json \
-            "$QUALIFICATION_ROOT/dependencies" blake3 eigen googletest spectra tree-sitter stockfish
-          python3 tools/sources/acquire-tabular-source.py \
-            --profile contracts/sources/iso-639-3-20260415.json \
-            --destination "$QUALIFICATION_ROOT/sources/iso-639-3-20260415"
-          python3 tools/sources/acquire-tabular-source.py \
-            --profile contracts/sources/cili-pwn-mappings-20240611.json \
-            --destination "$QUALIFICATION_ROOT/sources/cili-pwn-mappings-20240611"
-      - name: Recheck the measured proposal and unchanged official-provider control lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$PRODUCT_SOURCE_COMMIT"
-          test "$(git rev-parse 'HEAD^{tree}')" = "$PRODUCT_SOURCE_TREE"
-          test "$(git rev-parse HEAD:dependencies/tree-sitter-grammars.lock.json)" = "$GRAMMAR_LOCK_BLOB"
-          test "$(git rev-parse HEAD:tests/verified_cpp_source_probe.cpp)" = "246cb95c380211a11db11ad50dce09700bd8238c"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          python3 - <<'PY'
-          import hashlib, json, os, pathlib
-          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"])
-          data = root.joinpath("evidence/official-grammar-lock.json").read_bytes()
-          assert hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest() == "da364f3938a9d23fd54a1857431817c9b14a7453"
-          old = json.loads(data)
-          current = json.loads(pathlib.Path("dependencies/tree-sitter-grammars.lock.json").read_bytes())
+          import hashlib, io, json, os, pathlib, tarfile, urllib.request, xml.etree.ElementTree as ET, zipfile
+          api = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
+          run_id, job_id, artifact_id = 35186357806, 105089158422, 10481758203
+          head = "d7da5e820a60aee30599bf8abd0b16d022c79a6b"
+          artifact_sha, artifact_bytes = "d3869e90096cd21dcccf37d0e44c46363bfe81f8ace12cd6272e2f868d69af82", 19735930
+          def get(route, raw=False):
+              request = urllib.request.Request(api + route,
+                  headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+              request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
+              with urllib.request.urlopen(request, timeout=120) as response:
+                  data = response.read()
+              return data if raw else json.loads(data)
+          def sha(data):
+              return hashlib.sha256(data).hexdigest()
+          def git_object(kind, data):
+              return hashlib.sha1(kind.encode() + b" " + str(len(data)).encode() + b"\0" + data).hexdigest()
+          run, job, metadata = (get("/actions/runs/" + str(run_id)),
+              get("/actions/jobs/" + str(job_id)), get("/actions/artifacts/" + str(artifact_id)))
+          assert run["head_sha"] == head and run["status"] == "completed" and run["conclusion"] == "success"
+          assert job["run_id"] == run_id and job["conclusion"] == "success"
+          assert not metadata["expired"] and metadata["workflow_run"]["id"] == run_id
+          assert metadata["workflow_run"]["head_sha"] == head and metadata["digest"] == "sha256:" + artifact_sha
+          data = get("/actions/artifacts/" + str(artifact_id) + "/zip", True)
+          assert len(data) == artifact_bytes and sha(data) == artifact_sha
+          archive = zipfile.ZipFile(io.BytesIO(data))
+          assert len(archive.namelist()) == len(set(archive.namelist()))
+          read = archive.read
+          member_sha = {}
+          def document(name):
+              raw = read(name)
+              member_sha[name] = sha(raw)
+              return json.loads(raw)
+          inputs = document("input.json")
+          acquisition = document("public-acquisition.json")
+          preparation = document("preparation-result.json")
+          qualification = document("qualification.json")
+          corpus = document("stockfish-native.json")
+          control = document("official-control.json")
+          runtime = document("runtime-compilation-observation.json")
+          retention = document("native-build-retention.json")
+          assert preparation["phase"] == "prepared-clean-local-candidate"
+          assert qualification["phase"] == "passed-hosted-native-provider-and-source-plan"
+          assert inputs == qualification["candidate_input"]
+          assert inputs["product_parent_commit"] == "ce4328efec8aed403080ded6c16bca8a720d8e07"
+          assert inputs["product_tree"] == "3b31f451bd3acfad722cd8893d38c4df298a2c3c"
+          assert inputs["tracked_clean"] and inputs["local_disposable_candidate"]
+          assert set(inputs["changed_product_paths"]) == {"dependencies/tree-sitter-grammars.lock.json",
+              "tests/verified_cpp_source_probe.cpp"}
+          commit_bytes = read("local-product-candidate.commit")
+          assert git_object("commit", commit_bytes) == inputs["product_commit"]
+          headers = commit_bytes.split(b"\n\n", 1)[0].decode().splitlines()
+          assert [line[5:] for line in headers if line.startswith("tree ")] == [inputs["product_tree"]]
+          assert [line[7:] for line in headers if line.startswith("parent ")] == [inputs["product_parent_commit"]]
+          assert sha(read("local-product-candidate.patch")) == inputs["product_patch_sha256"]
+          proposal_bytes = read("proposed-grammar-lock.json")
+          assert git_object("blob", proposal_bytes) == inputs["grammar_lock_blob"] == "0433ef054fd5ff21977616688ce0087f741cdcb4"
+          assert sha(proposal_bytes) == inputs["grammar_lock_sha256"] == "8978e6b56b72c174436529f4e3990b3a08ae3364aaf73df860e4df793699d5a3"
+          old_bytes = read("official-grammar-lock.json")
+          assert git_object("blob", old_bytes) == "da364f3938a9d23fd54a1857431817c9b14a7453"
+          old, proposed = json.loads(old_bytes), json.loads(proposal_bytes)
           old_entries = {item["name"]: item for item in old["repositories"]}
-          new_entries = {item["name"]: item for item in current["repositories"]}
+          new_entries = {item["name"]: item for item in proposed["repositories"]}
           assert old_entries.keys() == new_entries.keys()
           assert all(old_entries[name] == new_entries[name] for name in old_entries if name != "tree-sitter-cpp")
-          selected = new_entries["tree-sitter-cpp"]
-          assert selected["revision"] == os.environ["DERIVATIVE_COMMIT"]
-          assert selected["git_archive_sha256"] == os.environ["DERIVATIVE_ARCHIVE_SHA256"]
-          assert old_entries["tree-sitter-cpp"]["revision"] == "8b5b49eb196bec7040441bee33b2c9a4838d6967"
-          PY
-      - name: Build both exact C++ providers and the ordinary PGN provider through the canonical owner
-        shell: bash
-        run: |
-          set -euo pipefail
-          unset GIT_ASKPASS SSH_ASKPASS GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS GH_TOKEN GITHUB_TOKEN
-          echo "::notice title=Selected C++ provider::Acquire and compile the exact derivative through unchanged qualify_grammar.py"
-          python3 tools/sources/qualify_grammar.py --acquire \
-            --grammar-root "$QUALIFICATION_ROOT/sources/cpp-candidate" \
-            --runtime-root "$QUALIFICATION_ROOT/dependencies/tree-sitter" \
-            --grammar-lock dependencies/tree-sitter-grammars.lock.json \
-            --dependency-lock dependencies/lock.json --grammar tree-sitter-cpp \
-            --output "$QUALIFICATION_ROOT/evidence/providers/candidate"
-          test "$(git -C "$QUALIFICATION_ROOT/sources/cpp-candidate" rev-parse 'HEAD^{tree}')" = "$DERIVATIVE_TREE"
-          python3 tools/sources/qualify_grammar.py --acquire \
-            --grammar-root "$QUALIFICATION_ROOT/sources/cpp-official" \
-            --runtime-root "$QUALIFICATION_ROOT/dependencies/tree-sitter" \
-            --grammar-lock "$QUALIFICATION_ROOT/evidence/official-grammar-lock.json" \
-            --dependency-lock dependencies/lock.json --grammar tree-sitter-cpp \
-            --output "$QUALIFICATION_ROOT/evidence/providers/official"
-          python3 tools/sources/qualify_grammar.py --acquire \
-            --grammar-root "$QUALIFICATION_ROOT/sources/pgn" \
-            --runtime-root "$QUALIFICATION_ROOT/dependencies/tree-sitter" \
-            --grammar-lock dependencies/tree-sitter-grammars.lock.json \
-            --dependency-lock dependencies/lock.json --grammar tree-sitter-pgn \
-            --output "$QUALIFICATION_ROOT/evidence/providers/pgn"
-      - name: Configure the normal native build with the exact selected runtime and candidate receipt
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --preset linux-dev -B "$QUALIFICATION_ROOT/build" \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DLAPLACE_BLAKE3_SOURCE="$QUALIFICATION_ROOT/dependencies/blake3/c" \
-            -DLAPLACE_GTEST_SOURCE="$QUALIFICATION_ROOT/dependencies/googletest" \
-            -DLAPLACE_EIGEN_SOURCE="$QUALIFICATION_ROOT/dependencies/eigen" \
-            -DLAPLACE_SPECTRA_SOURCE="$QUALIFICATION_ROOT/dependencies/spectra" \
-            -DLAPLACE_TREE_SITTER_SOURCE="$QUALIFICATION_ROOT/dependencies/tree-sitter" \
-            -DLAPLACE_CPP_GRAMMAR_RECEIPT="$QUALIFICATION_ROOT/evidence/providers/candidate/build-receipt.json" \
-            -DLAPLACE_PGN_GRAMMAR_RECEIPT="$QUALIFICATION_ROOT/evidence/providers/pgn/build-receipt.json" \
-            -DLAPLACE_ISO_639_SOURCE_ROOT="$QUALIFICATION_ROOT/sources/iso-639-3-20260415" \
-            -DLAPLACE_CILI_SOURCE_ROOT="$QUALIFICATION_ROOT/sources/cili-pwn-mappings-20240611" \
-            > "$QUALIFICATION_ROOT/evidence/configure.stdout" \
-            2> "$QUALIFICATION_ROOT/evidence/configure.stderr"
-          cmake --build "$QUALIFICATION_ROOT/build" --parallel 2 \
-            --target laplace_verified_cpp_source_probe laplace_verified_grammar_loader_probe \
-            > "$QUALIFICATION_ROOT/evidence/build.stdout" \
-            2> "$QUALIFICATION_ROOT/evidence/build.stderr"
-      - name: Execute the registered native regression and loader contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "::notice title=Selected C++ provider::Execute canonical native loader and source-decomposition regression contracts"
-          ctest --test-dir "$QUALIFICATION_ROOT/build" --verbose --output-on-failure \
-            -R '^source\.(verified-cpp-native-contract|verified-grammar-loader-contract)$' \
-            --output-junit "$QUALIFICATION_ROOT/evidence/native-contracts.xml" \
-            > "$QUALIFICATION_ROOT/evidence/native-contracts.stdout" \
-            2> "$QUALIFICATION_ROOT/evidence/native-contracts.stderr"
-          cat "$QUALIFICATION_ROOT/evidence/native-contracts.stdout"
-          python3 - <<'PY'
-          import os, pathlib, xml.etree.ElementTree as ET
-          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"])
-          tree = ET.parse(root / "evidence/native-contracts.xml").getroot()
-          cases = tree.findall(".//testcase")
+          assert all(old[key] == proposed[key] for key in old if key != "repositories")
+          assert new_entries["tree-sitter-cpp"] == inputs["grammar"]
+          assert acquisition == inputs["public_acquisition"]
+          assert acquisition["revision"] == "8ece5afbc1e97f8d4344355b15822110e8231056"
+          assert acquisition["tree"] == "cd00239b00007a65e70fde9c8163233e5f651095"
+          assert acquisition["git_archive_sha256"] == "e0be65c894548c136ad059942375d89750381a6d3a2138cd383eb70b213fcb9f"
+          derivative_tar = read("derivative-source.tar")
+          assert sha(derivative_tar) == acquisition["git_archive_sha256"]
+          assert len(derivative_tar) == acquisition["git_archive_bytes"] == 27197440
+          derivative = tarfile.open(fileobj=io.BytesIO(derivative_tar), mode="r:")
+          for source in acquisition["generated_files"]:
+              content = derivative.extractfile(source["path"]).read()
+              assert len(content) == source["bytes"] and sha(content) == source["sha256"]
+          assert git_object("blob", read("verified_cpp_source_probe.cpp")) == "246cb95c380211a11db11ad50dce09700bd8238c"
+          assert qualification["runtime"]["revision"] == "d97971e24500218865c05ed1febdee2acf41bae1"
+          assert qualification["runtime"]["version"] == "v0.26.13"
+          for name in ("candidate", "official", "pgn"):
+              receipt = document("providers/" + name + "/build-receipt.json")
+              assert receipt["schema"] == "laplace.grammar-provider-build/v1" and receipt["exit_code"] == 0
+              assert receipt["runtime"]["revision"] == qualification["runtime"]["revision"]
+              assert sha(read("providers/" + name + "/provider.so")) == receipt["library"]["sha256"]
+              if name != "pgn":
+                  assert member_sha["providers/" + name + "/build-receipt.json"] == qualification[name + "_build_receipt_sha256"]
+          assert sha(read("laplace_verified_cpp_source_probe")) == qualification["native_probe_sha256"]
+          assert sha(read("liblaplace_engine.so")) == qualification["native_engine_sha256"]
+          assert sha(read("libtree-sitter.a")) == qualification["runtime_archive_sha256"]
+          assert runtime == qualification["actual_runtime_compilation"]
+          assert runtime["amalgamated"] == "OFF"
+          assert len(runtime["objects"]) == len(runtime["expected_sources"]) > 1
+          assert set(runtime["expected_sources"]) == set(runtime["observed_sources"])
+          for item in runtime["objects"]:
+              assert sha(read(item["artifact_member"])) == item["object_sha256"]
+          for item in retention:
+              assert item["exists"] and sha(read(item["artifact_member"])) == item["sha256"]
+          cases = ET.fromstring(read("native-contracts.xml")).findall(".//testcase")
           assert {case.attrib["name"] for case in cases} == {
               "source.verified-cpp-native-contract", "source.verified-grammar-loader-contract"}
-          assert len(cases) == 2
-          assert all(not any(case.find(kind) is not None for kind in ("failure", "error", "skipped")) for case in cases)
-          assert all(case.attrib.get("status", "run") not in {"notrun", "disabled"} for case in cases)
+          assert len(cases) == 2 and all(not any(case.find(kind) is not None
+              for kind in ("failure", "error", "skipped")) for case in cases)
+          assert control == qualification["official_provider_control"] and control["returncode"] == 16
+          assert control["expected_rejection_observed"] and control["baseline_cases_completed"] == 4
+          assert control["native_probe_sha256"] == qualification["native_probe_sha256"]
+          assert corpus == qualification["native_corpus"] and corpus["returncode"] == 0
+          assert corpus["preceding_native_fixture_count"] == 11 and len(corpus["source_plan"]) == 1
+          plan = corpus["source_plan"][0]
+          assert plan["files"] == 119 and plan["bytes"] == 1172144 and plan["all_files_reconstructed"]
+          assert plan["semantic_testimony"] == 0 and plan["postgresql_admission"] is False
+          assert all(qualification[key] is False for key in ("postgresql_admission_executed",
+              "installed_provider_changed", "persisted102_diagnostics_recounted", "executable_semantics_verified"))
+          result = {"schema": "laplace.authenticated-selected-cpp-native-qualification/v1",
+              "producer_run_id": run_id, "producer_job_id": job_id, "producer_head": head,
+              "artifact_id": artifact_id, "artifact_sha256": artifact_sha, "artifact_bytes": artifact_bytes,
+              "artifact_members_sha256": member_sha, "input": inputs, "qualification": qualification,
+              "proposed_lock": {"git_blob": git_object("blob", proposal_bytes),
+                  "sha256": sha(proposal_bytes), "bytes": len(proposal_bytes),
+                  "other299_entries_unchanged": True}}
+          print("CPP_SELECTED_NATIVE_AUTHENTICATED_REPORT " + json.dumps(result, sort_keys=True))
           PY
-      - name: Prove the unchanged official provider fails the authentic regression
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import hashlib, json, os, pathlib, subprocess, time
-          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"])
-          executable = root / "build/tests/laplace_verified_cpp_source_probe"
-          provider = root / "evidence/providers/official/provider.so"
-          command = [str(executable), str(provider)]
-          start = time.monotonic()
-          result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
-          root.joinpath("evidence/official-control.stdout").write_bytes(result.stdout)
-          root.joinpath("evidence/official-control.stderr").write_bytes(result.stderr)
-          lines = [json.loads(line) for line in result.stdout.decode().splitlines() if line.startswith("{")]
-          expected = (result.returncode == 16 and len(lines) == 4 and
-              all(item["phase"] == "native-source-plan" for item in lines) and
-              b"C++ grammar regression for-condition-declaration failed: status=16" in result.stderr)
-          receipt = {"schema": "laplace.cpp-provider-deliberate-control/v1",
-              "command": command, "returncode": result.returncode,
-              "elapsed_seconds": round(time.monotonic()-start, 3),
-              "native_probe_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
-              "provider_sha256": hashlib.sha256(provider.read_bytes()).hexdigest(),
-              "baseline_cases_completed": len(lines), "expected_rejection_observed": expected,
-              "failure_target": "for-condition-declaration", "postgresql_admission_executed": False}
-          root.joinpath("evidence/official-control.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
-          print("CPP_OFFICIAL_PROVIDER_CONTROL " + json.dumps(receipt, sort_keys=True))
-          assert expected
-          PY
-      - name: Observe and freeze the exact complete official Stockfish Git corpus
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/sources/verified_git.py \
-            --checkout "$QUALIFICATION_ROOT/dependencies/stockfish" \
-            --upstream https://github.com/official-stockfish/Stockfish.git \
-            --commit edb0d9db6731067ec50ce619ff372b463bc4dd5d \
-            --expected-archive-sha256 56b9d83ca09a419501cb412066ff1f80e89f71f57a55da095043d22a51bdd1a2 \
-            --output "$QUALIFICATION_ROOT/evidence/stockfish"
-      - name: Execute the complete native source plan and retain actual diagnostic count
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import hashlib, json, os, pathlib, subprocess, time
-          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"])
-          manifest_path = root / "evidence/stockfish/manifest.json"
-          manifest = json.loads(manifest_path.read_bytes())
-          assert (manifest["file_count"], manifest["byte_count"], manifest["cpp_file_count"]) == (119, 1172144, 72)
-          executable = root / "build/tests/laplace_verified_cpp_source_probe"
-          provider = root / "evidence/providers/candidate/provider.so"
-          command = [str(executable), str(provider), str(manifest_path.parent / "files"),
-                     *(item["path"] for item in manifest["artifacts"])]
-          print("::notice title=Selected C++ provider::Execute complete 119-file native source decomposition and exact byte reconstruction", flush=True)
-          start = time.monotonic()
-          result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=900)
-          root.joinpath("evidence/stockfish-native.stdout").write_bytes(result.stdout)
-          root.joinpath("evidence/stockfish-native.stderr").write_bytes(result.stderr)
-          lines = [json.loads(line) for line in result.stdout.decode().splitlines() if line.startswith("{")]
-          whole = [item for item in lines if item.get("phase") == "whole-native-source-plan"]
-          receipt = {"schema": "laplace.cpp-selected-runtime-native-corpus/v1", "command": command,
-              "returncode": result.returncode, "elapsed_seconds": round(time.monotonic()-start, 3),
-              "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
-              "native_probe_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
-              "provider_sha256": hashlib.sha256(provider.read_bytes()).hexdigest(),
-              "source_plan": whole, "preceding_native_fixture_count": len(lines)-len(whole),
-              "postgresql_admission_executed": False, "installed_provider_changed": False,
-              "executable_semantics_verified": False}
-          root.joinpath("evidence/stockfish-native.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
-          print("CPP_SELECTED_RUNTIME_NATIVE_CORPUS " + json.dumps(receipt, sort_keys=True))
-          assert result.returncode == 0 and len(whole) == 1 and len(lines) == 12
-          assert whole[0]["files"] == 119 and whole[0]["bytes"] == 1172144
-          assert whole[0]["all_files_reconstructed"] and whole[0]["semantic_testimony"] == 0
-          assert whole[0]["postgresql_admission"] is False
-          assert isinstance(whole[0]["syntax_errors_or_missing"], int) and whole[0]["syntax_errors_or_missing"] >= 0
-          PY
-      - name: Retain native compilation inputs and outputs before observer assertions
-        if: always()
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import hashlib, json, os, pathlib, shutil
-          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"])
-          evidence = root / "evidence"
-          evidence.mkdir(parents=True, exist_ok=True)
-          paths = {
-              "compile_commands.json": "build/compile_commands.json",
-              "CMakeCache.txt": "build/CMakeCache.txt",
-              "build.ninja": "build/build.ninja",
-              "laplace_verified_cpp_source_probe": "build/tests/laplace_verified_cpp_source_probe",
-              "laplace_verified_grammar_loader_probe": "build/tests/laplace_verified_grammar_loader_probe",
-              "liblaplace_engine.so": "build/engine/liblaplace_engine.so",
-              "libtree-sitter.a": "build/dependencies/tree-sitter/libtree-sitter.a",
-              "tree-sitter-CMakeLists.txt": "dependencies/tree-sitter/CMakeLists.txt",
-          }
-          retained = []
-          for name, relative in paths.items():
-              source = root / relative
-              item = {"path": str(source), "artifact_member": name, "exists": source.is_file()}
-              if item["exists"]:
-                  shutil.copy2(source, evidence / name)
-                  item["sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
-                  item["bytes"] = source.stat().st_size
-              retained.append(item)
-          evidence.joinpath("native-build-retention.json").write_text(json.dumps(retained, indent=2, sort_keys=True) + "\n")
-          PY
-      - name: Recheck actual source runtime and executable evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$PRODUCT_SOURCE_COMMIT"
-          test "$(git rev-parse 'HEAD^{tree}')" = "$PRODUCT_SOURCE_TREE"
-          test "$(git rev-parse HEAD:tools/sources/qualify_grammar.py)" = "b9a52114a35ca2a7cc190a95b25dc46d5e576c0f"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          python3 - <<'PY'
-          import hashlib, json, os, pathlib, shlex, shutil
-          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"])
-          sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
-          candidate = json.loads(root.joinpath("evidence/providers/candidate/build-receipt.json").read_bytes())
-          official = json.loads(root.joinpath("evidence/providers/official/build-receipt.json").read_bytes())
-          expected_runtime = json.loads(pathlib.Path("dependencies/lock.json").read_bytes())["dependencies"]["tree-sitter"]
-          for record in (candidate, official):
-              assert record["schema"] == "laplace.grammar-provider-build/v1" and record["exit_code"] == 0
-              assert all(record["runtime"][key] == expected_runtime[key] for key in ("upstream", "revision", "git_archive_sha256"))
-              assert record["implementation_sha256"] == sha(pathlib.Path("tools/sources/qualify_grammar.py"))
-              assert record["library"]["sha256"] == sha(pathlib.Path(record["library"]["path"]))
-          commands = json.loads(root.joinpath("build/compile_commands.json").read_bytes())
-          cache = root.joinpath("build/CMakeCache.txt").read_text()
-          modes = [line.split("=", 1)[1] for line in cache.splitlines() if line.startswith("AMALGAMATED:BOOL=")]
-          assert len(modes) == 1 and modes[0] in {"ON", "OFF"}
-          runtime_directory = (root / "dependencies/tree-sitter/lib/src").resolve()
-          expected_sources = ({runtime_directory / "lib.c"} if modes[0] == "ON" else
-              {source.resolve() for source in runtime_directory.glob("*.c") if source.name != "lib.c"})
-          compiled = [row for row in commands
-              if pathlib.Path(row["directory"], row["file"]).resolve().parent == runtime_directory
-              and pathlib.Path(row["file"]).suffix == ".c"]
-          compiled.sort(key=lambda row: row["file"])
-          actual_sources = [pathlib.Path(row["directory"], row["file"]).resolve() for row in compiled]
-          observation = {"schema": "laplace.selected-runtime-compilation-observation/v1",
-              "amalgamated": modes[0], "expected_sources": sorted(map(str, expected_sources)),
-              "observed_sources": list(map(str, actual_sources)),
-              "compile_commands": compiled, "objects": []}
-          observation_path = root / "evidence/runtime-compilation-observation.json"
-          def save_observation():
-              observation_path.write_text(json.dumps(observation, indent=2, sort_keys=True) + "\n")
-          save_observation()
-          print("CPP_RUNTIME_COMPILATION_SELECTION " + json.dumps({
-              "amalgamated": modes[0], "expected_translation_units": len(expected_sources),
-              "observed_translation_units": len(compiled),
-              "lib_c_matches": sum(source.name == "lib.c" for source in actual_sources)}, sort_keys=True))
-          assert expected_sources and len(actual_sources) == len(expected_sources)
-          assert set(actual_sources) == expected_sources
-          runtime_objects = root / "evidence/runtime-objects"
-          runtime_objects.mkdir()
-          for row, source in zip(compiled, actual_sources, strict=True):
-              argv = row.get("arguments") or shlex.split(row["command"])
-              output = pathlib.Path(row["directory"], argv[argv.index("-o") + 1]).resolve()
-              assert output.is_file() and output.is_relative_to((root / "build").resolve())
-              shutil.copy2(output, runtime_objects / output.name)
-              observation["objects"].append({"source": str(source), "source_sha256": sha(source),
-                  "object": str(output), "object_sha256": sha(output),
-                  "artifact_member": "runtime-objects/" + output.name})
-              save_observation()
-          native = root / "build/tests/laplace_verified_cpp_source_probe"
-          engine = root / "build/engine/liblaplace_engine.so"
-          runtime_archive = root / "build/dependencies/tree-sitter/libtree-sitter.a"
-          assert engine.is_file() and runtime_archive.is_file()
-          record = {"schema": "laplace.cpp-selected-runtime-native-qualification/v1",
-              "phase": "passed-hosted-native-provider-and-source-plan",
-              "product_parent_commit": os.environ["PRODUCT_PARENT_COMMIT"],
-              "product_parent_tree": os.environ["PRODUCT_PARENT_TREE"],
-              "local_disposable_candidate": True,
-              "candidate_input": json.loads(root.joinpath("evidence/input.json").read_bytes()),
-              "product_source_commit": os.environ["PRODUCT_SOURCE_COMMIT"],
-              "product_source_tree": os.environ["PRODUCT_SOURCE_TREE"],
-              "derivative_commit": os.environ["DERIVATIVE_COMMIT"],
-              "derivative_tree": os.environ["DERIVATIVE_TREE"],
-              "candidate_build_receipt_sha256": sha(root / "evidence/providers/candidate/build-receipt.json"),
-              "official_build_receipt_sha256": sha(root / "evidence/providers/official/build-receipt.json"),
-              "native_probe_sha256": sha(native), "runtime": expected_runtime,
-              "actual_runtime_compilation": observation,
-              "runtime_compilation_observation_sha256": sha(observation_path),
-              "runtime_archive_sha256": sha(runtime_archive),
-              "native_engine_sha256": sha(engine),
-              "registered_native_contracts_passed": 2,
-              "authentic_accepted_cases": 3, "malformed_controls": 4,
-              "official_provider_control": json.loads(root.joinpath("evidence/official-control.json").read_bytes()),
-              "native_corpus": json.loads(root.joinpath("evidence/stockfish-native.json").read_bytes()),
-              "postgresql_admission_executed": False, "installed_provider_changed": False,
-              "persisted102_diagnostics_recounted": False, "executable_semantics_verified": False}
-          root.joinpath("evidence/qualification.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
-          print("CPP_SELECTED_RUNTIME_NATIVE_QUALIFICATION " + json.dumps(record, sort_keys=True))
-          print("::notice title=Selected C++ provider::Hosted native provider and source-plan qualification PASS; installed PostgreSQL admission remains separate")
-          PY
-      - name: Retain exact provider receipts sources test logs and partial failure evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: cpp-selected-runtime-native-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.QUALIFICATION_ROOT }}/evidence
-          if-no-files-found: warn
-          compression-level: 6
-          retention-days: 30
