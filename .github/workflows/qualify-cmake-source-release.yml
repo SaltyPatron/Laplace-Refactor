@@ -1,140 +1,89 @@
-name: Read authenticated installed cognition service authority
+name: Retain required hosted proof without duplicate physical PR work
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: read
+  actions: write
+  pull-requests: read
 jobs:
-  read-installed-service:
+  retain-hosted-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Authenticate retained experiment and expose bounded diagnostics
+      - name: Guard exact PR and run, then cancel optional physical continuation
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, urllib.request, zipfile
-          repository = "SaltyPatron/Laplace-Refactor"
-          run_id = 35247073782
-          job_id = 105296450762
-          api = "https://api.github.com/repos/" + repository
+          import json, os, time, urllib.request
+          repo = "SaltyPatron/Laplace-Refactor"
+          head = "e625ee1e5277d91337793b18ef344ba8901c0066"
+          run_id = 35249740957
+          pr_number = 404
+          assert os.environ["GITHUB_REPOSITORY"] == repo
           token = os.environ.pop("GH_TOKEN")
-          def get(url, limit):
-              request = urllib.request.Request(url, headers={
-                  "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28",
-                  "User-Agent": "Laplace-authenticated-pointer-diagnostic-reader"})
-              request.add_unredirected_header("Authorization", "Bearer " + token)
-              with urllib.request.urlopen(request, timeout=90) as response:
-                  data = response.read(limit + 1)
-              if len(data) > limit:
-                  raise RuntimeError("response exceeds exact bounded reader limit")
-              return data
-          job = json.loads(get(api + "/actions/jobs/" + str(job_id), 1000000))
-          assert job["run_id"] == run_id and job["head_sha"] == "54c3ec6f8d5caf01d6923b2c79d496dea0606311"
-          assert job["status"] in ("in_progress", "completed")
-          required = {
-              5: "Activate PostgreSQL, Unicode, and Highway as laplace-runner",
-              11: "Start and execute the installed Laplace cognition surface",
-              12: "Retain installed gateway semantic proof and partial failure evidence",
-              13: "Retain selected cognition service restart evidence",
-              14: "Retain installed HTTP readiness evidence",
-          }
-          observed_steps = {step["number"]: step for step in job["steps"]}
-          for number, name in required.items():
-              step = observed_steps[number]
-              assert step["name"] == name and step["status"] == "completed" and step["conclusion"] == "success"
-          print("SERVICE_PHASES_AUTHENTICATED " + json.dumps({
-              "job_status": job["status"], "job_conclusion": job["conclusion"],
-              "whole_activation_job_success_claimed": False,
-              "steps": [observed_steps[number] for number in required]
-          }, sort_keys=True), flush=True)
-          print("ACTIVATION_JOB_AUTHENTICATED " + json.dumps({
-              "run_id": run_id, "job_id": job_id, "head_sha": job["head_sha"],
-              "started_at": job["started_at"], "completed_at": job["completed_at"],
-              "conclusion": job["conclusion"]
-          }, sort_keys=True), flush=True)
-          service_artifacts = [{"kind":"service-restart","id":10509460466,"size":291475,"sha256":"294dda5c90d6edc1b034dee4b94c8302683b1ce080720dc643c535e700e95052","member":"result.json"},{"kind":"http-readiness","id":10509215972,"size":1182,"sha256":"6cc21626b5954e1bdfeb7a328c4bafdbf22f29ffede13abdfcbe7894bf4365c1","member":"installed-http-readiness-35247073782-1.json"},{"kind":"gateway","id":10509495303,"size":4387,"sha256":"29d6ea857c87eab412b96aa59afa1a11aa50fbec54bda4a043ca57aff7108450","member":"proof.json"}]
-          assert [item["kind"] for item in service_artifacts] == ["service-restart", "http-readiness", "gateway"]
-          for selected in service_artifacts:
-              metadata = json.loads(get(api + "/actions/artifacts/" + str(selected["id"]), 100000))
-              assert metadata["id"] == selected["id"] and not metadata["expired"]
-              assert metadata["size_in_bytes"] == selected["size"]
-              assert metadata["digest"] == "sha256:" + selected["sha256"]
-              assert metadata["workflow_run"]["id"] == run_id
-              payload = get(api + "/actions/artifacts/" + str(selected["id"]) + "/zip", selected["size"])
-              assert len(payload) == selected["size"] and hashlib.sha256(payload).hexdigest() == selected["sha256"]
-              with zipfile.ZipFile(io.BytesIO(payload)) as service_archive:
-                  entries = service_archive.infolist()
-                  names = [entry.filename for entry in entries]
-                  assert len(names) == len(set(names))
-                  assert all(not pathlib.PurePosixPath(name).is_absolute() and ".." not in pathlib.PurePosixPath(name).parts for name in names)
-                  entry = service_archive.getinfo(selected["member"])
-                  assert 0 < entry.file_size <= 1000000
-                  raw = service_archive.read(entry)
-                  result = json.loads(raw)
-              assert result["status"] == "passed"
-              if selected["kind"] == "service-restart":
-                  assert result["schema"] == "laplace.cognition-service-lifecycle/v1"
-                  assert result["action"] == "restart"
-                  observation = result["observation"]
-                  assert observation["repository_commit"] == "54c3ec6f8d5caf01d6923b2c79d496dea0606311"
-                  assert observation["activated_package_verified"] is True
-                  assert observation["http_auth"] == {"mode": "managed-operator", "credential_source": "/opt/laplace/secrets/operator.env"}
-                  assert observation["unit"]["ActiveState"] == "active"
-                  assert observation["health"]["response"]["status"] == "ready"
-                  assert observation["health"]["response"]["package_id"] == observation["package_id"]
-                  service_package = observation["package_id"]
-                  assert len(service_package) == 64 and all(c in "0123456789abcdef" for c in service_package)
-                  projection = {
-                      "schema": result["schema"], "status": result["status"],
-                      "service": "laplace-refactor-cognition.service",
-                      "service_scope": observation["scope"],
-                      "http_auth": observation["http_auth"],
-                      "unit": {key: observation["unit"].get(key) for key in (
-                          "Id", "LoadState", "ActiveState", "SubState", "UnitFileState", "MainPID")},
-                      "package_id": service_package,
-                      "repository_commit": observation["repository_commit"],
-                      "health": observation["health"]["response"],
-                      "timings_seconds": observation["timings_seconds"],
-                      "cold_boot_proven": result["cold_boot_proven"]
-                  }
-              elif selected["kind"] == "http-readiness":
-                  assert result["schema"] == "laplace.installed-product-http-readiness/v1"
-                  assert result["package_id"] == service_package
-                  assert result["endpoint"] == "http://127.0.0.1:55434"
-                  assert result["http_auth"] == {"mode": "managed-operator", "credential_source": "/opt/laplace/secrets/operator.env"}
-                  assert result["anonymous_protected_status"] == 401
-                  assert result["health"]["status"] == 200
-                  projection = {key: result.get(key) for key in (
-                      "schema", "status", "scope", "package_id", "endpoint", "http_auth", "anonymous_protected_status")}
-                  projection["external_reachability_verified"] = False
-              else:
-                  assert result["schema"] == "laplace.installed-product-gateway-proof/v2"
-                  assert result["package_id"] == service_package
-                  assert result["http_auth"] == {"mode": "managed-operator", "credential_source": "/opt/laplace/secrets/operator.env"}
-                  partial = result["partial"]
-                  assert partial["http_authority"]["anonymous_mcp_status"] == 401
-                  assert partial["product_events"]["status"] == 200
-                  assert partial["product_events"]["package_id"] == service_package
-                  assert partial["product_events"]["complete_frame"] is True
-                  assert result["openai_chat"]["streaming"]["done"] is True
-                  assert result["openai_chat"]["streaming"]["finished"] is True
-                  assert result["mcp"]["query_schema"] == "laplace.inspect.summary/v1"
-                  projection = {"schema": result["schema"], "status": result["status"],
-                      "package_id": service_package, "http_auth": result["http_auth"],
-                      "anonymous_mcp_status": 401, "product_events": partial["product_events"],
-                      "completed_phases": result["completed_phases"],
-                      "external_reachability_verified": False}
-              print("SERVICE_ARTIFACT_AUTHENTICATED " + json.dumps({
-                  "artifact_id": selected["id"], "zip_bytes": selected["size"],
-                  "zip_sha256": selected["sha256"], "kind": selected["kind"],
-                  "member": selected["member"], "member_bytes": len(raw),
-                  "member_sha256": hashlib.sha256(raw).hexdigest(),
-                  "projection": projection
-              }, sort_keys=True), flush=True)
-          print("SERVICE_READER_COMPLETE", flush=True)
+          api = "https://api.github.com/repos/" + repo
+          def request(path, method="GET"):
+              req = urllib.request.Request(api + path, method=method, headers={
+                  "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Laplace-exact-PR-proof-retention"})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  raw = response.read(2000001)
+                  assert len(raw) <= 2000000
+                  return response.status, json.loads(raw) if raw else None
+          def guard():
+              _, pr = request("/pulls/" + str(pr_number))
+              assert pr["state"] == "open" and not pr["merged"]
+              assert pr["head"]["sha"] == head and pr["head"]["repo"]["full_name"] == repo
+              _, run = request("/actions/runs/" + str(run_id))
+              assert run["id"] == run_id and run["head_sha"] == head
+              assert run["event"] == "pull_request" and run["path"] == ".github/workflows/product-path.yml"
+              assert run["repository"]["full_name"] == repo and run["run_attempt"] == 1
+              assert any(p["number"] == pr_number for p in run["pull_requests"])
+              return run
+          required = {"hosted-proof / requirements", "hosted-proof / native (linux-dev)",
+                      "hosted-proof / native (linux-sanitize)"}
+          deadline = time.monotonic() + 720
+          while True:
+              run = guard()
+              _, inventory = request("/actions/runs/" + str(run_id) + "/jobs?per_page=100")
+              assert inventory["total_count"] <= 100
+              jobs = inventory["jobs"]
+              selected = [j for j in jobs if j["name"] in required]
+              assert len({j["name"] for j in selected}) == len(selected)
+              if any(j["status"] == "completed" and j["conclusion"] != "success" for j in selected):
+                  raise RuntimeError("a required hosted check did not pass; no cancellation submitted")
+              if len(selected) == 3 and all(j["status"] == "completed" and j["conclusion"] == "success" for j in selected):
+                  print("REQUIRED_HOSTED_PROOF " + json.dumps([
+                      {k:j[k] for k in ("id","name","status","conclusion","started_at","completed_at")}
+                      for j in selected], sort_keys=True), flush=True)
+                  guard()
+                  if run["status"] != "completed":
+                      code, _ = request("/actions/runs/" + str(run_id) + "/cancel", method="POST")
+                      assert code == 202
+                      print("EXACT_OPTIONAL_PR_CONTINUATION_CANCEL_REQUESTED", flush=True)
+                  break
+              assert time.monotonic() < deadline, "required hosted proof did not finish within the bounded wait"
+              time.sleep(5)
+          deadline = time.monotonic() + 120
+          while True:
+              _, run = request("/actions/runs/" + str(run_id))
+              assert run["head_sha"] == head
+              _, inventory = request("/actions/runs/" + str(run_id) + "/jobs?per_page=100")
+              jobs = inventory["jobs"]
+              selected = [j for j in jobs if j["name"] in required]
+              assert len(selected) == 3 and all(j["conclusion"] == "success" and j["status"] == "completed" for j in selected)
+              active = [j for j in jobs if j["status"] != "completed"]
+              if run["status"] == "completed" and not active:
+                  print("FINAL_EXACT_PR_JOBS " + json.dumps({
+                      "run_id": run_id, "head_sha": head, "run_conclusion": run["conclusion"],
+                      "required_checks_remain_successful": True,
+                      "optional_physical_success_claimed": False,
+                      "jobs": [{k:j[k] for k in ("id","name","status","conclusion","started_at","completed_at")} for j in jobs]
+                  }, sort_keys=True), flush=True)
+                  break
+              assert time.monotonic() < deadline, "ordinary cancellation has not yet reached terminal jobs"
+              time.sleep(5)
           PY
