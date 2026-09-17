@@ -1,142 +1,157 @@
-name: Authenticate selected C++ native qualification evidence
+name: Qualify private final cleanup
 on:
   workflow_dispatch:
   push:
-    branches: ["qualify/cmake-source-443-20260916"]
+    branches: [qualify/cmake-source-443-20260916]
     paths: [".github/workflows/qualify-cmake-source-release.yml"]
 permissions:
   contents: read
-  actions: read
 jobs:
-  read-selected-native:
+  qualify-cleanup:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    env:
-      GH_TOKEN: ${{ github.token }}
+    timeout-minutes: 20
     steps:
-      - name: Authenticate actual successful artifact and native qualification receipts
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 727debeb4e72f4a6356c7c7980f8e16ad37d2df9
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Authenticate leaves and create the exact local candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, subprocess, urllib.request
+          repository = "SaltyPatron/Laplace-Refactor"
+          base = "727debeb4e72f4a6356c7c7980f8e16ad37d2df9"
+          manifest_sha = "7c3313adb15ad771a2b39a326b65a6630ac8a760"
+          out = pathlib.Path(os.environ["RUNNER_TEMP"]) / "laplace-cleanup-qualification"
+          out.mkdir(exist_ok=False)
+          def git(*args):
+              return subprocess.check_output(["git", *args]).decode().strip()
+          def blob(sha):
+              request = urllib.request.Request(
+                  "https://api.github.com/repos/" + repository + "/git/blobs/" + sha,
+                  headers={"Accept": "application/vnd.github+json", "User-Agent": "laplace-cleanup-qualification"})
+              request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  record = json.load(response)
+              assert record["sha"] == sha and record["encoding"] == "base64"
+              body = base64.b64decode(record["content"])
+              actual = hashlib.sha1(b"blob " + str(len(body)).encode() + b"\0" + body).hexdigest()
+              assert actual == sha
+              return body
+          assert git("rev-parse", "HEAD") == base
+          assert git("status", "--porcelain") == ""
+          manifest_bytes = blob(manifest_sha)
+          manifest = json.loads(manifest_bytes)
+          assert manifest["repository"] == repository and manifest["base_commit"] == base
+          assert len(manifest["leaves"]) == 3
+          (out / "manifest.json").write_bytes(manifest_bytes)
+          for row in [manifest["unchanged_package_workflow"], *manifest["unchanged_cleanup_owners"]]:
+              assert git("rev-parse", base + ":" + row["path"]) == row["sha"]
+          paths = []
+          for row in manifest["leaves"]:
+              path = pathlib.Path(row["path"])
+              assert row["mode"] == "100644" and not path.is_absolute() and ".." not in path.parts
+              assert git("rev-parse", base + ":" + row["path"]) == row["base"]
+              if row["path"] == ".github/workflows/postgresql-product.yml":
+                  (out / "baseline-postgresql-product.yml").write_bytes(path.read_bytes())
+              path.write_bytes(blob(row["sha"]))
+              paths.append(row["path"])
+          patch = subprocess.check_output(["git", "diff", "--binary", "--", *paths])
+          (out / "candidate.patch").write_bytes(patch)
+          subprocess.run(["git", "add", "--", *paths], check=True)
+          subprocess.run(["git", "-c", "user.name=Laplace hosted qualification",
+                          "-c", "user.email=qualification@users.noreply.github.com",
+                          "commit", "-m", "Local qualification of explicit private terminal cleanup"], check=True)
+          assert git("status", "--porcelain") == ""
+          for row in manifest["leaves"]:
+              assert git("rev-parse", "HEAD:" + row["path"]) == row["sha"]
+          identity = {
+              "operator_commit": os.environ["GITHUB_SHA"], "source_parent": base,
+              "actual_candidate_commit": git("rev-parse", "HEAD"),
+              "actual_candidate_tree": git("rev-parse", "HEAD^{tree}"),
+              "manifest_blob": manifest_sha,
+              "patch_sha256": hashlib.sha256(patch).hexdigest(),
+              "leaves": manifest["leaves"],
+              "scope": "hosted source and isolated cleanup tests; no shared self-hosted work"}
+          (out / "candidate.json").write_text(json.dumps(identity, indent=2) + "\n")
+          print("CLEANUP_CANDIDATE " + json.dumps(identity, sort_keys=True))
+          PY
+      - name: Qualify owned cleanup with real contention and refusal controls
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
-          import hashlib, io, json, os, pathlib, tarfile, urllib.request, xml.etree.ElementTree as ET, zipfile
-          api = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
-          run_id, job_id, artifact_id = 35186357806, 105089158422, 10481758203
-          head = "d7da5e820a60aee30599bf8abd0b16d022c79a6b"
-          artifact_sha, artifact_bytes = "d3869e90096cd21dcccf37d0e44c46363bfe81f8ace12cd6272e2f868d69af82", 19735930
-          def get(route, raw=False):
-              request = urllib.request.Request(api + route,
-                  headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
-              request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
-              with urllib.request.urlopen(request, timeout=120) as response:
-                  data = response.read()
-              return data if raw else json.loads(data)
-          def sha(data):
-              return hashlib.sha256(data).hexdigest()
-          def git_object(kind, data):
-              return hashlib.sha1(kind.encode() + b" " + str(len(data)).encode() + b"\0" + data).hexdigest()
-          run, job, metadata = (get("/actions/runs/" + str(run_id)),
-              get("/actions/jobs/" + str(job_id)), get("/actions/artifacts/" + str(artifact_id)))
-          assert run["head_sha"] == head and run["status"] == "completed" and run["conclusion"] == "success"
-          assert job["run_id"] == run_id and job["conclusion"] == "success"
-          assert not metadata["expired"] and metadata["workflow_run"]["id"] == run_id
-          assert metadata["workflow_run"]["head_sha"] == head and metadata["digest"] == "sha256:" + artifact_sha
-          data = get("/actions/artifacts/" + str(artifact_id) + "/zip", True)
-          assert len(data) == artifact_bytes and sha(data) == artifact_sha
-          archive = zipfile.ZipFile(io.BytesIO(data))
-          assert len(archive.namelist()) == len(set(archive.namelist()))
-          read = archive.read
-          member_sha = {}
-          def document(name):
-              raw = read(name)
-              member_sha[name] = sha(raw)
-              return json.loads(raw)
-          inputs = document("input.json")
-          acquisition = document("public-acquisition.json")
-          preparation = document("preparation-result.json")
-          qualification = document("qualification.json")
-          corpus = document("stockfish-native.json")
-          control = document("official-control.json")
-          runtime = document("runtime-compilation-observation.json")
-          retention = document("native-build-retention.json")
-          assert preparation["phase"] == "prepared-clean-local-candidate"
-          assert qualification["phase"] == "passed-hosted-native-provider-and-source-plan"
-          assert inputs == qualification["candidate_input"]
-          assert inputs["product_parent_commit"] == "ce4328efec8aed403080ded6c16bca8a720d8e07"
-          assert inputs["product_tree"] == "3b31f451bd3acfad722cd8893d38c4df298a2c3c"
-          assert inputs["tracked_clean"] and inputs["local_disposable_candidate"]
-          assert set(inputs["changed_product_paths"]) == {"dependencies/tree-sitter-grammars.lock.json",
-              "tests/verified_cpp_source_probe.cpp"}
-          commit_bytes = read("local-product-candidate.commit")
-          assert git_object("commit", commit_bytes) == inputs["product_commit"]
-          headers = commit_bytes.split(b"\n\n", 1)[0].decode().splitlines()
-          assert [line[5:] for line in headers if line.startswith("tree ")] == [inputs["product_tree"]]
-          assert [line[7:] for line in headers if line.startswith("parent ")] == [inputs["product_parent_commit"]]
-          assert sha(read("local-product-candidate.patch")) == inputs["product_patch_sha256"]
-          proposal_bytes = read("proposed-grammar-lock.json")
-          assert git_object("blob", proposal_bytes) == inputs["grammar_lock_blob"] == "0433ef054fd5ff21977616688ce0087f741cdcb4"
-          assert sha(proposal_bytes) == inputs["grammar_lock_sha256"] == "8978e6b56b72c174436529f4e3990b3a08ae3364aaf73df860e4df793699d5a3"
-          old_bytes = read("official-grammar-lock.json")
-          assert git_object("blob", old_bytes) == "da364f3938a9d23fd54a1857431817c9b14a7453"
-          old, proposed = json.loads(old_bytes), json.loads(proposal_bytes)
-          old_entries = {item["name"]: item for item in old["repositories"]}
-          new_entries = {item["name"]: item for item in proposed["repositories"]}
-          assert old_entries.keys() == new_entries.keys()
-          assert all(old_entries[name] == new_entries[name] for name in old_entries if name != "tree-sitter-cpp")
-          assert all(old[key] == proposed[key] for key in old if key != "repositories")
-          assert new_entries["tree-sitter-cpp"] == inputs["grammar"]
-          assert acquisition == inputs["public_acquisition"]
-          assert acquisition["revision"] == "8ece5afbc1e97f8d4344355b15822110e8231056"
-          assert acquisition["tree"] == "cd00239b00007a65e70fde9c8163233e5f651095"
-          assert acquisition["git_archive_sha256"] == "e0be65c894548c136ad059942375d89750381a6d3a2138cd383eb70b213fcb9f"
-          derivative_tar = read("derivative-source.tar")
-          assert sha(derivative_tar) == acquisition["git_archive_sha256"]
-          assert len(derivative_tar) == acquisition["git_archive_bytes"] == 27197440
-          derivative = tarfile.open(fileobj=io.BytesIO(derivative_tar), mode="r:")
-          for source in acquisition["generated_files"]:
-              content = derivative.extractfile(source["path"]).read()
-              assert len(content) == source["bytes"] and sha(content) == source["sha256"]
-          assert git_object("blob", read("verified_cpp_source_probe.cpp")) == "246cb95c380211a11db11ad50dce09700bd8238c"
-          assert qualification["runtime"]["revision"] == "d97971e24500218865c05ed1febdee2acf41bae1"
-          assert qualification["runtime"]["version"] == "v0.26.13"
-          for name in ("candidate", "official", "pgn"):
-              receipt = document("providers/" + name + "/build-receipt.json")
-              assert receipt["schema"] == "laplace.grammar-provider-build/v1" and receipt["exit_code"] == 0
-              assert receipt["runtime"]["revision"] == qualification["runtime"]["revision"]
-              assert sha(read("providers/" + name + "/provider.so")) == receipt["library"]["sha256"]
-              if name != "pgn":
-                  assert member_sha["providers/" + name + "/build-receipt.json"] == qualification[name + "_build_receipt_sha256"]
-          assert sha(read("laplace_verified_cpp_source_probe")) == qualification["native_probe_sha256"]
-          assert sha(read("liblaplace_engine.so")) == qualification["native_engine_sha256"]
-          assert sha(read("libtree-sitter.a")) == qualification["runtime_archive_sha256"]
-          assert runtime == qualification["actual_runtime_compilation"]
-          assert runtime["amalgamated"] == "OFF"
-          assert len(runtime["objects"]) == len(runtime["expected_sources"]) > 1
-          assert set(runtime["expected_sources"]) == set(runtime["observed_sources"])
-          for item in runtime["objects"]:
-              assert sha(read(item["artifact_member"])) == item["object_sha256"]
-          for item in retention:
-              assert item["exists"] and sha(read(item["artifact_member"])) == item["sha256"]
-          cases = ET.fromstring(read("native-contracts.xml")).findall(".//testcase")
-          assert {case.attrib["name"] for case in cases} == {
-              "source.verified-cpp-native-contract", "source.verified-grammar-loader-contract"}
-          assert len(cases) == 2 and all(not any(case.find(kind) is not None
-              for kind in ("failure", "error", "skipped")) for case in cases)
-          assert control == qualification["official_provider_control"] and control["returncode"] == 16
-          assert control["expected_rejection_observed"] and control["baseline_cases_completed"] == 4
-          assert control["native_probe_sha256"] == qualification["native_probe_sha256"]
-          assert corpus == qualification["native_corpus"] and corpus["returncode"] == 0
-          assert corpus["preceding_native_fixture_count"] == 11 and len(corpus["source_plan"]) == 1
-          plan = corpus["source_plan"][0]
-          assert plan["files"] == 119 and plan["bytes"] == 1172144 and plan["all_files_reconstructed"]
-          assert plan["semantic_testimony"] == 0 and plan["postgresql_admission"] is False
-          assert all(qualification[key] is False for key in ("postgresql_admission_executed",
-              "installed_provider_changed", "persisted102_diagnostics_recounted", "executable_semantics_verified"))
-          result = {"schema": "laplace.authenticated-selected-cpp-native-qualification/v1",
-              "producer_run_id": run_id, "producer_job_id": job_id, "producer_head": head,
-              "artifact_id": artifact_id, "artifact_sha256": artifact_sha, "artifact_bytes": artifact_bytes,
-              "artifact_members_sha256": member_sha, "input": inputs, "qualification": qualification,
-              "proposed_lock": {"git_blob": git_object("blob", proposal_bytes),
-                  "sha256": sha(proposal_bytes), "bytes": len(proposal_bytes),
-                  "other299_entries_unchanged": True}}
-          print("CPP_SELECTED_NATIVE_AUTHENTICATED_REPORT " + json.dumps(result, sort_keys=True))
+          import importlib.util, json, os, pathlib, py_compile, subprocess, time
+          root = pathlib.Path.cwd()
+          out = pathlib.Path(os.environ["RUNNER_TEMP"]) / "laplace-cleanup-qualification"
+          paths = (
+              "tests/proof_workspace_cleanup_tests.py",
+              "tests/runner_orphan_cleanup_tests.py",
+              "tests/proof_workspace_foreign_owner_tests.py",
+              "tests/postgresql_product_proof_tests.py",
+              "tests/package_product_proof_tests.py")
+          for path in (*paths, "tools/delivery/proof_workspace_cleanup.py",
+                       "tools/delivery/runner_orphan_cleanup.py"):
+              py_compile.compile(path, doraise=True)
+          spec = importlib.util.spec_from_file_location("qualified_private_cleanup", paths[0])
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          case = module.ProofWorkspaceCleanupTests()
+          case.setUp()
+          try:
+              for workflow, name, names in case.cleanup_cases():
+                  script = case.assert_private_cleanup(workflow.read_text(), name, names)
+                  subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+              try:
+                  case.assert_private_cleanup(
+                      (out / "baseline-postgresql-product.yml").read_text(),
+                      "Clean disposable PostgreSQL-product workspace",
+                      ("laplace-postgresql-product-proof",))
+              except AssertionError as error:
+                  control = {"status": "expected-failure", "baseline": "727debeb4e72f4a6356c7c7980f8e16ad37d2df9",
+                             "diagnostic": str(error), "execution": "source assertion only; baseline cleanup not run"}
+              else:
+                  raise AssertionError("old globally locked cleanup passed the new private-boundary check")
+          finally:
+              case.tearDown()
+          (out / "old-workflow-control.json").write_text(json.dumps(control, indent=2) + "\n")
+          results = []
+          for path in paths:
+              started = time.monotonic()
+              command = ["python3", path, "-v"]
+              try:
+                  completed = subprocess.run(command, cwd=root, text=True,
+                                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
+                  output, status = completed.stdout, completed.returncode
+              except subprocess.TimeoutExpired as error:
+                  output = error.stdout or b""
+                  if isinstance(output, bytes):
+                      output = output.decode("utf-8", "replace")
+                  output += "\nQUALIFIER: finite test timeout\n"
+                  status = 124
+              (out / (pathlib.Path(path).stem + ".log")).write_text(output)
+              results.append({"command": command, "exit_code": status, "elapsed_seconds": time.monotonic() - started})
+              print(output, flush=True)
+          receipt = {
+              "candidate": json.loads((out / "candidate.json").read_text()),
+              "checks": results, "old_workflow_control": control,
+              "passed": all(row["exit_code"] == 0 for row in results),
+              "shared_host_actions": [], "installed_product_claim": False}
+          (out / "qualification.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          print("CLEANUP_QUALIFICATION " + json.dumps(receipt, sort_keys=True), flush=True)
+          if not receipt["passed"]:
+              raise SystemExit(1)
           PY
+      - name: Retain exact cleanup qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: private-cleanup-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/laplace-cleanup-qualification/
+          if-no-files-found: error
+          retention-days: 30
