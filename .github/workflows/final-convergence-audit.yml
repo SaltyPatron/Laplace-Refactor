@@ -2,9 +2,6 @@ name: branch-consolidation
 
 on:
   workflow_dispatch:
-  pull_request:
-    types: [closed]
-    branches: [main]
   push:
     branches: [main]
     paths:
@@ -21,7 +18,7 @@ concurrency:
 
 jobs:
   branch-estate:
-    if: github.ref == 'refs/heads/main' && (github.event_name != 'pull_request' || github.event.pull_request.merged == true)
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -40,7 +37,7 @@ jobs:
         run: python3 .github/scripts/consolidate-branches.py
       - name: Retain full recovery bundle and unresolved implementation diffs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: branch-consolidation-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/branch-consolidation/

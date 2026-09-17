@@ -9,6 +9,7 @@
 #include "cognition_interpretation_query.inc"
 #include "cognition_observation_index_candidates.inc"
 #include "cognition_observation_provider_set.inc"
+#include "cognition_coupling.inc"
 #include "cognition_semantic_act.inc"
 #include "cognition_interpretation_act.inc"
 #include "cognition_discourse.inc"
@@ -22,4 +23,5 @@
 #include "cognition_interpreted_conversation.inc"
 #include "cognition_prompt_admission.cpp"
 #include "cognition_prompt_structural_provider.inc"
+#include "cognition_prompt_orientation.inc"
 #include "cognition_prompt_conversation.inc"
