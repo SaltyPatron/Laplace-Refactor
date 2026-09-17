@@ -1,65 +1,46 @@
-name: Qualify selected operator authority and browser transport
+name: Observe current Original recording progress
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
 jobs:
-  transport-controls:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  observe-fixed-recording:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          ref: d2d8a3533d1000cd31f56c6fd92bc11365f0ebac
-          persist-credentials: false
-      - name: Authenticate exact candidate leaves
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Read only exact current recording receipts
         shell: bash
         run: |
-          python3 - <<'PY'
-          import base64, hashlib, json, os, pathlib, urllib.request
-          root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
-          token = os.environ.pop('GH_TOKEN')
-          leaves = [{"base":"a0c3c56727402dbd4e86172ca368a42a6cd60668","mode":"100755","path":"tools/openai_api_service.py","sha":"5057dcf9cda9212bc532bdac183797f59faf4427"},{"base":"869223346b14bf5e4c0a0fceeae5c48485ceb1f0","mode":"100644","path":"tools/cognition_surface_service.py","sha":"7958855086e1d78f9adb1584c211af74f8fe315b"},{"base":"e3a19d4f7a9f69a8490d4713ce5035090fdda37b","mode":"100755","path":"tools/delivery/product_cognition_service.py","sha":"2b0b7edfa24551607e6c03f86027ab17a6345956"},{"base":"b17c5ce2a5f4e3e3a62b7dd7e340e5e0f832b0da","mode":"100644","path":"tools/delivery/product_gateway_live_proof.py","sha":"117337c5f245a22ca3fd00c7bdc44299eb3d379e"},{"base":"9d2dd4ed7167ed14f7d0f2c9b6e59e7773d14314","mode":"100644","path":"tests/product_host_tests.py","sha":"7898c507f88c1d8a365ca040b08d76caa1716651"},{"base":"1a699c3d1ec8116e1ea5afe3506fbb835e1abec4","mode":"100644","path":"tests/product_gateway_contract_tests.py","sha":"05869bc73d705e6d9137431f764ceb660ad8b05a"},{"base":"2be89368bad1d9d4cbe9f84c0ecf9416cbcb3a15","mode":"100644","path":".github/workflows/product-activation.yml","sha":"6a1309b81e44f422955a2674cd33932dafc90713"},{"base":"bf81c11de9e289f87f50e042b1dbde10460c0635","mode":"100644","path":"product/web/app.js","sha":"4118540e5f718bcf0762dd0c21bf7229f91470bc"},{"base":"967c657eb6af466ecb2d594516eea3d03e5fd435","mode":"100644","path":"product/web/index.html","sha":"22d457e46142794fb7900184236ebf74ca322621"},{"mode":"100644","path":"tests/browser_surface_paths_tests.cjs","sha":"7be3973332621cfe74b35d6b4d3449068cc3da39"},{"base":"60326a281d37f66197c1934a58c0e6ac7bc35627","mode":"100644","path":".github/workflows/ci.yml","sha":"88c481ff582f1c15c553fc884a512f638e453eec"},{"mode":"100644","path":"docs/delivery/COGNITION_SURFACE.md","sha":"2bda32b9491c70e2b7ebce59161addf3dfcb9cc6"},{"base":"3e2b0a05a5d7f30e889618c374f398a85026e235","mode":"100644","path":"README.md","sha":"462a91d5dd8851f6329dd80f04d49b0c8ad060f8"}]
-          for leaf in leaves:
-              req = urllib.request.Request('https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/' + leaf['sha'], headers={'Accept':'application/vnd.github+json','User-Agent':'Laplace-selected-authority-controls'})
-              req.add_unredirected_header('Authorization', 'Bearer ' + token)
-              with urllib.request.urlopen(req, timeout=30) as response:
-                  value = json.load(response)
-              assert value['sha'] == leaf['sha'] and value['encoding'] == 'base64'
-              data = base64.b64decode(value['content'])
-              assert len(data) == value['size']
-              assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == leaf['sha']
-              path = root / leaf['path']
-              path.parent.mkdir(parents=True, exist_ok=True)
-              path.write_bytes(data)
-              print(json.dumps({'path':leaf['path'],'blob':leaf['sha'],'bytes':len(data)}))
+          python3 -I - <<'PY'
+          import json, pathlib, re, time
+          root=pathlib.Path('/build/laplace/recovery/canonical-next2000/35223192542-1')
+          names=('receipt.json','recording/receipt.json','recording/measurement/corpus-recording.json','recording/measurement/fresh/recording.json','recording/measurement/fresh/progress.json','recording/measurement/replay-01/progress.json')
+          keys=re.compile(r'(status|phase|step|start|end|complet|committ|readback|sealed|heartbeat|updated|created|finished|games|count|elapsed)',re.I)
+          omitted=re.compile(r'(gps|rate|persecond|throughput|token|secret|password|connection|sql|body|path|command)',re.I)
+          def project(value, prefix='', depth=0):
+              if depth>7: return []
+              found=[]
+              if isinstance(value,dict):
+                  for key,item in value.items():
+                      if omitted.search(key): continue
+                      label=prefix+'.'+key if prefix else key
+                      if isinstance(item,(dict,list)): found.extend(project(item,label,depth+1))
+                      elif keys.search(key) and isinstance(item,(str,int,float,bool,type(None))):
+                          found.append({'field':label,'value':item[:300] if isinstance(item,str) else item})
+                      if len(found)>=100: break
+              elif isinstance(value,list):
+                  for index,item in list(enumerate(value))[-8:]:
+                      found.extend(project(item,prefix+'['+str(index)+']',depth+1))
+              return found[:100]
+          for name in names:
+              path=root/name
+              try:
+                  with path.open('rb') as stream: raw=stream.read(8388609)
+                  if len(raw)>8388608: raise ValueError('receipt exceeds 8MiB observation bound')
+                  data=json.loads(raw)
+                  result={'path':str(path),'observed_at_unix':time.time(),'mutable_in_progress':True,'fields':project(data)}
+              except (OSError,ValueError) as error:
+                  result={'path':str(path),'observed_at_unix':time.time(),'mutable_in_progress':True,'unavailable':type(error).__name__}
+              print(json.dumps(result,sort_keys=True),flush=True)
           PY
-      - name: Execute canonical service ownership and actual HTTP controls
-        shell: bash
-        run: |
-          python3 tests/product_host_tests.py 2>&1 | tee service-controls.log
-          python3 tests/product_gateway_contract_tests.py 2>&1 | tee gateway-controls.log
-          node --test tests/browser_surface_paths_tests.cjs | tee browser-controls.tap
-          python3 -m py_compile tools/openai_api_service.py tools/cognition_surface_service.py tools/delivery/product_cognition_service.py tools/delivery/product_gateway_live_proof.py
-      - name: Retain source and executed controls
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: selected-operator-transport-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            service-controls.log
-            gateway-controls.log
-            browser-controls.tap
-            tools/openai_api_service.py
-            tools/cognition_surface_service.py
-            tools/delivery/product_cognition_service.py
-            tools/delivery/product_gateway_live_proof.py
-            tests/product_host_tests.py
-            tests/product_gateway_contract_tests.py
-            tests/browser_surface_paths_tests.cjs
-            product/web/
-          if-no-files-found: error
-          retention-days: 30
