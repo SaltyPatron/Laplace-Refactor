@@ -1,50 +1,57 @@
-name: Observe exact packaged public reconciliation binding
+name: Qualify public reconciliation envelope and exact execution replay receipts
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
 jobs:
-  observe:
-    runs-on: [self-hosted, Linux, X64, laplace-refactor, oneapi, postgres-18, avx2]
-    timeout-minutes: 3
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - name: Read fixed package metadata and installed binding without host mutation
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 6f0d04753344d43081c78ee85d9c258cc973dc67
+          persist-credentials: false
+      - name: Authenticate the exact four Python leaves
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          python3 -I - <<'PY'
-          import hashlib,json,os,stat
-          from pathlib import Path
-          package="d854e1d89e71cbb75a7c94817973ed055f1d496caf712afd430327ebd884264a"
-          build=Path("/build/laplace/runner/product/build/d42ce0a0e07e75d54506ae31b1bfaff0b1df7046b0d15843eae535f0ceb5903e")
-          manifest_path=build/"package-manifest.json"
-          receipt_path=build/"package-receipt.json"
-          def load(path):
-              assert path.is_file() and not path.is_symlink()
-              raw=path.read_bytes()
-              assert len(raw)<=16000000
-              return json.loads(raw),hashlib.sha256(raw).hexdigest()
-          receipt,_=load(receipt_path)
-          manifest,manifest_sha=load(manifest_path)
-          assert receipt["package_id"]==manifest["package_id"]==package
-          assert receipt["manifest"]==str(manifest_path)
-          assert receipt["manifest_sha256"]==manifest_sha
-          relative="pgsql-18/share/extension/laplace-public-readback.sql"
-          path=Path("/opt/laplace/releases")/package/relative
-          info=path.lstat()
-          entries=[row for row in manifest["files"] if row["path"]==relative]
-          raw=path.read_bytes() if stat.S_ISREG(info.st_mode) else b""
-          digest=hashlib.sha256(raw).hexdigest()
-          current=Path("/opt/laplace/current")
-          result={"schema":"laplace.public-binding-failure-observation/v1",
-              "source_run":35208985114,"source_job":105171045703,
-              "package_id":package,"manifest_sha256":manifest_sha,
-              "manifest_entries":entries,"installed_path":str(path),
-              "regular_file":stat.S_ISREG(info.st_mode),"symlink":stat.S_ISLNK(info.st_mode),
-              "bytes":info.st_size,"sha256":digest,"device":info.st_dev,"inode":info.st_ino,
-              "old_65536_byte_check_passes":info.st_size<=65536,
-              "manifest_hash_matches":len(entries)==1 and entries[0].get("sha256")==digest,
-              "active_link":os.readlink(current) if current.is_symlink() else None,
-              "active_resolved":str(current.resolve(strict=True))}
-          print("PUBLIC_BINDING_OBSERVATION "+json.dumps(result,sort_keys=True),flush=True)
+          python3 - <<'PY'
+          import ast,base64,hashlib,json,os,pathlib,urllib.request
+          files={
+              "tools/delivery/product_activation_runner.py":"19842ade06b918df91508836f8977a706c6f024f",
+              "tests/product_activation_runner_tests.py":"0a67829edc7fca6b4d1af85bf77b9e2e4dd4cb81",
+              "tools/sources/stockfish_corpus_acceptance.py":"badb012dab8616efb12c402a364d9045feffe575",
+              "tests/stockfish_corpus_acceptance_tests.py":"ae41b0d33b4fc3eabe4f98e9c8defe1c99194556"}
+          root=pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          for relative,sha in files.items():
+              request=urllib.request.Request("https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+sha,
+                  headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"})
+              with urllib.request.urlopen(request,timeout=30) as response:
+                  document=json.load(response)
+              raw=base64.b64decode(document["content"])
+              assert document["sha"]==sha and document["size"]==len(raw)
+              assert hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()==sha
+              ast.parse(raw,filename=relative)
+              (root/relative).write_bytes(raw)
+          temporary=root/".qualification-work"
+          temporary.mkdir()
+          with pathlib.Path(os.environ["GITHUB_ENV"]).open("a") as output:
+              for key in ("TMPDIR","TMP","TEMP"):
+                  output.write(key+"="+str(temporary)+"\n")
+          print("QUALIFIED_SOURCE_SELECTION "+json.dumps(files,sort_keys=True))
+          PY
+      - name: Execute all selected owner controls
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,subprocess,sys
+          results=[]
+          for path in ("tests/product_activation_runner_tests.py","tests/stockfish_corpus_acceptance_tests.py"):
+              result=subprocess.run([sys.executable,path],timeout=300)
+              results.append({"test":path,"exit_code":result.returncode})
+          print("PUBLIC_BINDING_AND_REPLAY_CONTROLS "+json.dumps(results),flush=True)
+          raise SystemExit(0 if all(row["exit_code"]==0 for row in results) else 1)
           PY
