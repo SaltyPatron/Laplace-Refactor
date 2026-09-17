@@ -623,6 +623,28 @@
     },
     "installed_package_id": "56cdb7118be6322ec8ecf7d586ead2cc39711ae6854d9ed93e22aa8f601134c5",
     "installed_repository_commit": "2e62b2260a145de41596c7f4ab2c4aff65e07352",
+    "normal_candidate_qualification": {
+      "actual_test_ended_at_utc": "2026-09-17T05:21:36.568961Z",
+      "actual_test_started_at_utc": "2026-09-17T05:12:05.194140Z",
+      "artifact": {
+        "bytes": 44225,
+        "id": 10482420724,
+        "sha256": "d9fc8087c2af6434cabdead0a5cb30c9e7fa6fe24ab9fc2d4d5dec3f32b82424"
+      },
+      "custom_job": 105084128973,
+      "custom_job_status": "completed-success",
+      "head": "727debeb4e72f4a6356c7c7980f8e16ad37d2df9",
+      "postgresql_product_job": 105090702716,
+      "postgresql_product_proof_step": "passed-2026-09-17T05:47:03Z",
+      "postgresql_product_terminal_cleanup": "Waiting for the shared host reservation at this observation; proof success does not mark the incomplete job successful.",
+      "run": 35184451666,
+      "scope": "Retained previous-head proof. The coherent cleanup correction still requires normal CI, merge and actual installed acceptance.",
+      "tests": {
+        "core": 48,
+        "highway": 1,
+        "verified_cpp_and_physicality": 1
+      }
+    },
     "observed_at_utc": "2026-09-17T02:27:39Z",
     "preserved": "No prompt change, corpus deletion, memory increase, request-depth reduction, unconditional goal filter, or shortened witness set.",
     "proof_boundary": "The source correction and volume/multihop/tie/mutation regressions must pass normal qualification and actual installed cognition before this delivery is complete.",
@@ -631,29 +653,7 @@
       "actual deployed source readback and replay",
       "fresh source toolchain/runtime/PostgreSQL publication remains a separate pending operation"
     ],
-    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe.",
-    "normal_candidate_qualification": {
-      "head": "727debeb4e72f4a6356c7c7980f8e16ad37d2df9",
-      "run": 35184451666,
-      "custom_job": 105084128973,
-      "custom_job_status": "completed-success",
-      "tests": {
-        "core": 48,
-        "highway": 1,
-        "verified_cpp_and_physicality": 1
-      },
-      "actual_test_started_at_utc": "2026-09-17T05:12:05.194140Z",
-      "actual_test_ended_at_utc": "2026-09-17T05:21:36.568961Z",
-      "artifact": {
-        "id": 10482420724,
-        "bytes": 44225,
-        "sha256": "d9fc8087c2af6434cabdead0a5cb30c9e7fa6fe24ab9fc2d4d5dec3f32b82424"
-      },
-      "postgresql_product_job": 105090702716,
-      "postgresql_product_proof_step": "passed-2026-09-17T05:47:03Z",
-      "postgresql_product_terminal_cleanup": "Waiting for the shared host reservation at this observation; proof success does not mark the incomplete job successful.",
-      "scope": "Retained previous-head proof. The coherent cleanup correction still requires normal CI, merge and actual installed acceptance."
-    }
+    "repair": "For a single initial zero-cost frontier, a pure CONTAINER request with one requested goal path first selects every stored and eligible derived goal realization. Exact native validation retains all direct occurrence witnesses. Under the canonical unit-edge-cost law a direct goal is optimal; otherwise the same depth-eight search uses its ordinary fallback and charges the unsuccessful probe."
   },
   "isolated_unpublished_work": {
     "base_commit": "ed2b4f42db10e61c33ab83dc0fc462c2f07f8465",
@@ -1860,6 +1860,33 @@
     "state": "canonical-highway-coordinate-registry-isa-unicode-backed-ast-shared-deposition-controlled-activation-active-readback-and-protected-product-gateway-implemented-product-activation-pending",
     "whole_product_reason": "The Highway is the shared typed coordinate and routing substrate across sources releases namespaces languages grammars recipes modalities models operations effects governance firmware and product state; it is not a multilingual lookup table importer embedding or private feature route."
   },
+  "private_proof_cleanup_20260917": {
+    "base_commit": "727debeb4e72f4a6356c7c7980f8e16ad37d2df9",
+    "classification": "observed-development-state-not-product-law",
+    "defect": "Completed proof released the shared host reservation, then reacquired it to remove private output. Another repository's sustained work could prevent this already-completed proof job from reaching terminal status.",
+    "hosted_qualification": {
+      "artifact": {
+        "bytes": 13504,
+        "id": 10482649910,
+        "sha256": "21d851753ad2e07b2791986f5a06b4516a239ae256d95af2ae32870e85cbba57"
+      },
+      "candidate_tree": "09412889a831db9057010b8ab3b1dfd7068ff763",
+      "failed": 0,
+      "job": 105095751570,
+      "old_locked_terminal_mutant": "expected failure; old body not executed",
+      "operator": "d4ccb584a637b1c363819d8e0d56cde808a909df",
+      "real_held_reservation_active_sibling_and_live_target_refusal": "passed",
+      "run": 35188535673,
+      "skipped": 0,
+      "tests_passed": 79
+    },
+    "installed_product_claim": false,
+    "observed_at_utc": "2026-09-17T06:09:42Z",
+    "remaining": "Normal current-head CI, merge, installed cognition/gateway and current full119-source readback/replay.",
+    "repair": "Keep shared orphan termination and prefix discovery in the existing reserved startup pass. After producer termination and evidence retention, terminal cleanup removes only explicit direct children of this runner's RUNNER_TEMP through the existing refusing helper, without acquiring the shared reservation. Preparation ownership guards are required.",
+    "shared_interrupted_residue_recovery": "Explicitly deferred to the next existing reserved preparation pass.",
+    "source_manifest": "7c3313adb15ad771a2b39a326b65a6630ac8a760"
+  },
   "product_activation_projection": {
     "current_disposition": "product composition succeeds through laplace-runner; root activation is blocked by the absent trusted deployment gateway",
     "postgresql_publication": {
@@ -2135,6 +2162,80 @@
     ],
     "supersedes_observation_scope": "This installed b042 observation supersedes earlier pending source-admission and absent-gateway disposition text. Earlier active_work and product_activation_projection history remains historical and does not describe the currently installed package or service ownership."
   },
+  "source_witness_replay_diagnostic_20260917": {
+    "base_commit": "af0f3cf48de13005875f78888271ec8ccdf332c4",
+    "classification": "observed-development-state-not-product-law",
+    "diagnostic": {
+      "compile_correction": {
+        "error": "Intel C compilation refused diagnostic string longer than4095bytes under unchanged Wpedantic/Werror.",
+        "failed_job": 105115958185,
+        "failed_run": 35194575145,
+        "repair": "Split exact diagnostic SQL into two literals and join only after a failed comparison; original query bytes and compiler flags unchanged.",
+        "source_blob": "05f450a3ec844107deb83acb2ac65acf22d618dc"
+      },
+      "scope": "Only after a failed strict comparison, report one ordered differing row, exact field names and both retained/expected values. Hex and decimal strings preserve identity. Successful upsert/verification SQL and all refusal conditions remain unchanged. Both selected physicality metadata records are observed before failure rollback with exact float8send encodings and no trajectory payload.",
+      "source_manifest": "0590e654c2b8b2f1171f12fdb215e377629bc87d",
+      "verification": "Existing real PostgreSQL mutation asserts that only syntax_flags differs; actual current-candidate qualification and installed diagnostic remain pending."
+    },
+    "installed_activation": {
+      "cognition": "AA -> A and AA -> A -> AA passed; existing prompt canonical identities reused",
+      "cognition_service": "enabled active ready",
+      "cold_boot_proven": false,
+      "evidence_blob": "93329d9a22fef14b1de11fb8646d8722c0e46b7b",
+      "gateway": "passed",
+      "job": 105110448260,
+      "package_id": "23c6ef84cbda7cff9da6d2e06fbb0ce7d45f465d2474ed6cd5d040cc7040c9f9",
+      "postgresql_unicode_highway": "passed; persistent state preserved",
+      "result_sha256": "36b5b7391734462a0a4d2fab1486eff9388e32c07ac4c57df71d5107b4ce0005",
+      "run": 35191157961,
+      "warm_restart_to_verified_health_seconds": 0.9639818099094555
+    },
+    "observed_at_utc": "2026-09-17T07:24:44Z",
+    "remaining": [
+      "Qualify the diagnostic and observe the exact installed witness mismatch.",
+      "Correct the source-supported cause without overwriting historical witness evidence or relaxing canonical identity.",
+      "Complete current 119-file admission, exact readback and zero-amplification replay.",
+      "Qualified parser derivative promotion and fresh source toolchain/runtime/PostgreSQL remain separate pending work."
+    ],
+    "source_failure": {
+      "admission_elapsed_seconds": 32.874876499176025,
+      "artifact": {
+        "bytes": 2742993,
+        "id": 10484374565,
+        "sha256": "27f6594ba16630711192fb1654358589ad879cbc312b9824a3e6df2f9d6be260"
+      },
+      "authenticated_reader": {
+        "job": 105111929227,
+        "run": 35193725041
+      },
+      "batch_count": 4899,
+      "batch_start": 303738,
+      "complete_admission": false,
+      "error": "Laplace structural witness deposition/readback diverged",
+      "inserted_total": 0,
+      "job": 105110924113,
+      "mutation_outcome": "No successful admission receipt; consult retained native transaction evidence, do not infer committed data from submission.",
+      "repeat_proven": false,
+      "run": 35191157961
+    },
+    "actual_compile_fixed_qualification": {
+      "run_id": 35195439514,
+      "job_id": 105118623635,
+      "head": "05e866bad47a7978f1613f9f7c269a86c01bde4f",
+      "native_build": "passed",
+      "core_selected_tests": 48,
+      "core_passed": 48,
+      "core_elapsed_seconds": 242.35,
+      "verified_cpp_lane_elapsed_seconds": 151.81,
+      "result": "test-assertion-sql-precedence-failure",
+      "failed_at_utc": "2026-09-17T07:49:52Z",
+      "cleanup_completed_at_utc": "2026-09-17T07:49:59Z",
+      "error": "operator is not unique: unknown - unknown",
+      "correction": "Parenthesize both JSONB arrow extractions before deleting syntax_flags; production diagnostic unchanged.",
+      "installed_diagnostic": false,
+      "current_119_replay_verified": false
+    }
+  },
   "state_classes": {
     "implemented": "the clean repository contains the canonical implementation and exact implementation tests",
     "integration_proven": "controlled integration executes the implementation and proves the declared behavior",
@@ -2266,32 +2367,5 @@
     "on_mismatch": "mark the affected observation stale and rediscover it; never infer current or product state from this checkpoint",
     "physical_verification_command": "LAPLACE_VERIFY_CONTINUATION_PHYSICAL=1 python3 tests/program_authority_tests.py",
     "rule": "the main base published implementation checkpoint branch pull request and live runtime observations must be reverified before use"
-  },
-  "private_proof_cleanup_20260917": {
-    "classification": "observed-development-state-not-product-law",
-    "observed_at_utc": "2026-09-17T06:09:42Z",
-    "base_commit": "727debeb4e72f4a6356c7c7980f8e16ad37d2df9",
-    "defect": "Completed proof released the shared host reservation, then reacquired it to remove private output. Another repository's sustained work could prevent this already-completed proof job from reaching terminal status.",
-    "repair": "Keep shared orphan termination and prefix discovery in the existing reserved startup pass. After producer termination and evidence retention, terminal cleanup removes only explicit direct children of this runner's RUNNER_TEMP through the existing refusing helper, without acquiring the shared reservation. Preparation ownership guards are required.",
-    "source_manifest": "7c3313adb15ad771a2b39a326b65a6630ac8a760",
-    "shared_interrupted_residue_recovery": "Explicitly deferred to the next existing reserved preparation pass.",
-    "hosted_qualification": {
-      "run": 35188535673,
-      "job": 105095751570,
-      "operator": "d4ccb584a637b1c363819d8e0d56cde808a909df",
-      "candidate_tree": "09412889a831db9057010b8ab3b1dfd7068ff763",
-      "tests_passed": 79,
-      "failed": 0,
-      "skipped": 0,
-      "real_held_reservation_active_sibling_and_live_target_refusal": "passed",
-      "old_locked_terminal_mutant": "expected failure; old body not executed",
-      "artifact": {
-        "bytes": 13504,
-        "id": 10482649910,
-        "sha256": "21d851753ad2e07b2791986f5a06b4516a239ae256d95af2ae32870e85cbba57"
-      }
-    },
-    "remaining": "Normal current-head CI, merge, installed cognition/gateway and current full119-source readback/replay.",
-    "installed_product_claim": false
   }
 }

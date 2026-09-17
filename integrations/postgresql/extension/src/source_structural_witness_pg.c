@@ -306,6 +306,66 @@ void laplace_pg_persist_source_structural_witnesses(
         "s.canonical_physicality_id IS DISTINCT FROM (CASE WHEN i.byte_start=i.byte_end AND "
         "(i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_physicality_id END)) "
         "SELECT count(*) FROM mismatched";
+    /* Failure-only bounded comparison: preserve the successful admission query
+     * and report one exact differing row without changing stored evidence.
+     * Capture both physicality records before the failing transaction rolls back;
+     * float8send retains exact geometry bits, while trajectory payloads stay private. */
+    static const char witnesses_diagnose_sql_prefix[] =
+        "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM "
+        "unnest($2::bytea[],$3::bytea[],$4::bytea[],$5::numeric[],$6::numeric[],$7::numeric[],$8::numeric[],$9::numeric"
+        "[],$10::numeric[],$11::numeric[],$12::numeric[],$13::numeric[],$14::bytea[],$15::numeric[],$16::numeric[],$17:"
+        ":numeric[],$18::bytea[]) AS u(trace_fingerprint,provider_fingerprint,canonical_entity_id,artifact_index,span_i"
+        "ndex,parent_span_index,byte_start,byte_end,kind,grammar_kind,field_kind,sibling_ordinal,media_type,depth,flags"
+        ",syntax_flags,canonical_physicality_id)), first_mismatch AS (SELECT "
+        "jsonb_build_object('source_profile_id',encode(i.source_profile_id,'hex'),'artifact_index',i.artifact_index::te"
+        "xt,'span_index',i.span_index::text,'parent_span_index',i.parent_span_index::text,'trace_fingerprint',encode(i."
+        "trace_fingerprint,'hex'),'provider_fingerprint',encode(i.provider_fingerprint,'hex'),'canonical_entity_id',enc"
+        "ode(CASE WHEN i.byte_start=i.byte_end AND (i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE "
+        "i.canonical_entity_id END,'hex'),'canonical_physicality_id',encode(CASE WHEN i.byte_start=i.byte_end AND "
+        "(i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_physicality_id "
+        "END,'hex'),'byte_start',i.byte_start::text,'byte_end',i.byte_end::text,'kind',i.kind::text,'grammar_kind',i.gr"
+        "ammar_kind::text,'field_kind',i.field_kind::text,'sibling_ordinal',i.sibling_ordinal::text,'media_type',encode"
+        "(i.media_type,'hex'),'depth',i.depth::text,'flags',i.flags::text,'syntax_flags',i.syntax_flags::text) AS "
+        "expected,jsonb_build_object('source_profile_id',encode(s.source_profile_id,'hex'),'artifact_index',s.artifact_"
+        "index::text,'span_index',s.span_index::text,'parent_span_index',s.parent_span_index::text,'trace_fingerprint',"
+        "encode(s.trace_fingerprint,'hex'),'provider_fingerprint',encode(s.provider_fingerprint,'hex'),'canonical_entit"
+        "y_id',encode(s.canonical_entity_id,'hex'),'canonical_physicality_id',encode(s.canonical_physicality_id,'hex'),"
+        "'byte_start',s.byte_start::text,'byte_end',s.byte_end::text,'kind',s.kind::text,'grammar_kind',s.grammar_kind:"
+        ":text,'field_kind',s.field_kind::text,'sibling_ordinal',s.sibling_ordinal::text,'media_type',encode(s.media_ty"
+        "pe,'hex'),'depth',s.depth::text,'flags',s.flags::text,'syntax_flags',s.syntax_flags::text) AS stored FROM "
+        "input i LEFT JOIN " LAPLACE_PG_SCHEMA ".source_structural_witness s ON s.source_profile_id=i.source_profile_id AND "
+        "s.artifact_index=i.artifact_index AND s.span_index=i.span_index WHERE s.source_profile_id IS NULL OR "
+        "s.parent_span_index<>i.parent_span_index OR s.trace_fingerprint<>i.trace_fingerprint OR "
+        "s.provider_fingerprint<>i.provider_fingerprint OR s.canonical_entity_id IS DISTINCT FROM (CASE WHEN "
+        "i.byte_start=i.byte_end AND (i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_entity_id END) OR "
+        "s.byte_start<>i.byte_start OR s.byte_end<>i.byte_end OR s.kind<>i.kind OR s.grammar_kind IS DISTINCT FROM "
+        "i.grammar_kind OR s.field_kind IS DISTINCT FROM i.field_kind OR s.sibling_ordinal IS DISTINCT FROM "
+        "i.sibling_ordinal OR s.media_type<>i.media_type OR s.depth<>i.depth OR s.flags<>i.flags OR s.syntax_flags IS "
+        "DISTINCT FROM i.syntax_flags OR s.canonical_physicality_id IS DISTINCT FROM (CASE WHEN i.byte_start=i.byte_end "
+        "AND (i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_physicality_id END) ORDER BY "
+        "i.artifact_index,i.span_index LIMIT 1) ";
+    static const char witnesses_diagnose_sql_result[] =
+        "SELECT jsonb_build_object('mismatched_fields',(SELECT jsonb_agg(key ORDER BY key) FROM jsonb_each(expected) "
+        "WHERE value IS DISTINCT FROM stored->key),'expected',expected,'stored',stored,'expected_physicality',(SELECT "
+        "jsonb_build_object('physicality_id',encode(p.physicality_id,'hex'),'entity_id',encode(p.entity_id,'hex'),'phys"
+        "icality_type',p.physicality_type::text,'vertex_class',p.vertex_class::text,'recipe_version',p.recipe_version::"
+        "text,'structural_form',p.structural_form::text,'dimension_count',p.dimension_count::text,'flags',p.flags::text"
+        ",'recipe_fingerprint',encode(p.recipe_fingerprint,'hex'),'geometry_epoch',encode(p.geometry_epoch,'hex'),'traj"
+        "ectory_fingerprint',encode(p.trajectory_fingerprint,'hex'),'centroid_x',encode(float8send(p.centroid_x),'hex')"
+        ",'centroid_y',encode(float8send(p.centroid_y),'hex'),'centroid_z',encode(float8send(p.centroid_z),'hex'),'cent"
+        "roid_m',encode(float8send(p.centroid_m),'hex'),'radius',encode(float8send(p.radius),'hex'),'logical_count',p.l"
+        "ogical_count::text,'vertex_count',p.vertex_count::text,'trajectory_bytes',octet_length(p.trajectory)::text) "
+        "FROM " LAPLACE_PG_SCHEMA ".physicality p WHERE p.physicality_id=decode(expected->>'canonical_physicality_id','hex')),'sto"
+        "red_physicality',(SELECT jsonb_build_object('physicality_id',encode(p.physicality_id,'hex'),'entity_id',encode"
+        "(p.entity_id,'hex'),'physicality_type',p.physicality_type::text,'vertex_class',p.vertex_class::text,'recipe_ve"
+        "rsion',p.recipe_version::text,'structural_form',p.structural_form::text,'dimension_count',p.dimension_count::t"
+        "ext,'flags',p.flags::text,'recipe_fingerprint',encode(p.recipe_fingerprint,'hex'),'geometry_epoch',encode(p.ge"
+        "ometry_epoch,'hex'),'trajectory_fingerprint',encode(p.trajectory_fingerprint,'hex'),'centroid_x',encode(float8"
+        "send(p.centroid_x),'hex'),'centroid_y',encode(float8send(p.centroid_y),'hex'),'centroid_z',encode(float8send(p"
+        ".centroid_z),'hex'),'centroid_m',encode(float8send(p.centroid_m),'hex'),'radius',encode(float8send(p.radius),'"
+        "hex'),'logical_count',p.logical_count::text,'vertex_count',p.vertex_count::text,'trajectory_bytes',octet_lengt"
+        "h(p.trajectory)::text) FROM " LAPLACE_PG_SCHEMA ".physicality p WHERE "
+        "p.physicality_id=decode(stored->>'canonical_physicality_id','hex')))::text FROM first_mismatch";
     static const char witnesses_count_sql[] =
         "SELECT count(*) FROM " LAPLACE_PG_SCHEMA
         ".source_structural_witness WHERE source_profile_id=$1";
@@ -555,14 +615,36 @@ void laplace_pg_persist_source_structural_witnesses(
         result = SPI_execute_with_args(
             witnesses_verify_sql, 18, witness_types, witness_parameters,
             NULL, false, 1);
-        if (result != SPI_OK_SELECT || spi_int64_column(1) != 0) {
-            ereport(ERROR,
-                    (errcode(ERRCODE_DATA_CORRUPTED),
-                     errmsg("Laplace structural witness deposition/readback diverged"),
-                     errdetail("batch_start=%llu batch_count=%llu inserted_total=%llu",
-                               (unsigned long long)batch_start,
-                               (unsigned long long)batch_count,
-                               (unsigned long long)inserted_count)));
+        {
+            const int verification_status = result;
+            const int64 mismatch_count =
+                result == SPI_OK_SELECT ? spi_int64_column(1) : -1;
+            if (verification_status != SPI_OK_SELECT || mismatch_count != 0) {
+                char* first_mismatch = NULL;
+                if (verification_status == SPI_OK_SELECT && mismatch_count > 0) {
+                    char* diagnostic_sql = psprintf("%s%s",
+                        witnesses_diagnose_sql_prefix, witnesses_diagnose_sql_result);
+                    const int diagnostic_status = SPI_execute_with_args(
+                        diagnostic_sql, 18, witness_types, witness_parameters,
+                        NULL, false, 1);
+                    pfree(diagnostic_sql);
+                    if (diagnostic_status == SPI_OK_SELECT &&
+                        SPI_processed == 1u && SPI_tuptable != NULL) {
+                        first_mismatch = SPI_getvalue(
+                            SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
+                    }
+                }
+                ereport(ERROR,
+                        (errcode(ERRCODE_DATA_CORRUPTED),
+                         errmsg("Laplace structural witness deposition/readback diverged"),
+                         errdetail("batch_start=%llu batch_count=%llu inserted_total=%llu "
+                                   "verification_status=%d mismatch_count=%lld first_mismatch=%s",
+                                   (unsigned long long)batch_start,
+                                   (unsigned long long)batch_count,
+                                   (unsigned long long)inserted_count,
+                                   verification_status, (long long)mismatch_count,
+                                   first_mismatch != NULL ? first_mismatch : "unavailable")));
+            }
         }
         batch_start += batch_count;
         MemoryContextReset(batch_context);

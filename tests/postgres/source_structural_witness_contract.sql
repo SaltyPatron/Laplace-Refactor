@@ -110,6 +110,8 @@ $physicality_enrichment$;
 DO $mutation$
 DECLARE
     replay source_admission_replay%ROWTYPE;
+    failure_detail text;
+    difference jsonb;
 BEGIN
     SELECT * INTO STRICT replay FROM source_admission_replay;
 
@@ -126,7 +128,26 @@ BEGIN
         RAISE EXCEPTION
             'structural witness mutation was accepted by durable replay';
     EXCEPTION
-        WHEN SQLSTATE 'XX001' THEN NULL;
+        WHEN SQLSTATE 'XX001' THEN
+            GET STACKED DIAGNOSTICS failure_detail = PG_EXCEPTION_DETAIL;
+            IF position('first_mismatch=' in failure_detail) = 0 THEN
+                RAISE EXCEPTION 'structural witness failure lacks its exact first-row diagnostic: %', failure_detail;
+            END IF;
+            difference := split_part(failure_detail, 'first_mismatch=', 2)::jsonb;
+            IF difference->'mismatched_fields' IS DISTINCT FROM '["syntax_flags"]'::jsonb
+               OR difference#>>'{expected,source_profile_id}' IS DISTINCT FROM encode(replay.profile_id,'hex')
+               OR difference#>>'{stored,source_profile_id}' IS DISTINCT FROM encode(replay.profile_id,'hex')
+               OR (difference#>>'{stored,syntax_flags}')::numeric <>
+                  (difference#>>'{expected,syntax_flags}')::numeric + 1
+               OR ((difference->'expected') - 'syntax_flags') IS DISTINCT FROM
+                  ((difference->'stored') - 'syntax_flags')
+               OR difference->'expected_physicality' IS DISTINCT FROM difference->'stored_physicality'
+               OR difference#>>'{expected_physicality,physicality_id}' IS DISTINCT FROM
+                  difference#>>'{expected,canonical_physicality_id}'
+               OR coalesce(length(difference#>>'{expected_physicality,centroid_x}'),0) <> 16
+               OR coalesce(length(difference#>>'{expected_physicality,radius}'),0) <> 16 THEN
+                RAISE EXCEPTION 'structural witness diagnostic did not identify the exact rejected field: %', difference;
+            END IF;
     END;
 
     BEGIN
