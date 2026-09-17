@@ -1,51 +1,61 @@
-name: Qualify exact readback server deadline
+name: Observe actual materialization lookup plans
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
 jobs:
-  readback-deadline:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+  derived-lookup-plans:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 3
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          ref: df158f21bfecaf4045d065b10c21cd92464ce3ec
-          persist-credentials: false
-      - name: Authenticate and syntax-check exact three source leaves
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Explain real selected roots against the current authenticated context
         shell: bash
         run: |
           python3 -I - <<'PY'
-          import ast,base64,hashlib,json,os,pathlib,urllib.request
-          for entry in json.loads("[{\"path\":\"tools/admit_source.py\",\"sha\":\"b20ef5ab21ea17dc056e13cf8d3d5baa4e1dce96\"},{\"path\":\"tests/verified_git_source_tests.py\",\"sha\":\"dba35cfbdee0c066447b20d2f33a809b159a897a\"},{\"path\":\"tests/source_runtime_state_postgres_tests.py\",\"sha\":\"78e77fff37d86ab8e527b0841d36e0c0553198d0\"}]"):
-              request=urllib.request.Request("https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+entry["sha"],headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"})
-              with urllib.request.urlopen(request,timeout=30) as response: value=json.load(response)
-              data=base64.b64decode(value["content"],validate=False)
-              if hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()!=entry["sha"]:raise ValueError("source blob digest differs")
-              ast.parse(data,filename=entry["path"])
-              pathlib.Path(entry["path"]).write_bytes(data)
-              print("AUTHENTICATED_SOURCE",entry["path"],entry["sha"],len(data))
+          import hashlib,json,os,pathlib,re,subprocess,time
+          QUERY="WITH matched AS MATERIALIZED (SELECT DISTINCT ON(n.physicality_id) n.view_id,n.result_index,n.physicality_id FROM laplace.physicality_entity_node n JOIN laplace.physicality_entity_view v USING(view_id) WHERE ((($3 & 2)<>0 AND EXISTS(SELECT 1 FROM unnest($1::bytea[],$2::bytea[]) i(id,selected) WHERE n.entity_id=i.id AND (i.selected IS NULL OR n.physicality_id=i.selected))) OR (($3 & 29)<>0 AND n.child_ids && $1::bytea[]) OR (($3 & 32)<>0 AND $11::bytea IS NOT NULL AND n.entity_id=v.root_entity_id)) AND ($11::bytea IS NULL OR v.view_id=$11) AND (v.admission_context).epochs=$4 AND (v.admission_context).authority_fingerprint=$5 AND (v.admission_context).epoch_mask=$6 AND (v.admission_context).framework_major=$7 AND (v.admission_context).framework_minor=$8 AND ((v.admission_context).flags & $12)=($9 & $12) ORDER BY n.physicality_id,n.view_id,n.result_index LIMIT $10) SELECT m.view_id,m.result_index,2048::bigint+laplace.physicality_entity_varlena_bytes(v.external_known)+laplace.physicality_entity_varlena_bytes(v.admission_context)+laplace.physicality_entity_varlena_bytes(n.physicality_metadata)+laplace.physicality_entity_varlena_bytes(n.child_ids) FROM matched m JOIN laplace.physicality_entity_view v USING(view_id) JOIN laplace.physicality_entity_node n ON n.view_id=m.view_id AND n.result_index=m.result_index ORDER BY m.physicality_id"
+          LIVE="\nSELECT pg_catalog.json_build_object(\n  'activation_epoch_id',pg_catalog.encode(u.activation_epoch_id,'hex'),\n  'activation_epoch_fingerprint',pg_catalog.encode(u.epoch_fingerprint,'hex'),\n  'geometry_epoch',pg_catalog.encode(g.geometry_epoch,'hex'),\n  'perfcache_epoch',pg_catalog.encode(u.epoch_fingerprint,'hex'),\n  'numeric_epoch',pg_catalog.encode(h.activation_epoch_fingerprint,'hex')\n)::text\nFROM laplace.perfcache_active_control AS u\nJOIN laplace.unicode_root_deposit_receipt AS d\n  ON d.activation_epoch_id=u.activation_epoch_id\n AND d.activation_epoch_fingerprint=u.epoch_fingerprint\n AND d.perfcache_manifest_fingerprint=u.manifest_fingerprint\nJOIN laplace.unicode_root_generation AS g\n  ON g.root_receipt=d.root_receipt\n AND g.plan_manifest_fingerprint=d.plan_manifest_fingerprint\n AND g.postgresql_artifact_fingerprint=d.postgresql_artifact_fingerprint\nCROSS JOIN laplace.highway_registry_active_control AS h\nJOIN laplace.highway_registry_generation AS hg\n  ON hg.activation_epoch_id=h.activation_epoch_id\n AND hg.activation_epoch_fingerprint=h.activation_epoch_fingerprint\nWHERE u.singleton AND u.active_present\n  AND h.singleton AND h.active_present;\n"
+          PACKAGE="d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490"
+          PROFILE="c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab"
+          CMD=["/opt/laplace/releases/"+PACKAGE+"/pgsql-18/bin/psql","--host","/opt/laplace/runtime/postgresql/refactor","--port","55433","--username","laplace_admin","--dbname","laplace_refactor","--no-psqlrc","--set","ON_ERROR_STOP=1","--quiet","--tuples-only","--no-align"]
+          env=dict(os.environ);env["PGOPTIONS"]="-c default_transaction_read_only=on -c statement_timeout=5000 -c lock_timeout=1000 -c application_name=refactor_derived_lookup_plans"
+          def sql(query):
+              result=subprocess.run(CMD,input="BEGIN READ ONLY;\n"+query+"\nROLLBACK;\n",text=True,capture_output=True,timeout=10,env=env)
+              if result.returncode:raise RuntimeError(result.stderr[-2000:])
+              if len(result.stdout)>1048576:raise RuntimeError("bounded output exceeded")
+              return json.loads(result.stdout)
+          def emit(kind,value):print(kind+" "+json.dumps(value,sort_keys=True),flush=True)
+          def document(path):
+              data=path.read_bytes()
+              if len(data)>1048576:raise ValueError("receipt too large")
+              return json.loads(data),hashlib.sha256(data).hexdigest()
+          def hex64(value):
+              if not isinstance(value,str) or re.fullmatch("[0-9a-f]{64}",value) is None:raise ValueError("invalid digest")
+              return value
+          def bytesql(value):return "decode('"+value+"','hex')"
+          receipt_root=pathlib.Path("/opt/laplace/receipts/postgresql/refactor")
+          activation,activation_sha=document(receipt_root/"cluster-activation"/PACKAGE/"unicode-product-activation.json")
+          if activation.get("phase")!="product-activated" or activation.get("package_id")!=PACKAGE:raise ValueError("wrong selected activation")
+          request=hex64(activation["request_fingerprint"])
+          identities,identities_sha=document(receipt_root/"unicode"/request/"identities.json")
+          if identities.get("request_fingerprint")!=request:raise ValueError("wrong activation identities")
+          live=sql(LIVE)
+          names=("source_epoch","identity_epoch","geometry_epoch","evidence_epoch","firmware_epoch","dependency_epoch","database_epoch","perfcache_epoch","numeric_epoch","package_epoch")
+          epochs=[hex64(live[name] if name in ("geometry_epoch","perfcache_epoch","numeric_epoch") else identities[name]) for name in names]
+          if live["geometry_epoch"]!=identities["geometry_epoch"]:raise ValueError("live geometry differs")
+          authority=hex64(identities["authority_fingerprint"])
+          emit("DERIVED_CONTEXT",{"package":PACKAGE,"activation_sha256":activation_sha,"identities_sha256":identities_sha,"epochs":epochs,"authority_fingerprint":authority,"framework_major":1,"framework_minor":6,"epoch_mask":1023,"flags":1,"flags_comparison_mask":-3})
+          emit("DERIVED_TABLE_METADATA",sql("SELECT jsonb_build_object('tables',(SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (SELECT c.relname,c.reltuples::text AS estimated_rows,c.relpages,s.last_analyze,s.last_autoanalyze FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace LEFT JOIN pg_stat_user_tables s ON s.relid=c.oid WHERE n.nspname='laplace' AND c.relname IN ('physicality_entity_view','physicality_entity_node')) x),'indexes',(SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (SELECT tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='laplace' AND tablename IN ('physicality_entity_view','physicality_entity_node') ORDER BY tablename,indexname) x));"))
+          roots=sql("SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (SELECT artifact_index::text,encode(canonical_entity_id,'hex') AS entity_id,encode(canonical_physicality_id,'hex') AS physicality_id,byte_end::text FROM laplace.source_structural_witness WHERE source_profile_id=decode('"+PROFILE+"','hex') AND span_index=0 ORDER BY artifact_index LIMIT 3) x;")
+          emit("ACTUAL_ROOT_SELECTORS",roots)
+          for root in roots:
+              if re.fullmatch("[0-9a-f]{32}",root["entity_id"]) is None:raise ValueError("invalid content identity")
+              hex64(root["physicality_id"])
+              params={1:"ARRAY["+bytesql(root["entity_id"])+"]::bytea[]",2:"ARRAY["+bytesql(root["physicality_id"])+"]::bytea[]",3:"2::int4",4:"ARRAY["+','.join(bytesql(x) for x in epochs)+"]::bytea[]",5:bytesql(authority),6:"1023::int8",7:"1::int2",8:"6::int2",9:"1::int4",10:"4::int8",11:"NULL::bytea",12:"-3::int4"}
+              query=re.sub(r"\$(\d+)",lambda m:params[int(m.group(1))],QUERY)
+              try:emit("DERIVED_ROOT_LOOKUP_PLAN",{"artifact_index":root["artifact_index"],"selection":"exact canonical root physicality","scope":"unscoped ordinary composition frontier","plan":sql("EXPLAIN(FORMAT JSON,COSTS TRUE) "+query+";")})
+              except(RuntimeError,subprocess.SubprocessError) as error:emit("DERIVED_PLAN_ERROR",{"artifact_index":root["artifact_index"],"error":str(error)})
+          emit("DERIVED_PLAN_COMPLETE",{"unix":time.time(),"analyze_executed":False,"lease_acquired":False})
           
           PY
-      - name: Prepare owned hosted PostgreSQL fixture workspace
-        shell: bash
-        run: |
-          sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" /build/laplace/work/readback-deadline
-          python3 -I - <<'PY'
-          import os,pathlib
-          candidates=sorted(pathlib.Path("/usr/lib/postgresql").glob("*/bin"),key=lambda p:int(p.parent.name),reverse=True)
-          selected=next((p for p in candidates if all((p/n).is_file() for n in ("initdb","pg_ctl","postgres","psql"))),None)
-          if selected is None:raise RuntimeError("hosted PostgreSQL fixture binaries unavailable")
-          with open(os.environ["GITHUB_ENV"],"a") as output:
-              output.write("SELECTED_PG_BINDIR="+str(selected)+"\nTMPDIR=/build/laplace/work/readback-deadline\n")
-          print("SELECTED_POSTGRESQL",selected)
-          PY
-      - name: Exercise exact readback parser and private PostgreSQL cancellation
-        shell: bash
-        run: |
-          "${SELECTED_PG_BINDIR}/postgres" --version
-          PYTHONPATH=tools python3 -B tests/verified_git_source_tests.py GitReadbackReceiptTests
-          PYTHONPATH=tools python3 -B tests/source_runtime_state_postgres_tests.py --pg-bindir "${SELECTED_PG_BINDIR}"
