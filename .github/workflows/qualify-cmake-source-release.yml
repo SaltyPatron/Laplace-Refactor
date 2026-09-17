@@ -1,38 +1,80 @@
-name: Read exact installed cognition failure evidence
+name: Read exact Original failed consensus state
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: read
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  TMPDIR: /build/laplace/work
+  TMP: /build/laplace/work
+  TEMP: /build/laplace/work
+  PGCONNECT_TIMEOUT: "5"
+  PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
+  OBSERVER_SOURCE: |
+    import datetime,json,os,subprocess
+    sql="""SELECT coalesce(json_agg(row_to_json(found)), '[]'::json)::text
+    FROM (
+     SELECT encode(id,'hex') AS id, encode(type_id,'hex') AS type_id,
+     encode(subject_id,'hex') AS subject_id, encode(object_id,'hex') AS object_id,
+     rating::text AS rating, rd::text AS rd, volatility::text AS volatility,
+     witness_count::text AS witness_count, last_observed_at::text AS last_observed_at
+     FROM laplace.consensus
+     WHERE rating=-1947199190011015233 AND rd=350000000000 AND volatility=482453157376
+     LIMIT 16
+    ) found"""
+    environment=dict(os.environ, PGHOST="/var/run/postgresql", PGPORT="5432",
+     PGUSER="laplace_admin", PGDATABASE="laplace", PGCONNECT_TIMEOUT="5",
+     PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=10000")
+    result=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],
+     env=environment,capture_output=True,text=True,timeout=20)
+    proof={"scope":"Read-only exact failed stored consensus-state lookup; no write or recovery",
+     "observedUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"exitCode":result.returncode}
+    if result.returncode==0:proof["cells"]=json.loads(result.stdout)
+    else:proof["error"]=result.stderr[:4096]
+    print("EXACT_FAILED_CONSENSUS_STATE "+json.dumps(proof,sort_keys=True),flush=True)
 jobs:
-  read:
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Authenticate the actual main activation failure
+      - name: Authenticate and parse the bounded observation owner
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import hashlib,io,json,os,urllib.request,zipfile
-          BASE="https://api.github.com/repos/SaltyPatron/Laplace-Refactor"
-          def get(path):
-              request=urllib.request.Request(BASE+path,headers={"Accept":"application/vnd.github+json"})
-              request.add_unredirected_header("Authorization","Bearer "+os.environ["GH_TOKEN"])
-              with urllib.request.urlopen(request,timeout=60) as response:return response.read()
-          run=json.loads(get("/actions/runs/35172058662"))
-          assert run["head_sha"]=="2e62b2260a145de41596c7f4ab2c4aff65e07352" and run["event"]=="push" and run["head_branch"]=="main"
-          metadata=json.loads(get("/actions/artifacts/10477892824"))
-          expected="d4cc15776a8a8a4b01cee38131086bc14242e68300e3d089fe182bdf9112ecd4"
-          assert metadata["workflow_run"]["id"]==35172058662 and not metadata["expired"]
-          assert metadata["digest"]=="sha256:"+expected
-          raw=get("/actions/artifacts/10477892824/zip")
-          assert len(raw)==2991 and hashlib.sha256(raw).hexdigest()==expected
-          files=zipfile.ZipFile(io.BytesIO(raw))
-          assert len(files.namelist())==1,files.namelist()
-          document=json.loads(files.read(files.namelist()[0]))
-          print("AUTHENTICATED_FAILURE_ARTIFACT "+json.dumps({"id":10477892824,"run":35172058662,"bytes":len(raw),"sha256":expected,"name":files.namelist()[0]}))
-          print("INSTALLED_COGNITION_FAILURE "+json.dumps(document,sort_keys=True))
+          import ast,hashlib,os
+          source=os.environ["OBSERVER_SOURCE"].encode()
+          identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
+          assert identity=="58219339bce8953a8c456239291e9a963356f8c8",identity
+          ast.parse(source)
+          print("Authenticated Original observer 5821933; Python syntax passed without host execution.")
           PY
+  observe:
+    needs: validate
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 5
+    env:
+      EVIDENCE: /build/laplace/work/original-failed-consensus-observer-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Read the exact failed consensus cells without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(id -un)" = laplace-runner
+          mkdir "$EVIDENCE"
+          python3 - <<'PY'
+          import ast,hashlib,os
+          source=os.environ["OBSERVER_SOURCE"].encode()
+          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="58219339bce8953a8c456239291e9a963356f8c8"
+          ast.parse(source)
+          PY
+          timeout --signal=TERM --kill-after=5s 60s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
+      - name: Retain the bounded read-only observation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: original-failed-consensus-observer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE }}/
+          if-no-files-found: error
+          retention-days: 30
