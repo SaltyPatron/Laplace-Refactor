@@ -1,54 +1,230 @@
-name: Read direct container goal actual PostgreSQL failure
+name: Diagnose exact derived-container reflection assertion
 on:
+  workflow_dispatch:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
-  actions: read
+defaults:
+  run:
+    shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+concurrency:
+  group: laplace-derived-container-diagnostic
+  cancel-in-progress: false
 jobs:
-  read-retained:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
+  diagnose:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor, oneapi, postgres-18, dotnet-10, avx2]
+    timeout-minutes: 40
+    env:
+      PATH: /opt/laplace/pgsql-18/bin:/usr/local/bin:/usr/bin:/bin
+      LAPLACE_PG_CONFIG: /opt/laplace/pgsql-18/bin/pg_config
+      LAPLACE_SOURCE_ESTATE_ROOT: /vault/Data
+      LAPLACE_MODEL_ESTATE_ROOT: /vault/models
     steps:
-      - name: Authenticate existing artifact and report actual lane timing
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: e480ec28fd0908fbd964e0a65c17c76ab2f40c34
+      - name: Verify exact diagnostic source and preserve identity
+        run: |
+          test "$(git rev-parse HEAD)" = e480ec28fd0908fbd964e0a65c17c76ab2f40c34
+          git diff --exit-code HEAD --
+          mkdir -p "$RUNNER_TEMP/laplace-derived-container-diagnostic"
+          git show --format=fuller --stat HEAD > "$RUNNER_TEMP/laplace-derived-container-diagnostic/source.txt"
+          git diff ce4328efec8aed403080ded6c16bca8a720d8e07 HEAD -- > "$RUNNER_TEMP/laplace-derived-container-diagnostic/diagnostic-only.diff"
+      - name: Terminate stale database workers from interrupted jobs
+        id: prepare_custom_stack
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import hashlib, io, json, os, urllib.request, zipfile
-          base='https://api.github.com/repos/SaltyPatron/Laplace-Refactor'
-          def get(path):
-              request=urllib.request.Request(base+path,headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
-              request.add_unredirected_header('Authorization','Bearer '+os.environ['GH_TOKEN'])
-              with urllib.request.urlopen(request,timeout=60) as response:
-                  return response.read()
-          run=json.loads(get('/actions/runs/35181067517'))
-          assert run['head_sha']=='ce4328efec8aed403080ded6c16bca8a720d8e07'
-          assert run['event']=='pull_request' and run['head_branch']=='fix/ci-execution-owners-20260916'
-          artifact=json.loads(get('/actions/artifacts/10480657359'))
-          assert artifact['workflow_run']['id']==35181067517
-          assert not artifact['expired']
-          expected='73241976928a99275ab0dfeaae9a8af37f62fa11b6f9a9129b439d5fd1028aed'
-          assert artifact['digest']=='sha256:'+expected
-          data=get('/actions/artifacts/10480657359/zip')
-          assert len(data)==53121 and hashlib.sha256(data).hexdigest()==expected
-          archive=zipfile.ZipFile(io.BytesIO(data))
-          print(json.dumps({'artifact':10480657359,'run':35181067517,'zip_sha256':expected,'names':archive.namelist()},sort_keys=True))
-          names=[n for n in archive.namelist() if n=='result.json' or n.endswith('/result.json')]
-          assert len(names)==1
-          result=json.loads(archive.read(names[0]))
-          print('LAPLACE_QA_RESULT_BEGIN')
-          print(json.dumps({key:value for key,value in result.items() if key!='lanes'},sort_keys=True,indent=2))
-          for lane in result['lanes']:
-              print(json.dumps({key:value for key,value in lane.items() if key not in ('embedded_receipts','command')},sort_keys=True,indent=2))
-          print('LAPLACE_QA_RESULT_END')
-          for name in archive.namelist():
-              if name.endswith('.log'):
-                  content=archive.read(name).decode('utf-8',errors='replace')
-                  lines=content.splitlines()
-                  selected=[line for line in lines if any(word in line for word in ('Total Test time','tests passed','source-runtime-state-schema','verified-cpp-source-contract','Test #'))]
-                  print('LAPLACE_QA_LOG '+name)
-                  print('\n'.join(line for line in lines if not line.startswith(('INSERT ', 'UPDATE ', 'DELETE ', 'CREATE ', 'DROP ', 'ALTER ', 'DO', 'COMMIT', 'BEGIN')))[-220000:])
-          PY
+          printf 'started=true\n' >> "$GITHUB_OUTPUT"
+          python3 tools/delivery/runner_orphan_cleanup.py \
+            --minimum-age-seconds 300 \
+            --grace-seconds 5 \
+            --terminate
+      - name: Sweep stale interrupted custom-stack residue
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "${TMPDIR:-/build/laplace/work}" \
+            --minimum-age-seconds 300 \
+            --discover-prefix laplace-postgres-test. \
+            --discover-prefix lp-pg.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --minimum-age-seconds 300 \
+            --discover-prefix laplace-postgres-test.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp /tmp \
+            --minimum-age-seconds 300 \
+            --discover-prefix lp-pg.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --minimum-age-seconds 300 \
+            --name laplace-sources \
+            --name laplace-output \
+            --name laplace-custom-stack-qa \
+            --name laplace-custom-stack-qa-result-replay.json \
+            --name laplace-custom-stack-changed.status \
+            --name laplace-custom-stack-qa-plan.json
+      - name: Verify execution identity and toolchain
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          test "$(id -un)" = laplace-runner
+          test -w "$RUNNER_TEMP"
+          test -x "$LAPLACE_PG_CONFIG"
+          test "$($LAPLACE_PG_CONFIG --version | awk '{print $2}' | cut -d. -f1)" = 18
+          LAPLACE_ICX=$(jq -r '.toolchain.c_compiler' contracts/postgresql-build.json)
+          LAPLACE_ICPX=$(jq -r '.toolchain.cxx_compiler' contracts/postgresql-build.json)
+          expected_icx_sha=$(jq -r '.toolchain.c_compiler_sha256' contracts/postgresql-build.json)
+          expected_icpx_sha=$(jq -r '.toolchain.cxx_compiler_sha256' contracts/postgresql-build.json)
+          test -x "$LAPLACE_ICX"
+          test -x "$LAPLACE_ICPX"
+          test "$(sha256sum "$LAPLACE_ICX" | awk '{print $1}')" = "$expected_icx_sha"
+          test "$(sha256sum "$LAPLACE_ICPX" | awk '{print $1}')" = "$expected_icpx_sha"
+          test "$(dotnet --version | cut -d. -f1)" = 10
+          grep -qm1 -w avx2 /proc/cpuinfo
+          printf 'LAPLACE_ICX=%s\n' "$LAPLACE_ICX" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ICPX=%s\n' "$LAPLACE_ICPX" >> "$GITHUB_ENV"
+          cmake --version
+          ninja --version
+          "$LAPLACE_PG_CONFIG" --version
+          "$LAPLACE_ICX" --version
+          dotnet --version
+      - name: Select exact locally verified dependencies and source estate
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          python3 tools/dependencies/verify-installed-lock.py --verify-files
+          dependency_root=$(python3 tools/dependencies/source_estate.py --lock dependencies/lock.json)
+          bash tools/dependencies/ensure-locked-git.sh "$dependency_root"
+          ./tools/dependencies/verify-lock.sh "$dependency_root"
+
+          test -d "$LAPLACE_SOURCE_ESTATE_ROOT"
+          test -d "$LAPLACE_MODEL_ESTATE_ROOT"
+          unicode_root="$LAPLACE_SOURCE_ESTATE_ROOT/UCD/Public/UCD/latest"
+          test -d "$unicode_root"
+
+          controlled_source_root="$RUNNER_TEMP/laplace-sources"
+          iso_fixture="$controlled_source_root/iso-639-3-20260415"
+          cili_fixture="$controlled_source_root/cili-pwn-mappings-20240611"
+          python3 tools/sources/acquire-tabular-source.py \
+            --profile contracts/sources/iso-639-3-20260415.json \
+            --destination "$iso_fixture"
+          python3 tools/sources/acquire-tabular-source.py \
+            --profile contracts/sources/cili-pwn-mappings-20240611.json \
+            --destination "$cili_fixture"
+
+          printf 'LAPLACE_DEPENDENCY_ROOT=%s\n' "$dependency_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_UNICODE_SOURCE_ROOT=%s\n' "$unicode_root" >> "$GITHUB_ENV"
+          printf 'LAPLACE_ISO_639_SOURCE_ROOT=%s\n' "$iso_fixture" >> "$GITHUB_ENV"
+          printf 'LAPLACE_CILI_SOURCE_ROOT=%s\n' "$cili_fixture" >> "$GITHUB_ENV"
+      - name: Build and verify the locked C++ syntax provider
+        run: |
+          set -euo pipefail
+          provider_root="$RUNNER_TEMP/laplace-output/cpp-grammar"
+          printf 'LAPLACE_CPP_GRAMMAR_RECEIPT=%s\n' "$provider_root/build-receipt.json" >> "$GITHUB_ENV"
+          python3 tools/sources/qualify_grammar.py --acquire \
+            --grammar-root "$RUNNER_TEMP/laplace-sources/tree-sitter-cpp" \
+            --runtime-root "$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            --grammar-lock dependencies/tree-sitter-grammars.lock.json \
+            --dependency-lock dependencies/lock.json \
+            --compiler "$LAPLACE_ICX" \
+            --grammar tree-sitter-cpp --output "$provider_root"
+          test -s "$provider_root/build-receipt.json"
+      - name: Build and verify the locked PGN syntax provider
+        run: |
+          set -euo pipefail
+          provider_root="$RUNNER_TEMP/laplace-output/pgn-grammar"
+          printf 'LAPLACE_PGN_GRAMMAR_RECEIPT=%s\n' "$provider_root/build-receipt.json" >> "$GITHUB_ENV"
+          python3 tools/sources/qualify_grammar.py --acquire \
+            --grammar-root "$RUNNER_TEMP/laplace-sources/tree-sitter-pgn" \
+            --runtime-root "$LAPLACE_DEPENDENCY_ROOT/tree-sitter" \
+            --grammar-lock dependencies/tree-sitter-grammars.lock.json \
+            --dependency-lock dependencies/lock.json \
+            --compiler "$LAPLACE_ICX" \
+            --grammar tree-sitter-pgn --output "$provider_root"
+          test -s "$provider_root/build-receipt.json"
+      - name: Configure outside the repository
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          bash tools/tests/configure-custom-stack.sh
+      - name: Build native engine PostgreSQL extension and managed bindings
+        run: cmake --build "$LAPLACE_CI_BUILD_DIRECTORY" --parallel 6
+      - name: Execute only the actual C++ and derived reflection boundary
+        run: |
+          set -uo pipefail
+          evidence="$RUNNER_TEMP/laplace-derived-container-diagnostic"
+          set +e
+          ctest --test-dir "$LAPLACE_CI_BUILD_DIRECTORY" \
+            --output-on-failure --test-output-size-passed 4194304 \
+            --output-junit "$evidence/result.junit.xml" \
+            -R '^postgres[.]verified-cpp-source-contract$' \
+            2>&1 | tee "$evidence/ctest.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > "$evidence/exit-code.txt"
+          cp "$LAPLACE_CI_BUILD_DIRECTORY/tests/postgres/physicality_entity_contract.sql" "$evidence/executed-physicality-contract.sql"
+          exit "$status"
+      - name: Retain exact diagnostic evidence without acceptance promotion
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: derived-container-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/laplace-derived-container-diagnostic/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload exact C++ provider build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cpp-provider-custom-stack-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build-receipt.json
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build.stdout.log
+            ${{ runner.temp }}/laplace-output/cpp-grammar/build.stderr.log
+            ${{ runner.temp }}/laplace-output/cpp-grammar/provider.so
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Upload exact PGN provider build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pgn-provider-custom-stack-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/laplace-output/pgn-grammar/build-receipt.json
+            ${{ runner.temp }}/laplace-output/pgn-grammar/build.stdout.log
+            ${{ runner.temp }}/laplace-output/pgn-grammar/build.stderr.log
+            ${{ runner.temp }}/laplace-output/pgn-grammar/provider.so
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Clean disposable custom-stack workspaces
+        # The preparation shell records ownership only after acquiring the host lock.
+        if: always() && steps.prepare_custom_stack.outputs.started == 'true'
+        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          python3 tools/delivery/runner_orphan_cleanup.py \
+            --minimum-age-seconds 0 \
+            --grace-seconds 5 \
+            --terminate
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "${TMPDIR:-/build/laplace/work}" \
+            --discover-prefix laplace-postgres-test. \
+            --discover-prefix lp-pg.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --discover-prefix laplace-postgres-test.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp /tmp \
+            --discover-prefix lp-pg.
+          python3 tools/delivery/proof_workspace_cleanup.py \
+            --runner-temp "$RUNNER_TEMP" \
+            --name laplace-sources \
+            --name laplace-output \
+            --name laplace-custom-stack-qa \
+            --name laplace-custom-stack-qa-result-replay.json \
+            --name laplace-custom-stack-changed.status \
+            --name laplace-custom-stack-qa-plan.json
