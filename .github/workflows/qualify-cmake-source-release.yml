@@ -240,6 +240,36 @@ jobs:
           assert whole[0]["postgresql_admission"] is False
           assert isinstance(whole[0]["syntax_errors_or_missing"], int) and whole[0]["syntax_errors_or_missing"] >= 0
           PY
+      - name: Retain native compilation inputs and outputs before observer assertions
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil
+          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"])
+          evidence = root / "evidence"
+          evidence.mkdir(parents=True, exist_ok=True)
+          paths = {
+              "compile_commands.json": "build/compile_commands.json",
+              "CMakeCache.txt": "build/CMakeCache.txt",
+              "build.ninja": "build/build.ninja",
+              "laplace_verified_cpp_source_probe": "build/tests/laplace_verified_cpp_source_probe",
+              "laplace_verified_grammar_loader_probe": "build/tests/laplace_verified_grammar_loader_probe",
+              "liblaplace_engine.so": "build/engine/liblaplace_engine.so",
+              "libtree-sitter.a": "build/dependencies/tree-sitter/libtree-sitter.a",
+              "tree-sitter-CMakeLists.txt": "dependencies/tree-sitter/CMakeLists.txt",
+          }
+          retained = []
+          for name, relative in paths.items():
+              source = root / relative
+              item = {"path": str(source), "artifact_member": name, "exists": source.is_file()}
+              if item["exists"]:
+                  shutil.copy2(source, evidence / name)
+                  item["sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
+                  item["bytes"] = source.stat().st_size
+              retained.append(item)
+          evidence.joinpath("native-build-retention.json").write_text(json.dumps(retained, indent=2, sort_keys=True) + "\n")
+          PY
       - name: Recheck actual source runtime and executable evidence
         shell: bash
         run: |
@@ -261,14 +291,46 @@ jobs:
               assert record["implementation_sha256"] == sha(pathlib.Path("tools/sources/qualify_grammar.py"))
               assert record["library"]["sha256"] == sha(pathlib.Path(record["library"]["path"]))
           commands = json.loads(root.joinpath("build/compile_commands.json").read_bytes())
-          runtime_source = root / "dependencies/tree-sitter/lib/src/lib.c"
+          cache = root.joinpath("build/CMakeCache.txt").read_text()
+          modes = [line.split("=", 1)[1] for line in cache.splitlines() if line.startswith("AMALGAMATED:BOOL=")]
+          assert len(modes) == 1 and modes[0] in {"ON", "OFF"}
+          runtime_directory = (root / "dependencies/tree-sitter/lib/src").resolve()
+          expected_sources = ({runtime_directory / "lib.c"} if modes[0] == "ON" else
+              {source.resolve() for source in runtime_directory.glob("*.c") if source.name != "lib.c"})
           compiled = [row for row in commands
-              if pathlib.Path(row["directory"], row["file"]).resolve() == runtime_source.resolve()]
-          assert len(compiled) == 1
-          argv = compiled[0].get("arguments") or shlex.split(compiled[0]["command"])
-          output = pathlib.Path(compiled[0]["directory"], argv[argv.index("-o") + 1]).resolve()
-          assert output.is_file()
+              if pathlib.Path(row["directory"], row["file"]).resolve().parent == runtime_directory
+              and pathlib.Path(row["file"]).suffix == ".c"]
+          compiled.sort(key=lambda row: row["file"])
+          actual_sources = [pathlib.Path(row["directory"], row["file"]).resolve() for row in compiled]
+          observation = {"schema": "laplace.selected-runtime-compilation-observation/v1",
+              "amalgamated": modes[0], "expected_sources": sorted(map(str, expected_sources)),
+              "observed_sources": list(map(str, actual_sources)),
+              "compile_commands": compiled, "objects": []}
+          observation_path = root / "evidence/runtime-compilation-observation.json"
+          def save_observation():
+              observation_path.write_text(json.dumps(observation, indent=2, sort_keys=True) + "\n")
+          save_observation()
+          print("CPP_RUNTIME_COMPILATION_SELECTION " + json.dumps({
+              "amalgamated": modes[0], "expected_translation_units": len(expected_sources),
+              "observed_translation_units": len(compiled),
+              "lib_c_matches": sum(source.name == "lib.c" for source in actual_sources)}, sort_keys=True))
+          assert expected_sources and len(actual_sources) == len(expected_sources)
+          assert set(actual_sources) == expected_sources
+          runtime_objects = root / "evidence/runtime-objects"
+          runtime_objects.mkdir()
+          for row, source in zip(compiled, actual_sources, strict=True):
+              argv = row.get("arguments") or shlex.split(row["command"])
+              output = pathlib.Path(row["directory"], argv[argv.index("-o") + 1]).resolve()
+              assert output.is_file() and output.is_relative_to((root / "build").resolve())
+              shutil.copy2(output, runtime_objects / output.name)
+              observation["objects"].append({"source": str(source), "source_sha256": sha(source),
+                  "object": str(output), "object_sha256": sha(output),
+                  "artifact_member": "runtime-objects/" + output.name})
+              save_observation()
           native = root / "build/tests/laplace_verified_cpp_source_probe"
+          engine = root / "build/engine/liblaplace_engine.so"
+          runtime_archive = root / "build/dependencies/tree-sitter/libtree-sitter.a"
+          assert engine.is_file() and runtime_archive.is_file()
           record = {"schema": "laplace.cpp-selected-runtime-native-qualification/v1",
               "phase": "passed-hosted-native-provider-and-source-plan",
               "product_parent_commit": os.environ["PRODUCT_PARENT_COMMIT"],
@@ -282,9 +344,10 @@ jobs:
               "candidate_build_receipt_sha256": sha(root / "evidence/providers/candidate/build-receipt.json"),
               "official_build_receipt_sha256": sha(root / "evidence/providers/official/build-receipt.json"),
               "native_probe_sha256": sha(native), "runtime": expected_runtime,
-              "actual_runtime_compilation": compiled[0],
-              "runtime_translation_unit_sha256": sha(runtime_source),
-              "runtime_object_sha256": sha(output),
+              "actual_runtime_compilation": observation,
+              "runtime_compilation_observation_sha256": sha(observation_path),
+              "runtime_archive_sha256": sha(runtime_archive),
+              "native_engine_sha256": sha(engine),
               "registered_native_contracts_passed": 2,
               "authentic_accepted_cases": 3, "malformed_controls": 4,
               "official_provider_control": json.loads(root.joinpath("evidence/official-control.json").read_bytes()),
@@ -292,9 +355,6 @@ jobs:
               "postgresql_admission_executed": False, "installed_provider_changed": False,
               "persisted102_diagnostics_recounted": False, "executable_semantics_verified": False}
           root.joinpath("evidence/qualification.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
-          shutil.copy2(native, root / "evidence/laplace_verified_cpp_source_probe")
-          shutil.copy2(root / "build/compile_commands.json", root / "evidence/compile_commands.json")
-          shutil.copy2(root / "build/CMakeCache.txt", root / "evidence/CMakeCache.txt")
           print("CPP_SELECTED_RUNTIME_NATIVE_QUALIFICATION " + json.dumps(record, sort_keys=True))
           print("::notice title=Selected C++ provider::Hosted native provider and source-plan qualification PASS; installed PostgreSQL admission remains separate")
           PY
