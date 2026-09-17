@@ -1,459 +1,156 @@
-name: Observe every prerequisite and prepare exact source providers
+name: Read exact persisted Stockfish syntax diagnostics
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: laplace-cmake-component-qualification
   cancel-in-progress: false
-env:
-  PYTHONDONTWRITEBYTECODE: "1"
-  GIT_OPTIONAL_LOCKS: "0"
-  TMPDIR: /build/laplace/work
-  TMP: /build/laplace/work
-  TEMP: /build/laplace/work
-  CMAKE_EVIDENCE: /build/laplace/work/cmake-component-qualification/${{ github.run_id }}-${{ github.run_attempt }}
 jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - name: Check every executable script before acquiring the shared host
+      - name: Validate the diagnostic extraction without database access
         shell: bash
         run: |
-          python3 -B - <<'LINT'
-          import ast, pathlib, re, subprocess, yaml
-          path=pathlib.Path(".github/workflows/qualify-cmake-source-release.yml")
-          document=yaml.safe_load(path.read_text())
-          scripts=0
-          for step in document["jobs"]["qualify"]["steps"]:
-              body=step.get("run")
-              if body is None: continue
-              subprocess.run(["bash","-n"],input=body,text=True,check=True)
-              for match in re.finditer(r"<<'PY'\n(.*?)\nPY(?:\n|$)",body,re.S):
-                  ast.parse(match[1]); scripts+=1
-          assert scripts==3, scripts
-          print("All three Bash blocks and all three embedded Python programs parsed.")
+          python3 - <<'LINT'
+          import ast,pathlib,re,subprocess,yaml
+          value=yaml.safe_load(pathlib.Path(".github/workflows/qualify-cmake-source-release.yml").read_text())
+          script=value["jobs"]["observe"]["steps"][1]["run"]
+          subprocess.run(["bash","-n"],input=script,text=True,check=True)
+          match=re.search(r"<<'PY'\n(.*?)\nPY(?:\n|$)",script,re.S)
+          assert match
+          ast.parse(match[1])
+          print("Read-only diagnostic SQL extraction Bash and Python parsed.")
           LINT
-  qualify:
+  observe:
     needs: validate
-    if: github.repository == 'SaltyPatron/Laplace-Refactor'
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 50
+    timeout-minutes: 5
+    env:
+      TMPDIR: /build/laplace/work
+      TMP: /build/laplace/work
+      TEMP: /build/laplace/work
+      DIAGNOSTIC_EVIDENCE: /build/laplace/work/stockfish-syntax-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: b042de4216e1d674effe5bd3e8ecf3ebc7aeddac
           fetch-depth: 0
           persist-credentials: false
-      - name: Retain exact source and prepare existing-owner operation
+      - name: Read the exact installed profile and authenticated frozen source context
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           umask 077
           test "$(id -un)" = laplace-runner
-          test "$GITHUB_REPOSITORY" = SaltyPatron/Laplace-Refactor
-          test "$GITHUB_REF" = refs/heads/qualify/cmake-source-443-20260916
           test "$(git rev-parse HEAD)" = b042de4216e1d674effe5bd3e8ecf3ebc7aeddac
-          test "$(git rev-parse HEAD^{tree})" = 17c155bb1db7c126c315e6f6dac41b594d614e56
-          test "$(git diff --name-only --no-renames HEAD "$GITHUB_SHA")" = .github/workflows/qualify-cmake-source-release.yml
-          test -z "$(git status --porcelain --untracked-files=all)"
           python3 -B - <<'PY'
-          import os, stat
-          from pathlib import Path
-          target=Path(os.environ["CMAKE_EVIDENCE"])
-          target.parent.mkdir(mode=0o700,exist_ok=True)
-          info=target.parent.lstat()
-          if not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.geteuid() or stat.S_IMODE(info.st_mode) not in (0o700,0o2700):
-              raise SystemExit("evidence parent is not a private owned directory")
-          target.mkdir(mode=0o700)
-          PY
-          git show "$GITHUB_SHA:.github/workflows/qualify-cmake-source-release.yml" > "$CMAKE_EVIDENCE/executed-workflow.yml"
-          git archive --format=tar HEAD tools contracts dependencies state > "$CMAKE_EVIDENCE/operator-source.tar"
-          cat > "$CMAKE_EVIDENCE/operate.py" <<'PY'
-          """Observe every build prerequisite and prepare exact sources; never run builds."""
-          import hashlib, importlib.util, json, os, re, shutil, stat, subprocess, sys, tempfile, time
-          from pathlib import Path
-          ROOT=Path.cwd().resolve()
-          OUT=Path(os.environ["CMAKE_EVIDENCE"])
-          BASE="b042de4216e1d674effe5bd3e8ecf3ebc7aeddac"
-          PACKAGE="912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe"
-          AGGREGATE="b3d3ae843cc2aad1a2ed41d7287aa763eb664278962e8d68086bbbc80e513eb8"
+          import hashlib, importlib.util, io, json, os, pathlib, subprocess, sys, time, urllib.request, zipfile
+          ROOT=pathlib.Path.cwd()
+          OUT=pathlib.Path(os.environ["DIAGNOSTIC_EVIDENCE"])
+          OUT.mkdir(parents=True,exist_ok=False)
           sys.path.insert(0,str(ROOT/"tools"))
           from sources import stockfish_corpus_acceptance as activation
-          def module(name,relative):
-              spec=importlib.util.spec_from_file_location(name,ROOT/relative)
-              value=importlib.util.module_from_spec(spec);sys.modules[name]=value
-              spec.loader.exec_module(value);return value
-          toolchain=module("fresh_toolchain_owner","tools/toolchain/build-package.py")
-          runtime=module("fresh_runtime_owner","tools/dependencies/build-runtime-graph.py")
-          postgres=module("fresh_pg_owner","tools/postgresql/build-package.py")
-          publication=module("fresh_publication_owner","tools/delivery/postgresql_package_publication.py")
-          selection=module("fresh_selection_owner","tools/delivery/recover_postgresql_publication.py")
-          release=toolchain.load_release_module(ROOT)
-          original=toolchain.read_json(ROOT/"contracts/toolchain-build.json")
-          runtime_original=toolchain.read_json(ROOT/"contracts/postgresql-runtime-build.json")
-          pg_original=toolchain.read_json(ROOT/"contracts/postgresql-build.json")
-          toolchain.validate_contract(original,ROOT)
-          runtime.validate_contract(runtime_original)
-          postgres.validate_contract(pg_original)
-          lock_path=ROOT/original["release_lock"]
-          lock=release.load_lock(lock_path)
-          lock_sha=toolchain.sha256_file(lock_path)
-          started=time.monotonic();deadline=started+2200
-          report={"schema":"laplace.source-provider-preparation/v1","status":"running",
-                  "source_commit":BASE,"installed_repository_commit":BASE,"installed_package_id":PACKAGE,
-                  "product_built":False,"upstream_697_qualified":False,
-                  "upstream_697_executed_this_run":False,"postgresql_build_executed_this_run":False,
-                  "postgresql_qualified":False,"postgresql_publication_completed":False,
-                  "installed_selection_changed":False,"phases":[],"prerequisites":{},
-                  "source_outcomes":{},"historical_cache_observations":{},
-                  "next_operation":"canonical 14-component toolchain, 7-component runtime and PostgreSQL; no build started"}
-          def save():
-              report["elapsed_seconds"]=time.monotonic()-started
-              activation.save(OUT/"result.json",report)
-          def require(condition,message):
-              if not condition: raise RuntimeError(message)
-          def probe(name,operation,required=True):
-              row={"status":"running","required":required};report["prerequisites"][name]=row;save()
-              begin=time.monotonic()
-              try:
-                  require(time.monotonic()<deadline,"preparation deadline exhausted")
-                  value=operation()
-                  path=OUT/(name+".json");activation.save(path,value)
-                  row.update(status="passed",evidence=str(path),sha256=toolchain.sha256_file(path))
-                  return value
-              except Exception as error:
-                  row.update(status="failed",error={"type":type(error).__module__+"."+type(error).__name__,
-                                                  "message":str(error)[:3000]})
-                  return None
-              finally:
-                  row["elapsed_seconds"]=time.monotonic()-begin;save()
-          def skipped(name,why):
-              report["prerequisites"][name]={"status":"blocked","required":True,"why":why};save()
-          def active(label):
-              value=activation.observe_activation(BASE,OUT/(label+".json"))
-              require(value["package_id"]==PACKAGE and any(
-                  item["document"].get("result_sha256")==AGGREGATE for item in value["runner_receipts"]),
-                  "installed package or activation aggregate differs")
-              return value
-          def execute(name,argv,seconds=300):
-              maximum=min(seconds,int(deadline-time.monotonic())-30)
-              require(maximum>0,"preparation deadline exhausted before "+name)
-              with (OUT/(name+".stdout")).open("xb") as out,(OUT/(name+".stderr")).open("xb") as err:
-                  result=subprocess.run(["/usr/bin/timeout","--signal=TERM","--kill-after=10s",
-                      str(maximum)+"s",*map(str,argv)],cwd=ROOT,env=environment,
-                      stdout=out,stderr=err,timeout=maximum+15,check=False)
-              require(result.returncode==0,name+" failed; retained stdout/stderr give the exact cause")
-              return OUT/(name+".stdout")
-          def derived_copy(value):
-              return json.loads(json.dumps(value))
-          contract=derived_copy(original)
-          contract["logical_roots"].update({
-              "archive_root":"/build/laplace/work/refactor-toolchain-source-archives",
-              "source_generation":"/build/laplace/work/refactor-toolchain-source-generations/"+lock_sha,
-              "build_root":"/build/laplace/build/refactor-toolchain",
-              "work_root":"/build/laplace/work/refactor-toolchain",
-              "stage_root":"/build/laplace/build/refactor-toolchain-stage"})
-          runtime_contract=derived_copy(runtime_original)
-          runtime_contract["execution"].update({
-              "build_root":"/build/laplace/build/refactor-postgresql-runtime",
-              "stage_root":"/build/laplace/build/refactor-postgresql-runtime-stage"})
-          pg_contract=derived_copy(pg_original)
-          pg_contract["execution"].update({
-              "build_root":"/build/laplace/build/refactor-postgresql",
-              "stage_root":"/build/laplace/build/refactor-postgresql-stage"})
+          BASE="b042de4216e1d674effe5bd3e8ecf3ebc7aeddac"
+          PACKAGE="912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe"
+          PROFILE="2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651"
+          MANIFEST=pathlib.Path("/opt/laplace/sources/acceptance/stockfish/f4183139d6274eca84b2cbd5ba29e54f/manifest.json")
+          def require(value,message):
+              if not value: raise RuntimeError(message)
+          def digest(data): return hashlib.sha256(data).hexdigest()
+          def save(name,value): activation.save(OUT/name,value)
+          before=activation.observe_activation(BASE,OUT/"activation-before.json")
+          require(before["package_id"]==PACKAGE,"installed package differs")
+          manifest_bytes=MANIFEST.read_bytes()
+          require(digest(manifest_bytes)=="2346d3970f5ae3619b7ad69bbc80939c816bb14af94249be5c20a44c5ac33adc","frozen source manifest differs")
+          manifest=json.loads(manifest_bytes)
+          require(len(manifest["artifacts"])==119 and manifest["commit"]=="edb0d9db6731067ec50ce619ff372b463bc4dd5d","official source manifest identity differs")
+          files={}
+          for i,item in enumerate(manifest["artifacts"]):
+              path=MANIFEST.parent/"files"/item["path"]
+              require(not path.is_symlink() and path.is_file(),"frozen file unavailable")
+              data=path.read_bytes()
+              require(len(data)==item["byte_count"] and digest(data)==item["sha256"],"frozen source bytes differ: "+item["path"])
+              files[i]=(item,data)
+          require(sum(len(data) for item,data in files.values())==1172144,"frozen source byte denominator differs")
+          save("source-manifest.json",manifest)
+          api="https://api.github.com/repos/SaltyPatron/Laplace-Refactor/actions/artifacts/10474447094/zip"
+          request=urllib.request.Request(api,headers={"Accept":"application/vnd.github+json"})
+          request.add_unredirected_header("Authorization","Bearer "+os.environ["GH_TOKEN"])
+          with urllib.request.urlopen(request,timeout=60) as response: archive=response.read(4*1024*1024)
+          require(len(archive)==3016206 and digest(archive)=="a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007","authenticated source admission artifact differs")
+          with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+              matches=[n for n in bundle.namelist() if n.endswith("grammar/build-receipt.json")]
+              require(len(matches)==1,"exact grammar receipt missing")
+              grammar=json.loads(bundle.read(matches[0]))
+          save("qualified-grammar-receipt.json",grammar)
+          symbol_error={"type":"not-requested","message":"Persisted grammar kinds retain verified kind base and numeric symbol IDs; no runtime C ABI inference is used."}
+          def symbol(kind):
+              if kind is None or int(kind) == 0: return None
+              value=int(kind)
+              require(value & ~0xffff == 0x4350500000000000,"persisted grammar kind has an unexpected language base")
+              return {"kind_base":"0x4350500000000000","symbol_id":value & 0xffff,"name":None}
+          query="""BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+          SET LOCAL statement_timeout = '30s';
+          SELECT json_build_object(
+          'profile', (SELECT row_to_json(p) FROM (SELECT encode(profile_id,'hex') AS profile_id,error_count,malformed_count,unsupported_count,unknown_count,lossy_count FROM laplace.source_profile WHERE profile_id=decode('__PROFILE__','hex'))p),
+          'nodes', (SELECT coalesce(json_agg(row_to_json(q) ORDER BY artifact_index,span_index),'[]'::json) FROM (
+          SELECT w.artifact_index,w.span_index,w.parent_span_index,w.byte_start,w.byte_end,w.kind,w.grammar_kind,w.field_kind,w.depth,w.flags,w.syntax_flags,
+          p.grammar_kind AS parent_grammar_kind,p.byte_start AS parent_byte_start,p.byte_end AS parent_byte_end,p.syntax_flags AS parent_syntax_flags,
+          g.grammar_kind AS grandparent_grammar_kind,g.byte_start AS grandparent_byte_start,g.byte_end AS grandparent_byte_end,g.syntax_flags AS grandparent_syntax_flags
+          FROM laplace.source_structural_witness w
+          LEFT JOIN laplace.source_structural_witness p ON p.source_profile_id=w.source_profile_id AND p.artifact_index=w.artifact_index AND p.span_index=w.parent_span_index
+          LEFT JOIN laplace.source_structural_witness g ON g.source_profile_id=p.source_profile_id AND g.artifact_index=p.artifact_index AND g.span_index=p.parent_span_index
+          WHERE w.source_profile_id=decode('__PROFILE__','hex') AND (w.syntax_flags::bigint & 6)<>0
+          ORDER BY w.artifact_index,w.span_index LIMIT 103)q));
+          COMMIT;
+          """.replace("__PROFILE__",PROFILE)
+          (OUT/"query.sql").write_text(query)
+          instance=before["cluster_plan"]["instance"]
+          command=[str(pathlib.Path(before["release"])/"pgsql-18/bin/psql"),"--no-psqlrc","--no-password","--quiet","--tuples-only","--no-align","--set","ON_ERROR_STOP=1","--host",instance["socket_directory"],"--port",str(instance["port"]),"--username",instance["admin_role"],"--dbname",instance["database"]]
           environment=dict(os.environ)
-          rejected=set(original["environment"]["rejected_nonempty"])
-          rejected.update(runtime_original["execution"]["rejected_environment"])
-          rejected.update(pg_original["environment"]["rejected_nonempty"])
-          report["ambient_build_variable_names_removed"]=sorted(name for name in rejected if environment.pop(name,None))
-          # Imported owners also inspect os.environ; the same explicit clean environment
-          # governs their in-process prerequisite observation and canonical CLI planning.
-          for name in rejected: os.environ.pop(name,None)
-          def contracts():
-              restored=derived_copy(contract);restored["logical_roots"]=original["logical_roots"]
-              require(restored==original,"toolchain derivation changed more than physical roots")
-              restored=derived_copy(runtime_contract)
-              restored["execution"]["build_root"]=runtime_original["execution"]["build_root"]
-              restored["execution"]["stage_root"]=runtime_original["execution"]["stage_root"]
-              require(restored==runtime_original,"runtime derivation changed more than physical roots")
-              toolchain.validate_contract(contract,ROOT);runtime.validate_contract(runtime_contract)
-              toolchain.validate_environment(contract,environment)
-              runtime.validate_environment(runtime_contract,environment)
-              postgres.validate_environment(pg_contract,environment)
-              activation.save(OUT/"runner-toolchain-contract.json",contract)
-              activation.save(OUT/"runner-runtime-contract.json",runtime_contract)
-              return {"toolchain_sha256":toolchain.sha256_file(OUT/"runner-toolchain-contract.json"),
-                      "runtime_sha256":toolchain.sha256_file(OUT/"runner-runtime-contract.json"),
-                      "rule":"only physical storage roots differ; compiler/flags/tests/versions unchanged"}
-          def directory(path):
-              require(path.is_absolute() and not path.is_symlink(),"storage root must be physical and absolute: "+str(path))
-              path.mkdir(mode=0o750,parents=True,exist_ok=True)
-              info=path.stat()
-              require(stat.S_ISDIR(info.st_mode) and info.st_uid==os.geteuid() and
-                      os.access(path,os.W_OK|os.R_OK|os.X_OK),"runner does not own usable storage root: "+str(path))
-              descriptor,name=tempfile.mkstemp(prefix=".access-probe-",dir=path)
-              try:
-                  os.write(descriptor,b"source-preparation-storage-probe\n");os.fsync(descriptor)
-              finally:
-                  os.close(descriptor);Path(name).unlink()
-              usage=shutil.disk_usage(path)
-              return {"path":str(path),"resolved":str(path.resolve()),"uid":info.st_uid,
-                      "gid":info.st_gid,"mode":oct(stat.S_IMODE(info.st_mode)),
-                      "free_bytes":usage.free,"device":info.st_dev,"write_fsync_probe":"passed"}
-          def bootstrap_subset(tools,includes,libraries):
-              scoped=derived_copy(original)
-              scoped["bootstrap"]["tools"]=tools
-              scoped["bootstrap"]["system_abi"]["include_roots"]=includes
-              scoped["bootstrap"]["system_abi"]["library_search_roots"]=libraries
-              # Diagnostic slices retain the canonical verifier. The real plan separately
-              # verifies the full untouched bootstrap declaration.
-              return toolchain.verify_bootstrap(scoped)
-          def historical_publication():
-              path,expected=selection.require_selected_state(toolchain.read_json(ROOT/"state/product-publication-selection.json"))
-              projection=toolchain.read_json(ROOT/"state/continuation.json")["product_activation_projection"]["postgresql_publication"]
-              require(projection=={"receipt":str(path),"receipt_sha256":expected},"publication selectors differ")
-              value=toolchain.authenticated_json(path,expected)
-              require(publication.verify_publication(path)==value,"selected publication changed")
-              return value
-          def host_provider_copy(published):
-              host=published["host_provider"]
-              source=Path(host["source_receipt"]);expected=host["source_receipt_sha256"]
-              require(expected==pg_original["host_build_provider"]["receipt_sha256"],
-                      "published host-provider copy differs from contract digest")
-              receipt=toolchain.authenticated_json(source,expected)
-              require(receipt["provider_id"]==pg_original["host_build_provider"]["provider_id"],
-                      "published host-provider identity differs")
-              target=OUT/"published-host-provider-receipt.json"
-              shutil.copyfile(source,target)
-              require(toolchain.sha256_file(target)==expected,"retained host-provider bytes changed")
-              pg_contract["host_build_provider"]["receipt"]=str(source)
-              restored=derived_copy(pg_contract)
-              restored["execution"]=pg_original["execution"]
-              restored["host_build_provider"]["receipt"]=pg_original["host_build_provider"]["receipt"]
-              require(restored==pg_original,"PostgreSQL derivation changed nonphysical build law")
-              postgres.validate_contract(pg_contract)
-              activation.save(OUT/"runner-postgresql-contract.json",pg_contract)
-              return {"original_locator":pg_original["host_build_provider"]["receipt"],
-                      "publication_copy_locator":str(source),"receipt_sha256":expected,
-                      "provider_id":receipt["provider_id"],"source_receipt_bytes_rewritten":False,
-                      "contract_sha256":toolchain.sha256_file(OUT/"runner-postgresql-contract.json")}
-          before=None;published=None;plan=None
-          save()
-          try:
-              before=probe("activation-before",lambda:active("activation-before-observed"))
-              probe("derived-contracts",contracts)
-              # Every independent input is observed even if another prerequisite fails.
-              for item in original["bootstrap"]["tools"]:
-                  probe("bootstrap-tool-"+item["id"],lambda item=item:bootstrap_subset([item],[],[]))
-              for index,item in enumerate(original["bootstrap"]["system_abi"]["include_roots"]):
-                  probe("bootstrap-include-"+str(index),lambda item=item:bootstrap_subset([],[item],[]))
-              for index,item in enumerate(original["bootstrap"]["system_abi"]["library_search_roots"]):
-                  probe("bootstrap-library-"+str(index),lambda item=item:bootstrap_subset([],[],[item]))
-              for name,item in runtime_contract["compiler"].items():
-                  probe("runtime-"+name,lambda name=name,item=item:runtime.verify_compilers({"compiler":{name:item}}))
-              for role in ("c","cxx"):
-                  probe("postgresql-compiler-"+role,lambda role=role:postgres.validate_compiler(pg_contract,role))
-              readelf=Path(next(item["path"] for item in original["bootstrap"]["tools"] if item["id"]=="readelf"))
-              probe("installed-intel-runtime",lambda:postgres.verify_installed_runtime_provider(pg_contract,ROOT,readelf))
-              paths={**{"toolchain-"+key:Path(value) for key,value in contract["logical_roots"].items()},
-                     **{"runtime-"+key:Path(runtime_contract["execution"][key]) for key in ("build_root","stage_root")},
-                     **{"postgresql-"+key:Path(pg_contract["execution"][key]) for key in ("build_root","stage_root")}}
-              for name,path in paths.items(): probe("storage-"+name,lambda path=path:directory(path))
-              def physical_program(path):
-                  require(path.is_file() and os.access(path,os.X_OK),"physical prerequisite is not executable: "+str(path))
-                  completed=subprocess.run([str(path),"--version"],capture_output=True,text=True,
-                                           timeout=15,check=False,env=environment)
-                  require(completed.returncode==0,"physical prerequisite version probe failed: "+str(path))
-                  return {"path":str(path),"sha256":toolchain.sha256_file(path),
-                          "version":(completed.stdout+completed.stderr).splitlines()[:3],
-                          "scope":"executable/version observation; no compile or sandbox execution"}
-              for name,path in (("acquisition-curl",Path("/usr/bin/curl")),
-                                ("deadline-timeout",Path("/usr/bin/timeout")),
-                                ("postgresql-bwrap",Path(pg_contract["host_build_provider"]["sandbox"]["executable"]))):
-                  probe(name,lambda path=path:physical_program(path))
-              report["source_storage_denominators"]={
-                  "archive_bytes":sum(item["size_bytes"] for item in lock["archives"].values()),
-                  "uncompressed_source_bytes":sum(item["uncompressed_bytes"] for item in lock["archives"].values()),
-                  "scope":"locked source bytes only; build/stage space is additional and not estimated here"}
-              published=probe("selected-publication",historical_publication)
-              probe("original-host-provider-locator",
-                    lambda:toolchain.authenticated_json(Path(pg_original["host_build_provider"]["receipt"]),
-                                                        pg_original["host_build_provider"]["receipt_sha256"]),False)
-              if published is not None:
-                  located=probe("host-provider-publication-copy",lambda:host_provider_copy(published))
-                  if located is not None:
-                      probe("postgresql-host-provider",lambda:postgres.verify_host_build_provider(pg_contract,ROOT))
-                  else: skipped("postgresql-host-provider","authenticated public host-provider copy unavailable")
-              else:
-                  skipped("host-provider-publication-copy","selected publication unavailable")
-                  skipped("postgresql-host-provider","selected publication unavailable")
-              archive_root=Path(contract["logical_roots"]["archive_root"])
-              generation=Path(contract["logical_roots"]["source_generation"])
-              original_archive=Path(original["logical_roots"]["archive_root"])
-              for name in sorted(lock["archives"]):
-                  entry=lock["archives"][name]
-                  try:
-                      cache_receipt=release.verify_entry(name,entry,original_archive)
-                      report["historical_cache_observations"][name]={"status":"verified","receipt":cache_receipt}
-                  except Exception as error:
-                      report["historical_cache_observations"][name]={"status":"unavailable-or-invalid",
-                          "error":{"type":type(error).__name__,"message":str(error)[:1000]}}
-                  def acquire_and_import(name=name,entry=entry):
-                      archive=archive_root/entry["filename"]
-                      require(not archive.is_symlink(),"archive must not be a symlink: "+name)
-                      if not archive.exists():
-                          acquisition=Path(tempfile.mkdtemp(prefix="."+name+"-acquire-",dir=archive_root))
-                          try:
-                              incoming=acquisition/entry["filename"]
-                              if report["historical_cache_observations"][name]["status"]=="verified":
-                                  shutil.copyfile(original_archive/entry["filename"],incoming)
-                              else:
-                                  execute("acquire-"+name,["/usr/bin/curl","--fail","--location","--proto","=https",
-                                      "--proto-redir","=https","--connect-timeout","15","--max-time","240",
-                                      "--max-filesize",str(entry["size_bytes"]),"--output",str(incoming),entry["url"]],260)
-                              release.verify_entry(name,entry,acquisition)
-                              os.link(incoming,archive,follow_symlinks=False)
-                          finally: shutil.rmtree(acquisition)
-                      archive_receipt=release.verify_entry(name,entry,archive_root)
-                      selected=generation/name
-                      require(not selected.is_symlink(),"source import must not be a symlink: "+name)
-                      if not selected.exists():
-                          temporary=Path(tempfile.mkdtemp(prefix="."+name+"-import-",dir=generation.parent))
-                          try:
-                              release.import_entry(name,entry,archive_root,temporary)
-                              release.verify_imported_entry(name,entry,archive_root,temporary)
-                              os.rename(temporary/name,selected)
-                          finally: shutil.rmtree(temporary)
-                      release.verify_imported_entry(name,entry,archive_root,generation)
-                      return {"archive":archive_receipt,"source":str(selected),"phase":"verified-exact-import"}
-                  observed=probe("source-"+name,acquire_and_import)
-                  report["source_outcomes"][name]=report["prerequisites"]["source-"+name]
-                  save()
-              # These full canonical checks remain independent. They may expose another
-              # failure even when an earlier compiler, provider or source check failed.
-              probe("runtime-complete-release-generation",
-                    lambda:{"lock_sha256":runtime.verify_release_generation(ROOT,lock_path,archive_root,generation)})
-              probe("postgresql-selected-source",
-                    lambda:postgres.verify_release_import(pg_contract,ROOT,archive_root,generation/pg_contract["source"]["entry"]))
-              plan=probe("toolchain-full-plan",lambda:toolchain.create_plan(contract,ROOT))
-              if plan is not None:
-                  report.update(cmake_build_input_id=plan["build_input_id"],
-                                cmake_build_directory=plan["build_directory"],full_toolchain_rebuild=True)
-              report["selected_source_count"]=sum(value["status"]=="passed" for value in report["source_outcomes"].values())
-              report["selected_source_expected_count"]=len(lock["archives"])
-          except BaseException as error:
-              report["unexpected_error"]={"type":type(error).__module__+"."+type(error).__name__,"message":str(error)[:3000]}
-          finally:
-              if before is not None:
-                  after=probe("activation-after",lambda:active("activation-after-observed"))
-                  if after is not None:
-                      unchanged=activation.stable_activation(before)==activation.stable_activation(after)
-                      report["activation_unchanged"]=unchanged
-                      if not unchanged:
-                          report["prerequisites"]["activation-unchanged"]={"status":"failed","required":True,
-                              "why":"installed activation changed during source preparation"}
-              else: skipped("activation-after","initial installed activation was not authenticated")
-              failed=[name for name,value in report["prerequisites"].items()
-                      if value["required"] and value["status"]!="passed"]
-              report["failed_prerequisites"]=failed
-              report["status"]="prepared" if not failed and not report.get("unexpected_error") else "failed"
-              report["builds_executed"]=0
-              save()
-          raise SystemExit(0 if report["status"]=="prepared" else 1)
-          
+          for key in list(environment):
+              if key.startswith("PG"): environment.pop(key)
+          environment["PGCONNECT_TIMEOUT"]="10"
+          environment["PGOPTIONS"]="-c default_transaction_read_only=on"
+          begin=time.monotonic()
+          observed=subprocess.run(command,input=query,text=True,capture_output=True,timeout=45,env=environment,check=False)
+          query_seconds=time.monotonic()-begin
+          (OUT/"query.stdout").write_text(observed.stdout)
+          (OUT/"query.stderr").write_text(observed.stderr)
+          require(observed.returncode==0,"read-only persisted diagnostic query failed")
+          rows=json.loads(observed.stdout)
+          require(rows["profile"]["profile_id"]==PROFILE and rows["profile"]["error_count"]==102,"persisted profile diagnostic denominator differs")
+          require(len(rows["nodes"])==102,"exact ERROR/MISSING node count differs")
+          for row in rows["nodes"]:
+              item,data=files[int(row["artifact_index"])]
+              start,end=int(row["byte_start"]),int(row["byte_end"])
+              require(0<=start<=end<=len(data),"diagnostic span out of exact source bounds")
+              row.update(path=item["path"],file_sha256=item["sha256"],source_line=data[:start].count(b"\n")+1,
+                         grammar_symbol=symbol(row["grammar_kind"]),parent_symbol=symbol(row["parent_grammar_kind"]),
+                         grandparent_symbol=symbol(row["grandparent_grammar_kind"]),
+                         is_error=bool(int(row["syntax_flags"])&4),is_missing=bool(int(row["syntax_flags"])&2),
+                         diagnostic_byte_count=end-start)
+              lo=max(0,start-240);hi=min(len(data),max(start+480,min(end+240,start+1200)))
+              row["excerpt"]={"byte_start":lo,"byte_end":hi,"utf8_display":data[lo:hi].decode("utf-8",errors="replace"),"sha256":digest(data[lo:hi])}
+              row["classification"]="unclassified; byte context is diagnostic evidence, not executable semantics"
+          after=activation.observe_activation(BASE,OUT/"activation-after.json")
+          require(activation.stable_activation(before)==activation.stable_activation(after),"installed activation changed during read-only extraction")
+          save("diagnostics.json",{"schema":"laplace.stockfish-persisted-syntax-diagnostics/v1","status":"observed","source_profile_id":PROFILE,"manifest_sha256":digest(manifest_bytes),"qualified_artifact_sha256":digest(archive),"package_id":PACKAGE,"database_access":"repeatable-read read-only transaction; exact profile and ERROR/MISSING flags","query_seconds":query_seconds,"query_command":command,"symbol_lookup_error":symbol_error,"profile":rows["profile"],"diagnostic_count":len(rows["nodes"]),"activation_unchanged":True,"executable_semantics_verified":False,"nodes":rows["nodes"]})
+          print(json.dumps({"status":"observed","diagnostic_count":len(rows["nodes"]),"symbol_lookup_error":symbol_error,"output":str(OUT/"diagnostics.json")}))
           PY
-      - name: Verify prerequisites and acquire isolated source inputs without running builds
-        shell: bash
-        run: |
-          set -euo pipefail
-          timeout --signal=TERM --kill-after=20s 2400s \
-            python3 -B "$CMAKE_EVIDENCE/operate.py" \
-            > "$CMAKE_EVIDENCE/operation.stdout" 2> "$CMAKE_EVIDENCE/operation.stderr"
-      - name: Retain bounded partial build logs and report exact phase disposition
-        if: always()
-        shell: bash
-        run: |
-          python3 -B - <<'PY'
-          import json, os, pathlib, re, shutil
-          out=pathlib.Path(os.environ["CMAKE_EVIDENCE"])
-          path=out/"result.json"
-          if not path.is_file():
-              print("Operation did not produce a result; retained setup and process logs remain authoritative.")
-              raise SystemExit(0)
-          report=json.loads(path.read_text())
-          identity=report.get("cmake_build_input_id")
-          if isinstance(identity,str) and re.fullmatch("[0-9a-f]{64}",identity):
-              contract=json.loads((out/"runner-toolchain-contract.json").read_text())
-              if contract["logical_roots"]["build_root"]!="/build/laplace/build/refactor-toolchain":
-                  raise SystemExit("retained full-toolchain build root differs")
-              build=pathlib.Path(contract["logical_roots"]["build_root"])/identity
-              if str(build)==report.get("cmake_build_directory") and build.is_dir() and not build.is_symlink():
-                  for relative in ("build-plan.json","completed-components.json",
-                      "cmake-component-qualification.json","components/cmake/configure.log",
-                      "components/cmake/build.log","components/cmake/test.log",
-                      "components/cmake/install.log","components/cmake/Testing/Temporary/LastTest.log",
-                      "selected-toolchain.json","selected-toolchain-manifest.json"):
-                      source=build/relative
-                      if source.is_file() and not source.is_symlink() and source.stat().st_size<=256*1024*1024:
-                          target=out/"retained-build"/relative
-                          target.parent.mkdir(parents=True,exist_ok=True)
-                          shutil.copyfile(source,target)
-          pg_identity=report.get("selected_consumer_plan")
-          if isinstance(pg_identity,str) and re.fullmatch("[0-9a-f]{64}",pg_identity):
-              pg_contract=json.loads(pathlib.Path("contracts/postgresql-build.json").read_text())
-              pg_build=pathlib.Path(pg_contract["execution"]["build_root"])/pg_identity
-              plan_path=pg_build/"build-plan.json"
-              if (str(pg_build)==report.get("postgresql_build_directory") and pg_build.is_dir()
-                      and not pg_build.is_symlink() and plan_path.is_file()
-                      and not plan_path.is_symlink()):
-                  pg_plan=json.loads(plan_path.read_text())
-                  if (pg_plan.get("build_input_id")==pg_identity
-                          and pg_plan.get("build_directory")==str(pg_build)):
-                      for relative in ("build-plan.json","package-receipt.json","build.log",
-                          "io-uring-qualification.json","recursive-elf-closure.json",
-                          "build-input-preflight.json","source-test-overlays-check-world.json",
-                          pg_contract["runtime_qualification"]["liburing"]["regress_log"],
-                          pg_contract["runtime_qualification"]["liburing"]["server_log"]):
-                          source=pg_build/relative
-                          if (source.is_file() and not source.is_symlink()
-                                  and source.stat().st_size<=256*1024*1024):
-                              target=out/"retained-postgresql-build"/relative
-                              target.parent.mkdir(parents=True,exist_ok=True)
-                              shutil.copyfile(source,target)
-          if report.get("status") not in ("passed","failed","prepared"):
-              report["interrupted_previous_status"]=report.get("status")
-              report["status"]="interrupted"
-              report["operator_exit_without_terminal_receipt"]=True
-              temporary=out/"result-after-interruption.json"
-              temporary.write_text(json.dumps(report,sort_keys=True,indent=2)+"\n")
-              temporary.replace(path)
-          allowed=("status","error","activation_after_error","elapsed_seconds","source_commit",
-              "installed_repository_commit","installed_package_id","historical_provider",
-              "consumer_inputs","cmake_build_input_id","cmake_action","cmake_qualification_scope",
-              "upstream_697_qualified","upstream_697_executed_this_run","cmake_test_result",
-              "selected_toolchain_receipt","selected_toolchain_receipt_sha256",
-              "selected_consumer_plan","consumer_plan_completed","selected_cmake",
-              "retained_provider_roots","unchanged_components_reexecuted","full_toolchain_rebuild","fresh_provider_contract","fresh_toolchain_package_tree","historical_runtime","next_operation","selected_source_count","runtime_contract_sha256",
-              "product_built","postgresql_build_executed_this_run","postgresql_qualified",
-              "postgresql_publication_completed","postgresql_qualification_scope",
-              "postgresql_package_receipt","postgresql_package_receipt_sha256",
-              "selected_postgresql_publication","selection_update_proposal",
-              "installed_selection_changed","activation_unchanged","interrupted_previous_status",
-              "operator_exit_without_terminal_receipt","phases","prerequisites","failed_prerequisites",
-              "source_outcomes","selected_source_expected_count","source_storage_denominators","builds_executed","unexpected_error")
-          print(json.dumps({key:report[key] for key in allowed if key in report},sort_keys=True))
-          PY
-      - name: Retain operation evidence
+      - name: Retain exact persisted diagnostic evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cmake-component-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.CMAKE_EVIDENCE }}/
+          name: stockfish-syntax-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.DIAGNOSTIC_EVIDENCE }}/
           if-no-files-found: error
           retention-days: 90
