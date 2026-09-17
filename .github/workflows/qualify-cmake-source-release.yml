@@ -1,4 +1,4 @@
-name: Read retained PostgreSQL QA timing evidence
+name: Read installed Stockfish corpus and gateway evidence
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -6,49 +6,81 @@ permissions:
   contents: read
   actions: read
 jobs:
-  read-retained:
+  read-installed:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Authenticate existing artifact and report actual lane timing
+      - name: Authenticate complete installed source admission and repeat evidence
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib, io, json, os, urllib.request, zipfile
+          import hashlib,io,json,os,urllib.request,zipfile
           base='https://api.github.com/repos/SaltyPatron/Laplace-Refactor'
+          expected_source='b042de4216e1d674effe5bd3e8ecf3ebc7aeddac'
+          expected_package='912e2628fb504b66ba3cd8da48957e781650622771c826804cdc491ae71202fe'
+          expected_aggregate='b3d3ae843cc2aad1a2ed41d7287aa763eb664278962e8d68086bbbc80e513eb8'
           def get(path):
               request=urllib.request.Request(base+path,headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
               request.add_unredirected_header('Authorization','Bearer '+os.environ['GH_TOKEN'])
-              with urllib.request.urlopen(request,timeout=60) as response:
-                  return response.read()
-          run=json.loads(get('/actions/runs/35158959755'))
-          assert run['head_sha']=='75976f0ee0015845802cf88651174c5d44702b06'
-          assert run['event']=='pull_request' and run['head_branch']=='fix/ci-execution-owners-20260916'
-          artifact=json.loads(get('/actions/artifacts/10473690947'))
-          assert artifact['workflow_run']['id']==35158959755
-          assert not artifact['expired']
-          expected='db380fd2fd6ea7926395c7dbccb86e6a01387f6bb46f01bf2ab648169fd99a91'
-          assert artifact['digest']=='sha256:'+expected
-          data=get('/actions/artifacts/10473690947/zip')
-          assert len(data)==32809 and hashlib.sha256(data).hexdigest()==expected
-          archive=zipfile.ZipFile(io.BytesIO(data))
-          print(json.dumps({'artifact':10473690947,'run':35158959755,'zip_sha256':expected,'names':archive.namelist()},sort_keys=True))
-          names=[n for n in archive.namelist() if n=='result.json' or n.endswith('/result.json')]
-          assert len(names)==1
-          result=json.loads(archive.read(names[0]))
-          print('LAPLACE_QA_RESULT_BEGIN')
-          print(json.dumps({key:value for key,value in result.items() if key!='lanes'},sort_keys=True,indent=2))
-          for lane in result['lanes']:
-              print(json.dumps({key:value for key,value in lane.items() if key not in ('embedded_receipts','command')},sort_keys=True,indent=2))
-          print('LAPLACE_QA_RESULT_END')
-          for name in archive.namelist():
-              if name.endswith('.log'):
-                  content=archive.read(name).decode('utf-8',errors='replace')
-                  lines=content.splitlines()
-                  selected=[line for line in lines if any(word in line for word in ('Total Test time','tests passed','source-runtime-state-schema','verified-cpp-source-contract','Test #'))]
-                  print('LAPLACE_QA_LOG '+name)
-                  print('\n'.join(selected)[-18000:])
+              with urllib.request.urlopen(request,timeout=60) as response:return response.read()
+          run=json.loads(get('/actions/runs/35163097838'))
+          assert run['head_sha']==expected_source and run['event']=='push' and run['head_branch']=='main'
+          def archive(identity,size,digest):
+              metadata=json.loads(get('/actions/artifacts/'+str(identity)))
+              assert metadata['workflow_run']['id']==35163097838 and not metadata['expired']
+              assert metadata['digest']=='sha256:'+digest
+              data=get('/actions/artifacts/'+str(identity)+'/zip')
+              assert len(data)==size and hashlib.sha256(data).hexdigest()==digest
+              print('AUTHENTICATED_ARTIFACT '+json.dumps({'id':identity,'bytes':size,'sha256':digest},sort_keys=True))
+              return zipfile.ZipFile(io.BytesIO(data))
+          files=archive(10474447094,3016206,'a462210322043e84d68bf5d7ba441337f7542f2a5945ce645d464aa1559ac007')
+          def read(name):return json.loads(files.read(name))
+          report=read('result.json')
+          assert report['schema']=='laplace.stockfish-corpus-acceptance/v1' and report['status']=='passed'
+          assert report['expected_repository_commit']==expected_source and report['package_id']==expected_package
+          assert report['canonical_corpus_admission_completed'] is True and report['zero_amplification_repeat_proven'] is True
+          assert report['executable_semantics_verified'] is False
+          for name,digest in report['evidence'].items():
+              assert hashlib.sha256(files.read(name)).hexdigest()==digest,name
+          print('ACCEPTANCE_REPORT '+json.dumps(report,sort_keys=True))
+          for label in ('admission','repeat'):
+              value=read(label+'.stdout.log')
+              manifest=value['verified_git_input']['manifest']
+              readback=value['readback']
+              assert value['phase']=='source-admitted-and-exactly-read-back'
+              assert value['active_package_id']==expected_package
+              assert manifest['file_count']==119 and manifest['byte_count']==1172144
+              assert readback['all_artifacts_exact'] is True
+              assert readback['verified_file_count']==119 and readback['verified_byte_count']==1172144
+              assert len(readback['records'])==119
+              assert readback['structural_receipt_count']==1
+              records=readback['records']
+              print('SOURCE_PASS '+json.dumps({'name':label,'phase':value['phase'],'package_id':value['active_package_id'],
+                  'manifest':{k:v for k,v in manifest.items() if k!='artifacts'},
+                  'admission':value['admission'],'persisted_profile':value['persisted_profile'],
+                  'readback':{k:v for k,v in readback.items() if k!='records'},
+                  'record_count':len(records),'first_record':records[0],'last_record':records[-1],
+                  'total_resolved_nodes':sum(int(r['resolved_nodes']) for r in records),
+                  'total_trajectory_carriers':sum(int(r['trajectory_carriers']) for r in records)},sort_keys=True))
+          assert all(value==0 for value in report['repeat']['substrate_row_deltas'].values())
+          assert report['repeat']['source_occurrence_delta']==0 and report['repeat']['structural_witness_delta']==0
+          for name in ('activation-before.json','activation-after.json'):
+              snapshot=read(name)
+              assert snapshot['repository_commit']==expected_source and snapshot['package_id']==expected_package
+              assert any(r['document']['result_sha256']==expected_aggregate for r in snapshot['runner_receipts'])
+              print('ACTIVATION_SNAPSHOT '+json.dumps({'name':name,'repository_commit':snapshot['repository_commit'],
+                  'package_id':snapshot['package_id'],'repository_build_fingerprint':snapshot['repository_build_fingerprint'],
+                  'manifest_laplace':snapshot['manifest'].get('laplace'),
+                  'runner_aggregate_ids':[r['document']['result_sha256'] for r in snapshot['runner_receipts']],
+                  'loaded':snapshot['loaded'],'postgresql_service_owner':snapshot['postgresql_service_owner']},sort_keys=True))
+          provenance=read('stockfish-provenance.json')
+          stockfish=provenance['installation']['tools']['stockfish']
+          print('STOCKFISH_PROVENANCE '+json.dumps({k:v for k,v in provenance.items() if k!='installation'} | {'tool':{k:v for k,v in stockfish.items() if k!='tracked_source'},'tracked_source':{k:v for k,v in stockfish['tracked_source'].items() if k!='artifacts'}},sort_keys=True))
+          print('EXECUTION_CONTEXT '+json.dumps(read('execution-context.json'),sort_keys=True))
+          gateway=archive(10474571451,4009,'a7687c2db247a1170f00f880a2371333717f62fc4a21aa939f083373ac4024e7')
+          print('GATEWAY_PROOF '+gateway.read('proof.json').decode())
+          print('INSTALLED_SOURCE_EVIDENCE_VERIFIED')
           PY
