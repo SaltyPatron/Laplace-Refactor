@@ -1,4 +1,4 @@
-name: Diagnose exact derived-container reflection assertion
+name: Qualify exact derived-container cold and warm replay
 on:
   workflow_dispatch:
   push:
@@ -24,10 +24,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: e480ec28fd0908fbd964e0a65c17c76ab2f40c34
+          ref: 83e336f84bca8eeb8b0ebcb865f991bedb94ea14
       - name: Verify exact diagnostic source and preserve identity
         run: |
-          test "$(git rev-parse HEAD)" = e480ec28fd0908fbd964e0a65c17c76ab2f40c34
+          test "$(git rev-parse HEAD)" = 83e336f84bca8eeb8b0ebcb865f991bedb94ea14
           git diff --exit-code HEAD --
           mkdir -p "$RUNNER_TEMP/laplace-derived-container-diagnostic"
           git show --format=fuller --stat HEAD > "$RUNNER_TEMP/laplace-derived-container-diagnostic/source.txt"
