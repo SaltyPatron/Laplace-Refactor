@@ -1137,7 +1137,7 @@ module.exports = grammar(C, {
     field_expression: $ => seq(
       prec(PREC.FIELD, seq(
         field('argument', $.expression),
-        field('operator', choice('.', '.*', '->')),
+        field('operator', choice('.', '->')),
       )),
       field('field', choice(
         prec.dynamic(1, $._field_identifier),
@@ -1367,6 +1367,17 @@ module.exports = grammar(C, {
       )),
     ),
 
+    // At the shared cast/pointer-member precedence, finish the cast before
+    // extending its result with .* or ->*. Nested prefix casts remain nested.
+    cast_expression: ($, original) => prec.left(PREC.CAST, original.content),
+
+    // Pointer-to-member operators bind above multiplication and group left to right.
+    _pointer_member_expression: $ => prec.left(PREC.CAST, seq(
+      field('left', $.expression),
+      field('operator', choice('.*', '->*')),
+      field('right', $.expression),
+    )),
+
     binary_expression: ($, original) => {
       const table = [
         ['<=>', PREC.THREE_WAY],
@@ -1380,6 +1391,7 @@ module.exports = grammar(C, {
 
       return choice(
         original,
+        $._pointer_member_expression,
         ...table.map(([operator, precedence]) => {
           return prec.left(precedence, seq(
             field('left', $.expression),
@@ -1469,6 +1481,7 @@ module.exports = grammar(C, {
 
     _assignment_left_expression: ($, original) => choice(
       original,
+      alias($._pointer_member_expression, $.binary_expression),
       $.qualified_identifier,
       $.user_defined_literal,
     ),

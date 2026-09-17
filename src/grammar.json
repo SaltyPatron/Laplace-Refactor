@@ -7449,6 +7449,15 @@
           ]
         },
         {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_pointer_member_expression"
+          },
+          "named": true,
+          "value": "binary_expression"
+        },
+        {
           "type": "SYMBOL",
           "name": "qualified_identifier"
         },
@@ -8275,6 +8284,10 @@
           ]
         },
         {
+          "type": "SYMBOL",
+          "name": "_pointer_member_expression"
+        },
+        {
           "type": "PREC_LEFT",
           "value": 8,
           "content": {
@@ -8577,7 +8590,7 @@
       }
     },
     "cast_expression": {
-      "type": "PREC",
+      "type": "PREC_LEFT",
       "value": 12,
       "content": {
         "type": "SEQ",
@@ -9604,10 +9617,6 @@
                     {
                       "type": "STRING",
                       "value": "."
-                    },
-                    {
-                      "type": "STRING",
-                      "value": ".*"
                     },
                     {
                       "type": "STRING",
@@ -17379,6 +17388,48 @@
           "value": "..."
         }
       ]
+    },
+    "_pointer_member_expression": {
+      "type": "PREC_LEFT",
+      "value": 12,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "left",
+            "content": {
+              "type": "SYMBOL",
+              "name": "expression"
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "operator",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": ".*"
+                },
+                {
+                  "type": "STRING",
+                  "value": "->*"
+                }
+              ]
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "right",
+            "content": {
+              "type": "SYMBOL",
+              "name": "expression"
+            }
+          }
+        ]
+      }
     },
     "destructor_name": {
       "type": "PREC",

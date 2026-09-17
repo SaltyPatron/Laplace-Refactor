@@ -2231,9 +2231,9 @@ int main() {
       (expression_statement
         (call_expression
           (parenthesized_expression
-            (field_expression
+            (binary_expression
               (identifier)
-              (field_identifier)))
+              (identifier)))
           (argument_list
             (number_literal))))
       (comment)

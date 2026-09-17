@@ -1,0 +1,3318 @@
+{
+  "canonical_lock_modified": false,
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "init",
+        "--quiet",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.033,
+      "label": "generator-init",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/001-generator-init.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/001-generator-init.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/001-generator-init.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/001-generator-init.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/tree-sitter/tree-sitter.git"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "generator-remote",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/002-generator-remote.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/002-generator-remote.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/002-generator-remote.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/002-generator-remote.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "-c",
+        "protocol.version=2",
+        "fetch",
+        "--depth=1",
+        "origin",
+        "470813116b99578956e67abb7138e993833af67a"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 1.017,
+      "label": "generator-fetch",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/003-generator-fetch.stderr",
+      "stderr_identity": {
+        "bytes": 124,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/003-generator-fetch.stderr",
+        "sha256": "b9acca1f57801ff3560620279a4a17be0dfd6f540bb6adc3ff31d14ab3665aba"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/003-generator-fetch.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/003-generator-fetch.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 360
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "checkout",
+        "--detach",
+        "--quiet",
+        "470813116b99578956e67abb7138e993833af67a"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.064,
+      "label": "generator-checkout",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/004-generator-checkout.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/004-generator-checkout.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/004-generator-checkout.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/004-generator-checkout.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "generator-commit",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/005-generator-commit.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/005-generator-commit.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/005-generator-commit.stdout",
+      "stdout_identity": {
+        "bytes": 41,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/005-generator-commit.stdout",
+        "sha256": "7804fcbf5e268643ae2707bbe178ed08c6a35eb003923564d0bad0c50c637f64"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "generator-tree",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/006-generator-tree.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/006-generator-tree.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/006-generator-tree.stdout",
+      "stdout_identity": {
+        "bytes": 41,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/006-generator-tree.stdout",
+        "sha256": "86562ca863c7ecc9b8db6e1f646525f61b61c0e1f40ae736a9b9301915da9cf6"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "fsck",
+        "--strict",
+        "--no-reflogs"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.064,
+      "label": "generator-fsck",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/007-generator-fsck.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/007-generator-fsck.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/007-generator-fsck.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/007-generator-fsck.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.064,
+      "label": "generator-clean",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/008-generator-clean.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/008-generator-clean.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/008-generator-clean.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/008-generator-clean.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "ls-tree",
+        "-r",
+        "-z",
+        "HEAD"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "generator-tracked-blobs",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/009-generator-tracked-blobs.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/009-generator-tracked-blobs.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/009-generator-tracked-blobs.stdout",
+      "stdout_identity": {
+        "bytes": 49144,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/009-generator-tracked-blobs.stdout",
+        "sha256": "32ce4e5f6318c5ccff74cf8a2995a9e0bcabb812b854b3e6de00fe1b3cd3c67a"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "archive",
+        "--format=tar",
+        "--output=/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/sources/generator.tar",
+        "470813116b99578956e67abb7138e993833af67a"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.032,
+      "label": "generator-archive",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/010-generator-archive.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/010-generator-archive.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/010-generator-archive.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/010-generator-archive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "init",
+        "--quiet",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "c-init",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/011-c-init.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/011-c-init.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/011-c-init.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/011-c-init.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/tree-sitter/tree-sitter-c.git"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "c-remote",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/012-c-remote.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/012-c-remote.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/012-c-remote.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/012-c-remote.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "-c",
+        "protocol.version=2",
+        "fetch",
+        "--depth=1",
+        "origin",
+        "7fa1be1b694b6e763686793d97da01f36a0e5c12"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.716,
+      "label": "c-fetch",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/013-c-fetch.stderr",
+      "stderr_identity": {
+        "bytes": 126,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/013-c-fetch.stderr",
+        "sha256": "a99da72ccfa976512e6e8d14515dfc4b23a8af317e83e8c0ec1627fbd100e9a3"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/013-c-fetch.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/013-c-fetch.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 360
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "checkout",
+        "--detach",
+        "--quiet",
+        "7fa1be1b694b6e763686793d97da01f36a0e5c12"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.032,
+      "label": "c-checkout",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/014-c-checkout.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/014-c-checkout.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/014-c-checkout.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/014-c-checkout.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.005,
+      "label": "c-commit",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/015-c-commit.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/015-c-commit.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/015-c-commit.stdout",
+      "stdout_identity": {
+        "bytes": 41,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/015-c-commit.stdout",
+        "sha256": "83a0ed84067a086911e7d8a24820bdbdbee3ebe40ff871a6c95f2900176e3502"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.005,
+      "label": "c-tree",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/016-c-tree.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/016-c-tree.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/016-c-tree.stdout",
+      "stdout_identity": {
+        "bytes": 41,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/016-c-tree.stdout",
+        "sha256": "b6e5bf3a5b82a6ac85242d0fb5c7c89929bbf9681f6117c40034a0fa37cfd458"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "fsck",
+        "--strict",
+        "--no-reflogs"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.064,
+      "label": "c-fsck",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/017-c-fsck.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/017-c-fsck.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/017-c-fsck.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/017-c-fsck.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.032,
+      "label": "c-clean",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/018-c-clean.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/018-c-clean.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/018-c-clean.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/018-c-clean.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "ls-tree",
+        "-r",
+        "-z",
+        "HEAD"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "c-tracked-blobs",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/019-c-tracked-blobs.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/019-c-tracked-blobs.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/019-c-tracked-blobs.stdout",
+      "stdout_identity": {
+        "bytes": 5086,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/019-c-tracked-blobs.stdout",
+        "sha256": "1a9779e7a94ea110bec9c6d729a149cb6184597f13d9876e7b4eb903e8a365cc"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "archive",
+        "--format=tar",
+        "--output=/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/sources/c.tar",
+        "7fa1be1b694b6e763686793d97da01f36a0e5c12"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.032,
+      "label": "c-archive",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/020-c-archive.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/020-c-archive.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/020-c-archive.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/020-c-archive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "init",
+        "--quiet",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "cpp-init",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/021-cpp-init.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/021-cpp-init.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/021-cpp-init.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/021-cpp-init.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/tree-sitter/tree-sitter-cpp.git"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "cpp-remote",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/022-cpp-remote.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/022-cpp-remote.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/022-cpp-remote.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/022-cpp-remote.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "-c",
+        "protocol.version=2",
+        "fetch",
+        "--depth=1",
+        "origin",
+        "8b5b49eb196bec7040441bee33b2c9a4838d6967"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 1.368,
+      "label": "cpp-fetch",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/023-cpp-fetch.stderr",
+      "stderr_identity": {
+        "bytes": 128,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/023-cpp-fetch.stderr",
+        "sha256": "ba63635ae6a3742d2e67ac4fcc982fe6ce0363f2e55f4aa82139eff59a691506"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/023-cpp-fetch.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/023-cpp-fetch.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 360
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "checkout",
+        "--detach",
+        "--quiet",
+        "8b5b49eb196bec7040441bee33b2c9a4838d6967"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.064,
+      "label": "cpp-checkout",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/024-cpp-checkout.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/024-cpp-checkout.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/024-cpp-checkout.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/024-cpp-checkout.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "cpp-commit",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/025-cpp-commit.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/025-cpp-commit.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/025-cpp-commit.stdout",
+      "stdout_identity": {
+        "bytes": 41,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/025-cpp-commit.stdout",
+        "sha256": "28a17a0ae696844948332211cb367bc79e4ae37d67cdb55dc625711ffa069ec1"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "rev-parse",
+        "HEAD^{tree}"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "cpp-tree",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/026-cpp-tree.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/026-cpp-tree.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/026-cpp-tree.stdout",
+      "stdout_identity": {
+        "bytes": 41,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/026-cpp-tree.stdout",
+        "sha256": "20370037230f2cfc458bec43ee81f4e928a496a235c6ed7960ff1dd39110f04f"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "fsck",
+        "--strict",
+        "--no-reflogs"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.164,
+      "label": "cpp-fsck",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/027-cpp-fsck.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/027-cpp-fsck.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/027-cpp-fsck.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/027-cpp-fsck.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.164,
+      "label": "cpp-clean",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/028-cpp-clean.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/028-cpp-clean.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/028-cpp-clean.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/028-cpp-clean.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "ls-tree",
+        "-r",
+        "-z",
+        "HEAD"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "cpp-tracked-blobs",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/029-cpp-tracked-blobs.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/029-cpp-tracked-blobs.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/029-cpp-tracked-blobs.stdout",
+      "stdout_identity": {
+        "bytes": 6064,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/029-cpp-tracked-blobs.stdout",
+        "sha256": "fd91f8dbe973ff00d07ac3a0ed2b944290f77fe150e52aad590b72ef49f6362e"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "archive",
+        "--format=tar",
+        "--output=/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/sources/cpp.tar",
+        "8b5b49eb196bec7040441bee33b2c9a4838d6967"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.064,
+      "label": "cpp-archive",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/030-cpp-archive.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/030-cpp-archive.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/030-cpp-archive.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/030-cpp-archive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/tree-sitter",
+        "--version"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "reused-generator-version",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/031-reused-generator-version.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/031-reused-generator-version.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/031-reused-generator-version.stdout",
+      "stdout_identity": {
+        "bytes": 19,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/031-reused-generator-version.stdout",
+        "sha256": "2b9d5c8c122149cfef4be5abec2f09227de542bbe811ce6b0458ac3549ba7605"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/tree-sitter",
+        "generate",
+        "--abi",
+        "15",
+        "--js-runtime",
+        "node",
+        "--json-summary"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-three-rule-baseline",
+      "elapsed_seconds": 39.48,
+      "label": "three-rule-baseline-generate",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/032-three-rule-baseline-generate.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/032-three-rule-baseline-generate.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/032-three-rule-baseline-generate.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/032-three-rule-baseline-generate.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/tree-sitter",
+        "generate",
+        "--abi",
+        "15",
+        "--js-runtime",
+        "node",
+        "--json-summary"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-pointer-candidate",
+      "elapsed_seconds": 43.357,
+      "label": "pointer-candidate-generate",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/033-pointer-candidate-generate.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/033-pointer-candidate-generate.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/033-pointer-candidate-generate.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/033-pointer-candidate-generate.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/tree-sitter",
+        "test",
+        "--grammar-path",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "--json-summary",
+        "--config-path",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/inputs/cli-config.json"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+      "elapsed_seconds": 0.616,
+      "label": "inherited-c-upstream-corpus",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/034-inherited-c-upstream-corpus.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/034-inherited-c-upstream-corpus.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/034-inherited-c-upstream-corpus.stdout",
+      "stdout_identity": {
+        "bytes": 15233,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/034-inherited-c-upstream-corpus.stdout",
+        "sha256": "44bd9e0080606676bbee5f9d7e795158cd85219e84457cb4155db8d18e6d816e"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/tree-sitter",
+        "test",
+        "--grammar-path",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-three-rule-baseline",
+        "--json-summary",
+        "--config-path",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/inputs/cli-config.json"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-three-rule-baseline",
+      "elapsed_seconds": 11.247,
+      "label": "three-rule-baseline-upstream-corpus",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/035-three-rule-baseline-upstream-corpus.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/035-three-rule-baseline-upstream-corpus.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/035-three-rule-baseline-upstream-corpus.stdout",
+      "stdout_identity": {
+        "bytes": 37062,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/035-three-rule-baseline-upstream-corpus.stdout",
+        "sha256": "65e5fd9dcf903e56f8d2cb9bf067cc5b29e4f893f3f5e6e2ef48b3f2aaa1f1c3"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "cc",
+        "-std=c11",
+        "-O2",
+        "-D_DEFAULT_SOURCE",
+        "-I/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator/lib/include",
+        "-I/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator/lib/src",
+        "-I/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-three-rule-baseline/src",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/inputs/probe.c",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator/lib/src/lib.c",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-three-rule-baseline/src/parser.c",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-three-rule-baseline/src/scanner.c",
+        "-o",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "-pthread"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 7.136,
+      "label": "three-rule-baseline-compile-cst-probe",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/036-three-rule-baseline-compile-cst-probe.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/036-three-rule-baseline-compile-cst-probe.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/036-three-rule-baseline-compile-cst-probe.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/036-three-rule-baseline-compile-cst-probe.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 480
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/for-condition-declaration.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-for-condition-declaration",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/037-three-rule-baseline-for-condition-declaration.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/037-three-rule-baseline-for-condition-declaration.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/037-three-rule-baseline-for-condition-declaration.stdout",
+      "stdout_identity": {
+        "bytes": 10127,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/037-three-rule-baseline-for-condition-declaration.stdout",
+        "sha256": "c0f35e3bd2a75485ebe9c33123bcc843b003444c43124914a93fd8d7fcfb2c36"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/deleted-conversion-operator.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-deleted-conversion-operator",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/038-three-rule-baseline-deleted-conversion-operator.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/038-three-rule-baseline-deleted-conversion-operator.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/038-three-rule-baseline-deleted-conversion-operator.stdout",
+      "stdout_identity": {
+        "bytes": 3717,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/038-three-rule-baseline-deleted-conversion-operator.stdout",
+        "sha256": "1f25482246340183aff66ed27b29ff9293bbaabc5001d6e6a639090382b8d82e"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/using-pack-expansion.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-using-pack-expansion",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/039-three-rule-baseline-using-pack-expansion.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/039-three-rule-baseline-using-pack-expansion.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/039-three-rule-baseline-using-pack-expansion.stdout",
+      "stdout_identity": {
+        "bytes": 5151,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/039-three-rule-baseline-using-pack-expansion.stdout",
+        "sha256": "fe64990772e3ede489da7eeed5723a0a326a2cf5395672b327a0528c08b60410"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-to-member-operator.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-to-member-operator",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/040-three-rule-baseline-pointer-to-member-operator.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/040-three-rule-baseline-pointer-to-member-operator.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/040-three-rule-baseline-pointer-to-member-operator.stdout",
+      "stdout_identity": {
+        "bytes": 7534,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/040-three-rule-baseline-pointer-to-member-operator.stdout",
+        "sha256": "15a1dfc93897ba3d0d8eea5ca6661e089aba207000435194f5157b265e013ea1"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/for-braced-condition.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-for-braced-condition",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/041-three-rule-baseline-for-braced-condition.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/041-three-rule-baseline-for-braced-condition.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/041-three-rule-baseline-for-braced-condition.stdout",
+      "stdout_identity": {
+        "bytes": 5168,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/041-three-rule-baseline-for-braced-condition.stdout",
+        "sha256": "4df34f73f7bacf1590850248953b9ba0725c8453db0772afb7f79164f38ffd5d"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/existing-range-loop.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-existing-range-loop",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/042-three-rule-baseline-existing-range-loop.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/042-three-rule-baseline-existing-range-loop.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/042-three-rule-baseline-existing-range-loop.stdout",
+      "stdout_identity": {
+        "bytes": 3712,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/042-three-rule-baseline-existing-range-loop.stdout",
+        "sha256": "e0f4f1f25e114fcaba7232b70bf9aa74319b6d14861f48a7f07fa46ba96f1e4b"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/existing-empty-for.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-existing-empty-for",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/043-three-rule-baseline-existing-empty-for.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/043-three-rule-baseline-existing-empty-for.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/043-three-rule-baseline-existing-empty-for.stdout",
+      "stdout_identity": {
+        "bytes": 3313,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/043-three-rule-baseline-existing-empty-for.stdout",
+        "sha256": "211a4dd408509e487e7368fae6f0d237e6ccb7cced593146ec2f36b87535c197"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/broken-condition.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-broken-condition",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/044-three-rule-baseline-broken-condition.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/044-three-rule-baseline-broken-condition.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/044-three-rule-baseline-broken-condition.stdout",
+      "stdout_identity": {
+        "bytes": 4188,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/044-three-rule-baseline-broken-condition.stdout",
+        "sha256": "6de06a6de6f3e0af71685498b8d3ccb55371342404fd442f0102826f891536ad"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/conversion-pure-virtual.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-conversion-pure-virtual",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/045-three-rule-baseline-conversion-pure-virtual.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/045-three-rule-baseline-conversion-pure-virtual.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/045-three-rule-baseline-conversion-pure-virtual.stdout",
+      "stdout_identity": {
+        "bytes": 3736,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/045-three-rule-baseline-conversion-pure-virtual.stdout",
+        "sha256": "05f6c7e1c92d5d9a146b2dd29f16244d3c9850331133d84a609061d7bd87ba5d"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/deleted-conversion-missing-semicolon.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-deleted-conversion-missing-semicolon",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/046-three-rule-baseline-deleted-conversion-missing-semicolon.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/046-three-rule-baseline-deleted-conversion-missing-semicolon.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/046-three-rule-baseline-deleted-conversion-missing-semicolon.stdout",
+      "stdout_identity": {
+        "bytes": 3734,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/046-three-rule-baseline-deleted-conversion-missing-semicolon.stdout",
+        "sha256": "36db0093c5570e0bb0004e8e4b2e2a33ea8fb0e1111a345b311d4b80f062d35f"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/ordinary-using.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-ordinary-using",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/047-three-rule-baseline-ordinary-using.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/047-three-rule-baseline-ordinary-using.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/047-three-rule-baseline-ordinary-using.stdout",
+      "stdout_identity": {
+        "bytes": 1727,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/047-three-rule-baseline-ordinary-using.stdout",
+        "sha256": "69e18970f95daceb0b9926e2bc6ba5c0e29193fdac886b49ebf2c86d66ee1ddc"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/namespace-pack-not-admitted.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-namespace-pack-not-admitted",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/048-three-rule-baseline-namespace-pack-not-admitted.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/048-three-rule-baseline-namespace-pack-not-admitted.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/048-three-rule-baseline-namespace-pack-not-admitted.stdout",
+      "stdout_identity": {
+        "bytes": 2349,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/048-three-rule-baseline-namespace-pack-not-admitted.stdout",
+        "sha256": "83060c9ef328c89a033d35fe28de50d0baa1781af5552b7cbadd10bd8a75a96b"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/enum-pack-not-admitted.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-enum-pack-not-admitted",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/049-three-rule-baseline-enum-pack-not-admitted.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/049-three-rule-baseline-enum-pack-not-admitted.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/049-three-rule-baseline-enum-pack-not-admitted.stdout",
+      "stdout_identity": {
+        "bytes": 2942,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/049-three-rule-baseline-enum-pack-not-admitted.stdout",
+        "sha256": "9f46d3321a14abcc07e45786310d4241a2933a83f01bad2c7bad214293af1231"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-01.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-01",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/050-three-rule-baseline-pointer-shape-01.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/050-three-rule-baseline-pointer-shape-01.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/050-three-rule-baseline-pointer-shape-01.stdout",
+      "stdout_identity": {
+        "bytes": 3795,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/050-three-rule-baseline-pointer-shape-01.stdout",
+        "sha256": "20d6d1aaa7bc99c479c7f24f78d20fee35e83b6269144e19552925edb3793431"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-02.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-02",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/051-three-rule-baseline-pointer-shape-02.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/051-three-rule-baseline-pointer-shape-02.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/051-three-rule-baseline-pointer-shape-02.stdout",
+      "stdout_identity": {
+        "bytes": 3795,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/051-three-rule-baseline-pointer-shape-02.stdout",
+        "sha256": "553f2577c92a315ccbd51ef8b2f2ebc91bc4498904ed10793cb4aa27db9b10ed"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-03.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-03",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/052-three-rule-baseline-pointer-shape-03.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/052-three-rule-baseline-pointer-shape-03.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/052-three-rule-baseline-pointer-shape-03.stdout",
+      "stdout_identity": {
+        "bytes": 4483,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/052-three-rule-baseline-pointer-shape-03.stdout",
+        "sha256": "30c82def12f4453ac335a17cc27b773173b1e280290d231314ae7ebc21d40719"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-04.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-04",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/053-three-rule-baseline-pointer-shape-04.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/053-three-rule-baseline-pointer-shape-04.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/053-three-rule-baseline-pointer-shape-04.stdout",
+      "stdout_identity": {
+        "bytes": 3630,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/053-three-rule-baseline-pointer-shape-04.stdout",
+        "sha256": "61c43efade4b99a03bf19c10a32cc2ba1217752bc0b6d986e8da9c510bd6720b"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-05.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.001,
+      "label": "three-rule-baseline-pointer-shape-05",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/054-three-rule-baseline-pointer-shape-05.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/054-three-rule-baseline-pointer-shape-05.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/054-three-rule-baseline-pointer-shape-05.stdout",
+      "stdout_identity": {
+        "bytes": 3814,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/054-three-rule-baseline-pointer-shape-05.stdout",
+        "sha256": "24df24e026215bc7e18ae3638c5bf863f301877b713cd343491bbdb5bb2bfab2"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-06.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.001,
+      "label": "three-rule-baseline-pointer-shape-06",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/055-three-rule-baseline-pointer-shape-06.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/055-three-rule-baseline-pointer-shape-06.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/055-three-rule-baseline-pointer-shape-06.stdout",
+      "stdout_identity": {
+        "bytes": 5359,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/055-three-rule-baseline-pointer-shape-06.stdout",
+        "sha256": "222e64e26f367e47969b000d962ca01fe8b1d6991d2416f15ce563e25f862f79"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-07.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-07",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/056-three-rule-baseline-pointer-shape-07.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/056-three-rule-baseline-pointer-shape-07.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/056-three-rule-baseline-pointer-shape-07.stdout",
+      "stdout_identity": {
+        "bytes": 3515,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/056-three-rule-baseline-pointer-shape-07.stdout",
+        "sha256": "4e7bece4c9fdefbadbe92c561b98bbe3dfd29c27227707a13372880191ca8235"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-08.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-08",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/057-three-rule-baseline-pointer-shape-08.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/057-three-rule-baseline-pointer-shape-08.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/057-three-rule-baseline-pointer-shape-08.stdout",
+      "stdout_identity": {
+        "bytes": 4232,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/057-three-rule-baseline-pointer-shape-08.stdout",
+        "sha256": "fe966499edc5f30404d1dfa7b85d21780772bae68f5de4c5e83a03090bd06532"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-09.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-09",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/058-three-rule-baseline-pointer-shape-09.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/058-three-rule-baseline-pointer-shape-09.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/058-three-rule-baseline-pointer-shape-09.stdout",
+      "stdout_identity": {
+        "bytes": 3795,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/058-three-rule-baseline-pointer-shape-09.stdout",
+        "sha256": "1b134e53c3b484be721b5baa0836bcf11844bb0622820ba416ccbe864c040b8d"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-10.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-10",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/059-three-rule-baseline-pointer-shape-10.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/059-three-rule-baseline-pointer-shape-10.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/059-three-rule-baseline-pointer-shape-10.stdout",
+      "stdout_identity": {
+        "bytes": 4704,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/059-three-rule-baseline-pointer-shape-10.stdout",
+        "sha256": "f04a7f8394ebc0d8655227a5441e944bcc4cd45a8fbb471a94be0136872a16f5"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-11.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-11",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/060-three-rule-baseline-pointer-shape-11.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/060-three-rule-baseline-pointer-shape-11.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/060-three-rule-baseline-pointer-shape-11.stdout",
+      "stdout_identity": {
+        "bytes": 4600,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/060-three-rule-baseline-pointer-shape-11.stdout",
+        "sha256": "9f6e3c081abfec33c27ed9a4660e65af6d43aca7cdc9b1a07c1b1ffd32989059"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-12.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-12",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/061-three-rule-baseline-pointer-shape-12.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/061-three-rule-baseline-pointer-shape-12.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/061-three-rule-baseline-pointer-shape-12.stdout",
+      "stdout_identity": {
+        "bytes": 4622,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/061-three-rule-baseline-pointer-shape-12.stdout",
+        "sha256": "3e3633032d25efaba44a956439213398341d60f1b3957834f92e33fea704e181"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-13.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-13",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/062-three-rule-baseline-pointer-shape-13.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/062-three-rule-baseline-pointer-shape-13.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/062-three-rule-baseline-pointer-shape-13.stdout",
+      "stdout_identity": {
+        "bytes": 3811,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/062-three-rule-baseline-pointer-shape-13.stdout",
+        "sha256": "9c077e2c723fcf5e7b731f2e2712eab8fb7f41e2d7168e2080dbb7e6273e6cf4"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-14.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-14",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/063-three-rule-baseline-pointer-shape-14.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/063-three-rule-baseline-pointer-shape-14.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/063-three-rule-baseline-pointer-shape-14.stdout",
+      "stdout_identity": {
+        "bytes": 3518,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/063-three-rule-baseline-pointer-shape-14.stdout",
+        "sha256": "66ec9befba535cc2fc0172d19fb0717ab7a8672929e32c758518a0c20b7bc548"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-15.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-15",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/064-three-rule-baseline-pointer-shape-15.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/064-three-rule-baseline-pointer-shape-15.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/064-three-rule-baseline-pointer-shape-15.stdout",
+      "stdout_identity": {
+        "bytes": 4111,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/064-three-rule-baseline-pointer-shape-15.stdout",
+        "sha256": "daa3c77d7354d7b5ff9322c772c6328c56a3f2a82fbc70540e89d4d1baf96bc8"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-16.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-16",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/065-three-rule-baseline-pointer-shape-16.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/065-three-rule-baseline-pointer-shape-16.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/065-three-rule-baseline-pointer-shape-16.stdout",
+      "stdout_identity": {
+        "bytes": 3950,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/065-three-rule-baseline-pointer-shape-16.stdout",
+        "sha256": "1fdd415fba6fc1997ebd75961fea5263b0c81515880f845127fbc16747bedf8c"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-17.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-17",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/066-three-rule-baseline-pointer-shape-17.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/066-three-rule-baseline-pointer-shape-17.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/066-three-rule-baseline-pointer-shape-17.stdout",
+      "stdout_identity": {
+        "bytes": 5682,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/066-three-rule-baseline-pointer-shape-17.stdout",
+        "sha256": "741ffcf468526bb966470de28c1cce75189cfb1ce3144ba790ca39aa2d22def0"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-18.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-shape-18",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/067-three-rule-baseline-pointer-shape-18.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/067-three-rule-baseline-pointer-shape-18.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/067-three-rule-baseline-pointer-shape-18.stdout",
+      "stdout_identity": {
+        "bytes": 5903,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/067-three-rule-baseline-pointer-shape-18.stdout",
+        "sha256": "8a64e81225510642b26f8215f6aaf63edfead795451b714a07f36ecb8bb8b1d4"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-missing-right.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-missing-right",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/068-three-rule-baseline-pointer-missing-right.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/068-three-rule-baseline-pointer-missing-right.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/068-three-rule-baseline-pointer-missing-right.stdout",
+      "stdout_identity": {
+        "bytes": 2879,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/068-three-rule-baseline-pointer-missing-right.stdout",
+        "sha256": "c14e08dd6e6253a8808fc0ef897550db7bfa7e4f52047c39381cc35e74763d45"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/dot-member-missing-right.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-dot-member-missing-right",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/069-three-rule-baseline-dot-member-missing-right.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/069-three-rule-baseline-dot-member-missing-right.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/069-three-rule-baseline-dot-member-missing-right.stdout",
+      "stdout_identity": {
+        "bytes": 2974,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/069-three-rule-baseline-dot-member-missing-right.stdout",
+        "sha256": "72c41df2c78f6dd569f4ba998452a5db0a7bc4b3745408aa08a255a91b2e3330"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-missing-left.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "three-rule-baseline-pointer-missing-left",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/070-three-rule-baseline-pointer-missing-left.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/070-three-rule-baseline-pointer-missing-left.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/070-three-rule-baseline-pointer-missing-left.stdout",
+      "stdout_identity": {
+        "bytes": 3422,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/070-three-rule-baseline-pointer-missing-left.stdout",
+        "sha256": "dd8cb125807f872811f1dae199fdd041322141ca7a618f1d68bfbe5290e08dd5"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/tree-sitter",
+        "test",
+        "--grammar-path",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-pointer-candidate",
+        "--json-summary",
+        "--config-path",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/inputs/cli-config.json"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-pointer-candidate",
+      "elapsed_seconds": 2.773,
+      "label": "pointer-candidate-upstream-corpus",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/071-pointer-candidate-upstream-corpus.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/071-pointer-candidate-upstream-corpus.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/071-pointer-candidate-upstream-corpus.stdout",
+      "stdout_identity": {
+        "bytes": 37067,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/071-pointer-candidate-upstream-corpus.stdout",
+        "sha256": "30f03bfd3a98fa59463bef3eb8ac07c7745f606a3abfb978eb227204a5e62bd6"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "cc",
+        "-std=c11",
+        "-O2",
+        "-D_DEFAULT_SOURCE",
+        "-I/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator/lib/include",
+        "-I/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator/lib/src",
+        "-I/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-pointer-candidate/src",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/inputs/probe.c",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator/lib/src/lib.c",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-pointer-candidate/src/parser.c",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp-pointer-candidate/src/scanner.c",
+        "-o",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "-pthread"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 7.087,
+      "label": "pointer-candidate-compile-cst-probe",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/072-pointer-candidate-compile-cst-probe.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/072-pointer-candidate-compile-cst-probe.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/072-pointer-candidate-compile-cst-probe.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/072-pointer-candidate-compile-cst-probe.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 480
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/for-condition-declaration.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-for-condition-declaration",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/073-pointer-candidate-for-condition-declaration.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/073-pointer-candidate-for-condition-declaration.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/073-pointer-candidate-for-condition-declaration.stdout",
+      "stdout_identity": {
+        "bytes": 10127,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/073-pointer-candidate-for-condition-declaration.stdout",
+        "sha256": "c0f35e3bd2a75485ebe9c33123bcc843b003444c43124914a93fd8d7fcfb2c36"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/deleted-conversion-operator.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-deleted-conversion-operator",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/074-pointer-candidate-deleted-conversion-operator.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/074-pointer-candidate-deleted-conversion-operator.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/074-pointer-candidate-deleted-conversion-operator.stdout",
+      "stdout_identity": {
+        "bytes": 3717,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/074-pointer-candidate-deleted-conversion-operator.stdout",
+        "sha256": "1f25482246340183aff66ed27b29ff9293bbaabc5001d6e6a639090382b8d82e"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/using-pack-expansion.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-using-pack-expansion",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/075-pointer-candidate-using-pack-expansion.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/075-pointer-candidate-using-pack-expansion.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/075-pointer-candidate-using-pack-expansion.stdout",
+      "stdout_identity": {
+        "bytes": 5151,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/075-pointer-candidate-using-pack-expansion.stdout",
+        "sha256": "fe64990772e3ede489da7eeed5723a0a326a2cf5395672b327a0528c08b60410"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-to-member-operator.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-to-member-operator",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/076-pointer-candidate-pointer-to-member-operator.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/076-pointer-candidate-pointer-to-member-operator.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/076-pointer-candidate-pointer-to-member-operator.stdout",
+      "stdout_identity": {
+        "bytes": 7584,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/076-pointer-candidate-pointer-to-member-operator.stdout",
+        "sha256": "a7f70ed4cefdbf0280b0e2a0ebf39e706831f783789f2b134f4e24fe18bca23f"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/for-braced-condition.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-for-braced-condition",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/077-pointer-candidate-for-braced-condition.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/077-pointer-candidate-for-braced-condition.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/077-pointer-candidate-for-braced-condition.stdout",
+      "stdout_identity": {
+        "bytes": 5168,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/077-pointer-candidate-for-braced-condition.stdout",
+        "sha256": "4df34f73f7bacf1590850248953b9ba0725c8453db0772afb7f79164f38ffd5d"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/existing-range-loop.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-existing-range-loop",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/078-pointer-candidate-existing-range-loop.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/078-pointer-candidate-existing-range-loop.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/078-pointer-candidate-existing-range-loop.stdout",
+      "stdout_identity": {
+        "bytes": 3712,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/078-pointer-candidate-existing-range-loop.stdout",
+        "sha256": "e0f4f1f25e114fcaba7232b70bf9aa74319b6d14861f48a7f07fa46ba96f1e4b"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/existing-empty-for.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-existing-empty-for",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/079-pointer-candidate-existing-empty-for.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/079-pointer-candidate-existing-empty-for.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/079-pointer-candidate-existing-empty-for.stdout",
+      "stdout_identity": {
+        "bytes": 3313,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/079-pointer-candidate-existing-empty-for.stdout",
+        "sha256": "211a4dd408509e487e7368fae6f0d237e6ccb7cced593146ec2f36b87535c197"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/broken-condition.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-broken-condition",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/080-pointer-candidate-broken-condition.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/080-pointer-candidate-broken-condition.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/080-pointer-candidate-broken-condition.stdout",
+      "stdout_identity": {
+        "bytes": 4188,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/080-pointer-candidate-broken-condition.stdout",
+        "sha256": "6de06a6de6f3e0af71685498b8d3ccb55371342404fd442f0102826f891536ad"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/conversion-pure-virtual.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-conversion-pure-virtual",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/081-pointer-candidate-conversion-pure-virtual.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/081-pointer-candidate-conversion-pure-virtual.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/081-pointer-candidate-conversion-pure-virtual.stdout",
+      "stdout_identity": {
+        "bytes": 3736,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/081-pointer-candidate-conversion-pure-virtual.stdout",
+        "sha256": "05f6c7e1c92d5d9a146b2dd29f16244d3c9850331133d84a609061d7bd87ba5d"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/deleted-conversion-missing-semicolon.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-deleted-conversion-missing-semicolon",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/082-pointer-candidate-deleted-conversion-missing-semicolon.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/082-pointer-candidate-deleted-conversion-missing-semicolon.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/082-pointer-candidate-deleted-conversion-missing-semicolon.stdout",
+      "stdout_identity": {
+        "bytes": 3734,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/082-pointer-candidate-deleted-conversion-missing-semicolon.stdout",
+        "sha256": "36db0093c5570e0bb0004e8e4b2e2a33ea8fb0e1111a345b311d4b80f062d35f"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/ordinary-using.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-ordinary-using",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/083-pointer-candidate-ordinary-using.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/083-pointer-candidate-ordinary-using.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/083-pointer-candidate-ordinary-using.stdout",
+      "stdout_identity": {
+        "bytes": 1727,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/083-pointer-candidate-ordinary-using.stdout",
+        "sha256": "69e18970f95daceb0b9926e2bc6ba5c0e29193fdac886b49ebf2c86d66ee1ddc"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/namespace-pack-not-admitted.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-namespace-pack-not-admitted",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/084-pointer-candidate-namespace-pack-not-admitted.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/084-pointer-candidate-namespace-pack-not-admitted.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/084-pointer-candidate-namespace-pack-not-admitted.stdout",
+      "stdout_identity": {
+        "bytes": 2349,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/084-pointer-candidate-namespace-pack-not-admitted.stdout",
+        "sha256": "83060c9ef328c89a033d35fe28de50d0baa1781af5552b7cbadd10bd8a75a96b"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/enum-pack-not-admitted.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-enum-pack-not-admitted",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/085-pointer-candidate-enum-pack-not-admitted.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/085-pointer-candidate-enum-pack-not-admitted.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/085-pointer-candidate-enum-pack-not-admitted.stdout",
+      "stdout_identity": {
+        "bytes": 2942,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/085-pointer-candidate-enum-pack-not-admitted.stdout",
+        "sha256": "9f46d3321a14abcc07e45786310d4241a2933a83f01bad2c7bad214293af1231"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-01.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-01",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/086-pointer-candidate-pointer-shape-01.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/086-pointer-candidate-pointer-shape-01.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/086-pointer-candidate-pointer-shape-01.stdout",
+      "stdout_identity": {
+        "bytes": 3482,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/086-pointer-candidate-pointer-shape-01.stdout",
+        "sha256": "713724a764cfc8baf46507f28e6a8e06803392d4b32c7bfe1f962a1cbb4bb9c8"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-02.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-02",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/087-pointer-candidate-pointer-shape-02.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/087-pointer-candidate-pointer-shape-02.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/087-pointer-candidate-pointer-shape-02.stdout",
+      "stdout_identity": {
+        "bytes": 3482,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/087-pointer-candidate-pointer-shape-02.stdout",
+        "sha256": "1cc004cfd84fe30d94c2243299b8dcd427087d4526a54786af296983facac574"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-03.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-03",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/088-pointer-candidate-pointer-shape-03.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/088-pointer-candidate-pointer-shape-03.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/088-pointer-candidate-pointer-shape-03.stdout",
+      "stdout_identity": {
+        "bytes": 4170,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/088-pointer-candidate-pointer-shape-03.stdout",
+        "sha256": "a1b7ed112dacd052d1b4866dbe3f61a514b6e269cd771337e59fe34debe73d3d"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-04.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-04",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/089-pointer-candidate-pointer-shape-04.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/089-pointer-candidate-pointer-shape-04.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/089-pointer-candidate-pointer-shape-04.stdout",
+      "stdout_identity": {
+        "bytes": 3317,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/089-pointer-candidate-pointer-shape-04.stdout",
+        "sha256": "00cb38d04e3c1f0f2813456e2f4070545cdf6c196ea9675a80363d7ed6e7f2a4"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-05.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-05",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/090-pointer-candidate-pointer-shape-05.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/090-pointer-candidate-pointer-shape-05.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/090-pointer-candidate-pointer-shape-05.stdout",
+      "stdout_identity": {
+        "bytes": 3483,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/090-pointer-candidate-pointer-shape-05.stdout",
+        "sha256": "49deab0b7d525a2ec00c7ea8797f69bcd27a46c4e6a16e9a70037ccd99d0f3d0"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-06.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-06",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/091-pointer-candidate-pointer-shape-06.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/091-pointer-candidate-pointer-shape-06.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/091-pointer-candidate-pointer-shape-06.stdout",
+      "stdout_identity": {
+        "bytes": 4984,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/091-pointer-candidate-pointer-shape-06.stdout",
+        "sha256": "ddd5016e04aa911db512b8df8f8d6970e6f8f583df8c382b409ffaa7845914bb"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-07.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-07",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/092-pointer-candidate-pointer-shape-07.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/092-pointer-candidate-pointer-shape-07.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/092-pointer-candidate-pointer-shape-07.stdout",
+      "stdout_identity": {
+        "bytes": 3497,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/092-pointer-candidate-pointer-shape-07.stdout",
+        "sha256": "23d730eb9a0fe76b30b15f4be667f6200c506b8b44acbfeafb0a675c8210ad72"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-08.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-08",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/093-pointer-candidate-pointer-shape-08.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/093-pointer-candidate-pointer-shape-08.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/093-pointer-candidate-pointer-shape-08.stdout",
+      "stdout_identity": {
+        "bytes": 4282,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/093-pointer-candidate-pointer-shape-08.stdout",
+        "sha256": "156110e3a4cb730550f85d9b0b4278c33e479cb5360f2f49630ab3d29231fc92"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-09.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-09",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/094-pointer-candidate-pointer-shape-09.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/094-pointer-candidate-pointer-shape-09.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/094-pointer-candidate-pointer-shape-09.stdout",
+      "stdout_identity": {
+        "bytes": 3482,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/094-pointer-candidate-pointer-shape-09.stdout",
+        "sha256": "ceca2710497b2a3bb8d61ee1689546df77dbcbf8727dbe27c2d90f9fe758c26b"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-10.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-10",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/095-pointer-candidate-pointer-shape-10.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/095-pointer-candidate-pointer-shape-10.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/095-pointer-candidate-pointer-shape-10.stdout",
+      "stdout_identity": {
+        "bytes": 4170,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/095-pointer-candidate-pointer-shape-10.stdout",
+        "sha256": "7659f74687ce8c0900ec673929321d9734ba4c90b17da9532ea8b762e7f5db36"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-11.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-11",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/096-pointer-candidate-pointer-shape-11.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/096-pointer-candidate-pointer-shape-11.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/096-pointer-candidate-pointer-shape-11.stdout",
+      "stdout_identity": {
+        "bytes": 4650,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/096-pointer-candidate-pointer-shape-11.stdout",
+        "sha256": "59cfbcccb83caf680b8a2ef84083041cbee9d59fead5d6f3c71820305bbcde4c"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-12.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-12",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/097-pointer-candidate-pointer-shape-12.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/097-pointer-candidate-pointer-shape-12.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/097-pointer-candidate-pointer-shape-12.stdout",
+      "stdout_identity": {
+        "bytes": 3995,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/097-pointer-candidate-pointer-shape-12.stdout",
+        "sha256": "83e663cae583fd6ba0c80e156990c8cb4fdfa34e81fc65cd52684200748f94df"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-13.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-13",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/098-pointer-candidate-pointer-shape-13.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/098-pointer-candidate-pointer-shape-13.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/098-pointer-candidate-pointer-shape-13.stdout",
+      "stdout_identity": {
+        "bytes": 3498,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/098-pointer-candidate-pointer-shape-13.stdout",
+        "sha256": "3897297dd6fadf5b079a5b8a1b81b7c4d95e907ef4e64453656bec2f51ba561f"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-14.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-14",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/099-pointer-candidate-pointer-shape-14.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/099-pointer-candidate-pointer-shape-14.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/099-pointer-candidate-pointer-shape-14.stdout",
+      "stdout_identity": {
+        "bytes": 3482,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/099-pointer-candidate-pointer-shape-14.stdout",
+        "sha256": "56cb2b7bd44d2935f1288257be5583341b95edc56ccc68cb607b04dfd6b145e1"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-15.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-15",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/100-pointer-candidate-pointer-shape-15.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/100-pointer-candidate-pointer-shape-15.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/100-pointer-candidate-pointer-shape-15.stdout",
+      "stdout_identity": {
+        "bytes": 3484,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/100-pointer-candidate-pointer-shape-15.stdout",
+        "sha256": "99b9f9124c69885336acdc1787bfae05e45eebea9a5cedef4fe42f2470e2a47e"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-16.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.002,
+      "label": "pointer-candidate-pointer-shape-16",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/101-pointer-candidate-pointer-shape-16.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/101-pointer-candidate-pointer-shape-16.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/101-pointer-candidate-pointer-shape-16.stdout",
+      "stdout_identity": {
+        "bytes": 3637,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/101-pointer-candidate-pointer-shape-16.stdout",
+        "sha256": "8e19aca45400356e1b19083e3d33470798531d720e9640a426751e3647503c78"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-17.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "pointer-candidate-pointer-shape-17",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/102-pointer-candidate-pointer-shape-17.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/102-pointer-candidate-pointer-shape-17.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/102-pointer-candidate-pointer-shape-17.stdout",
+      "stdout_identity": {
+        "bytes": 5369,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/102-pointer-candidate-pointer-shape-17.stdout",
+        "sha256": "eba1c72ed1f62f9f08e04dc4993998c6cebb4342d59a0d90d9f815354ef231d6"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-shape-18.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.005,
+      "label": "pointer-candidate-pointer-shape-18",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/103-pointer-candidate-pointer-shape-18.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/103-pointer-candidate-pointer-shape-18.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/103-pointer-candidate-pointer-shape-18.stdout",
+      "stdout_identity": {
+        "bytes": 5369,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/103-pointer-candidate-pointer-shape-18.stdout",
+        "sha256": "3a3e89ae625489568bc8460232e738197a878c7e4b3977642bdf0d94eab6cabf"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-missing-right.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.005,
+      "label": "pointer-candidate-pointer-missing-right",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/104-pointer-candidate-pointer-missing-right.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/104-pointer-candidate-pointer-missing-right.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/104-pointer-candidate-pointer-missing-right.stdout",
+      "stdout_identity": {
+        "bytes": 2957,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/104-pointer-candidate-pointer-missing-right.stdout",
+        "sha256": "5366c241b52da03385ff7f24f91500c4f3cffac37a5129cc00d3f0071694f151"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/dot-member-missing-right.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.005,
+      "label": "pointer-candidate-dot-member-missing-right",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/105-pointer-candidate-dot-member-missing-right.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/105-pointer-candidate-dot-member-missing-right.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/105-pointer-candidate-dot-member-missing-right.stdout",
+      "stdout_identity": {
+        "bytes": 2956,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/105-pointer-candidate-dot-member-missing-right.stdout",
+        "sha256": "03bb89dbbceb6ed787a1c5f0624fc7791ad5b3320496f1bb775690ec2bffb2ab"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/case-inputs/pointer-missing-left.cpp"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "pointer-candidate-pointer-missing-left",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/106-pointer-candidate-pointer-missing-left.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/106-pointer-candidate-pointer-missing-left.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/106-pointer-candidate-pointer-missing-left.stdout",
+      "stdout_identity": {
+        "bytes": 3422,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/106-pointer-candidate-pointer-missing-left.stdout",
+        "sha256": "dd8cb125807f872811f1dae199fdd041322141ca7a618f1d68bfbe5290e08dd5"
+      },
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/generator",
+        "diff",
+        "--exit-code",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.064,
+      "label": "generator-source-unchanged",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/107-generator-source-unchanged.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/107-generator-source-unchanged.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/107-generator-source-unchanged.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/107-generator-source-unchanged.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/c",
+        "diff",
+        "--exit-code",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.032,
+      "label": "c-source-unchanged",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/108-c-source-unchanged.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/108-c-source-unchanged.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/108-c-source-unchanged.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/108-c-source-unchanged.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    },
+    {
+      "argv": [
+        "git",
+        "-C",
+        "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/cpp",
+        "diff",
+        "--exit-code",
+        "HEAD",
+        "--"
+      ],
+      "cwd": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work",
+      "elapsed_seconds": 0.004,
+      "label": "cpp-source-unchanged",
+      "returncode": 0,
+      "stderr": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/109-cpp-source-unchanged.stderr",
+      "stderr_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/109-cpp-source-unchanged.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stdout": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/109-cpp-source-unchanged.stdout",
+      "stdout_identity": {
+        "bytes": 0,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/logs/109-cpp-source-unchanged.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "timeout_seconds": 600
+    }
+  ],
+  "elapsed_seconds": 121.718,
+  "evaluations": [
+    {
+      "case": "for-condition-declaration",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "deleted-conversion-operator",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "using-pack-expansion",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "pointer-to-member-operator",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "for-braced-condition",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "existing-range-loop",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "existing-empty-for",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "broken-condition",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "conversion-pure-virtual",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "deleted-conversion-missing-semicolon",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "ordinary-using",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "namespace-pack-not-admitted",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "enum-pack-not-admitted",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "pointer-missing-right",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "dot-member-missing-right",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "pointer-missing-left",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "three-rule-baseline"
+    },
+    {
+      "case": "for-condition-declaration",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "deleted-conversion-operator",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "using-pack-expansion",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-to-member-operator",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "for-braced-condition",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "existing-range-loop",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "existing-empty-for",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "broken-condition",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "conversion-pure-virtual",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "deleted-conversion-missing-semicolon",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "ordinary-using",
+      "observed_shape": null,
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "namespace-pack-not-admitted",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "enum-pack-not-admitted",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-01",
+      "observed_shape": "multiply(pointer_member(p,pm),k)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-02",
+      "observed_shape": "multiply(k,pointer_member(p,pm))",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-03",
+      "observed_shape": "pointer_member(cast(T*,p),pm)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-04",
+      "observed_shape": "pointer_member(dereference(pp),pm)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-05",
+      "observed_shape": "pointer_member(pointer_member(p,pm1),pm2)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-06",
+      "observed_shape": "pointer_member(object,parenthesized_conditional)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-07",
+      "observed_shape": "assignment(pointer_member(object,pm),7)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-08",
+      "observed_shape": "call(parenthesized_pointer_member,[arg])",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-09",
+      "observed_shape": "+(pointer_member(p,pm),k)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-10",
+      "observed_shape": "pointer_member(p,cast(T*,q))",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-11",
+      "observed_shape": "cast(T*,parenthesized_pointer_member)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-12",
+      "observed_shape": "multiply(pointer_member(p,pm),pointer_member(k,qm))",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-13",
+      "observed_shape": "assignment(pointer_member(p,pm),7)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-14",
+      "observed_shape": "pointer_member(pointer_member(object,pm1),pm2)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-15",
+      "observed_shape": "pointer_member(pointer_member(p,pm),qm)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-16",
+      "observed_shape": "pointer_member(p,call(pm,[]))",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-17",
+      "observed_shape": "pointer_member(cast(T*,cast(U*,p)),pm)",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-shape-18",
+      "observed_shape": "pointer_member(p,cast(T*,cast(U*,q)))",
+      "passed": true,
+      "valid": true,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-missing-right",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "dot-member-missing-right",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "pointer-candidate"
+    },
+    {
+      "case": "pointer-missing-left",
+      "observed_shape": null,
+      "passed": true,
+      "valid": false,
+      "variant": "pointer-candidate"
+    }
+  ],
+  "executable_semantics_verified": false,
+  "failures": [],
+  "generated_delta": {
+    "changed_rules": [
+      "_assignment_left_expression",
+      "_pointer_member_expression",
+      "binary_expression",
+      "cast_expression",
+      "field_expression"
+    ],
+    "other_properties_match": true
+  },
+  "generator": {
+    "actual_version": "tree-sitter 0.26.5",
+    "artifact": {
+      "archive_download_url": "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/actions/artifacts/10480207378/zip",
+      "created_at": "2026-09-17T04:22:10Z",
+      "digest": "sha256:043f838112100a2889eb28c29dea0de1f8a3bb619a45f6f79bdd273f9ece2cfb",
+      "expired": false,
+      "expires_at": "2026-10-01T04:22:07Z",
+      "id": 10480207378,
+      "name": "hosted-cpp-grammar-experiment-35181390710-1",
+      "node_id": "MDg6QXJ0aWZhY3QxMDQ4MDIwNzM3OA==",
+      "size_in_bytes": 14413749,
+      "updated_at": "2026-09-17T04:22:10Z",
+      "url": "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/actions/artifacts/10480207378",
+      "workflow_run": {
+        "head_branch": "qualify/cmake-source-443-20260916",
+        "head_repository_id": 1345590348,
+        "head_sha": "dba90fd7fc9bc735bca712f2c7ecc0fcacb24e6e",
+        "id": 35181390710,
+        "repository_id": 1345590348
+      }
+    },
+    "binary": {
+      "bytes": 12470680,
+      "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/work/tree-sitter",
+      "sha256": "83d9f2f0348b132a20a8de92863322cdfc65661fb623976ce6416cf612e9ea5e"
+    },
+    "retained_producer_run": 35181390710,
+    "reuse": "Identical previously built CLI; this experiment does not rebuild or reinstall it",
+    "source_commit": "470813116b99578956e67abb7138e993833af67a",
+    "zip_bytes": 14413749,
+    "zip_sha256": "043f838112100a2889eb28c29dea0de1f8a3bb619a45f6f79bdd273f9ece2cfb"
+  },
+  "inherited_c_corpus": {
+    "command_returncode": 0,
+    "parse_outcomes": {
+      "Passed": 85
+    },
+    "passed": true,
+    "selection": "unfiltered unchanged upstream test directory",
+    "summary_present": true,
+    "update_requested": false
+  },
+  "installed_provider_modified": false,
+  "non_pointer_cst_parity": true,
+  "owned_corpus_delta": {
+    "changed_lines": [
+      2234,
+      2236
+    ],
+    "file": {
+      "bytes": 66624,
+      "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/inputs/pointer-corpus-declarations.txt",
+      "sha256": "12cbc54555e6bd1e847f7bd47f69422dcfd13ce5a47f814ec598df430011a91d"
+    },
+    "official_blob": "273afad947371be38fbb635a90dbdd90a1ceceb5",
+    "owned_blob": "410e7b96fad67983a1f0c656960aa15c45ae32b3",
+    "path": "test/corpus/declarations.txt",
+    "reason": "Represent the existing .* expression as binary pointer-to-member syntax, matching ->*; only this expected CST changes",
+    "source_bytes_unchanged": true
+  },
+  "pointer_grammar_input": {
+    "bytes": 45169,
+    "git_blob": "ad4d5359e64b6c60501a15cebd90e425af58935a",
+    "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/inputs/pointer.grammar.js",
+    "sha256": "26b9bdf11f0eeaa38a0bcb7966e6864aedc858a6dbc2eeadcb8aab824ed6910d"
+  },
+  "pointer_member_fix_included": true,
+  "runner": {
+    "environment": "github-hosted",
+    "os": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "run_id": "35194152219",
+    "workflow_sha": "46afbda34b278d28d20d8b3f19e025ca9280efab"
+  },
+  "schema": "laplace.hosted-cpp-pointer-member-experiment/v1",
+  "scope": "Scratch parser generation, full C/C++ corpora with one explicit owned pointer-member CST golden, and exact CST controls; no provider activation or executable equivalence",
+  "source_proposal_manifest": null,
+  "sources": {
+    "c": {
+      "archive": {
+        "bytes": 4812800,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/sources/c.tar",
+        "sha256": "6e90673e7c6a8e9f0fae3883d730c59d5d8d8a44634a9499e064858681828ebd"
+      },
+      "commit": "7fa1be1b694b6e763686793d97da01f36a0e5c12",
+      "repository": "tree-sitter/tree-sitter-c",
+      "tree": "5392349d60304fc2920be64ac9aa5410c0f8c385"
+    },
+    "cpp": {
+      "archive": {
+        "bytes": 27054080,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/sources/cpp.tar",
+        "sha256": "a162edeecfebe736bc561d826dd6d694b78ac970f70a1d4b6dbf5f07429a768a"
+      },
+      "commit": "8b5b49eb196bec7040441bee33b2c9a4838d6967",
+      "repository": "tree-sitter/tree-sitter-cpp",
+      "tree": "d5ed868917a07bcc8272f37e551d707e7a836f95"
+    },
+    "generator": {
+      "archive": {
+        "bytes": 4341760,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/sources/generator.tar",
+        "sha256": "aeec1600189c9036d606401b6069b51bf2c1805d308ab0aad06ba3341ba657fe"
+      },
+      "commit": "470813116b99578956e67abb7138e993833af67a",
+      "repository": "tree-sitter/tree-sitter",
+      "tree": "f26d8ff7b7c569815c8118724fad05d473c01b7e"
+    }
+  },
+  "status": "passed-hosted-syntax-experiment-only",
+  "stockfish_full_corpus_reparsed": false,
+  "stockfish_source_files": {
+    "src/attacks.h": {
+      "bytes": 11668,
+      "sha256": "561d2eb1268ba66e7aa065387a033e686a49925d8e8c58a75826239a358cb1f5"
+    },
+    "src/movegen.h": {
+      "bytes": 2130,
+      "sha256": "8180128aafed4aacdfc75999b17e7cb64da250b6c94b87e06a2e1bf65b3a6276"
+    },
+    "src/thread.h": {
+      "bytes": 6185,
+      "sha256": "d39544eea0dc30fa6edd541f5f87ed06af554ba0364161ab04a78b4b9757a897"
+    },
+    "src/uci.cpp": {
+      "bytes": 22760,
+      "sha256": "a31fa10719b1d9ecaa23f774f14a5a995be65eeb52722798c2f2bb4255991b21"
+    }
+  },
+  "variants": {
+    "pointer-candidate": {
+      "generated_files": [
+        {
+          "bytes": 45169,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/pointer-candidate/grammar.js",
+          "sha256": "26b9bdf11f0eeaa38a0bcb7966e6864aedc858a6dbc2eeadcb8aab824ed6910d"
+        },
+        {
+          "bytes": 462021,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/pointer-candidate/src/grammar.json",
+          "sha256": "cb3efb4f09ef988fef0ab7d5c4a7bacb795b609e447afdb589523758f3d69985"
+        },
+        {
+          "bytes": 164668,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/pointer-candidate/src/node-types.json",
+          "sha256": "544a53983d43ffc6b9c08799cef5b2acf304088ea7a5028ce3b6664b8e615af3"
+        },
+        {
+          "bytes": 25727293,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/pointer-candidate/src/parser.c",
+          "sha256": "1013e7501d7b070b36ca2cdb931a09ebdd4a445b6751918c80aa3778947ff985"
+        },
+        {
+          "bytes": 5169,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/pointer-candidate/src/scanner.c",
+          "sha256": "cf60387d290271f4d2fb558d0569b2b9ef879cb72206a9df5cc73b0b1a4b20ff"
+        },
+        {
+          "bytes": 7624,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/pointer-candidate/src/tree_sitter/parser.h",
+          "sha256": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2"
+        },
+        {
+          "bytes": 985,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/pointer-candidate/src/tree_sitter/alloc.h",
+          "sha256": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea"
+        },
+        {
+          "bytes": 13720,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/pointer-candidate/src/tree_sitter/array.h",
+          "sha256": "4483dc3d37ab62fc8cabd5cfbd7de8267a2b1e3b12da3a90a5b8b324dacd5498"
+        }
+      ],
+      "generation_status": "passed",
+      "probe_binary": {
+        "bytes": 5779304,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/pointer-candidate/parse-cst",
+        "sha256": "e892f97362e4a6c86b1871f688ce9a49c39abf2cb40f24ae2f3db74c04f046bd"
+      },
+      "upstream_tests": {
+        "command_returncode": 0,
+        "parse_outcomes": {
+          "Passed": 198
+        },
+        "passed": true,
+        "selection": "unfiltered upstream corpus with exact owned pointer-member golden",
+        "summary_present": true,
+        "update_requested": false
+      }
+    },
+    "three-rule-baseline": {
+      "generated_files": [
+        {
+          "bytes": 44564,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/three-rule-baseline/grammar.js",
+          "sha256": "3a47547ab927ff4262d7c760ca6df6f86e1c56012848867c17f24ba7e1360bd1"
+        },
+        {
+          "bytes": 460858,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/three-rule-baseline/src/grammar.json",
+          "sha256": "58ea3ae4c0952319a5f72e703ad7411406690afa9b881dbd1d9e741c110b5766"
+        },
+        {
+          "bytes": 164589,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/three-rule-baseline/src/node-types.json",
+          "sha256": "ae67d1ea3c71f074d2ba17e223fae31f0c099534c0c8df54bdecbf679cb30bae"
+        },
+        {
+          "bytes": 25906544,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/three-rule-baseline/src/parser.c",
+          "sha256": "7c07d847115c87936f04a3cbf7999ea996ba0d0b1759e069667dad365e8a7ba5"
+        },
+        {
+          "bytes": 5169,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/three-rule-baseline/src/scanner.c",
+          "sha256": "cf60387d290271f4d2fb558d0569b2b9ef879cb72206a9df5cc73b0b1a4b20ff"
+        },
+        {
+          "bytes": 7624,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/three-rule-baseline/src/tree_sitter/parser.h",
+          "sha256": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2"
+        },
+        {
+          "bytes": 985,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/three-rule-baseline/src/tree_sitter/alloc.h",
+          "sha256": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea"
+        },
+        {
+          "bytes": 13720,
+          "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/generated/three-rule-baseline/src/tree_sitter/array.h",
+          "sha256": "4483dc3d37ab62fc8cabd5cfbd7de8267a2b1e3b12da3a90a5b8b324dacd5498"
+        }
+      ],
+      "generation_status": "passed",
+      "probe_binary": {
+        "bytes": 5800296,
+        "path": "/home/runner/work/Laplace-Refactor/Laplace-Refactor/laplace-pointer-35194152219-1/evidence/binaries/three-rule-baseline/parse-cst",
+        "sha256": "18629e840cfd9cc0f4cf4d9125e1bf243834336a3960f3b26fa4c938171b6e34"
+      },
+      "upstream_tests": {
+        "command_returncode": 0,
+        "parse_outcomes": {
+          "Passed": 198
+        },
+        "passed": true,
+        "selection": "unfiltered unchanged upstream test directory",
+        "summary_present": true,
+        "update_requested": false
+      }
+    }
+  }
+}
