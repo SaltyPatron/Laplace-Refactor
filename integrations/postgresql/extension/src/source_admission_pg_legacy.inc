@@ -1547,6 +1547,11 @@ Datum LAPLACE_PG_SOURCE_ADMIT_TABULAR_SYMBOL(PG_FUNCTION_ARGS) {
         profiles = profile_array(&profile, &profile_array_oid);
         call_source_profile(
             context_datum, profiles, profile_array_oid, &receipts);
+        /* The canonical profile must be present before bounded historical
+         * witness authentication. All stages still commit atomically. */
+        laplace_pg_persist_source_structural_witnesses(
+            source_plan, &execution, &composition_input, &profile,
+            &laplace_pg_source_metrics_active.structural_execution_receipt);
         if (plan.reference_occurrence_count != 0u) {
             reference_candidates = build_reference_candidates(
                 &plan, &execution, &profile);

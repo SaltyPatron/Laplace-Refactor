@@ -417,7 +417,7 @@ static void laplace_pg_source_composition_execute(
 }
 
 static laplace_tabular_source_status
-laplace_pg_source_profile_finalize_with_witnesses(
+laplace_pg_source_profile_finalize_with_logical_denominator(
     const laplace_tabular_source_plan* plan,
     const laplace_composition_working_set_summary* summary,
     laplace_source_profile_manifest* profile) {
@@ -464,11 +464,6 @@ laplace_pg_source_profile_finalize_with_witnesses(
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg("Laplace structural witness deposition lost its source execution binding")));
     }
-    laplace_pg_persist_source_structural_witnesses(
-        plan,
-        laplace_pg_active_source_execution,
-        laplace_pg_active_source_composition_input,
-        profile, &laplace_pg_source_metrics_active.structural_execution_receipt);
     return status;
 }
 
@@ -478,7 +473,7 @@ laplace_pg_source_profile_finalize_with_witnesses(
 #define LAPLACE_PG_COMPOSITION_PERSIST_RECEIPT_SYMBOL \
     laplace_pg_source_composition_persist_receipt
 #define laplace_tabular_source_profile_finalize(plan, summary, profile) \
-    laplace_pg_source_profile_finalize_with_witnesses((plan), (summary), (profile))
+    laplace_pg_source_profile_finalize_with_logical_denominator((plan), (summary), (profile))
 #define laplace_tabular_source_plan_create(input, plan) \
     laplace_pg_source_decomposition_plan_create((input), (plan))
 #define SPI_execute_with_args(...) \

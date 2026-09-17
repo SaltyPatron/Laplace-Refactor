@@ -613,10 +613,14 @@ class GitReadbackReceiptTests(unittest.TestCase):
                  for index,artifact in enumerate(artifacts)]
         if corrupt_last:
             records[-1]['sha256']='ef'*32
-        returned={'structural_receipt_count':1,'structural_witness_fingerprint':witness,'records':records}
+        returned={'structural_receipt_count':1,'structural_witness_fingerprint':witness,
+                  'execution_witness_fingerprint':'cd'*32,
+                  'structural_execution_receipt_id':'ef'*32,
+                  'historical_structural_receipt_id':'01'*32,'records':records}
         result={'admission':{'profile_id':profile,'composition_working_set_receipt_id':'\\x'+'34'*32,
                             'source_fingerprint':'\\x'+'56'*32,'testimony_count':0,'evidence_node_count':0},
-                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':span_count}}
+                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':span_count},
+                'execution_metrics':{'last':{'valid':True,'structural_execution_receipt_id':'ef'*32}}}
         identities={key:'78'*32 for key in ('source_epoch','identity_epoch','evidence_epoch','firmware_epoch',
                     'dependency_epoch','database_epoch','package_epoch','authority_fingerprint')}
         with patch.object(A,'run_scalar',return_value=json.dumps(returned)) as scalar:
@@ -629,6 +633,11 @@ class GitReadbackReceiptTests(unittest.TestCase):
     def test_readback_retains_semantic_witness_identity_and_all_exact_artifacts(self):
         result=self.execute()
         self.assertEqual(result['structural_witness_fingerprint'],'ab'*32)
+        self.assertEqual(result['execution_witness_fingerprint'],'cd'*32)
+        self.assertEqual(result['structural_execution_receipt_id'],'ef'*32)
+        self.assertEqual(result['historical_structural_receipt_id'],'01'*32)
+        self.assertIn("WHERE receipt_id=decode('"+'ef'*32+"','hex')", self.readback_sql)
+        self.assertIn('AND version=4', self.readback_sql)
         self.assertEqual(result['verified_file_count'],2)
         self.assertEqual(result['verified_byte_count'],5)
         self.assertTrue(result['all_artifacts_exact'])
@@ -641,7 +650,7 @@ class GitReadbackReceiptTests(unittest.TestCase):
 
     def test_missing_or_malformed_structural_witness_identity_is_rejected(self):
         for witness in (None,'malformed','\\x'+'ab'*32):
-            with self.subTest(witness=witness), self.assertRaisesRegex(A.AdmissionError,'verified structural witness fingerprint'):
+            with self.subTest(witness=witness), self.assertRaisesRegex(A.AdmissionError,'verified canonical structural witness fingerprint'):
                 self.execute(witness)
 
     def test_changed_later_artifact_is_rejected(self):
