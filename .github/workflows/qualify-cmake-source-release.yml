@@ -1,4 +1,4 @@
-name: Read authenticated pointer upstream corpus failure
+name: Read authenticated installed Stockfish admission failure
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -6,7 +6,7 @@ permissions:
   contents: read
   actions: read
 jobs:
-  read-pointer-corpus:
+  read-installed-source:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -18,11 +18,11 @@ jobs:
           python3 - <<'PY'
           import hashlib, io, json, os, pathlib, urllib.request, zipfile
           repository = "SaltyPatron/Laplace-Refactor"
-          artifact_id = 10484866720
-          run_id = 35193308935
-          job_id = 105110587463
-          expected_size = 7719728
-          expected_sha = "b2cb065b01be32c76268fb4ba92a90e0e69fbac2fd9767ae8908136fcb32fd70"
+          artifact_id = 10484374565
+          run_id = 35191157961
+          job_id = 105110924113
+          expected_size = 2742993
+          expected_sha = "27f6594ba16630711192fb1654358589ad879cbc312b9824a3e6df2f9d6be260"
           api = "https://api.github.com/repos/" + repository
           token = os.environ.pop("GH_TOKEN")
           def get(url, limit):
@@ -44,81 +44,39 @@ jobs:
           archive_data = get(api + "/actions/artifacts/" + str(artifact_id) + "/zip", expected_size)
           assert len(archive_data) == expected_size
           assert hashlib.sha256(archive_data).hexdigest() == expected_sha
-          print("POINTER_ARTIFACT_AUTHENTICATED " + json.dumps({
+          print("SOURCE_ARTIFACT_AUTHENTICATED " + json.dumps({
               "repository": repository, "run_id": run_id, "job_id": job_id,
               "artifact_id": artifact_id, "zip_bytes": len(archive_data),
               "zip_sha256": expected_sha}), flush=True)
           with zipfile.ZipFile(io.BytesIO(archive_data)) as archive:
               entries = archive.infolist()
               names = [entry.filename for entry in entries]
-              assert len(names) == len(set(names)), "duplicate ZIP names"
-              assert all(not pathlib.PurePosixPath(name).is_absolute() and
-                         ".." not in pathlib.PurePosixPath(name).parts for name in names)
-              assert "report.json" in names
-              def read_json(name):
-                  info = archive.getinfo(name)
-                  assert info.file_size <= 12000000, "oversize selected JSON"
-                  return json.loads(archive.read(name))
-              report = read_json("report.json")
-              assert report["schema"] == "laplace.hosted-cpp-pointer-member-experiment/v1"
-              assert str(report["runner"]["run_id"]) == str(run_id)
-              assert report["installed_provider_modified"] is False
-              assert report["canonical_lock_modified"] is False
-              assert report["executable_semantics_verified"] is False
-              print("POINTER_EXPERIMENT_SUMMARY " + json.dumps({
-                  "status": report["status"], "failures": report["failures"],
-                  "fatal_exception": report.get("fatal_exception"),
-                  "generator": {key: report.get("generator", {}).get(key) for key in
-                                ("actual_version", "source_commit", "retained_producer_run", "zip_sha256")},
-                  "inherited_c_corpus": report.get("inherited_c_corpus"),
-                  "variants": {name: {"generation_status": row.get("generation_status"),
-                                     "upstream_tests": row.get("upstream_tests")}
-                               for name, row in report["variants"].items()},
-                  "non_pointer_cst_parity": report.get("non_pointer_cst_parity")
-              }, sort_keys=True), flush=True)
-              commands = [row for row in report["commands"] if row["label"] == "pointer-candidate-upstream-corpus"]
-              assert len(commands) == 1, "expected exact candidate upstream corpus command"
-              command = commands[0]
-              assert command["returncode"] != 0, "artifact is not the retained upstream corpus failure"
-              print("POINTER_UPSTREAM_COMMAND " + json.dumps({
-                  key: command.get(key) for key in
-                  ("label", "argv", "cwd", "returncode", "timed_out", "elapsed_seconds")
-              }, sort_keys=True), flush=True)
-              for stream in ("stdout", "stderr"):
-                  absolute = pathlib.PurePosixPath(command[stream])
-                  parts = absolute.parts
-                  assert "evidence" in parts
-                  relative = str(pathlib.PurePosixPath(*parts[parts.index("evidence") + 1:]))
-                  raw = archive.read(relative)
-                  identity = command[stream + "_identity"]
-                  assert len(raw) == identity["bytes"]
-                  assert hashlib.sha256(raw).hexdigest() == identity["sha256"]
-                  limit = 64000
-                  print("POINTER_UPSTREAM_" + stream.upper() + "_IDENTITY " +
-                        json.dumps({"zip_path": relative, "bytes": len(raw),
-                                    "sha256": identity["sha256"], "truncated": len(raw) > limit}), flush=True)
-                  print("POINTER_UPSTREAM_" + stream.upper() + "_BEGIN", flush=True)
-                  print(raw[:limit].decode("utf-8", errors="replace"), flush=True)
-                  print("POINTER_UPSTREAM_" + stream.upper() + "_END", flush=True)
-              baseline_path = "generated/three-rule-baseline/src/grammar.json"
-              candidate_path = "generated/pointer-candidate/src/grammar.json"
-              if baseline_path in names and candidate_path in names:
-                  baseline = read_json(baseline_path)
-                  candidate = read_json(candidate_path)
-                  changed = sorted(key for key in set(baseline["rules"]) | set(candidate["rules"])
-                                   if baseline["rules"].get(key) != candidate["rules"].get(key))
-                  print("POINTER_GENERATED_GRAMMAR_DELTA " + json.dumps({
-                      "changed_rules": changed,
-                      "other_properties_match": {k:v for k,v in baseline.items() if k != "rules"} ==
-                                                {k:v for k,v in candidate.items() if k != "rules"},
-                      "candidate_rule_count": len(candidate["rules"]),
-                      "candidate_rule_keys_present": {key: key in candidate["rules"] for key in
-                          ("_pointer_member_expression", "binary_expression", "field_expression",
-                           "_assignment_left_expression", "cast_expression")}
-                  }, sort_keys=True), flush=True)
-              else:
-                  print("POINTER_GENERATED_GRAMMAR_DELTA " + json.dumps({
-                      "baseline_json_retained": baseline_path in names,
-                      "candidate_json_retained": candidate_path in names}), flush=True)
-              print("POINTER_READER_COMPLETE", flush=True)
+              assert len(names) == len(set(names))
+              assert all(not pathlib.PurePosixPath(name).is_absolute() and ".." not in pathlib.PurePosixPath(name).parts for name in names)
+              print("SOURCE_ARTIFACT_MEMBERS " + json.dumps([{"name": e.filename, "bytes": e.file_size} for e in entries if "/" not in e.filename]), flush=True)
+              report = json.loads(archive.read("result.json"))
+              print("SOURCE_ACCEPTANCE_RESULT " + json.dumps(report, sort_keys=True), flush=True)
+              context = json.loads(archive.read("execution-context.json"))
+              assert context["expected_sha"] == "af0f3cf48de13005875f78888271ec8ccdf332c4"
+              assert str(context["workflow_run_id"]) == str(run_id)
+              print("SOURCE_EXECUTION_CONTEXT " + json.dumps(context, sort_keys=True), flush=True)
+              for name in ("activation-before.json", "runtime-selection.json"):
+                  if name in names:
+                      raw = archive.read(name)
+                      assert len(raw) <= 1000000
+                      print("SOURCE_RETAINED_JSON " + json.dumps({"name": name, "sha256": hashlib.sha256(raw).hexdigest(), "value": json.loads(raw)}, sort_keys=True), flush=True)
+              for command in report.get("commands", []):
+                  if command.get("name") not in ("admission", "repeat"):
+                      continue
+                  print("SOURCE_COMMAND " + json.dumps(command, sort_keys=True), flush=True)
+                  for stream in ("stdout", "stderr"):
+                      name = command["name"] + "." + stream + ".log"
+                      raw = archive.read(name)
+                      expected = command.get(stream + "_sha256")
+                      assert expected is not None and hashlib.sha256(raw).hexdigest() == expected
+                      print("SOURCE_STREAM_IDENTITY " + json.dumps({"name": name, "bytes": len(raw), "sha256": expected, "truncated": len(raw) > 64000}), flush=True)
+                      print("SOURCE_STREAM_BEGIN " + name, flush=True)
+                      print((raw if len(raw) <= 64000 else raw[:8000] + b"\n[bounded middle omitted]\n" + raw[-56000:]).decode("utf-8", errors="replace"), flush=True)
+                      print("SOURCE_STREAM_END " + name, flush=True)
+              print("SOURCE_FAILURE_READER_COMPLETE", flush=True)
           PY
