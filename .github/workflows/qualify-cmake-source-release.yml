@@ -21,7 +21,7 @@ jobs:
           import base64, hashlib, importlib.util, json, os, pathlib, sys, unittest, urllib.request
           root=pathlib.Path.cwd()
           sys.path.insert(0,str(root/'tests'))
-          for path,sha in [("tools/sources/qualify_grammar.py","582f8b5ad926ff3756cae5cbf53a4ffd905532b4"),("tests/verified_git_source_tests.py","70ccebad807e504bb4fed17f14eb358f392958ef"),("tests/build_cpp_provider_execution_mutant.py","0d5daef822af75c70a353b1c66413cbb06ed763e"),("tools/admit_source.py","36d689ebe57239a455d863b01ade0d738642b847"),("tests/stockfish_corpus_acceptance_tests.py","4190be4d936dd847bcf177cf7df70b5e0d146a02")]:
+          for path,sha in [("tools/sources/qualify_grammar.py","582f8b5ad926ff3756cae5cbf53a4ffd905532b4"),("tests/verified_git_source_tests.py","3b817c2cecb5210492e3ba0a7567ae3dab19244d"),("tests/build_cpp_provider_execution_mutant.py","0d5daef822af75c70a353b1c66413cbb06ed763e"),("tools/admit_source.py","36d689ebe57239a455d863b01ade0d738642b847"),("tests/stockfish_corpus_acceptance_tests.py","4190be4d936dd847bcf177cf7df70b5e0d146a02")]:
               request=urllib.request.Request("https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+sha,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"})
               with urllib.request.urlopen(request,timeout=60) as response: value=json.load(response)
               data=base64.b64decode(value["content"],validate=False)
@@ -32,7 +32,7 @@ jobs:
           spec.loader.exec_module(module)
           result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromModule(module))
           assert result.testsRun==37 and not result.skipped and result.wasSuccessful(), result
-          print(json.dumps({"schema":"laplace.provider-reproducibility-qualification/v1","base":"92dd91a568d5b764879ab20ffdc739b7db05b902","tests":result.testsRun,"skipped":len(result.skipped),"success":result.wasSuccessful(),"provider":"582f8b5ad926ff3756cae5cbf53a4ffd905532b4","controls":"70ccebad807e504bb4fed17f14eb358f392958ef"}))
+          print(json.dumps({"schema":"laplace.provider-reproducibility-qualification/v1","base":"92dd91a568d5b764879ab20ffdc739b7db05b902","tests":result.testsRun,"skipped":len(result.skipped),"success":result.wasSuccessful(),"provider":"582f8b5ad926ff3756cae5cbf53a4ffd905532b4","controls":"3b817c2cecb5210492e3ba0a7567ae3dab19244d"}))
           spec=importlib.util.spec_from_file_location("acceptance_tests",root/"tests/stockfish_corpus_acceptance_tests.py")
           module=importlib.util.module_from_spec(spec)
           spec.loader.exec_module(module)
