@@ -1,198 +1,140 @@
-name: Qualify private PostgreSQL witness join candidate
+name: Read authenticated installed cognition service authority
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
+  actions: read
 jobs:
-  witness-statistics:
+  read-installed-service:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    env:
-      GIT_TERMINAL_PROMPT: "0"
-      QUAL_ROOT: /build/laplace/work/witness-stats-${{ github.run_id }}-${{ github.run_attempt }}
-      QUAL_BUILD: /build/laplace/build/witness-stats-${{ github.run_id }}-${{ github.run_attempt }}
-      TMPDIR: /build/laplace/work
-      TMP: /build/laplace/work
-      TEMP: /build/laplace/work
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: df158f21bfecaf4045d065b10c21cd92464ce3ec
-          persist-credentials: false
-      - name: Authenticate the isolated fixture and source extraction
-        timeout-minutes: 5
-        shell: bash
+      - name: Authenticate retained experiment and expose bounded diagnostics
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          set -euo pipefail
-          sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" /build/laplace/work /build/laplace/build
-          test ! -e "$QUAL_ROOT"
-          test ! -e "$QUAL_BUILD"
-          mkdir -p "$QUAL_ROOT/output" "$QUAL_ROOT/archives" "$QUAL_BUILD"
           python3 - <<'PY'
-          import ast,base64,hashlib,json,os,pathlib,runpy,subprocess,urllib.request
-          base="df158f21bfecaf4045d065b10c21cd92464ce3ec"
-          fixture_sha="401bd1c126e97bf1159f9d489edaa4699edd80b4"
-          candidate_sha="fd43fb36329e13c0c9ca0065204c04d5ababd340"
-          if subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()!=base:
-              raise SystemExit("fixture source checkout differs")
-          root=pathlib.Path(os.environ["QUAL_ROOT"])
-          for selected_sha,filename in (
-              (fixture_sha,"stale_witness_plan_fixture.py"),
-              (candidate_sha,"candidate-source_structural_witness_pg.c")):
-              request=urllib.request.Request(
-                  "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+selected_sha,
-                  headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
-                           "Accept":"application/vnd.github+json",
-                           "X-GitHub-Api-Version":"2022-11-28"})
-              with urllib.request.urlopen(request,timeout=30) as response:
-                  document=json.load(response)
-              if document.get("sha")!=selected_sha or document.get("encoding")!="base64":
-                  raise SystemExit("selected blob response differs")
-              payload=base64.b64decode(document["content"])
-              actual=hashlib.sha1(b"blob "+str(len(payload)).encode()+b"\0"+payload).hexdigest()
-              if actual!=selected_sha:raise SystemExit("selected blob bytes differ")
-              (root/"output"/filename).write_bytes(payload)
-          fixture=root/"output"/"stale_witness_plan_fixture.py"
-          ast.parse(fixture.read_bytes(),filename=str(fixture))
-          module=runpy.run_path(str(fixture))
-          schema,parameterized,query=module["extract_sources"](pathlib.Path.cwd())
-          candidate_parameterized,candidate_query=module["extract_candidate"](
-              root/"output"/"candidate-source_structural_witness_pg.c")
-          source={"schema":"laplace.private-witness-candidate-source/v1",
-              "base_commit":base,"fixture_blob":fixture_sha,
-              "source_blobs":module["SOURCES"],"candidate_source_blob":candidate_sha,
-              "query_sha256":hashlib.sha256(parameterized.encode()).hexdigest(),
-              "candidate_query_sha256":hashlib.sha256(candidate_parameterized.encode()).hexdigest(),
-              "fixture_schema_sha256":hashlib.sha256(schema.encode()).hexdigest(),
-              "query_scope":"original and candidate full-profile v4 witness cursor",
-              "native_admission_performed":False,"native_C_verifier_executed":False,
-              "historical_cause_proven":False}
-          (root/"output"/"source-selection.json").write_text(json.dumps(source,indent=2)+"\n")
-          print("LAPLACE_WITNESS_CANDIDATE_SOURCE "+json.dumps(source,sort_keys=True))
+          import hashlib, io, json, os, pathlib, urllib.request, zipfile
+          repository = "SaltyPatron/Laplace-Refactor"
+          run_id = 35247073782
+          job_id = 105296450762
+          api = "https://api.github.com/repos/" + repository
+          token = os.environ.pop("GH_TOKEN")
+          def get(url, limit):
+              request = urllib.request.Request(url, headers={
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "Laplace-authenticated-pointer-diagnostic-reader"})
+              request.add_unredirected_header("Authorization", "Bearer " + token)
+              with urllib.request.urlopen(request, timeout=90) as response:
+                  data = response.read(limit + 1)
+              if len(data) > limit:
+                  raise RuntimeError("response exceeds exact bounded reader limit")
+              return data
+          job = json.loads(get(api + "/actions/jobs/" + str(job_id), 1000000))
+          assert job["run_id"] == run_id and job["head_sha"] == "54c3ec6f8d5caf01d6923b2c79d496dea0606311"
+          assert job["status"] in ("in_progress", "completed")
+          required = {
+              5: "Activate PostgreSQL, Unicode, and Highway as laplace-runner",
+              11: "Start and execute the installed Laplace cognition surface",
+              12: "Retain installed gateway semantic proof and partial failure evidence",
+              13: "Retain selected cognition service restart evidence",
+              14: "Retain installed HTTP readiness evidence",
+          }
+          observed_steps = {step["number"]: step for step in job["steps"]}
+          for number, name in required.items():
+              step = observed_steps[number]
+              assert step["name"] == name and step["status"] == "completed" and step["conclusion"] == "success"
+          print("SERVICE_PHASES_AUTHENTICATED " + json.dumps({
+              "job_status": job["status"], "job_conclusion": job["conclusion"],
+              "whole_activation_job_success_claimed": False,
+              "steps": [observed_steps[number] for number in required]
+          }, sort_keys=True), flush=True)
+          print("ACTIVATION_JOB_AUTHENTICATED " + json.dumps({
+              "run_id": run_id, "job_id": job_id, "head_sha": job["head_sha"],
+              "started_at": job["started_at"], "completed_at": job["completed_at"],
+              "conclusion": job["conclusion"]
+          }, sort_keys=True), flush=True)
+          service_artifacts = [{"kind":"service-restart","id":10509460466,"size":291475,"sha256":"294dda5c90d6edc1b034dee4b94c8302683b1ce080720dc643c535e700e95052","member":"result.json"},{"kind":"http-readiness","id":10509215972,"size":1182,"sha256":"6cc21626b5954e1bdfeb7a328c4bafdbf22f29ffede13abdfcbe7894bf4365c1","member":"installed-http-readiness-35247073782-1.json"},{"kind":"gateway","id":10509495303,"size":4387,"sha256":"29d6ea857c87eab412b96aa59afa1a11aa50fbec54bda4a043ca57aff7108450","member":"proof.json"}]
+          assert [item["kind"] for item in service_artifacts] == ["service-restart", "http-readiness", "gateway"]
+          for selected in service_artifacts:
+              metadata = json.loads(get(api + "/actions/artifacts/" + str(selected["id"]), 100000))
+              assert metadata["id"] == selected["id"] and not metadata["expired"]
+              assert metadata["size_in_bytes"] == selected["size"]
+              assert metadata["digest"] == "sha256:" + selected["sha256"]
+              assert metadata["workflow_run"]["id"] == run_id
+              payload = get(api + "/actions/artifacts/" + str(selected["id"]) + "/zip", selected["size"])
+              assert len(payload) == selected["size"] and hashlib.sha256(payload).hexdigest() == selected["sha256"]
+              with zipfile.ZipFile(io.BytesIO(payload)) as service_archive:
+                  entries = service_archive.infolist()
+                  names = [entry.filename for entry in entries]
+                  assert len(names) == len(set(names))
+                  assert all(not pathlib.PurePosixPath(name).is_absolute() and ".." not in pathlib.PurePosixPath(name).parts for name in names)
+                  entry = service_archive.getinfo(selected["member"])
+                  assert 0 < entry.file_size <= 1000000
+                  raw = service_archive.read(entry)
+                  result = json.loads(raw)
+              assert result["status"] == "passed"
+              if selected["kind"] == "service-restart":
+                  assert result["schema"] == "laplace.cognition-service-lifecycle/v1"
+                  assert result["action"] == "restart"
+                  observation = result["observation"]
+                  assert observation["repository_commit"] == "54c3ec6f8d5caf01d6923b2c79d496dea0606311"
+                  assert observation["activated_package_verified"] is True
+                  assert observation["http_auth"] == {"mode": "managed-operator", "credential_source": "/opt/laplace/secrets/operator.env"}
+                  assert observation["unit"]["ActiveState"] == "active"
+                  assert observation["health"]["response"]["status"] == "ready"
+                  assert observation["health"]["response"]["package_id"] == observation["package_id"]
+                  service_package = observation["package_id"]
+                  assert len(service_package) == 64 and all(c in "0123456789abcdef" for c in service_package)
+                  projection = {
+                      "schema": result["schema"], "status": result["status"],
+                      "service": "laplace-refactor-cognition.service",
+                      "service_scope": observation["scope"],
+                      "http_auth": observation["http_auth"],
+                      "unit": {key: observation["unit"].get(key) for key in (
+                          "Id", "LoadState", "ActiveState", "SubState", "UnitFileState", "MainPID")},
+                      "package_id": service_package,
+                      "repository_commit": observation["repository_commit"],
+                      "health": observation["health"]["response"],
+                      "timings_seconds": observation["timings_seconds"],
+                      "cold_boot_proven": result["cold_boot_proven"]
+                  }
+              elif selected["kind"] == "http-readiness":
+                  assert result["schema"] == "laplace.installed-product-http-readiness/v1"
+                  assert result["package_id"] == service_package
+                  assert result["endpoint"] == "http://127.0.0.1:55434"
+                  assert result["http_auth"] == {"mode": "managed-operator", "credential_source": "/opt/laplace/secrets/operator.env"}
+                  assert result["anonymous_protected_status"] == 401
+                  assert result["health"]["status"] == 200
+                  projection = {key: result.get(key) for key in (
+                      "schema", "status", "scope", "package_id", "endpoint", "http_auth", "anonymous_protected_status")}
+                  projection["external_reachability_verified"] = False
+              else:
+                  assert result["schema"] == "laplace.installed-product-gateway-proof/v2"
+                  assert result["package_id"] == service_package
+                  assert result["http_auth"] == {"mode": "managed-operator", "credential_source": "/opt/laplace/secrets/operator.env"}
+                  partial = result["partial"]
+                  assert partial["http_authority"]["anonymous_mcp_status"] == 401
+                  assert partial["product_events"]["status"] == 200
+                  assert partial["product_events"]["package_id"] == service_package
+                  assert partial["product_events"]["complete_frame"] is True
+                  assert result["openai_chat"]["streaming"]["done"] is True
+                  assert result["openai_chat"]["streaming"]["finished"] is True
+                  assert result["mcp"]["query_schema"] == "laplace.inspect.summary/v1"
+                  projection = {"schema": result["schema"], "status": result["status"],
+                      "package_id": service_package, "http_auth": result["http_auth"],
+                      "anonymous_mcp_status": 401, "product_events": partial["product_events"],
+                      "completed_phases": result["completed_phases"],
+                      "external_reachability_verified": False}
+              print("SERVICE_ARTIFACT_AUTHENTICATED " + json.dumps({
+                  "artifact_id": selected["id"], "zip_bytes": selected["size"],
+                  "zip_sha256": selected["sha256"], "kind": selected["kind"],
+                  "member": selected["member"], "member_bytes": len(raw),
+                  "member_sha256": hashlib.sha256(raw).hexdigest(),
+                  "projection": projection
+              }, sort_keys=True), flush=True)
+          print("SERVICE_READER_COMPLETE", flush=True)
           PY
-          sudo apt-get update
-          sudo apt-get install --yes build-essential bison flex perl curl
-          {
-            uname -a
-            gcc --version
-            python3 --version
-          } > "$QUAL_ROOT/output/hosted-provider-versions.txt"
-      - name: Acquire the exact official PostgreSQL 18.6 source
-        timeout-minutes: 6
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json,os,pathlib
-          source=json.loads(pathlib.Path("dependencies/release-lock.json").read_text())
-          entry=source["archives"]["postgresql"]
-          if entry["version"]!="18.6" or entry["sha256"]!="555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f":
-              raise SystemExit("selected PostgreSQL release differs")
-          target=pathlib.Path(os.environ["QUAL_ROOT"])/"output"/"postgresql-release-lock.json"
-          target.write_text(json.dumps({"schema":source["schema"],"archives":{"postgresql":entry}},indent=2)+"\n")
-          PY
-          curl --fail --location --retry 3 --connect-timeout 20 --max-time 180 \
-            --output "$QUAL_ROOT/archives/postgresql-18.6.tar.bz2" \
-            https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2
-          python3 tools/dependencies/release-assets.py import \
-            --lock "$QUAL_ROOT/output/postgresql-release-lock.json" \
-            --archive-root "$QUAL_ROOT/archives" \
-            --destination "$QUAL_ROOT/release-source" \
-            | tee "$QUAL_ROOT/output/postgresql-source-verification.json"
-      - name: Build disposable PostgreSQL 18.6
-        timeout-minutes: 12
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$QUAL_BUILD/postgresql"
-          cd "$QUAL_BUILD/postgresql"
-          "$QUAL_ROOT/release-source/postgresql/configure" \
-            --prefix="$QUAL_ROOT/pgsql-18" \
-            --without-readline --without-zlib --without-icu \
-            2>&1 | tee "$QUAL_ROOT/output/postgresql-configure.log"
-          make --jobs=2 2>&1 | tee "$QUAL_ROOT/output/postgresql-build.log"
-          make install 2>&1 | tee "$QUAL_ROOT/output/postgresql-install.log"
-          "$QUAL_ROOT/pgsql-18/bin/pg_config" --version \
-            | tee "$QUAL_ROOT/output/postgresql-version.txt"
-          test "$("$QUAL_ROOT/pgsql-18/bin/pg_config" --version)" = "PostgreSQL 18.6"
-      - name: Compare original and candidate full cursors and SQL corruption controls
-        timeout-minutes: 10
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$QUAL_ROOT/output/stale_witness_plan_fixture.py" \
-            --repository "$GITHUB_WORKSPACE" \
-            --pg-bindir "$QUAL_ROOT/pgsql-18/bin" \
-            --candidate-source "$QUAL_ROOT/output/candidate-source_structural_witness_pg.c" \
-            --work-root /build/laplace/work \
-            --output "$QUAL_ROOT/output/fixture" \
-            2>&1 | tee "$QUAL_ROOT/output/fixture.log"
-          python3 - <<'PY'
-          import hashlib,json,os,pathlib
-          root=pathlib.Path(os.environ["QUAL_ROOT"])/"output"
-          report=json.loads((root/"fixture"/"report.json").read_text())
-          if report["status"]!="completed" or not report["cleanup"]["stopped"]:
-              raise SystemExit("private fixture did not complete and clean up")
-          if report["postgres"]["server_version_num"]!="180006":
-              raise SystemExit("private provider version differs")
-          if report["final_counts"]!={"canonical":571627,"execution":571627,"other_sessions":0}:
-              raise SystemExit("synthetic full-profile counts differ")
-          source=json.loads((root/"source-selection.json").read_text())
-          if report["source_blobs"]!=source["source_blobs"] or report["query_sha256"]!=source["query_sha256"]:
-              raise SystemExit("executed original source binding differs")
-          if report["candidate_source_blob"]!=source["candidate_source_blob"] or report["candidate_query_sha256"]!=source["candidate_query_sha256"]:
-              raise SystemExit("executed candidate source binding differs")
-          if report["healthy_ordered_comparison"].get("exact") is not True:
-              raise SystemExit("healthy ordered-row comparison differs")
-          summary={"schema":"laplace.private-witness-candidate-observation/v1",
-              "status":"completed","provider":"official PostgreSQL 18.6; hosted private cluster",
-              "native_admission_performed":False,"native_C_verifier_executed":False,
-              "historical_cause_proven":False,
-              "scope":"SQL planning, exact ordered healthy rows and NULL-required-field corruption controls",
-              "source":source,"old_profile_rows":report["old_profile_rows"],
-              "new_profile_rows":report["new_profile_rows"],"scenarios":{},
-              "healthy_ordered_comparison":report["healthy_ordered_comparison"],
-              "corruption_controls":report["corruption_controls"],"cleanup":report["cleanup"],
-              "final_session_observations":report["final_session_observations"],
-              "other_sessions_scope":report["other_sessions_scope"]}
-          for name in ("stale","fresh","candidate_stale","candidate_fresh"):
-              phase=report[name]
-              summary["scenarios"][name]={
-                  "estimated_nodes":phase["plan"]["nodes"],
-                  "execution_outcome":phase["analyze"]["outcome"],
-                  "elapsed_seconds":phase["analyze"]["elapsed_seconds"],
-                  "actual_nodes":phase["analyze"].get("nodes"),
-                  "server_statement_timeout_seconds":phase["analyze"]["server_statement_timeout_seconds"]}
-          if any(summary["scenarios"][name]["execution_outcome"]!="completed"
-                 for name in ("candidate_stale","candidate_fresh")):
-              raise SystemExit("candidate cursor failed its unchanged five-second bound")
-          manifest={}
-          for path in sorted(root.rglob("*")):
-              if path.is_file():
-                  payload=path.read_bytes()
-                  manifest[str(path.relative_to(root))]={"bytes":len(payload),
-                      "sha256":hashlib.sha256(payload).hexdigest()}
-          summary["evidence"]=manifest
-          (root/"observation.json").write_text(json.dumps(summary,indent=2)+"\n")
-          print("LAPLACE_WITNESS_CANDIDATE_OBSERVATION "+json.dumps(summary,sort_keys=True))
-          PY
-      - name: Retain configure diagnostics
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$QUAL_ROOT/output"
-          if [[ -f "$QUAL_BUILD/postgresql/config.log" ]]; then
-            cp "$QUAL_BUILD/postgresql/config.log" "$QUAL_ROOT/output/postgresql-config.log"
-          fi
-      - name: Retain source binding and private PostgreSQL plans
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: witness-statistics-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.QUAL_ROOT }}/output/
-          if-no-files-found: error
-          retention-days: 30
