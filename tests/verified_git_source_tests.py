@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/sources'))
 import verified_git as V
 import qualify_grammar as Q
+import build_cpp_provider_execution_mutant as M
 import admit_source as A
 
 
@@ -212,6 +214,203 @@ class VerifiedGitSourceTests(unittest.TestCase):
         grammar_lock.write_text(json.dumps({'repositories': [grammar]}))
         runtime_lock.write_text(json.dumps({'dependencies': {'tree-sitter': self.source_lock()}}))
         return lambda: Q.build(self.checkout, self.checkout, grammar_lock, runtime_lock, 'fixture', output)
+
+
+    def path_sensitive_fixture(self, output):
+        # This header is committed and authenticated by the locked Git archive,
+        # just like the generated source. Inline functions retain header locations.
+        (self.checkout / 'src/fixture_path.h').write_text(
+            'static inline const char *header_file(void) { return __FILE__; }\n'
+            'static inline const char *header_base_file(void) { return __BASE_FILE__; }\n'
+            'static inline const char *header_builtin_file(void) { return __builtin_FILE(); }\n')
+        source = (
+            b'#include "fixture_path.h"\n#include <assert.h>\n'
+            b'const char *fixture_file(void) { return __FILE__; }\n'
+            b'const char *fixture_base_file(void) { return __BASE_FILE__; }\n'
+            b'const char *fixture_builtin_file(void) { return __builtin_FILE(); }\n'
+            b'const char *fixture_header_file(void) { return header_file(); }\n'
+            b'const char *fixture_header_base_file(void) { return header_base_file(); }\n'
+            b'const char *fixture_header_builtin_file(void) { return header_builtin_file(); }\n'
+            b'int fixture_value(void) { return 17; }\n'
+            b'int fixture_checked(int value) { assert(value == 17); return value; }\n')
+        return source, self.build_fixture(source, output)
+
+    def build_locked_fixture(self, output):
+        return Q.build(self.checkout, self.checkout, self.root / 'grammar.json',
+                       self.root / 'runtime.json', 'fixture', output)
+
+    @unittest.skipUnless(shutil.which('cc') and os.name == 'posix',
+                         'actual POSIX C compiler unavailable')
+    def test_real_provider_build_is_reproducible_and_source_sensitive(self):
+        first = self.root / 'provider-a'
+        second = self.root / 'different-length-build-root' / 'provider-b'
+        source, build = self.path_sensitive_fixture(first)
+        receipts = [json.loads(build().read_bytes()),
+                    json.loads(self.build_locked_fixture(second).read_bytes())]
+        first_bytes = Path(receipts[0]['library']['path']).read_bytes()
+        self.assertEqual(first_bytes, Path(receipts[1]['library']['path']).read_bytes())
+        for field in ('compiler', 'grammar', 'runtime', 'generated_sources',
+                      'grammar_lock_sha256', 'dependency_lock_sha256'):
+            self.assertEqual(receipts[0][field], receipts[1][field])
+        self.assertNotEqual(receipts[0]['command'], receipts[1]['command'])
+        self.assertNotEqual(receipts[0]['library']['path'], receipts[1]['library']['path'])
+        for output, receipt in zip((first, second), receipts):
+            self.assertEqual(receipt['exit_code'], 0)
+            self.assertEqual(receipt['library']['sha256'], V.digest(first_bytes))
+            self.assertEqual(receipt['library']['byte_count'], len(first_bytes))
+            self.assertEqual(receipt['compiler']['sha256'],
+                             V.digest(Path(receipt['compiler']['path']).read_bytes()))
+            self.assertIn(str(output / 'source/src/parser.c'), receipt['command'])
+            self.assertIn(str(output / 'provider.so'), receipt['command'])
+            self.assertNotIn(str(output).encode(), first_bytes)
+            library = ctypes.CDLL(receipt['library']['path'])
+            for name, expected in (
+                ('fixture_file', b'./src/parser.c'),
+                ('fixture_base_file', b'./src/parser.c'),
+                ('fixture_builtin_file', b'./src/parser.c'),
+                ('fixture_header_file', b'./src/fixture_path.h'),
+                ('fixture_header_base_file', b'./src/parser.c'),
+                ('fixture_header_builtin_file', b'./src/fixture_path.h'),
+            ):
+                with self.subTest(output=str(output), function=name):
+                    function = getattr(library, name)
+                    function.restype = ctypes.c_char_p
+                    self.assertEqual(function(), expected)
+            library.fixture_checked.argtypes = [ctypes.c_int]
+            self.assertEqual(library.fixture_checked(17), 17)
+            self.assertEqual(library.fixture_value(), 17)
+
+            # Execute a real failing assert in a child, without creating a core.
+            failed = subprocess.run(
+                [sys.executable, '-c',
+                 'import ctypes, resource, sys; '
+                 'resource.setrlimit(resource.RLIMIT_CORE, (0, 0)); '
+                 'library = ctypes.CDLL(sys.argv[1]); '
+                 'library.fixture_checked.argtypes = [ctypes.c_int]; '
+                 'library.fixture_checked(0)',
+                 receipt['library']['path']],
+                capture_output=True, check=False, timeout=30)
+            self.assertEqual(failed.returncode, -signal.SIGABRT)
+            self.assertIn(b'./src/parser.c', failed.stderr)
+            self.assertIn(b'value == 17', failed.stderr)
+            self.assertNotIn(str(output).encode(), failed.stderr)
+
+        # A different authenticated semantic input must still change the output.
+        changed_source = source.replace(b'return 17;', b'return 23;')
+        changed = json.loads(self.build_fixture(
+            changed_source, self.root / 'changed-source-provider')().read_bytes())
+        self.assertNotEqual(changed['grammar']['revision'], receipts[0]['grammar']['revision'])
+        self.assertNotEqual(changed['grammar']['git_archive_sha256'],
+                            receipts[0]['grammar']['git_archive_sha256'])
+        self.assertNotEqual(changed['library']['sha256'], receipts[0]['library']['sha256'])
+        self.assertEqual(ctypes.CDLL(changed['library']['path']).fixture_value(), 23)
+
+    @unittest.skipUnless(shutil.which('cc') and os.name == 'posix',
+                         'actual POSIX C compiler unavailable')
+    def test_real_provider_without_prefix_normalization_changes_with_build_root(self):
+        first = self.root / 'unnormalized-a'
+        second = self.root / 'longer-unnormalized-root' / 'provider-b'
+        _, build = self.path_sensitive_fixture(first)
+        real_run = subprocess.run
+        actual_compile_commands = []
+
+        def compile_without_prefix_map(command, *args, **kwargs):
+            if isinstance(command, list) and '-shared' in command:
+                # Mutation only: execute the actual compiler with the old argv.
+                selected = [arg for arg in command if not arg.startswith('-ffile-prefix-map=')]
+                self.assertEqual(len(command) - len(selected), 1)
+                actual_compile_commands.append(selected)
+                command = selected
+            return real_run(command, *args, **kwargs)
+
+        with patch.object(Q.subprocess, 'run', side_effect=compile_without_prefix_map):
+            receipts = [json.loads(build().read_bytes()),
+                        json.loads(self.build_locked_fixture(second).read_bytes())]
+        self.assertEqual(len(actual_compile_commands), 2)
+        self.assertNotEqual(Path(receipts[0]['library']['path']).read_bytes(),
+                            Path(receipts[1]['library']['path']).read_bytes())
+        for output, receipt, command in zip((first, second), receipts, actual_compile_commands):
+            self.assertIn(str(output / 'source/src/parser.c'), command)
+            library = ctypes.CDLL(receipt['library']['path'])
+            library.fixture_file.restype = ctypes.c_char_p
+            self.assertEqual(library.fixture_file(), str(output / 'source/src/parser.c').encode())
+
+
+    @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
+    def test_real_execution_mutant_authenticates_sources_and_reuses_exact_build(self):
+        parent_alias = self.root / 'accepted-output-parent'
+        parent_alias.symlink_to(self.root, target_is_directory=True)
+        _, first_build = self.path_sensitive_fixture(parent_alias / 'normalized-provider')
+        first_receipt = first_build()
+        first_bytes = first_receipt.read_bytes()
+        original = json.loads(first_bytes)
+        output_root = self.root / 'execution-mutant'
+        args = (first_receipt, V.digest(first_bytes), self.checkout,
+                self.root / 'grammar.json', self.root / 'runtime.json', output_root, 'fixture')
+        result_path = M.build(*args)
+        result_bytes = result_path.read_bytes()
+        result = json.loads(result_bytes)
+        self.assertEqual(result['status'], 'completed')
+        self.assertEqual(result['exit_code'], 0)
+        self.assertIn('remove only -ffile-prefix-map', result['inputs']['mutation'])
+        self.assertFalse(result['inputs']['production_provider_selected'])
+        self.assertEqual(result['inputs']['first_receipt_sha256'], V.digest(first_bytes))
+        self.assertEqual(result['inputs']['generated_sources'], original['generated_sources'])
+        self.assertIn('src/fixture_path.h',
+                      [item['path'] for item in result['inputs']['tracked_files']])
+        self.assertEqual(result['inputs']['compiler'], original['compiler'])
+        self.assertFalse(any(arg.startswith('-ffile-prefix-map=') for arg in result['command']))
+        library = Path(result['library']['path'])
+        self.assertNotEqual(result['library']['sha256'], original['library']['sha256'])
+        self.assertEqual(result['library']['sha256'], V.digest(library.read_bytes()))
+        loaded = ctypes.CDLL(str(library))
+        loaded.fixture_file.restype = ctypes.c_char_p
+        loaded.fixture_header_file.restype = ctypes.c_char_p
+        self.assertEqual(loaded.fixture_file(), str(result_path.parent / 'source/src/parser.c').encode())
+        self.assertEqual(loaded.fixture_header_file(),
+                         str(result_path.parent / 'source/src/fixture_path.h').encode())
+        self.assertEqual(loaded.fixture_value(), 17)
+        before = (library.stat().st_mtime_ns, result_path.stat().st_mtime_ns)
+        self.assertEqual(M.build(*args), result_path)
+        self.assertEqual(result_path.read_bytes(), result_bytes)
+        self.assertEqual((library.stat().st_mtime_ns, result_path.stat().st_mtime_ns), before)
+        self.assertEqual(first_receipt.read_bytes(), first_bytes)
+
+    @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
+    def test_execution_mutant_refuses_altered_frozen_header_or_shadow(self):
+        _, first_build = self.path_sensitive_fixture(self.root / 'normalized-provider')
+        first_receipt = first_build()
+        frozen = first_receipt.parent / 'source'
+        header = frozen / 'src/fixture_path.h'
+        original = header.read_bytes()
+        output_root = self.root / 'refused-execution-mutant'
+        args = (first_receipt, V.digest(first_receipt.read_bytes()), self.checkout,
+                self.root / 'grammar.json', self.root / 'runtime.json', output_root, 'fixture')
+        header.chmod(0o640)
+        header.write_bytes(original + b'\n/* changed frozen header */\n')
+        with self.assertRaisesRegex(V.GitCorpusError, 'frozen source bytes'):
+            M.build(*args)
+        self.assertFalse(output_root.exists())
+        header.write_bytes(original)
+        (frozen / 'src/untracked_shadow.h').write_bytes(b'#error injected header\n')
+        with self.assertRaisesRegex(V.GitCorpusError, 'frozen source inventory'):
+            M.build(*args)
+        self.assertFalse(output_root.exists())
+
+    @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
+    def test_execution_mutant_refuses_changed_cached_library(self):
+        _, first_build = self.path_sensitive_fixture(self.root / 'normalized-provider')
+        first_receipt = first_build()
+        args = (first_receipt, V.digest(first_receipt.read_bytes()), self.checkout,
+                self.root / 'grammar.json', self.root / 'runtime.json',
+                self.root / 'execution-mutant', 'fixture')
+        result_path = M.build(*args)
+        result = json.loads(result_path.read_bytes())
+        library = Path(result['library']['path'])
+        library.chmod(0o640)
+        library.write_bytes(library.read_bytes() + b'changed')
+        with self.assertRaisesRegex(V.GitCorpusError, 'retained test provider bytes'):
+            M.build(*args)
 
     @unittest.skipUnless(shutil.which('cc'), 'actual C compiler unavailable')
     def test_real_compile_uses_frozen_tracked_headers_and_ignores_ambient_includes(self):
@@ -414,10 +613,14 @@ class GitReadbackReceiptTests(unittest.TestCase):
                  for index,artifact in enumerate(artifacts)]
         if corrupt_last:
             records[-1]['sha256']='ef'*32
-        returned={'structural_receipt_count':1,'structural_witness_fingerprint':witness,'records':records}
+        returned={'structural_receipt_count':1,'structural_witness_fingerprint':witness,
+                  'execution_witness_fingerprint':'cd'*32,
+                  'structural_execution_receipt_id':'ef'*32,
+                  'historical_structural_receipt_id':'01'*32,'records':records}
         result={'admission':{'profile_id':profile,'composition_working_set_receipt_id':'\\x'+'34'*32,
                             'source_fingerprint':'\\x'+'56'*32,'testimony_count':0,'evidence_node_count':0},
-                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':span_count}}
+                'persisted_profile':{'claim_count':0,'file_count':2,'span_count':span_count},
+                'execution_metrics':{'last':{'valid':True,'structural_execution_receipt_id':'ef'*32}}}
         identities={key:'78'*32 for key in ('source_epoch','identity_epoch','evidence_epoch','firmware_epoch',
                     'dependency_epoch','database_epoch','package_epoch','authority_fingerprint')}
         with patch.object(A,'run_scalar',return_value=json.dumps(returned)) as scalar:
@@ -430,6 +633,11 @@ class GitReadbackReceiptTests(unittest.TestCase):
     def test_readback_retains_semantic_witness_identity_and_all_exact_artifacts(self):
         result=self.execute()
         self.assertEqual(result['structural_witness_fingerprint'],'ab'*32)
+        self.assertEqual(result['execution_witness_fingerprint'],'cd'*32)
+        self.assertEqual(result['structural_execution_receipt_id'],'ef'*32)
+        self.assertEqual(result['historical_structural_receipt_id'],'01'*32)
+        self.assertIn("WHERE receipt_id=decode('"+'ef'*32+"','hex')", self.readback_sql)
+        self.assertIn('AND version=4', self.readback_sql)
         self.assertEqual(result['verified_file_count'],2)
         self.assertEqual(result['verified_byte_count'],5)
         self.assertTrue(result['all_artifacts_exact'])
@@ -442,7 +650,7 @@ class GitReadbackReceiptTests(unittest.TestCase):
 
     def test_missing_or_malformed_structural_witness_identity_is_rejected(self):
         for witness in (None,'malformed','\\x'+'ab'*32):
-            with self.subTest(witness=witness), self.assertRaisesRegex(A.AdmissionError,'verified structural witness fingerprint'):
+            with self.subTest(witness=witness), self.assertRaisesRegex(A.AdmissionError,'verified canonical structural witness fingerprint'):
                 self.execute(witness)
 
     def test_changed_later_artifact_is_rejected(self):

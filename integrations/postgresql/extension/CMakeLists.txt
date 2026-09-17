@@ -94,6 +94,13 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/source_grammar_admission.sql.in"
     "${CMAKE_CURRENT_BINARY_DIR}/source_grammar_admission.sql" @ONLY)
 file(READ "${CMAKE_CURRENT_BINARY_DIR}/source_grammar_admission.sql" source_grammar_admission_sql)
 file(APPEND "${public_readback_reconcile_sql}" "\n${source_grammar_admission_sql}\n")
+# The same additive execution-provenance migration serves a fresh current install,
+# the current extension upgrade, and already-persistent product reconciliation.
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/source_structural_witness_execution.sql.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/source_structural_witness_execution.sql" @ONLY)
+file(READ "${CMAKE_CURRENT_BINARY_DIR}/source_structural_witness_execution.sql"
+    source_structural_witness_execution_sql)
+file(APPEND "${public_readback_reconcile_sql}" "\n${source_structural_witness_execution_sql}\n")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/source_readback.sql.in"
     "${CMAKE_CURRENT_BINARY_DIR}/source_readback.sql" @ONLY)
 file(READ "${CMAKE_CURRENT_BINARY_DIR}/source_readback.sql" source_readback_sql)
@@ -477,10 +484,13 @@ set(physicality_entity_upgrade_sql
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/physicality_entity.sql.in"
     "${physicality_entity_upgrade_sql}" @ONLY)
 file(READ "${physicality_entity_upgrade_sql}" physicality_entity_delta)
+file(APPEND "${physicality_entity_upgrade_sql}"
+    "\n${source_grammar_admission_sql}\n${source_structural_witness_execution_sql}\n")
 file(READ "${extension_103_sql}" extension_103_base)
 set(current_extension_sql
     "${CMAKE_CURRENT_BINARY_DIR}/share/extension/laplace--1.0.4.sql")
-file(WRITE "${current_extension_sql}" "${extension_103_base}\n${physicality_entity_delta}\n")
+file(WRITE "${current_extension_sql}"
+    "${extension_103_base}\n${physicality_entity_delta}\n${source_structural_witness_execution_sql}\n")
 # Top-level CMake appends this canonical fragment to the current install script.
 # Preserve the exact same historical suffix for the newly retained 1.0.3 script.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/cognition.sql" predecessor_cognition_sql)

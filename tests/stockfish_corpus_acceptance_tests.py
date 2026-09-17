@@ -56,6 +56,48 @@ def fixtures():
     return manifest,active,result
 
 
+
+class AdmissionExecutionSelectionTests(unittest.TestCase):
+    def setUp(self):
+        spec=importlib.util.spec_from_file_location('admission_execution_cli',ROOT/'tools/admit_source.py')
+        self.cli=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.cli)
+        self.manifest,self.active,self.result=fixtures()
+        self.result['persisted_profile'].update(file_count=2,span_count=13)
+        self.result['admission']['composition_working_set_receipt_id']='\\x'+'a'*64
+        self.result['execution_metrics']={'last':{'valid':True,'structural_execution_receipt_id':'6'*64}}
+        self.readback=copy.deepcopy(self.result['readback'])
+        self.readback.update(execution_witness_fingerprint='8'*64,
+            structural_execution_receipt_id='6'*64,historical_structural_receipt_id='9'*64)
+
+    def invoke(self):
+        return self.cli.verify_git_readback(['psql'],self.result,{'manifest':self.manifest},{},'a'*64,'b'*64,'c'*64)
+
+    def test_current_execution_receipt_is_selected_explicitly(self):
+        with mock.patch.object(self.cli,'context_sql',return_value='ROW()'), mock.patch.object(
+                self.cli,'run_scalar',return_value=json.dumps(self.readback)) as execute:
+            result=self.invoke()
+        statement=execute.call_args.args[1]
+        self.assertIn("WHERE receipt_id=decode('"+'6'*64+"','hex')",statement)
+        self.assertIn("AND version=4",statement)
+        self.assertNotIn('ORDER BY recorded_at',statement)
+        self.assertEqual(result['structural_execution_receipt_id'],'6'*64)
+        self.assertTrue(result['all_artifacts_exact'])
+
+    def test_missing_execution_identity_refuses_ambiguous_selection(self):
+        del self.result['execution_metrics']
+        with mock.patch.object(self.cli,'run_scalar') as execute:
+            with self.assertRaisesRegex(self.cli.AdmissionError,'current execution identity'):
+                self.invoke()
+        execute.assert_not_called()
+
+    def test_readback_cannot_substitute_another_execution_receipt(self):
+        self.readback['structural_execution_receipt_id']='1'*64
+        with mock.patch.object(self.cli,'context_sql',return_value='ROW()'), mock.patch.object(
+                self.cli,'run_scalar',return_value=json.dumps(self.readback)):
+            with self.assertRaisesRegex(self.cli.AdmissionError,'another structural execution'):
+                self.invoke()
+
 class ReadbackTests(unittest.TestCase):
     def setUp(self): self.manifest,self.active,self.first=fixtures()
 

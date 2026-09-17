@@ -1,0 +1,272 @@
+-- Execution provenance is a separate observation of existing canonical spans.
+-- Preserve every historical witness row and v1/v2/v3 receipt. No SQL backfill
+-- invents an execution, changes a hash preimage, or copies canonical E/P state.
+DO $source_witness_execution$
+DECLARE
+    extension_id oid;
+    owner_id oid;
+    receipt_table oid := '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt'::regclass;
+    witness_table oid := '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness'::regclass;
+    execution_table oid := pg_catalog.to_regclass('@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_execution');
+    selected_table oid;
+    selected_index oid;
+    receipt_key smallint[];
+    baseline_key smallint[];
+    legacy_key smallint[];
+    current_key smallint[];
+    span_key smallint[];
+    execution_header_key smallint[];
+    execution_span_key smallint[];
+    execution_primary_key smallint[];
+    names text[];
+    types oid[];
+    modifiers integer[];
+    presence boolean[];
+    expression text;
+    column_name text;
+BEGIN
+    SELECT oid, extowner INTO STRICT extension_id, owner_id
+      FROM pg_catalog.pg_extension WHERE extname = 'laplace';
+    IF owner_id <> (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = current_user) THEN
+        RAISE EXCEPTION 'source witness execution reconciliation requires the extension owner';
+    END IF;
+    FOREACH selected_table IN ARRAY ARRAY[receipt_table, witness_table, execution_table]
+    LOOP
+        IF selected_table IS NOT NULL AND NOT EXISTS (
+            SELECT FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_depend d ON d.classid = 'pg_catalog.pg_class'::regclass
+              AND d.objid = c.oid AND d.refclassid = 'pg_catalog.pg_extension'::regclass
+              AND d.refobjid = extension_id AND d.deptype = 'e'
+            WHERE c.oid = selected_table AND c.relowner = owner_id AND c.relkind = 'r'
+              AND NOT c.relrowsecurity AND NOT c.relforcerowsecurity
+        ) THEN
+            RAISE EXCEPTION 'source witness execution reconciliation requires extension-owned ordinary tables without row security';
+        END IF;
+    END LOOP;
+
+    FOREACH column_name IN ARRAY ARRAY['baseline_receipt_id', 'canonical_witness_fingerprint']
+    LOOP
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_attribute
+            WHERE attrelid = receipt_table AND attname = column_name
+              AND attnum > 0 AND NOT attisdropped) THEN
+            EXECUTE pg_catalog.format(
+                'ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt ADD COLUMN %I @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256',
+                column_name);
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_attribute
+            WHERE attrelid = receipt_table AND attname = column_name
+              AND attnum > 0 AND NOT attisdropped
+              AND atttypid = '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256'::regtype
+              AND atttypmod = -1 AND NOT attnotnull AND NOT atthasdef
+              AND attidentity = '' AND attgenerated = '') THEN
+            RAISE EXCEPTION 'source witness execution receipt column % has an incompatible definition', column_name;
+        END IF;
+    END LOOP;
+
+    SELECT ARRAY[
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=receipt_table AND attname='receipt_id' AND NOT attisdropped),
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=receipt_table AND attname='source_profile_id' AND NOT attisdropped)]
+      INTO receipt_key;
+    SELECT ARRAY[
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=receipt_table AND attname='baseline_receipt_id' AND NOT attisdropped),
+        receipt_key[2]] INTO baseline_key;
+    SELECT ARRAY[receipt_key[2],
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=receipt_table AND attname='composition_working_set_receipt' AND NOT attisdropped),
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=receipt_table AND attname='version' AND NOT attisdropped)]
+      INTO legacy_key;
+    SELECT ARRAY[receipt_key[2], legacy_key[2],
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=receipt_table AND attname='witness_fingerprint' AND NOT attisdropped),
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=receipt_table AND attname='canonical_witness_fingerprint' AND NOT attisdropped)]
+      INTO current_key;
+    SELECT ARRAY[
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=witness_table AND attname='source_profile_id' AND NOT attisdropped),
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=witness_table AND attname='artifact_index' AND NOT attisdropped),
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=witness_table AND attname='span_index' AND NOT attisdropped)]
+      INTO span_key;
+
+    IF EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+        AND conname='source_witness_receipt_profile_key') THEN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+            AND conname='source_witness_receipt_profile_key' AND contype='u'
+            AND conkey=receipt_key AND convalidated AND NOT condeferrable) THEN
+            RAISE EXCEPTION 'source witness receipt/profile unique key has an incompatible definition';
+        END IF;
+    ELSE
+        ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+            ADD CONSTRAINT source_witness_receipt_profile_key UNIQUE (receipt_id, source_profile_id);
+    END IF;
+    IF EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+        AND conname='source_witness_receipt_baseline_fk') THEN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+            AND conname='source_witness_receipt_baseline_fk' AND contype='f'
+            AND conkey=baseline_key AND confkey=receipt_key AND confrelid=receipt_table
+            AND convalidated AND NOT condeferrable AND confupdtype='a'
+            AND confdeltype='a' AND confmatchtype='s') THEN
+            RAISE EXCEPTION 'source witness baseline foreign key has an incompatible definition';
+        END IF;
+    ELSE
+        ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+            ADD CONSTRAINT source_witness_receipt_baseline_fk
+            FOREIGN KEY (baseline_receipt_id, source_profile_id)
+            REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+                (receipt_id, source_profile_id);
+    END IF;
+
+    SELECT regexp_replace(lower(pg_catalog.pg_get_expr(conbin, conrelid)),
+                          '\s|[()]|::integer', '', 'g')
+      INTO expression FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+        AND conname='source_structural_witness_receipt_version_check' AND contype='c' AND convalidated;
+    IF expression IS NULL OR expression NOT IN ('version=anyarray[1,2,3]', 'version=anyarray[1,2,3,4]') THEN
+        RAISE EXCEPTION 'source witness execution receipt version guard has an incompatible definition';
+    END IF;
+    IF expression = 'version=anyarray[1,2,3]' THEN
+        ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+            DROP CONSTRAINT source_structural_witness_receipt_version_check,
+            ADD CONSTRAINT source_structural_witness_receipt_version_check CHECK (version IN (1,2,3,4));
+    END IF;
+    IF EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+        AND conname='source_witness_receipt_execution_presence') THEN
+        SELECT regexp_replace(lower(pg_catalog.pg_get_expr(conbin, conrelid)),
+                              '\s|[()]|::integer', '', 'g')
+          INTO expression FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+            AND conname='source_witness_receipt_execution_presence' AND contype='c' AND convalidated;
+        IF expression IS DISTINCT FROM
+            'version=4andbaseline_receipt_idisnotnullandcanonical_witness_fingerprintisnotnullorversion=anyarray[1,2,3]andbaseline_receipt_idisnullandcanonical_witness_fingerprintisnull' THEN
+            RAISE EXCEPTION 'source witness execution receipt presence guard has an incompatible definition';
+        END IF;
+    ELSE
+        ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+            ADD CONSTRAINT source_witness_receipt_execution_presence CHECK (
+                (version=4 AND baseline_receipt_id IS NOT NULL AND canonical_witness_fingerprint IS NOT NULL)
+                OR (version IN (1,2,3) AND baseline_receipt_id IS NULL AND canonical_witness_fingerprint IS NULL));
+    END IF;
+
+    -- Old execution/version uniqueness remains exact. v4 permits distinct actual
+    -- provider observations of the same canonical composition.
+    IF EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+        AND conname='source_structural_witness_receipt_profile_execution_version_key') THEN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
+            AND conname='source_structural_witness_receipt_profile_execution_version_key'
+            AND contype='u' AND conkey=legacy_key AND convalidated AND NOT condeferrable) THEN
+            RAISE EXCEPTION 'historical source witness execution unique key has an incompatible definition';
+        END IF;
+        ALTER TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+            DROP CONSTRAINT source_structural_witness_receipt_profile_execution_version_key;
+    END IF;
+    selected_index := pg_catalog.to_regclass('@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt_profile_execution_version_key');
+    IF selected_index IS NULL THEN
+        CREATE UNIQUE INDEX source_structural_witness_receipt_profile_execution_version_key
+            ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+                (source_profile_id, composition_working_set_receipt, version) WHERE version < 4;
+        selected_index := '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt_profile_execution_version_key'::regclass;
+    END IF;
+    IF NOT EXISTS (
+        SELECT FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON c.oid=i.indexrelid
+        JOIN pg_catalog.pg_am a ON a.oid=c.relam
+        WHERE i.indexrelid=selected_index AND i.indrelid=receipt_table AND a.amname='btree'
+          AND c.relowner=owner_id AND i.indisunique AND i.indisvalid AND i.indisready
+          AND i.indimmediate AND NOT i.indisprimary AND NOT i.indnullsnotdistinct
+          AND i.indnkeyatts=3 AND i.indnatts=3 AND i.indexprs IS NULL
+          AND i.indkey::text=array_to_string(legacy_key, ' ')
+          AND regexp_replace(lower(pg_catalog.pg_get_expr(i.indpred, i.indrelid)),
+                             '\s|[()]|::integer', '', 'g')='version<4'
+    ) THEN
+        RAISE EXCEPTION 'historical source witness partial unique index has an incompatible definition';
+    END IF;
+
+    -- One header per exact current observation; a different provider remains a
+    -- distinct execution because the full witness hash binds its actual bytes.
+    selected_index := pg_catalog.to_regclass('@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_witness_current_execution_key');
+    IF selected_index IS NULL THEN
+        CREATE UNIQUE INDEX source_witness_current_execution_key
+            ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+                (source_profile_id, composition_working_set_receipt,
+                 witness_fingerprint, canonical_witness_fingerprint) WHERE version = 4;
+        selected_index := '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_witness_current_execution_key'::regclass;
+    END IF;
+    IF NOT EXISTS (
+        SELECT FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON c.oid=i.indexrelid
+        JOIN pg_catalog.pg_am a ON a.oid=c.relam
+        WHERE i.indexrelid=selected_index AND i.indrelid=receipt_table AND a.amname='btree'
+          AND c.relowner=owner_id AND i.indisunique AND i.indisvalid AND i.indisready
+          AND i.indimmediate AND NOT i.indisprimary AND NOT i.indnullsnotdistinct
+          AND i.indnkeyatts=4 AND i.indnatts=4 AND i.indexprs IS NULL
+          AND i.indkey::text=array_to_string(current_key, ' ')
+          AND regexp_replace(lower(pg_catalog.pg_get_expr(i.indpred, i.indrelid)),
+                             '\s|[()]|::integer', '', 'g')='version=4'
+    ) THEN
+        RAISE EXCEPTION 'current source witness execution unique index has an incompatible definition';
+    END IF;
+
+    IF execution_table IS NULL THEN
+        CREATE TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_execution (
+            receipt_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+            source_profile_id @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+            -- The immediate canonical-span FK also enforces the exact unsigned bounds.
+            artifact_index numeric(20,0) NOT NULL,
+            span_index numeric(20,0) NOT NULL,
+            trace_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+            provider_fingerprint @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256 NOT NULL,
+            CONSTRAINT source_witness_execution_pkey PRIMARY KEY (receipt_id, artifact_index, span_index),
+            CONSTRAINT source_witness_execution_receipt_fk FOREIGN KEY (receipt_id, source_profile_id)
+                REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt
+                    (receipt_id, source_profile_id) DEFERRABLE INITIALLY DEFERRED,
+            CONSTRAINT source_witness_execution_span_fk FOREIGN KEY (source_profile_id, artifact_index, span_index)
+                REFERENCES @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness
+                    (source_profile_id, artifact_index, span_index)
+        );
+        execution_table := '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_execution'::regclass;
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_depend
+            WHERE classid='pg_catalog.pg_class'::regclass AND objid=execution_table
+              AND refclassid='pg_catalog.pg_extension'::regclass
+              AND refobjid=extension_id AND deptype='e') THEN
+            ALTER EXTENSION laplace ADD TABLE @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_execution;
+        END IF;
+    END IF;
+    SELECT array_agg(attname::text ORDER BY attnum), array_agg(atttypid ORDER BY attnum),
+           array_agg(atttypmod ORDER BY attnum), array_agg(attnotnull ORDER BY attnum)
+      INTO names, types, modifiers, presence FROM pg_catalog.pg_attribute
+      WHERE attrelid=execution_table AND attnum>0 AND NOT attisdropped;
+    IF names IS DISTINCT FROM ARRAY['receipt_id', 'source_profile_id', 'artifact_index', 'span_index', 'trace_fingerprint', 'provider_fingerprint']
+       OR types IS DISTINCT FROM ARRAY[
+           '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256'::regtype::oid,
+           '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256'::regtype::oid,
+           'pg_catalog.numeric'::regtype::oid, 'pg_catalog.numeric'::regtype::oid,
+           '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256'::regtype::oid,
+           '@LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.record_id_256'::regtype::oid]
+       OR modifiers IS DISTINCT FROM ARRAY[-1,-1,1310724,1310724,-1,-1]
+       OR presence IS DISTINCT FROM ARRAY[true,true,true,true,true,true]
+       OR EXISTS (SELECT FROM pg_catalog.pg_attribute WHERE attrelid=execution_table
+           AND attnum>0 AND NOT attisdropped AND (atthasdef OR attidentity<>'' OR attgenerated<>'')) THEN
+        RAISE EXCEPTION 'source witness execution table has an incompatible shape';
+    END IF;
+    SELECT ARRAY[
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=execution_table AND attname='receipt_id' AND NOT attisdropped),
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=execution_table AND attname='source_profile_id' AND NOT attisdropped)]
+      INTO execution_header_key;
+    SELECT ARRAY[execution_header_key[2],
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=execution_table AND attname='artifact_index' AND NOT attisdropped),
+        (SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid=execution_table AND attname='span_index' AND NOT attisdropped)]
+      INTO execution_span_key;
+    execution_primary_key := ARRAY[execution_header_key[1], execution_span_key[2], execution_span_key[3]];
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=execution_table
+        AND conname='source_witness_execution_pkey' AND contype='p'
+        AND conkey=execution_primary_key AND convalidated AND NOT condeferrable)
+       OR NOT EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=execution_table
+        AND conname='source_witness_execution_receipt_fk' AND contype='f'
+        AND conkey=execution_header_key AND confkey=receipt_key AND confrelid=receipt_table
+        AND convalidated AND condeferrable AND condeferred AND confupdtype='a'
+        AND confdeltype='a' AND confmatchtype='s')
+       OR NOT EXISTS (SELECT FROM pg_catalog.pg_constraint WHERE conrelid=execution_table
+        AND conname='source_witness_execution_span_fk' AND contype='f'
+        AND conkey=execution_span_key AND confkey=span_key AND confrelid=witness_table
+        AND convalidated AND NOT condeferrable AND confupdtype='a'
+        AND confdeltype='a' AND confmatchtype='s') THEN
+        RAISE EXCEPTION 'source witness execution table keys have incompatible definitions';
+    END IF;
+
+END
+$source_witness_execution$;
+
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_receipt FROM PUBLIC;
+REVOKE ALL ON @LAPLACE_SOURCE_STRUCTURAL_WITNESS_SCHEMA@.source_structural_witness_execution FROM PUBLIC;

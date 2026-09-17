@@ -10,9 +10,11 @@ void laplace_pg_persist_source_structural_witnesses(
     const laplace_tabular_source_plan* plan,
     const laplace_pg_composition_execution* execution,
     const laplace_composition_working_set_input* composition_input,
-    const laplace_source_profile_manifest* profile);
+    const laplace_source_profile_manifest* profile,
+    laplace_digest256* current_execution_receipt);
 
-/* Rehash the retained v3 witness set and receipt under a bounded streaming read.
+/* Rehash a v3 historical witness or a v4 current execution, including its exact
+ * canonical hash and authenticated v3 baseline, in one bounded streaming read.
  * No rows are changed. The selected Unicode root is returned only on success. */
 typedef struct laplace_pg_source_readback_binding {
     laplace_id128 root_content_id;

@@ -411,10 +411,14 @@ endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(LAPLACE_CPP_GRAMMAR_RECEIPT "" CACHE FILEPATH "Exact locked C++ grammar provider build receipt")
+set(LAPLACE_CPP_GRAMMAR_SOURCE_ROOT "" CACHE PATH "Existing exact locked C++ grammar checkout for execution provenance tests")
 set(LAPLACE_CPP_GRAMMAR_LIBRARY "/unconfigured/required-cpp-provider.so")
 set(LAPLACE_CPP_GRAMMAR_LIBRARY_SHA256 "0000000000000000000000000000000000000000000000000000000000000000")
 set(LAPLACE_CPP_GRAMMAR_RECEIPT_SHA256 "0000000000000000000000000000000000000000000000000000000000000000")
 set(LAPLACE_CPP_GRAMMAR_LIBRARY_BYTES 1)
+set(LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY "/unconfigured/required-second-cpp-provider.so")
+set(LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_SHA256 "0000000000000000000000000000000000000000000000000000000000000000")
+set(LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_BYTES 1)
 if(LAPLACE_CPP_GRAMMAR_RECEIPT)
     if(NOT IS_ABSOLUTE "${LAPLACE_CPP_GRAMMAR_RECEIPT}" OR NOT EXISTS "${LAPLACE_CPP_GRAMMAR_RECEIPT}")
         message(FATAL_ERROR "LAPLACE_CPP_GRAMMAR_RECEIPT must name an actual provider build receipt")
@@ -437,8 +441,33 @@ if(LAPLACE_CPP_GRAMMAR_RECEIPT)
         message(FATAL_ERROR "C++ provider bytes differ from the exact build receipt")
     endif()
     file(SHA256 "${LAPLACE_CPP_GRAMMAR_RECEIPT}" LAPLACE_CPP_GRAMMAR_RECEIPT_SHA256)
+    if(NOT IS_ABSOLUTE "${LAPLACE_CPP_GRAMMAR_SOURCE_ROOT}" OR
+       NOT IS_DIRECTORY "${LAPLACE_CPP_GRAMMAR_SOURCE_ROOT}")
+        message(FATAL_ERROR "LAPLACE_CPP_GRAMMAR_SOURCE_ROOT must name the existing locked grammar checkout")
+    endif()
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/build_cpp_provider_execution_mutant.py"
+            --receipt "${LAPLACE_CPP_GRAMMAR_RECEIPT}"
+            --receipt-sha256 "${LAPLACE_CPP_GRAMMAR_RECEIPT_SHA256}"
+            --grammar-root "${LAPLACE_CPP_GRAMMAR_SOURCE_ROOT}"
+            --grammar-lock "${PROJECT_SOURCE_DIR}/dependencies/tree-sitter-grammars.lock.json"
+            --dependency-lock "${PROJECT_SOURCE_DIR}/dependencies/lock.json"
+            --output-root "${CMAKE_CURRENT_BINARY_DIR}/cpp-provider-execution-mutant"
+        RESULT_VARIABLE cpp_second_result
+        OUTPUT_VARIABLE cpp_second_json
+        ERROR_VARIABLE cpp_second_error
+        TIMEOUT 360)
+    if(NOT cpp_second_result EQUAL 0)
+        message(FATAL_ERROR "Actual second C++ provider build failed: ${cpp_second_error}")
+    endif()
+    string(JSON LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY GET "${cpp_second_json}" library path)
+    string(JSON LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_SHA256 GET "${cpp_second_json}" library sha256)
+    string(JSON LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_BYTES GET "${cpp_second_json}" library byte_count)
+    string(JSON LAPLACE_CPP_GRAMMAR_SECOND_RECEIPT GET "${cpp_second_json}" receipt)
+    message(STATUS "Verified second C++ execution provider: ${LAPLACE_CPP_GRAMMAR_SECOND_RECEIPT}")
 endif()
 string(HEX "${LAPLACE_CPP_GRAMMAR_LIBRARY}" LAPLACE_CPP_GRAMMAR_LIBRARY_PATH_HEX)
+string(HEX "${LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY}" LAPLACE_CPP_GRAMMAR_SECOND_LIBRARY_PATH_HEX)
 add_executable(laplace_verified_cpp_source_probe verified_cpp_source_probe.cpp)
 target_link_libraries(laplace_verified_cpp_source_probe PRIVATE Laplace::TabularSource)
 target_include_directories(laplace_verified_cpp_source_probe PRIVATE "${PROJECT_SOURCE_DIR}/engine/src")

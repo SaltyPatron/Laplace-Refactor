@@ -46,6 +46,7 @@ typedef struct laplace_pg_source_execution_metrics {
     uint64_t composition_receipt_persistence_call_count;
     uint8_t composition_persistence_executed;
     uint8_t valid;
+    laplace_digest256 structural_execution_receipt;
 } laplace_pg_source_execution_metrics;
 
 static const laplace_tabular_source_plan* laplace_pg_active_source_plan = NULL;
@@ -143,7 +144,7 @@ static void laplace_pg_append_metrics_json(
         "\"composition_physicality_presence_round_count\":%" PRIu64 ","
         "\"composition_persistence_plan_count\":%" PRIu64 ","
         "\"composition_receipt_persistence_call_count\":%" PRIu64 ","
-        "\"composition_persistence_executed\":%s}",
+        "\"composition_persistence_executed\":%s,",
         name,
         metrics->valid != 0u ? "true" : "false",
         metrics->sequence,
@@ -155,6 +156,13 @@ static void laplace_pg_append_metrics_json(
         metrics->composition_persistence_plan_count,
         metrics->composition_receipt_persistence_call_count,
         metrics->composition_persistence_executed != 0u ? "true" : "false");
+    appendStringInfoString(output, "\"structural_execution_receipt_id\":\"");
+    {
+        size_t index;
+        for (index=0u; index<sizeof(metrics->structural_execution_receipt.bytes); ++index)
+            appendStringInfo(output, "%02x", (unsigned int)metrics->structural_execution_receipt.bytes[index]);
+    }
+    appendStringInfoString(output, "\"}");
 }
 
 Datum laplace_source_admission_last_execution_metrics(PG_FUNCTION_ARGS) {
@@ -409,7 +417,7 @@ static void laplace_pg_source_composition_execute(
 }
 
 static laplace_tabular_source_status
-laplace_pg_source_profile_finalize_with_witnesses(
+laplace_pg_source_profile_finalize_with_logical_denominator(
     const laplace_tabular_source_plan* plan,
     const laplace_composition_working_set_summary* summary,
     laplace_source_profile_manifest* profile) {
@@ -456,11 +464,6 @@ laplace_pg_source_profile_finalize_with_witnesses(
                 (errcode(ERRCODE_DATA_CORRUPTED),
                  errmsg("Laplace structural witness deposition lost its source execution binding")));
     }
-    laplace_pg_persist_source_structural_witnesses(
-        plan,
-        laplace_pg_active_source_execution,
-        laplace_pg_active_source_composition_input,
-        profile);
     return status;
 }
 
@@ -470,7 +473,7 @@ laplace_pg_source_profile_finalize_with_witnesses(
 #define LAPLACE_PG_COMPOSITION_PERSIST_RECEIPT_SYMBOL \
     laplace_pg_source_composition_persist_receipt
 #define laplace_tabular_source_profile_finalize(plan, summary, profile) \
-    laplace_pg_source_profile_finalize_with_witnesses((plan), (summary), (profile))
+    laplace_pg_source_profile_finalize_with_logical_denominator((plan), (summary), (profile))
 #define laplace_tabular_source_plan_create(input, plan) \
     laplace_pg_source_decomposition_plan_create((input), (plan))
 #define SPI_execute_with_args(...) \
