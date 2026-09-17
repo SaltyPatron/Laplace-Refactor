@@ -15,7 +15,7 @@ jobs:
           python3 -I - <<'PY'
           import json, pathlib, re, time
           root=pathlib.Path('/build/laplace/recovery/canonical-next2000/35223192542-1')
-          names=('receipt.json','recording/receipt.json','recording/measurement/corpus-recording.json','recording/measurement/fresh/recording.json')
+          names=('receipt.json','recording/receipt.json','recording/measurement/corpus-recording.json','recording/measurement/fresh/recording.json','recording/measurement/fresh/progress.json','recording/measurement/replay-01/progress.json')
           keys=re.compile(r'(status|phase|step|start|end|complet|committ|readback|sealed|heartbeat|updated|created|finished|games|count|elapsed)',re.I)
           omitted=re.compile(r'(gps|rate|throughput|token|secret|password|connection|sql|body|path|command)',re.I)
           def project(value, prefix='', depth=0):
