@@ -88,7 +88,10 @@ def build(grammar_root: Path, runtime_root: Path, grammar_lock: Path,
         target.write_bytes(data)
         target.chmod(0o440)
     library = output / "provider.so"
-    command = [compiler_path, "-shared", "-fPIC", "-O2", "-I", str(frozen / "src"),
+    # Normalize embedded source locations (including assert/__FILE__) without
+    # hiding the actual compiler input paths retained in command and receipt.
+    command = [compiler_path, "-shared", "-fPIC", "-O2",
+               f"-ffile-prefix-map={frozen}=.", "-I", str(frozen / "src"),
                *(str(frozen / item["path"]) for item in generated), "-o", str(library)]
     build_env = {key: value for key, value in os.environ.items() if key not in
                  {"CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH", "OBJC_INCLUDE_PATH",

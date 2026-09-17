@@ -95,12 +95,15 @@ BEGIN
  SELECT regexp_replace(lower(pg_catalog.pg_get_expr(conbin,conrelid)),'\s|[()]|::integer','','g')
   INTO expression FROM pg_catalog.pg_constraint WHERE conrelid=receipt_table
    AND conname='source_structural_witness_receipt_version_check' AND contype='c' AND convalidated;
- IF expression IS NULL OR expression NOT IN ('version=anyarray[1,2]','version=anyarray[1,2,3]') THEN
+ IF expression IS NULL OR expression NOT IN ('version=anyarray[1,2]','version=anyarray[1,2,3]','version=anyarray[1,2,3,4]') THEN
    RAISE EXCEPTION 'source physicality receipt version guard has an incompatible definition';
  END IF;
+ -- Recurring reconciliation must preserve an already-admitted v4 schema.
+ IF expression <> 'version=anyarray[1,2,3,4]' THEN
  ALTER TABLE @LAPLACE_SOURCE_ADMISSION_METRICS_SCHEMA@.source_structural_witness_receipt
   DROP CONSTRAINT source_structural_witness_receipt_version_check,
   ADD CONSTRAINT source_structural_witness_receipt_version_check CHECK(version IN (1,2,3));
+ END IF;
 END
 $source_witness_physicality$;
 

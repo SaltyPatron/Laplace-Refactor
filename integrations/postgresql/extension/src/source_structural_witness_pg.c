@@ -52,18 +52,12 @@ static void finish_digest(blake3_hasher* hasher, laplace_digest256* digest) {
     blake3_hasher_finalize(hasher, digest->bytes, sizeof(digest->bytes));
 }
 
-static void hash_witness_row(
+static void hash_canonical_witness_row(
     blake3_hasher* hasher,
     const laplace_tabular_decomposition_witness* witness,
     const laplace_id128* selected_entity,
     const laplace_digest256* selected_physicality, const uint8_t* media) {
     const laplace_id128 entity_id = *selected_entity;
-    hash_bytes(
-        hasher, witness->trace_fingerprint.bytes,
-        sizeof(witness->trace_fingerprint.bytes));
-    hash_bytes(
-        hasher, witness->provider_fingerprint.bytes,
-        sizeof(witness->provider_fingerprint.bytes));
     hash_bytes(hasher, entity_id.bytes, sizeof(entity_id.bytes));
     hash_bytes(hasher, selected_physicality->bytes, sizeof(selected_physicality->bytes));
     hash_u64(hasher, witness->artifact_index);
@@ -79,6 +73,42 @@ static void hash_witness_row(
     hash_u32(hasher, witness->depth);
     hash_u32(hasher, witness->flags);
     hash_u32(hasher, witness->syntax_flags);
+}
+
+/* v3 preserves the original exact observation preimage. Canonical v1 uses
+ * the same ordered row fields after excluding only trace/provider fingerprints:
+ * E[16], P[32], artifact/span/parent/start/end/kind/grammar/field/sibling u64,
+ * length-prefixed media, then depth/flags/syntax_flags u32. Integers are LE;
+ * byte strings have u64 lengths. No canonical or syntax field is omitted. */
+static void hash_witness_row(
+    blake3_hasher* hasher,
+    const laplace_tabular_decomposition_witness* witness,
+    const laplace_id128* selected_entity,
+    const laplace_digest256* selected_physicality, const uint8_t* media) {
+    hash_bytes(hasher, witness->trace_fingerprint.bytes, 32u);
+    hash_bytes(hasher, witness->provider_fingerprint.bytes, 32u);
+    hash_canonical_witness_row(hasher, witness, selected_entity, selected_physicality, media);
+}
+
+static void structural_receipt_digest(
+    const laplace_digest256* profile, const laplace_digest256* composition,
+    const laplace_digest256* witness, uint64_t count,
+    const laplace_digest256* canonical, const laplace_digest256* baseline,
+    laplace_digest256* result) {
+    static const char v3[] = "laplace.source-structural-witness-receipt/v3";
+    static const char v4[] = "laplace.source-structural-witness-receipt/v4";
+    blake3_hasher hash;
+    blake3_hasher_init(&hash);
+    hash_bytes(&hash, (const uint8_t*)(baseline == NULL ? v3 : v4), sizeof(v3)-1u);
+    hash_bytes(&hash, profile->bytes, 32u);
+    hash_bytes(&hash, composition->bytes, 32u);
+    hash_bytes(&hash, witness->bytes, 32u);
+    hash_u64(&hash, count);
+    if (baseline != NULL) {
+        hash_bytes(&hash, canonical->bytes, 32u);
+        hash_bytes(&hash, baseline->bytes, 32u);
+    }
+    finish_digest(&hash, result);
 }
 
 static bool spi_boolean(void) {
@@ -235,15 +265,21 @@ static size_t structural_witness_batch_count(
     return batch_count;
 }
 
+static void verify_source_structural_roots(
+    const laplace_digest256* profile_id, const laplace_digest256* receipt_id,
+    const uint64_t* artifact_indexes, size_t artifact_count, uint64_t maximum_witnesses,
+    laplace_pg_source_readback_binding* bindings, bool read_only);
+
 void laplace_pg_persist_source_structural_witnesses(
     const laplace_tabular_source_plan* plan,
     const laplace_pg_composition_execution* execution,
     const laplace_composition_working_set_input* composition_input,
-    const laplace_source_profile_manifest* profile) {
+    const laplace_source_profile_manifest* profile,
+    laplace_digest256* current_execution_receipt) {
     static const char witness_domain[] =
         "laplace.source-structural-witness-set/v3";
-    static const char receipt_domain[] =
-        "laplace.source-structural-witness-receipt/v3";
+    static const char canonical_domain[] =
+        "laplace.source-canonical-witness-set/v1";
     static const uint8_t empty_byte = 0u;
     static const char witnesses_insert_sql[] =
         "WITH input AS (SELECT $1::bytea AS source_profile_id,u.* FROM unnest("
@@ -295,8 +331,7 @@ void laplace_pg_persist_source_structural_witnesses(
         "LEFT JOIN " LAPLACE_PG_SCHEMA ".source_structural_witness s ON "
         "s.source_profile_id=i.source_profile_id AND s.artifact_index=i.artifact_index "
         "AND s.span_index=i.span_index WHERE s.source_profile_id IS NULL OR "
-        "s.parent_span_index<>i.parent_span_index OR s.trace_fingerprint<>i.trace_fingerprint "
-        "OR s.provider_fingerprint<>i.provider_fingerprint OR "
+        "s.parent_span_index<>i.parent_span_index OR "
         "s.canonical_entity_id IS DISTINCT FROM (CASE WHEN i.byte_start=i.byte_end AND "
         "(i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_entity_id END) OR s.byte_start<>i.byte_start OR "
         "s.byte_end<>i.byte_end OR s.kind<>i.kind OR s.grammar_kind IS DISTINCT FROM i.grammar_kind OR "
@@ -335,8 +370,7 @@ void laplace_pg_persist_source_structural_witnesses(
         "pe,'hex'),'depth',s.depth::text,'flags',s.flags::text,'syntax_flags',s.syntax_flags::text) AS stored FROM "
         "input i LEFT JOIN " LAPLACE_PG_SCHEMA ".source_structural_witness s ON s.source_profile_id=i.source_profile_id AND "
         "s.artifact_index=i.artifact_index AND s.span_index=i.span_index WHERE s.source_profile_id IS NULL OR "
-        "s.parent_span_index<>i.parent_span_index OR s.trace_fingerprint<>i.trace_fingerprint OR "
-        "s.provider_fingerprint<>i.provider_fingerprint OR s.canonical_entity_id IS DISTINCT FROM (CASE WHEN "
+        "s.parent_span_index<>i.parent_span_index OR s.canonical_entity_id IS DISTINCT FROM (CASE WHEN "
         "i.byte_start=i.byte_end AND (i.syntax_flags::bigint & 34)<>0 THEN NULL ELSE i.canonical_entity_id END) OR "
         "s.byte_start<>i.byte_start OR s.byte_end<>i.byte_end OR s.kind<>i.kind OR s.grammar_kind IS DISTINCT FROM "
         "i.grammar_kind OR s.field_kind IS DISTINCT FROM i.field_kind OR s.sibling_ordinal IS DISTINCT FROM "
@@ -385,8 +419,13 @@ void laplace_pg_persist_source_structural_witnesses(
     size_t media_type_byte_count;
     const uint8_t* media_types;
     laplace_digest256 witness_fingerprint;
+    laplace_digest256 canonical_fingerprint;
     laplace_digest256 receipt_id;
+    laplace_digest256 baseline_receipt_id;
+    laplace_digest256 execution_receipt_id;
     blake3_hasher hasher;
+    blake3_hasher canonical_hasher;
+    bool persist_v3 = false;
     size_t index;
     size_t batch_start;
     Oid witness_types[18] = {
@@ -408,7 +447,7 @@ void laplace_pg_persist_source_structural_witnesses(
 
     memset(&view, 0, sizeof(view));
     if (plan == NULL || execution == NULL || composition_input == NULL ||
-        profile == NULL || execution->results == NULL ||
+        profile == NULL || current_execution_receipt == NULL || execution->results == NULL ||
         composition_input->known_entities == NULL ||
         laplace_tabular_source_plan_view_get(plan, &view) !=
             LAPLACE_TABULAR_SOURCE_OK) {
@@ -416,6 +455,7 @@ void laplace_pg_persist_source_structural_witnesses(
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                  errmsg("Laplace structural witness deposition input is incomplete")));
     }
+    memset(current_execution_receipt, 0, sizeof(*current_execution_receipt));
     if (view.decomposition_witness_count == 0u) {
         return;
     }
@@ -445,6 +485,10 @@ void laplace_pg_persist_source_structural_witnesses(
         &hasher, (const uint8_t*)witness_domain, sizeof(witness_domain) - 1u);
     hash_bytes(&hasher, profile->profile_id.bytes, sizeof(profile->profile_id.bytes));
     hash_u64(&hasher, (uint64_t)witness_count);
+    blake3_hasher_init(&canonical_hasher);
+    hash_bytes(&canonical_hasher, (const uint8_t*)canonical_domain, sizeof(canonical_domain)-1u);
+    hash_bytes(&canonical_hasher, profile->profile_id.bytes, 32u);
+    hash_u64(&canonical_hasher, (uint64_t)witness_count);
 
     for (index = 0u; index < witness_count; ++index) {
         const laplace_tabular_decomposition_witness* witness = &witnesses[index];
@@ -464,20 +508,13 @@ void laplace_pg_persist_source_structural_witnesses(
         }
 
         hash_witness_row(&hasher, witness, &canonical.entity_id, &canonical.physicality_id, media);
+        hash_canonical_witness_row(&canonical_hasher, witness, &canonical.entity_id, &canonical.physicality_id, media);
     }
     finish_digest(&hasher, &witness_fingerprint);
 
-    blake3_hasher_init(&hasher);
-    hash_bytes(
-        &hasher, (const uint8_t*)receipt_domain, sizeof(receipt_domain) - 1u);
-    hash_bytes(&hasher, profile->profile_id.bytes, sizeof(profile->profile_id.bytes));
-    hash_bytes(
-        &hasher, execution->summary.receipt_id.bytes,
-        sizeof(execution->summary.receipt_id.bytes));
-    hash_bytes(
-        &hasher, witness_fingerprint.bytes, sizeof(witness_fingerprint.bytes));
-    hash_u64(&hasher, (uint64_t)witness_count);
-    finish_digest(&hasher, &receipt_id);
+    finish_digest(&canonical_hasher, &canonical_fingerprint);
+    structural_receipt_digest(&profile->profile_id, &execution->summary.receipt_id,
+        &witness_fingerprint, (uint64_t)witness_count, NULL, NULL, &receipt_id);
 
     witness_parameters[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(
         profile->profile_id.bytes, sizeof(profile->profile_id.bytes)));
@@ -499,6 +536,76 @@ void laplace_pg_persist_source_structural_witnesses(
                 (errcode(ERRCODE_CONNECTION_FAILURE),
                  errmsg("Laplace structural witness deposition could not connect")));
     }
+    /* Select a concrete historical baseline, never an unbound latest row.
+     * Another composition execution may reuse the identical canonical spans. */
+    result = SPI_execute_with_args(
+        "SELECT receipt_id,witness_fingerprint FROM " LAPLACE_PG_SCHEMA ".source_structural_witness_receipt "
+        "WHERE source_profile_id=$1 AND version=3 ORDER BY receipt_id LIMIT 1",
+        1, count_types, count_parameters, NULL, false, 1);
+    if (result != SPI_OK_SELECT || SPI_processed > 1u)
+        ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+            errmsg("Laplace structural baseline selection failed")));
+    baseline_receipt_id = receipt_id;
+    if (SPI_processed == 1u) {
+        bool absent;
+        Datum value = SPI_getbinval(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &absent);
+        bytea* bytes;
+        if (absent)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace structural baseline identity is absent")));
+        bytes = DatumGetByteaPP(value);
+        if (VARSIZE_ANY_EXHDR(bytes) != 32)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace structural baseline identity is invalid")));
+        memcpy(baseline_receipt_id.bytes, VARDATA_ANY(bytes), 32u);
+        value = SPI_getbinval(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 2, &absent);
+        if (absent)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace structural baseline fingerprint is absent")));
+        bytes = DatumGetByteaPP(value);
+        if (VARSIZE_ANY_EXHDR(bytes) != 32)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace structural baseline fingerprint is invalid")));
+        persist_v3 = memcmp(VARDATA_ANY(bytes), witness_fingerprint.bytes, 32u) == 0;
+    } else {
+        persist_v3 = true;
+    }
+    if (SPI_tuptable != NULL) SPI_freetuptable(SPI_tuptable);
+    if (persist_v3) {
+        /* Preserve the v3 route when its entire current observation is exact.
+         * Never attach historical provider bytes to a different execution. */
+        baseline_receipt_id = receipt_id;
+    } else {
+        Oid retained_types[4] = {BYTEAOID,BYTEAOID,BYTEAOID,BYTEAOID};
+        Datum retained_values[4] = {witness_parameters[0],receipt_parameters[2],
+            receipt_parameters[3],PointerGetDatum(laplace_pg_bytes_to_bytea(canonical_fingerprint.bytes,32u))};
+        result = SPI_execute_with_args(
+            "SELECT baseline_receipt_id FROM " LAPLACE_PG_SCHEMA ".source_structural_witness_receipt "
+            "WHERE source_profile_id=$1 AND composition_working_set_receipt=$2 "
+            "AND witness_fingerprint=$3 AND canonical_witness_fingerprint=$4 AND version=4",
+            4,retained_types,retained_values,NULL,false,2);
+        if (result != SPI_OK_SELECT || SPI_processed > 1u)
+            ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace current execution has ambiguous historical bindings")));
+        if (SPI_processed == 1u) {
+            bool absent;
+            Datum value = SPI_getbinval(SPI_tuptable->vals[0],SPI_tuptable->tupdesc,1,&absent);
+            bytea* bytes;
+            if (absent)
+                ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace current execution lacks its historical binding")));
+            bytes = DatumGetByteaPP(value);
+            if (VARSIZE_ANY_EXHDR(bytes) != 32)
+                ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace current execution historical identity is invalid")));
+            memcpy(baseline_receipt_id.bytes,VARDATA_ANY(bytes),32u);
+        }
+        if (SPI_tuptable != NULL) SPI_freetuptable(SPI_tuptable);
+        pfree(DatumGetPointer(retained_values[3]));
+    }
+    structural_receipt_digest(&profile->profile_id, &execution->summary.receipt_id,
+        &witness_fingerprint, (uint64_t)witness_count, &canonical_fingerprint,
+        &baseline_receipt_id, &execution_receipt_id);
     batch_context = AllocSetContextCreate(
         CurrentMemoryContext,
         "Laplace structural witness bounded batch",
@@ -646,6 +753,39 @@ void laplace_pg_persist_source_structural_witnesses(
                                    first_mismatch != NULL ? first_mismatch : "unavailable")));
             }
         }
+        /* The observation reuses canonical span keys. Actual module-bound
+         * trace/provider bytes remain independently immutable and verified. */
+        {
+            Oid observation_types[6] = {
+                BYTEAOID, BYTEAOID, NUMERICARRAYOID, NUMERICARRAYOID,
+                BYTEAARRAYOID, BYTEAARRAYOID};
+            Datum observation_values[6] = {
+                PointerGetDatum(laplace_pg_bytes_to_bytea(execution_receipt_id.bytes, 32u)),
+                witness_parameters[0], witness_parameters[4], witness_parameters[5],
+                witness_parameters[1], witness_parameters[2]};
+            result = SPI_execute_with_args(
+                "INSERT INTO " LAPLACE_PG_SCHEMA ".source_structural_witness_execution "
+                "(receipt_id,source_profile_id,artifact_index,span_index,trace_fingerprint,provider_fingerprint) "
+                "SELECT $1,$2,u.* FROM unnest($3::numeric[],$4::numeric[],$5::bytea[],$6::bytea[]) "
+                "u(artifact_index,span_index,trace_fingerprint,provider_fingerprint) ON CONFLICT DO NOTHING",
+                6, observation_types, observation_values, NULL, false, 0);
+            if (result != SPI_OK_INSERT)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace structural execution observation deposition failed")));
+            CommandCounterIncrement();
+            result = SPI_execute_with_args(
+                "SELECT count(*) FROM unnest($3::numeric[],$4::numeric[],$5::bytea[],$6::bytea[]) "
+                "u(artifact_index,span_index,trace_fingerprint,provider_fingerprint) LEFT JOIN "
+                LAPLACE_PG_SCHEMA ".source_structural_witness_execution e ON "
+                "e.receipt_id=$1 AND e.source_profile_id=$2 AND e.artifact_index=u.artifact_index "
+                "AND e.span_index=u.span_index WHERE e.receipt_id IS NULL OR "
+                "e.trace_fingerprint<>u.trace_fingerprint OR e.provider_fingerprint<>u.provider_fingerprint",
+                6, observation_types, observation_values, NULL, false, 1);
+            if (result != SPI_OK_SELECT || spi_int64_column(1) != 0)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace structural execution observation replay diverged")));
+            pfree(DatumGetPointer(observation_values[0]));
+        }
         batch_start += batch_count;
         MemoryContextReset(batch_context);
     }
@@ -662,22 +802,78 @@ void laplace_pg_persist_source_structural_witnesses(
                            (long long)spi_int64_column(1),
                            (unsigned long long)inserted_count)));
     }
-    result = SPI_execute_with_args(
-        receipt_insert_sql, 6, receipt_types, receipt_parameters, NULL, false, 0);
-    if (result != SPI_OK_INSERT) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace structural witness receipt deposition failed"),
-                 errdetail("SPI status=%d", result)));
+    if (persist_v3) {
+        result = SPI_execute_with_args(
+            receipt_insert_sql, 6, receipt_types, receipt_parameters, NULL, false, 0);
+        if (result != SPI_OK_INSERT) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace structural witness receipt deposition failed"),
+                     errdetail("SPI status=%d", result)));
+        }
+        CommandCounterIncrement();
+        result = SPI_execute_with_args(
+            receipt_verify_sql, 6, receipt_types, receipt_parameters, NULL, false, 1);
+        if (result != SPI_OK_SELECT || !spi_boolean()) {
+            ereport(ERROR,
+                    (errcode(ERRCODE_DATA_CORRUPTED),
+                     errmsg("Laplace structural witness receipt replay diverged")));
+        }
     }
-    CommandCounterIncrement();
-    result = SPI_execute_with_args(
-        receipt_verify_sql, 6, receipt_types, receipt_parameters, NULL, false, 1);
-    if (result != SPI_OK_SELECT || !spi_boolean()) {
-        ereport(ERROR,
-                (errcode(ERRCODE_DATA_CORRUPTED),
-                 errmsg("Laplace structural witness receipt replay diverged")));
+    /* This rehash authenticates every historical trace/provider and every
+     * canonical field before the new execution can be committed. Older v1/v2
+     * enrichment keeps its existing exact replay law. */
+    {
+        const uint64_t artifact_index = witnesses[0].artifact_index;
+        laplace_pg_source_readback_binding baseline;
+        Oid observation_types[1] = {BYTEAOID};
+        Datum observation_values[1] = {
+            PointerGetDatum(laplace_pg_bytes_to_bytea(execution_receipt_id.bytes, 32u))};
+        verify_source_structural_roots(&profile->profile_id,
+            &baseline_receipt_id, &artifact_index, 1u, (uint64_t)witness_count, &baseline, false);
+        if (baseline.witness_count != (uint64_t)witness_count)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace structural baseline cardinality diverged")));
+        result = SPI_execute_with_args(
+            "SELECT count(*) FROM " LAPLACE_PG_SCHEMA
+            ".source_structural_witness_execution WHERE receipt_id=$1",
+            1, observation_types, observation_values, NULL, false, 1);
+        if (result != SPI_OK_SELECT || spi_int64_column(1) != (int64)witness_count)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace structural execution observation cardinality diverged")));
+        pfree(DatumGetPointer(observation_values[0]));
     }
+    {
+        Oid current_types[7] = {BYTEAOID,BYTEAOID,BYTEAOID,BYTEAOID,NUMERICOID,BYTEAOID,BYTEAOID};
+        Datum current_values[7] = {
+            PointerGetDatum(laplace_pg_bytes_to_bytea(execution_receipt_id.bytes,32u)),
+            witness_parameters[0], receipt_parameters[2], receipt_parameters[3], receipt_parameters[4],
+            PointerGetDatum(laplace_pg_bytes_to_bytea(baseline_receipt_id.bytes,32u)),
+            PointerGetDatum(laplace_pg_bytes_to_bytea(canonical_fingerprint.bytes,32u))};
+        result = SPI_execute_with_args(
+            "INSERT INTO " LAPLACE_PG_SCHEMA ".source_structural_witness_receipt "
+            "(receipt_id,source_profile_id,composition_working_set_receipt,witness_fingerprint,"
+            "witness_count,version,baseline_receipt_id,canonical_witness_fingerprint) "
+            "VALUES($1,$2,$3,$4,$5,4,$6,$7) ON CONFLICT DO NOTHING",
+            7,current_types,current_values,NULL,false,0);
+        if (result != SPI_OK_INSERT)
+            ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace current structural execution receipt deposition failed")));
+        CommandCounterIncrement();
+        result = SPI_execute_with_args(
+            "SELECT EXISTS(SELECT FROM " LAPLACE_PG_SCHEMA ".source_structural_witness_receipt "
+            "WHERE receipt_id=$1 AND source_profile_id=$2 AND composition_working_set_receipt=$3 "
+            "AND witness_fingerprint=$4 AND witness_count=$5 AND version=4 "
+            "AND baseline_receipt_id=$6 AND canonical_witness_fingerprint=$7)",
+            7,current_types,current_values,NULL,false,1);
+        if (result != SPI_OK_SELECT || !spi_boolean())
+            ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace current structural execution receipt replay diverged")));
+        pfree(DatumGetPointer(current_values[0]));
+        pfree(DatumGetPointer(current_values[5]));
+        pfree(DatumGetPointer(current_values[6]));
+    }
+    *current_execution_receipt = execution_receipt_id;
     if (SPI_finish() != SPI_OK_FINISH) {
         ereport(ERROR,
                 (errcode(ERRCODE_INTERNAL_ERROR),
@@ -701,31 +897,51 @@ static void structural_exact(Datum value, void* target, size_t width) {
     memcpy(target, VARDATA_ANY(bytes), width);
 }
 
-void laplace_pg_verify_source_structural_roots(
+static void verify_source_structural_roots(
     const laplace_digest256* profile_id, const laplace_digest256* receipt_id,
     const uint64_t* artifact_indexes, size_t artifact_count, uint64_t maximum_witnesses,
-    laplace_pg_source_readback_binding* bindings) {
+    laplace_pg_source_readback_binding* bindings, bool read_only) {
     static const char receipt_sql[] =
-        "SELECT p,r.composition_working_set_receipt,r.witness_fingerprint,r.witness_count "
+        "SELECT p,r.composition_working_set_receipt,r.witness_fingerprint,r.witness_count,"
+        "r.version,r.baseline_receipt_id,r.canonical_witness_fingerprint,"
+        "b.composition_working_set_receipt,b.witness_fingerprint,b.witness_count "
         "FROM " LAPLACE_PG_SCHEMA ".source_structural_witness_receipt r "
         "JOIN " LAPLACE_PG_SCHEMA ".source_profile p ON p.profile_id=r.source_profile_id "
         "JOIN " LAPLACE_PG_SCHEMA ".composition_execution_receipt c "
         "ON c.working_set_receipt=r.composition_working_set_receipt "
-        "WHERE r.source_profile_id=$1 AND r.receipt_id=$2 AND r.version=3";
+        "LEFT JOIN " LAPLACE_PG_SCHEMA ".source_structural_witness_receipt b "
+        "ON b.receipt_id=r.baseline_receipt_id AND b.source_profile_id=r.source_profile_id AND b.version=3 "
+        "WHERE r.source_profile_id=$1 AND r.receipt_id=$2 AND r.version IN(3,4) "
+        "AND NOT EXISTS(SELECT FROM " LAPLACE_PG_SCHEMA ".source_structural_witness_execution x "
+        "WHERE x.receipt_id=CASE WHEN r.version=3 THEN r.receipt_id ELSE b.receipt_id END)";
     static const char rows_sql[] =
         "SELECT trace_fingerprint,provider_fingerprint,canonical_entity_id,artifact_index,"
         "span_index,parent_span_index,byte_start,byte_end,kind,grammar_kind,field_kind,"
         "sibling_ordinal,CASE WHEN octet_length(media_type)<=127 THEN media_type ELSE NULL END,depth,flags,syntax_flags,canonical_physicality_id FROM " LAPLACE_PG_SCHEMA
         ".source_structural_witness WHERE source_profile_id=$1 ORDER BY artifact_index,span_index";
+    static const char execution_rows_sql[] =
+        "SELECT e.trace_fingerprint,e.provider_fingerprint,s.canonical_entity_id,s.artifact_index,"
+        "s.span_index,s.parent_span_index,s.byte_start,s.byte_end,s.kind,s.grammar_kind,s.field_kind,"
+        "s.sibling_ordinal,CASE WHEN octet_length(s.media_type)<=127 THEN s.media_type ELSE NULL END,"
+        "s.depth,s.flags,s.syntax_flags,s.canonical_physicality_id,s.trace_fingerprint,s.provider_fingerprint "
+        "FROM " LAPLACE_PG_SCHEMA ".source_structural_witness s LEFT JOIN "
+        LAPLACE_PG_SCHEMA ".source_structural_witness_execution e ON "
+        "e.source_profile_id=s.source_profile_id AND e.artifact_index=s.artifact_index "
+        "AND e.span_index=s.span_index AND e.receipt_id=$2 "
+        "WHERE s.source_profile_id=$1 ORDER BY s.artifact_index,s.span_index";
     static const char witness_domain[] = "laplace.source-structural-witness-set/v3";
-    static const char receipt_domain[] = "laplace.source-structural-witness-receipt/v3";
+    static const char canonical_domain[] = "laplace.source-canonical-witness-set/v1";
     Oid types[2] = {BYTEAOID, BYTEAOID};
     Datum values[2];
     laplace_source_profile_manifest profile;
     laplace_source_profile_receipt profile_receipt;
     laplace_source_profile_error profile_error;
     laplace_digest256 expected_witness, actual_witness, actual_receipt;
-    blake3_hasher hasher;
+    laplace_digest256 baseline_receipt, baseline_composition, expected_baseline, actual_baseline;
+    laplace_digest256 expected_canonical, actual_canonical;
+    uint64_t baseline_count = 0u;
+    int version = 0;
+    blake3_hasher hasher, baseline_hasher, canonical_hasher;
     SPIPlanPtr plan;
     Portal cursor;
     uint64_t count = 0u;
@@ -746,11 +962,11 @@ void laplace_pg_verify_source_structural_roots(
         errmsg("Laplace source readback requires a finite nonzero witness bound")));
     values[0] = PointerGetDatum(laplace_pg_bytes_to_bytea(profile_id->bytes, 32u));
     values[1] = PointerGetDatum(laplace_pg_bytes_to_bytea(receipt_id->bytes, 32u));
-    result = SPI_execute_with_args(receipt_sql, 2, types, values, NULL, true, 2);
+    result = SPI_execute_with_args(receipt_sql, 2, types, values, NULL, read_only, 2);
     ++binding->database_operations;
     if (result != SPI_OK_SELECT || SPI_processed != 1u || SPI_tuptable == NULL)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
-            errmsg("Laplace source readback requires one retained v3 structural receipt with native physicality bindings"),
+            errmsg("Laplace source readback requires one retained v3 or v4 structural receipt with native physicality bindings"),
             errhint("Replay source admission to obtain exact native physicality bindings for older receipts.")));
     {
         HeapTuple tuple = SPI_tuptable->vals[0];
@@ -762,6 +978,18 @@ void laplace_pg_verify_source_structural_roots(
         structural_exact(structural_column(tuple, descriptor, 3), &expected_witness, 32u);
         binding->witness_count = laplace_pg_uint64_from_numeric(
             structural_column(tuple, descriptor, 4), "structural witness count");
+        version = DatumGetInt32(structural_column(tuple, descriptor, 5));
+        if (version == 4) {
+            structural_exact(structural_column(tuple, descriptor, 6), &baseline_receipt, 32u);
+            structural_exact(structural_column(tuple, descriptor, 7), &expected_canonical, 32u);
+            structural_exact(structural_column(tuple, descriptor, 8), &baseline_composition, 32u);
+            structural_exact(structural_column(tuple, descriptor, 9), &expected_baseline, 32u);
+            baseline_count = laplace_pg_uint64_from_numeric(
+                structural_column(tuple, descriptor, 10), "historical structural witness count");
+            if (baseline_count != binding->witness_count)
+                ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                    errmsg("Laplace structural execution and historical baseline counts differ")));
+        }
     }
     SPI_freetuptable(SPI_tuptable);
     if (laplace_source_profile_validate_batch(&profile, 1u, &profile_receipt, &profile_error) !=
@@ -777,10 +1005,20 @@ void laplace_pg_verify_source_structural_roots(
     hash_bytes(&hasher, (const uint8_t*)witness_domain, sizeof(witness_domain)-1u);
     hash_bytes(&hasher, profile_id->bytes, 32u);
     hash_u64(&hasher, binding->witness_count);
-    plan = SPI_prepare(rows_sql, 1, types);
+    if (version == 4) {
+        blake3_hasher_init(&baseline_hasher);
+        hash_bytes(&baseline_hasher, (const uint8_t*)witness_domain, sizeof(witness_domain)-1u);
+        hash_bytes(&baseline_hasher, profile_id->bytes, 32u);
+        hash_u64(&baseline_hasher, baseline_count);
+        blake3_hasher_init(&canonical_hasher);
+        hash_bytes(&canonical_hasher, (const uint8_t*)canonical_domain, sizeof(canonical_domain)-1u);
+        hash_bytes(&canonical_hasher, profile_id->bytes, 32u);
+        hash_u64(&canonical_hasher, binding->witness_count);
+    }
+    plan = SPI_prepare(version == 4 ? execution_rows_sql : rows_sql, version == 4 ? 2 : 1, types);
     if (plan == NULL) ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
         errmsg("Laplace structural readback could not prepare its bounded cursor")));
-    cursor = SPI_cursor_open(NULL, plan, values, NULL, true);
+    cursor = SPI_cursor_open(NULL, plan, values, NULL, read_only);
     ++binding->database_operations;
     SPI_freeplan(plan);
     if (cursor == NULL) ereport(ERROR, (errcode(ERRCODE_INTERNAL_ERROR),
@@ -840,6 +1078,14 @@ void laplace_pg_verify_source_structural_roots(
                 ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
                     errmsg("Laplace structural content absence disagrees with its syntax span")));
             hash_witness_row(&hasher,&witness,&entity,&physicality,(const uint8_t*)VARDATA_ANY(media));
+            if (version == 4) {
+                hash_canonical_witness_row(&canonical_hasher, &witness, &entity,
+                    &physicality, (const uint8_t*)VARDATA_ANY(media));
+                structural_exact(structural_column(tuple, descriptor, 18), &witness.trace_fingerprint, 32u);
+                structural_exact(structural_column(tuple, descriptor, 19), &witness.provider_fingerprint, 32u);
+                hash_witness_row(&baseline_hasher, &witness, &entity,
+                    &physicality, (const uint8_t*)VARDATA_ANY(media));
+            }
             if (witness.span_index == 0u) {
                 while (next_selected < artifact_count &&
                     artifact_indexes[next_selected] < witness.artifact_index) ++next_selected;
@@ -874,16 +1120,33 @@ void laplace_pg_verify_source_structural_roots(
     if (count!=binding->witness_count || memcmp(actual_witness.bytes,expected_witness.bytes,32u)!=0)
         ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
             errmsg("Laplace retained structural witnesses no longer match their receipt")));
-    blake3_hasher_init(&hasher);
-    hash_bytes(&hasher,(const uint8_t*)receipt_domain,sizeof(receipt_domain)-1u);
-    hash_bytes(&hasher,profile_id->bytes,32u);
-    hash_bytes(&hasher,binding->composition_receipt_id.bytes,32u);
-    hash_bytes(&hasher,actual_witness.bytes,32u);
-    hash_u64(&hasher,count);
-    finish_digest(&hasher,&actual_receipt);
+    if (version == 4) {
+        finish_digest(&baseline_hasher, &actual_baseline);
+        finish_digest(&canonical_hasher, &actual_canonical);
+        if (memcmp(actual_baseline.bytes, expected_baseline.bytes, 32u) != 0 ||
+            memcmp(actual_canonical.bytes, expected_canonical.bytes, 32u) != 0)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace historical or canonical structural witness authentication failed")));
+        structural_receipt_digest(profile_id, &baseline_composition, &actual_baseline,
+            count, NULL, NULL, &actual_receipt);
+        if (memcmp(actual_receipt.bytes, baseline_receipt.bytes, 32u) != 0)
+            ereport(ERROR, (errcode(ERRCODE_DATA_CORRUPTED),
+                errmsg("Laplace historical structural receipt identity failed native recomputation")));
+    }
+    structural_receipt_digest(profile_id, &binding->composition_receipt_id,
+        &actual_witness, count, version == 4 ? &actual_canonical : NULL,
+        version == 4 ? &baseline_receipt : NULL, &actual_receipt);
     if (memcmp(actual_receipt.bytes,receipt_id->bytes,32u)!=0)
         ereport(ERROR,(errcode(ERRCODE_DATA_CORRUPTED),
             errmsg("Laplace structural receipt identity failed native recomputation")));
+}
+
+void laplace_pg_verify_source_structural_roots(
+    const laplace_digest256* profile_id, const laplace_digest256* receipt_id,
+    const uint64_t* artifact_indexes, size_t artifact_count, uint64_t maximum_witnesses,
+    laplace_pg_source_readback_binding* bindings) {
+    verify_source_structural_roots(profile_id, receipt_id, artifact_indexes,
+        artifact_count, maximum_witnesses, bindings, true);
 }
 
 void laplace_pg_verify_source_structural_root(

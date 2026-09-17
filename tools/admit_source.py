@@ -366,6 +366,7 @@ WITH admitted AS MATERIALIZED (
 SELECT pg_catalog.json_build_object(
   'schema','laplace.admit-source/v1',
   'admission',pg_catalog.row_to_json(admitted),
+  'execution_metrics',laplace.source_admission_last_execution_metrics()::json,
   'persisted_profile',(SELECT pg_catalog.row_to_json(p) FROM laplace.source_profile AS p
                        WHERE p.profile_id=admitted.profile_id),
   'entity_count',(SELECT count(*) FROM laplace.entity),
@@ -403,19 +404,26 @@ def verify_git_readback(command: list[str], result: dict[str, Any], proof: dict[
                  "evidence_lineage_isa_receipt_id", "evidence_testimony_isa_receipt_id"))):
         raise AdmissionError("native Git observation changed file/evidence denominators")
     composition_id = bytea(require_hex(admission["composition_working_set_receipt_id"][2:], "native composition receipt"))
+    execution = result.get("execution_metrics", {}).get("last", {})
+    if execution.get("valid") is not True:
+        raise AdmissionError("source admission omitted its current execution identity")
+    execution_receipt = bytea(require_hex(
+        execution.get("structural_execution_receipt_id"), "current structural execution receipt"))
     occurrence_id = bytea(require_hex(admission["source_fingerprint"][2:], "native source fingerprint"))
     indexes = ",".join(str(index) for index in range(len(artifacts)))
     maximum_file_bytes = max(item["byte_count"] for item in artifacts)
     maximum_nodes = max(4096, maximum_file_bytes * 4)
     maximum_carriers = max(4096, maximum_file_bytes * 16)
-    # The retained v3 structural receipt is the authority for its exact witness
+    # The explicitly returned v4 execution receipt is the authority for its exact witness
     # count, and the PostgreSQL verifier streams that set 128 rows at a time.
     # Pass a finite profile-derived bound; do not invent a smaller global corpus
     # ceiling after admission has already committed.
     witness_bound = max(4096, int(profile["span_count"]))
     sql = f"""WITH selected AS MATERIALIZED (
- SELECT receipt_id,witness_fingerprint FROM laplace.source_structural_witness_receipt
- WHERE source_profile_id={profile_id} AND composition_working_set_receipt={composition_id} AND version=3
+ SELECT receipt_id,witness_fingerprint,canonical_witness_fingerprint,baseline_receipt_id
+ FROM laplace.source_structural_witness_receipt
+ WHERE receipt_id={execution_receipt} AND source_profile_id={profile_id}
+   AND composition_working_set_receipt={composition_id} AND version=4
 ), restored AS MATERIALIZED (
  SELECT r.* FROM selected s CROSS JOIN LATERAL laplace.source_readback_utf8_batch(
    {context_sql(identities, geometry_epoch, perfcache_epoch, numeric_epoch)},
@@ -427,11 +435,16 @@ def verify_git_readback(command: list[str], result: dict[str, Any], proof: dict[
 SELECT jsonb_build_object(
  'schema','laplace.verified-git-source-readback/v1',
  'structural_receipt_count',(SELECT count(*) FROM selected),
- 'structural_witness_fingerprint',(SELECT encode(witness_fingerprint,'hex') FROM selected),
+ 'structural_witness_fingerprint',(SELECT encode(canonical_witness_fingerprint,'hex') FROM selected),
+ 'execution_witness_fingerprint',(SELECT encode(witness_fingerprint,'hex') FROM selected),
+ 'structural_execution_receipt_id',(SELECT encode(receipt_id,'hex') FROM selected),
+ 'historical_structural_receipt_id',(SELECT encode(baseline_receipt_id,'hex') FROM selected),
  'records',(SELECT jsonb_agg((to_jsonb(r)-'content') ||
         jsonb_build_object('sha256',encode(sha256(r.content),'hex')) ORDER BY artifact_index) FROM restored r),
  'source_occurrence_count',(SELECT count(*) FROM laplace.attestation WHERE source_fingerprint={occurrence_id}),
  'structural_witness_count',(SELECT count(*) FROM laplace.source_structural_witness WHERE source_profile_id={profile_id}),
+ 'structural_execution_observation_count',(SELECT count(*) FROM laplace.source_structural_witness_execution WHERE source_profile_id={profile_id}),
+ 'structural_execution_receipt_count',(SELECT count(*) FROM laplace.source_structural_witness_receipt WHERE source_profile_id={profile_id} AND version=4),
  'database_row_counts',json_build_object(
    'entity',(SELECT count(*) FROM laplace.entity),
    'physicality',(SELECT count(*) FROM laplace.physicality),
@@ -445,7 +458,11 @@ SELECT jsonb_build_object(
     if (readback.get("structural_receipt_count") != 1 or not isinstance(records, list) or
             len(records) != len(artifacts)):
         raise AdmissionError("source readback omitted or duplicated selected artifact roots")
-    require_hex(readback.get("structural_witness_fingerprint"), "verified structural witness fingerprint")
+    require_hex(readback.get("structural_witness_fingerprint"), "verified canonical structural witness fingerprint")
+    require_hex(readback.get("execution_witness_fingerprint"), "verified execution witness fingerprint")
+    require_hex(readback.get("historical_structural_receipt_id"), "verified historical structural receipt")
+    if readback.get("structural_execution_receipt_id") != execution["structural_execution_receipt_id"]:
+        raise AdmissionError("source readback selected another structural execution")
     for index, (expected, actual) in enumerate(zip(artifacts, records)):
         if (int(actual["artifact_index"]) != index or actual["sha256"] != expected["sha256"] or
                 int(actual["output_bytes"]) != expected["byte_count"] or

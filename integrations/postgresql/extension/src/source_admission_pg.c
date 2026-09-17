@@ -46,6 +46,7 @@ typedef struct laplace_pg_source_execution_metrics {
     uint64_t composition_receipt_persistence_call_count;
     uint8_t composition_persistence_executed;
     uint8_t valid;
+    laplace_digest256 structural_execution_receipt;
 } laplace_pg_source_execution_metrics;
 
 static const laplace_tabular_source_plan* laplace_pg_active_source_plan = NULL;
@@ -143,7 +144,7 @@ static void laplace_pg_append_metrics_json(
         "\"composition_physicality_presence_round_count\":%" PRIu64 ","
         "\"composition_persistence_plan_count\":%" PRIu64 ","
         "\"composition_receipt_persistence_call_count\":%" PRIu64 ","
-        "\"composition_persistence_executed\":%s}",
+        "\"composition_persistence_executed\":%s,",
         name,
         metrics->valid != 0u ? "true" : "false",
         metrics->sequence,
@@ -155,6 +156,13 @@ static void laplace_pg_append_metrics_json(
         metrics->composition_persistence_plan_count,
         metrics->composition_receipt_persistence_call_count,
         metrics->composition_persistence_executed != 0u ? "true" : "false");
+    appendStringInfoString(output, "\"structural_execution_receipt_id\":\"");
+    {
+        size_t index;
+        for (index=0u; index<sizeof(metrics->structural_execution_receipt.bytes); ++index)
+            appendStringInfo(output, "%02x", (unsigned int)metrics->structural_execution_receipt.bytes[index]);
+    }
+    appendStringInfoString(output, "\"}");
 }
 
 Datum laplace_source_admission_last_execution_metrics(PG_FUNCTION_ARGS) {
@@ -460,7 +468,7 @@ laplace_pg_source_profile_finalize_with_witnesses(
         plan,
         laplace_pg_active_source_execution,
         laplace_pg_active_source_composition_input,
-        profile);
+        profile, &laplace_pg_source_metrics_active.structural_execution_receipt);
     return status;
 }
 

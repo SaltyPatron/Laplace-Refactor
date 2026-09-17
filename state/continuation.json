@@ -2162,7 +2162,57 @@
     ],
     "supersedes_observation_scope": "This installed b042 observation supersedes earlier pending source-admission and absent-gateway disposition text. Earlier active_work and product_activation_projection history remains historical and does not describe the currently installed package or service ownership."
   },
+  "source_witness_execution_repair_20260917": {
+    "base_commit": "92dd91a568d5b764879ab20ffdc739b7db05b902",
+    "classification": "observed-development-state-not-product-law",
+    "correction": "Keep canonical span rows and v1-v3 evidence; add authenticated v4 current execution observations and stable canonical witness fingerprint, explicit metrics/CLI selection, source-location reproducibility fix.",
+    "current_119_same_profile_replay": "pending",
+    "current_installation": "pending",
+    "current_native_qualification": "pending",
+    "diagnostic": {
+      "activation_job": 105131148335,
+      "canonical_entity_and_physicality_identical": true,
+      "corpus_job": 105131694032,
+      "current_119_admission": false,
+      "evidence_blob": "39595c24063449a327bb6007da51a8d82e3775c7",
+      "installed_package": "19567269059da67118a3de9715358a375d313c192b965b31adba4fe2e4eb9ade",
+      "only_mismatched_field": "trace_fingerprint",
+      "replay": false,
+      "run": 35198079402
+    },
+    "provider_reproducibility": {
+      "actual_tests": 34,
+      "job": 105136583074,
+      "result": "passed",
+      "run": 35201348488,
+      "seconds": 2.276,
+      "skips": 0
+    },
+    "remaining": [
+      "Run actual changed native/schema/PG controls and normal required qualification.",
+      "Install accepted repair and complete same-profile119-file exact readback/replay with unchanged historical evidence.",
+      "Integrate separately qualified parser derivative and report current95 diagnostic recount without claiming executable semantics.",
+      "Complete the deferred fresh source toolchain/runtime/PostgreSQL provider when shorter user-facing delivery no longer needs the shared reservation."
+    ]
+  },
   "source_witness_replay_diagnostic_20260917": {
+    "actual_compile_fixed_qualification": {
+      "cleanup_completed_at_utc": "2026-09-17T07:49:59Z",
+      "core_elapsed_seconds": 242.35,
+      "core_passed": 48,
+      "core_selected_tests": 48,
+      "correction": "Parenthesize both JSONB arrow extractions before deleting syntax_flags; production diagnostic unchanged.",
+      "current_119_replay_verified": false,
+      "error": "operator is not unique: unknown - unknown",
+      "failed_at_utc": "2026-09-17T07:49:52Z",
+      "head": "05e866bad47a7978f1613f9f7c269a86c01bde4f",
+      "installed_diagnostic": false,
+      "job_id": 105118623635,
+      "native_build": "passed",
+      "result": "test-assertion-sql-precedence-failure",
+      "run_id": 35195439514,
+      "verified_cpp_lane_elapsed_seconds": 151.81
+    },
     "base_commit": "af0f3cf48de13005875f78888271ec8ccdf332c4",
     "classification": "observed-development-state-not-product-law",
     "diagnostic": {
@@ -2217,23 +2267,6 @@
       "mutation_outcome": "No successful admission receipt; consult retained native transaction evidence, do not infer committed data from submission.",
       "repeat_proven": false,
       "run": 35191157961
-    },
-    "actual_compile_fixed_qualification": {
-      "run_id": 35195439514,
-      "job_id": 105118623635,
-      "head": "05e866bad47a7978f1613f9f7c269a86c01bde4f",
-      "native_build": "passed",
-      "core_selected_tests": 48,
-      "core_passed": 48,
-      "core_elapsed_seconds": 242.35,
-      "verified_cpp_lane_elapsed_seconds": 151.81,
-      "result": "test-assertion-sql-precedence-failure",
-      "failed_at_utc": "2026-09-17T07:49:52Z",
-      "cleanup_completed_at_utc": "2026-09-17T07:49:59Z",
-      "error": "operator is not unique: unknown - unknown",
-      "correction": "Parenthesize both JSONB arrow extractions before deleting syntax_flags; production diagnostic unchanged.",
-      "installed_diagnostic": false,
-      "current_119_replay_verified": false
     }
   },
   "state_classes": {
