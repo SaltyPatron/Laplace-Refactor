@@ -1,60 +1,69 @@
-name: Prepare immutable C++ derivative dependency objects
+name: Read exact derived-container diagnostic
 on:
-  workflow_dispatch:
   push:
     branches: [qualify/cmake-source-443-20260916]
-    paths:
-      - ".github/workflows/qualify-cmake-source-release.yml"
 permissions:
   contents: read
   actions: read
 jobs:
-  prepare-source-objects:
+  read-retained:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: write
-      actions: read
-    env:
-      GH_TOKEN: ${{ github.token }}
-      MATERIALIZATION_ROOT: ${{ github.workspace }}/cpp-derivative-objects-${{ github.run_id }}-${{ github.run_attempt }}
+    timeout-minutes: 5
     steps:
-      - name: Authenticate and compile the bounded Git-object preparation driver
+      - name: Authenticate immutable diagnostic and project named operands
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64, hashlib, json, os, pathlib, py_compile, urllib.request
-          blob = "f6a896f901c2d88a374c9bc149455057a0180ab1"
-          expected = "858ca320f2f278c8e255e03edca3c5b8bb69746e8f08ea12c4783eecfbad0495"
-          request = urllib.request.Request(
-              "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/" + blob,
-              headers={"Accept": "application/vnd.github+json",
-                       "X-GitHub-Api-Version": "2022-11-28"})
-          request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
-          with urllib.request.urlopen(request, timeout=60) as response:
-              record = json.load(response)
-          assert record["encoding"] == "base64"
-          source = base64.b64decode(record["content"])
-          assert record["sha"] == blob
-          assert hashlib.sha1(b"blob " + str(len(source)).encode() + b"\0" + source).hexdigest() == blob
-          assert hashlib.sha256(source).hexdigest() == expected
-          path = pathlib.Path(os.environ["RUNNER_TEMP"]) / "cpp-dependency-objects.py"
-          path.write_bytes(source)
-          py_compile.compile(str(path), doraise=True)
-          print("Authenticated driver and Python syntax PASS: " + blob)
+          import hashlib, io, json, os, urllib.request, zipfile, xml.etree.ElementTree as ET
+          base='https://api.github.com/repos/SaltyPatron/Laplace-Refactor'
+          def get(path):
+              request=urllib.request.Request(base+path,headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              request.add_unredirected_header('Authorization','Bearer '+os.environ['GH_TOKEN'])
+              with urllib.request.urlopen(request,timeout=60) as response:
+                  return response.read()
+          run=json.loads(get('/actions/runs/35183813555'))
+          assert run['head_sha']=='9c2f9e997fb01eb86f0763e143ac243b831178e4'
+          assert run['event']=='push' and run['head_branch']=='qualify/cmake-source-443-20260916'
+          artifact=json.loads(get('/actions/artifacts/10481293376'))
+          assert artifact['workflow_run']['id']==35183813555
+          assert not artifact['expired']
+          expected='475108b22598ba2fdfda8993b75cf4bc3543441d17ef264e6ab2650cfa4e4438'
+          assert artifact['digest']=='sha256:'+expected
+          data=get('/actions/artifacts/10481293376/zip')
+          assert len(data)==32240 and hashlib.sha256(data).hexdigest()==expected
+          archive=zipfile.ZipFile(io.BytesIO(data))
+          print(json.dumps({'artifact':10481293376,'run':35183813555,'zip_sha256':expected,'names':archive.namelist()},sort_keys=True))
+          for name in ('source.txt','diagnostic-only.diff','exit-code.txt'):
+              matches=[n for n in archive.namelist() if n==name or n.endswith('/'+name)]
+              assert len(matches)==1,(name,matches)
+              print('DIAGNOSTIC_MEMBER '+name)
+              print(archive.read(matches[0]).decode('utf-8'))
+          matches=[n for n in archive.namelist() if n=='ctest.log' or n.endswith('/ctest.log')]
+          assert len(matches)==1
+          lines=archive.read(matches[0]).decode('utf-8',errors='replace').splitlines()
+          selected=set()
+          for i,line in enumerate(lines):
+              if any(token in line for token in ('ERROR:','DETAIL:','CONTEXT:','Test #','tests passed','Total Test time','CMake Error','No tests were found','FAIL','PASS','LAPLACE_')):
+                  selected.update(range(max(0,i-2),min(len(lines),i+5)))
+          print('DIAGNOSTIC_RESULT_BEGIN')
+          print('\n'.join(lines[i] for i in sorted(selected)))
+          print('DIAGNOSTIC_RESULT_END')
+          matches=[n for n in archive.namelist() if n=='result.junit.xml' or n.endswith('/result.junit.xml')]
+          assert len(matches)==1
+          junit=ET.fromstring(archive.read(matches[0]))
+          print('PASSED_TEST_JUNIT '+json.dumps(junit.attrib,sort_keys=True))
+          for case in junit.iter('testcase'):
+              print('PASSED_TEST_CASE '+json.dumps(case.attrib,sort_keys=True))
+              assert not list(case.iter('failure')) and not list(case.iter('error'))
+          for output in junit.iter('system-out'):
+              for line in (output.text or '').splitlines():
+                  if any(token in line for token in ('derived direct CONTAINER','passed','ERROR:','DETAIL:','LAPLACE_QA_RECEIPT')):
+                      print(line)
+          for name in archive.namelist():
+              if name.endswith('executed-physicality-contract.sql'):
+                  source=archive.read(name)
+                  print('EXECUTED_SQL '+json.dumps({'path':name,'bytes':len(source),'sha256':hashlib.sha256(source).hexdigest()},sort_keys=True))
           PY
-      - name: Prepare exact dependency blobs tree commit and unselected lock proposal
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/cpp-dependency-objects.py"
-      - name: Retain complete or partial object preparation evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: cpp-derivative-source-objects-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.MATERIALIZATION_ROOT }}/evidence
-          if-no-files-found: warn
-          compression-level: 9
-          retention-days: 21
