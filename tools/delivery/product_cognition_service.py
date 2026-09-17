@@ -29,6 +29,8 @@ UNIT = "laplace-refactor-cognition.service"
 USER = "laplace-runner"
 MARKER = Path("/opt/laplace/receipts/bootstrap/cognition-user-service.json")
 SCHEMA = "laplace.cognition-user-service-owner/v1"
+MANAGED_OPERATOR_FILE = Path("/opt/laplace/secrets/operator.env")
+HTTP_AUTH_MANAGED_OPERATOR = "managed-operator"
 RESULT_SCHEMA = "laplace.cognition-service-lifecycle/v1"
 PROPERTIES = ("LoadState", "ActiveState", "SubState", "UnitFileState",
               "FragmentPath", "NeedDaemonReload", "User", "MainPID", "DropInPaths", "ControlGroup")
@@ -174,9 +176,27 @@ class Owner:
         require(stat.S_ISSOCK(bus.st_mode) and bus.st_uid == self.uid,
                 "runner user manager bus is not the owned socket")
 
-    def desired(self, scope: str) -> bytes:
+    def http_auth(self, selection: dict | None = None) -> dict:
+        selection = self.receipt() if selection is None else selection
+        mode = selection.get("http_auth", "none") if selection is not None else "none"
+        return ({"mode": mode, "credential_source": str(MANAGED_OPERATOR_FILE)}
+                if mode == HTTP_AUTH_MANAGED_OPERATOR else {"mode": "none"})
+
+    def desired(self, scope: str, *, http_auth: str | None = None) -> bytes:
         relative = "packaging/systemd/" + ("user/" if scope == "user" else "") + UNIT
-        return file_bytes(self.repository / relative)
+        content = file_bytes(self.repository / relative)
+        # The shipped envelopes stay suitable for standalone loopback use.
+        # Only an explicit, retained user-service selection adds this fixed path.
+        if scope == "user":
+            mode = self.http_auth()["mode"] if http_auth is None else http_auth
+            require(mode in ("none", HTTP_AUTH_MANAGED_OPERATOR), "unknown cognition HTTP authority")
+            if mode == HTTP_AUTH_MANAGED_OPERATOR:
+                before = (b"ExecStart=/opt/laplace/runtime/refactor/bin/laplace-cognition-service "
+                          b"--socket /opt/laplace/runtime/laplace-cognition.sock\n")
+                require(content.count(before) == 1, "cognition service ExecStart template differs")
+                content = content.replace(before, before[:-1] + b" --api-operator-token-file " +
+                                          str(MANAGED_OPERATOR_FILE).encode("ascii") + b"\n")
+        return content
 
     def receipt(self) -> dict | None:
         if not self.marker.exists() and not self.marker.is_symlink():
@@ -186,7 +206,9 @@ class Owner:
         require(isinstance(value, dict), "service owner receipt is not an object")
         expected = {"schema", "scope", "uid", "user", "unit", "unit_path",
                     "unit_sha256", "persistent_manager", "cold_boot_proven", "receipt_sha256"}
-        require(set(value) == expected and value["schema"] == SCHEMA and
+        require(set(value) in (expected, expected | {"http_auth"}) and
+                value.get("http_auth", HTTP_AUTH_MANAGED_OPERATOR) == HTTP_AUTH_MANAGED_OPERATOR and
+                value["schema"] == SCHEMA and
                 value["scope"] == "user" and value["uid"] == self.uid and
                 value["user"] == USER and value["unit"] == UNIT and
                 value["unit_path"] == str(self.user_unit) and
@@ -229,7 +251,8 @@ class Owner:
             self.check_system(system, selected=True)
             user = self.user_state_if_available()
             require(not self.running(user), "a competing user cognition owner is running")
-            return {"scope": "system", "unit": system, "competing_unit": user}
+            return {"scope": "system", "unit": system, "competing_unit": user,
+                    "http_auth": {"mode": "none"}}
         self.check_system(system, selected=False)
         self.manager(enable_linger=False)
         require(file_bytes(self.user_unit, self.uid) == self.desired("user"),
@@ -241,16 +264,25 @@ class Owner:
                 user.get("UnitFileState") == "enabled",
                 "selected user unit is not loaded and persistently enabled")
         return {"scope": "user", "unit": user, "competing_unit": system,
-                "selection_receipt_sha256": selection["receipt_sha256"]}
+                "selection_receipt_sha256": selection["receipt_sha256"],
+                "http_auth": self.http_auth(selection)}
 
-    def ensure(self) -> dict:
+    def ensure(self, *, http_auth: str | None = None) -> dict:
+        require(http_auth in (None, HTTP_AUTH_MANAGED_OPERATOR), "unsupported HTTP authority selection")
         previous = self.receipt()
+        mode = http_auth or self.http_auth(previous)["mode"]
+        if mode == HTTP_AUTH_MANAGED_OPERATOR:
+            sys.path.insert(0, str(self.repository / "tools"))
+            from openai_api_service import load_operator_token
+            # Validate the selected existing authority before any unit mutation.
+            load_operator_token(MANAGED_OPERATOR_FILE)
         system = self.observe("system")
         if previous is None and system["LoadState"] == "loaded":
+            require(mode == "none", "managed operator authority requires the owned user-service selection")
             self.check_system(system, selected=True)
             return self.verify()
         self.check_system(system, selected=False)
-        desired = self.desired("user")
+        desired = self.desired("user", http_auth=mode)
         self.manager(enable_linger=previous is None)
         user_before = self.observe("user")
         require(previous is not None or not self.running(user_before),
@@ -286,6 +318,8 @@ class Owner:
                        "unit": UNIT, "unit_path": str(self.user_unit),
                        "unit_sha256": digest(desired), "persistent_manager": True,
                        "cold_boot_proven": False}
+            if mode == HTTP_AUTH_MANAGED_OPERATOR:
+                payload["http_auth"] = mode
             payload["receipt_sha256"] = digest(canonical(payload))
             atomic_write(self.marker, canonical(payload))
             return self.verify()
@@ -439,9 +473,13 @@ def main() -> int:
     parser.add_argument("action", choices=("ensure", "verify", "restart"))
     parser.add_argument("--expected-uid", type=int)
     parser.add_argument("--expected-sha")
+    parser.add_argument("--http-auth", choices=(HTTP_AUTH_MANAGED_OPERATOR,),
+                        help="explicitly select the existing managed operator authority for this user service")
     parser.add_argument("--output", type=Path, required=True,
                         help="new evidence directory outside the source checkout")
     args = parser.parse_args()
+    if args.http_auth is not None and args.action != "ensure":
+        parser.error("--http-auth is selected only by ensure")
     report = {"schema": RESULT_SCHEMA, "action": args.action, "status": "failed",
               "cold_boot_proven": False, "cognition_acceptance_proven": False}
     output_created = False
@@ -474,8 +512,10 @@ def main() -> int:
             if args.action == "restart":
                 require(args.expected_sha is not None, "restart requires --expected-sha")
                 observation = owner.restart(args.expected_sha, output)
+            elif args.action == "ensure":
+                observation = owner.ensure(http_auth=args.http_auth)
             else:
-                observation = getattr(owner, args.action)()
+                observation = owner.verify()
         report.update(status="passed", uid=account.pw_uid, observation=observation)
         atomic_write(output / "result.json", canonical(report))
         print(json.dumps(report, sort_keys=True))

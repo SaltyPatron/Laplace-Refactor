@@ -8,6 +8,7 @@ from http.client import HTTPConnection, HTTPException, HTTPResponse
 import importlib.util
 import io
 import os
+import pwd
 import json
 from pathlib import Path
 import re
@@ -20,6 +21,8 @@ from urllib import error, request
 from urllib.parse import urlsplit
 
 BASE = "http://127.0.0.1:55434"
+AUTH_TOKEN: str | None = None
+AUTH_SELECTION: dict[str, str] = {"mode": "none"}
 HEX256 = re.compile(r"^[0-9a-f]{64}$")
 HEX128 = re.compile(r"^[0-9a-f]{32}$")
 MAXIMUM_RESPONSE_BYTES = 24 * 1024 * 1024
@@ -36,6 +39,46 @@ WEB_ASSETS = (
     ("/styles.css", "styles.css", ("text/css",)),
 )
 
+
+def operator_token(path: Path) -> str:
+    name = "laplace_gateway_credential_owner"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, ROOT / "tools/openai_api_service.py")
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load the canonical gateway credential owner")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name].load_operator_token(path)
+
+
+def selected_http_authority() -> tuple[dict[str, str], str | None]:
+    name = "laplace_gateway_service_owner"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, ROOT / "tools/delivery/product_cognition_service.py")
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load the selected cognition service owner")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    module = sys.modules[name]
+    uid = os.geteuid()
+    owner = module.Owner(uid=uid, home=Path(pwd.getpwuid(uid).pw_dir), repository=ROOT)
+    selection = owner.http_auth()
+    if selection["mode"] == "none":
+        return selection, None
+    if module.file_bytes(owner.user_unit, uid) != owner.desired("user"):
+        raise RuntimeError("selected HTTP authority differs from the installed service envelope")
+    return selection, operator_token(module.MANAGED_OPERATOR_FILE)
+
+
+def authorization_headers() -> dict[str, str]:
+    return {"Authorization": "Bearer " + AUTH_TOKEN} if AUTH_TOKEN is not None else {}
+
+
+class NoRedirect(request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 def package_owner() -> Any:
     name = "laplace_gateway_package_owner"
@@ -108,7 +151,8 @@ class ReadinessResponseSocket:
         return io.BufferedReader(ReadinessSocketReader(raw, self.sock, self.deadline))
 
 
-def readiness_get(path: str, deadline: float) -> tuple[str, bytes]:
+def readiness_get(path: str, deadline: float, *, authorized: bool = True,
+                  expected_status: int = 200) -> tuple[str, bytes]:
     timeout = readiness_timeout(deadline)
     endpoint = urlsplit(BASE)
     if (endpoint.scheme != "http" or endpoint.hostname != "127.0.0.1"
@@ -125,11 +169,11 @@ def readiness_get(path: str, deadline: float) -> tuple[str, bytes]:
         connection.connect()
         assert connection.sock is not None
         connection.sock.settimeout(readiness_timeout(deadline))
-        connection.request("GET", path)
+        connection.request("GET", path, headers=authorization_headers() if authorized else {})
         with connection.getresponse() as response:
             readiness_timeout(deadline)
-            if response.status != 200:
-                raise RuntimeError(f"GET {path} returned HTTP {response.status}, expected 200")
+            if response.status != expected_status:
+                raise RuntimeError(f"GET {path} returned HTTP {response.status}, expected {expected_status}")
             content_type = response.headers.get_content_type()
             chunks = []
             size = 0
@@ -224,6 +268,11 @@ def prove_readiness(output: Path, package_id: str, product_receipt: Path,
             report["selection"] = {label: str(link) for label, link in links.items()}
             started = time.monotonic()
             deadline = started + READINESS_TIMEOUT_SECONDS
+            report["http_auth"] = dict(AUTH_SELECTION)
+            if AUTH_TOKEN is not None:
+                for protected in ("/health", "/api/v1/stream"):
+                    readiness_get(protected, deadline, authorized=False, expected_status=401)
+                report["anonymous_protected_status"] = 401
             content_type, body = readiness_get("/health", deadline)
             if content_type != "application/json":
                 raise RuntimeError("GET /health returned a non-JSON content type")
@@ -249,7 +298,7 @@ def prove_readiness(output: Path, package_id: str, product_receipt: Path,
                 "web_root": health["web_root"], "response_sha256": hashlib.sha256(body).hexdigest(),
             }
             for route, name, media_types in WEB_ASSETS:
-                content_type, body = readiness_get(route, deadline)
+                content_type, body = readiness_get(route, deadline, authorized=False)
                 if content_type not in media_types or body != expected[name]:
                     raise RuntimeError(f"GET {route} differs from the selected package asset or content type")
                 report["assets"].append({
@@ -274,21 +323,30 @@ def prove_readiness(output: Path, package_id: str, product_receipt: Path,
             receipt_output.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
 
 
-def http(method: str, path: str, payload: Any | None = None, timeout: float = 320.0) -> tuple[int, str, bytes]:
+def http(method: str, path: str, payload: Any | None = None, timeout: float = 320.0,
+         *, authorized: bool = True, expected_error_status: int | None = None) -> tuple[int, str, bytes]:
     body = None
     headers = {"Accept": "application/json"}
     if payload is not None:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         headers["Content-Type"] = "application/json"
     req = request.Request(BASE + path, data=body, headers=headers, method=method)
+    for name, value in (authorization_headers() if authorized else {}).items():
+        req.add_unredirected_header(name, value)
+    opener = request.build_opener(request.ProxyHandler({}), NoRedirect())
     try:
-        with request.urlopen(req, timeout=timeout) as response:
+        with opener.open(req, timeout=timeout) as response:
             data = response.read(MAXIMUM_RESPONSE_BYTES + 1)
             if len(data) > MAXIMUM_RESPONSE_BYTES:
                 raise RuntimeError(f"{path} response exceeded proof limit")
             return response.status, response.headers.get("Content-Type", ""), data
     except error.HTTPError as exc:
-        data = exc.read(MAXIMUM_RESPONSE_BYTES + 1)
+        with exc:
+            data = exc.read(MAXIMUM_RESPONSE_BYTES + 1)
+        if len(data) > MAXIMUM_RESPONSE_BYTES:
+            raise RuntimeError(f"{path} response exceeded proof limit") from exc
+        if exc.code == expected_error_status:
+            return exc.code, exc.headers.get("Content-Type", ""), data
         raise RuntimeError(f"{method} {path} returned HTTP {exc.code}: {data[-4000:]!r}") from exc
     except OSError as exc:
         raise RuntimeError(f"{method} {path} failed: {exc}") from exc
@@ -464,6 +522,46 @@ def prove_source_ingestion(package_id: str) -> dict[str, Any]:
     return {"catalog_boundary_sha256": catalog.get("boundary_sha256"), "source_id": source_id, "plan_id": plan_id, "job_id": job_id, "idempotent_retry_same_job": True, "state": job.get("state"), "result_sha256": result_sha, "admission_schema": result.get("schema"), "readback_schema": readback.get("schema"), "entity_count": result.get("entity_count"), "physicality_count": result.get("physicality_count"), "attestation_count": result.get("attestation_count")}
 
 
+def prove_product_event(package_id: str) -> dict:
+    endpoint = urlsplit(BASE)
+    if endpoint.scheme != "http" or endpoint.hostname != "127.0.0.1" or endpoint.path:
+        raise RuntimeError("event proof requires the selected loopback endpoint")
+    deadline = time.monotonic() + READINESS_TIMEOUT_SECONDS
+    connection = HTTPConnection(endpoint.hostname, endpoint.port or 80,
+                                timeout=readiness_timeout(deadline))
+    connection.response_class = lambda sock, *args, **kwargs: HTTPResponse(
+        ReadinessResponseSocket(sock, deadline), *args, **kwargs)
+    try:
+        connection.request("GET", "/api/v1/stream",
+                           headers={"Accept": "text/event-stream", **authorization_headers()})
+        with connection.getresponse() as response:
+            if response.status != 200 or response.headers.get_content_type() != "text/event-stream":
+                raise RuntimeError("authenticated product event stream is unavailable")
+            frame = bytearray()
+            while b"\n\n" not in frame:
+                if len(frame) >= READINESS_RESPONSE_BYTES:
+                    raise RuntimeError("product event frame exceeds the existing response limit")
+                block = response.read1(min(64 * 1024, READINESS_RESPONSE_BYTES - len(frame)))
+                if not block:
+                    raise RuntimeError("product event stream ended before its first complete frame")
+                frame.extend(block)
+                readiness_timeout(deadline)
+        frame = bytes(frame).partition(b"\n\n")[0] + b"\n\n"
+        fields = frame.decode("utf-8").splitlines()
+        event = [line[7:] for line in fields if line.startswith("event: ")]
+        body = "\n".join(line[6:] for line in fields if line.startswith("data: "))
+        value = json.loads(body)
+        if (event != ["product-snapshot"] or value.get("schema") != "laplace.product.event/v1"
+                or value.get("kind") != "product-snapshot"
+                or value.get("cognition", {}).get("package_id") != package_id):
+            raise RuntimeError("product event does not identify the selected native package")
+        return {"status": 200, "event": event[0], "schema": value["schema"],
+                "package_id": package_id, "complete_frame": True,
+                "response_sha256": hashlib.sha256(frame).hexdigest()}
+    finally:
+        connection.close()
+
+
 def execute_gateway_proof(package_id: str, *, include_source_ingestion: bool,
                           retain: Callable[[str, Any], None]) -> dict[str, Any]:
     status, content_type, index = http("GET", "/", timeout=10.0)
@@ -483,6 +581,12 @@ def execute_gateway_proof(package_id: str, *, include_source_ingestion: bool,
             raise RuntimeError(f"installed browser application lacks required route marker {marker!r}")
 
     retain("browser", {"index": "explore-chat-operator", "app": "ok"})
+    if AUTH_TOKEN is not None:
+        status, _, _ = http("POST", "/mcp", {}, timeout=10.0, authorized=False, expected_error_status=401)
+        if status != 401:
+            raise RuntimeError("anonymous MCP request was not rejected by the selected authority")
+        retain("http_authority", {**AUTH_SELECTION, "anonymous_mcp_status": status})
+        retain("product_events", prove_product_event(package_id))
     health = json_http("GET", "/api/v1/health", timeout=10.0)
     if health.get("schema") != "laplace.product.health/v1" or health.get("status") != "ready":
         raise RuntimeError(f"gateway health is not ready: {health}")
@@ -569,6 +673,7 @@ def execute_gateway_proof(package_id: str, *, include_source_ingestion: bool,
         "package_id": package_id,
         "timestamp": int(time.time()),
         "browser": {"index": "explore-chat-operator", "app": "ok"},
+        "http_auth": dict(AUTH_SELECTION),
         "explore": explore,
         "health": health,
         "descriptors": descriptors,
@@ -632,6 +737,7 @@ def prove(output: Path, package_id: str, *, include_source_ingestion: bool = Fal
 
 
 def main() -> int:
+    global AUTH_TOKEN, AUTH_SELECTION
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--package-id", required=True)
@@ -641,6 +747,7 @@ def main() -> int:
     parser.add_argument("--product-receipt", type=Path,
                         help="existing selected product package receipt for --readiness-only")
     args = parser.parse_args()
+    AUTH_SELECTION, AUTH_TOKEN = selected_http_authority()
     if HEX256.fullmatch(args.package_id) is None:
         parser.error("--package-id must be a 64-character lowercase hexadecimal package identity")
     if args.readiness_only:

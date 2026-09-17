@@ -639,6 +639,9 @@ jobs:
           test -x "$client"
           test -d /opt/laplace/runtime
           test ! -L /opt/laplace/runtime
+          python3 tools/delivery/product_cognition_service.py ensure --http-auth managed-operator \
+            --expected-uid "$(id -u)" \
+            --output "$RUNNER_TEMP/cognition-http-authority-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           python3 tools/delivery/product_cognition_service.py restart \
             --expected-uid "$(id -u)" --expected-sha '${{ inputs.expected_sha }}' \
             --output "$RUNNER_TEMP/cognition-service-restart-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
