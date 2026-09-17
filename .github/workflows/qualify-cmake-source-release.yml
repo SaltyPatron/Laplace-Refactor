@@ -1,4 +1,4 @@
-name: Read exact Original failed consensus state
+name: Read exact Original exact consensus evidence
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -13,26 +13,15 @@ env:
   PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=10000"
   OBSERVER_SOURCE: |
     import datetime,json,os,subprocess
-    sql="""SELECT coalesce(json_agg(row_to_json(found)), '[]'::json)::text
-    FROM (
-     SELECT encode(id,'hex') AS id, encode(type_id,'hex') AS type_id,
-     encode(subject_id,'hex') AS subject_id, encode(object_id,'hex') AS object_id,
-     rating::text AS rating, rd::text AS rd, volatility::text AS volatility,
-     witness_count::text AS witness_count, last_observed_at::text AS last_observed_at
-     FROM laplace.consensus
-     WHERE rating=-1947199190011015233 AND rd=350000000000 AND volatility=482453157376
-     LIMIT 16
-    ) found"""
-    environment=dict(os.environ, PGHOST="/var/run/postgresql", PGPORT="5432",
-     PGUSER="laplace_admin", PGDATABASE="laplace", PGCONNECT_TIMEOUT="5",
-     PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=10000")
-    result=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],
-     env=environment,capture_output=True,text=True,timeout=20)
-    proof={"scope":"Read-only exact failed stored consensus-state lookup; no write or recovery",
-     "observedUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"exitCode":result.returncode}
-    if result.returncode==0:proof["cells"]=json.loads(result.stdout)
+    sql="BEGIN READ ONLY;\nSET LOCAL statement_timeout = '20s';\nSET LOCAL lock_timeout = '1s';\nWITH evidence AS MATERIALIZED (\n    SELECT id, subject_id, type_id, object_id, source_id, context_id, outcome,\n           last_observed_at, observation_count, sum_score_fp1e9,\n           opponent_rd_fp1e9, opponent_rating_fp1e9, fold_replayable\n    FROM laplace.attestations\n    WHERE type_id = decode('9229e864a12093d7327c0ccd2295abc7', 'hex')\n      AND subject_id = decode('1498082da2f8136492554265cfbb2fcd', 'hex')\n      AND object_id = decode('b82a04e7b1f172018e0bae7f2cadb673', 'hex')\n), bounded AS (\n    SELECT * FROM evidence ORDER BY last_observed_at, id LIMIT 4096\n)\nSELECT jsonb_build_object(\n    'schema', 'laplace.exact-consensus-cell-evidence/v1',\n    'scope', 'Durable exact testimony for one indexed type/subject/object cell. Sorted observation timestamps do not by themselves reconstruct original rating-period boundaries.',\n    'database', current_database(),\n    'database_oid', (SELECT oid::bigint FROM pg_catalog.pg_database WHERE datname = current_database()),\n    'system_identifier', (SELECT system_identifier::text FROM pg_catalog.pg_control_system()),\n    'cell_id', '60386a133f597501dc75500739fe426b',\n    'canonical_cell_id', encode(laplace.consensus_id(\n        decode('1498082da2f8136492554265cfbb2fcd','hex'),\n        decode('9229e864a12093d7327c0ccd2295abc7','hex'),\n        decode('b82a04e7b1f172018e0bae7f2cadb673','hex')), 'hex'),\n    'total_evidence_rows', (SELECT count(*)::text FROM evidence),\n    'truncated', (SELECT count(*) > 4096 FROM evidence),\n    'total_observations', (SELECT COALESCE(sum(observation_count),0)::text FROM evidence),\n    'total_fold_games', (SELECT COALESCE(sum(GREATEST(observation_count,1)),0)::text FROM evidence),\n    'total_score_fp1e9', (SELECT COALESCE(sum(sum_score_fp1e9),0)::text FROM evidence),\n    'all_fold_replayable', (SELECT COALESCE(bool_and(fold_replayable),true) FROM evidence),\n    'stored_consensus', (\n        SELECT jsonb_build_object(\n            'rating', c.rating::text, 'rd', c.rd::text, 'volatility', c.volatility::text,\n            'witness_count', c.witness_count::text, 'last_observed_at', c.last_observed_at)\n        FROM laplace.consensus c\n        WHERE c.type_id = decode('9229e864a12093d7327c0ccd2295abc7','hex')\n          AND c.subject_id = decode('1498082da2f8136492554265cfbb2fcd','hex')\n          AND c.id = decode('60386a133f597501dc75500739fe426b','hex')),\n    'evidence', COALESCE((\n        SELECT jsonb_agg(jsonb_build_object(\n            'id', encode(id,'hex'), 'source_id', encode(source_id,'hex'),\n            'context_id', encode(context_id,'hex'), 'outcome', outcome,\n            'last_observed_at', last_observed_at,\n            'observation_count', observation_count::text,\n            'sum_score_fp1e9', sum_score_fp1e9::text,\n            'opponent_rd_fp1e9', opponent_rd_fp1e9::text,\n            'opponent_rating_fp1e9', opponent_rating_fp1e9::text,\n            'fold_replayable', fold_replayable)\n            ORDER BY last_observed_at,id)\n        FROM bounded), '[]'::jsonb));\nROLLBACK;\n"
+    env=dict(os.environ,PGHOST="/var/run/postgresql",PGPORT="5432",PGUSER="laplace_admin",PGDATABASE="laplace",PGCONNECT_TIMEOUT="5",PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=20000")
+    result=subprocess.run(["/opt/laplace/pgsql-18/bin/psql","-X","-q","-A","-t","-v","ON_ERROR_STOP=1","-c",sql],env=env,capture_output=True,text=True,timeout=30)
+    proof={"observedUtc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"exitCode":result.returncode,"sqlBlob":"73aeede0aaafbbc162619ebefc42bb8bc24d02c1"}
+    if result.returncode==0:
+        assert len(result.stdout.encode())<4194304
+        proof["value"]=json.loads(result.stdout)
     else:proof["error"]=result.stderr[:4096]
-    print("EXACT_FAILED_CONSENSUS_STATE "+json.dumps(proof,sort_keys=True),flush=True)
+    print("EXACT_CONSENSUS_EVIDENCE "+json.dumps(proof,sort_keys=True),flush=True)
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -45,18 +34,18 @@ jobs:
           import ast,hashlib,os
           source=os.environ["OBSERVER_SOURCE"].encode()
           identity=hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()
-          assert identity=="58219339bce8953a8c456239291e9a963356f8c8",identity
+          assert identity=="5a910b72b11603482abf044e9ed08c2433a402eb",identity
           ast.parse(source)
-          print("Authenticated Original observer 5821933; Python syntax passed without host execution.")
+          print("Authenticated Original observer 5a910b7; Python syntax passed without host execution.")
           PY
   observe:
     needs: validate
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
     timeout-minutes: 5
     env:
-      EVIDENCE: /build/laplace/work/original-failed-consensus-observer-${{ github.run_id }}-${{ github.run_attempt }}
+      EVIDENCE: /build/laplace/work/original-exact-consensus-evidence-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Read the exact failed consensus cells without mutation
+      - name: Read the exact indexed consensus evidence without mutation
         shell: bash
         run: |
           set -euo pipefail
@@ -66,7 +55,7 @@ jobs:
           python3 - <<'PY'
           import ast,hashlib,os
           source=os.environ["OBSERVER_SOURCE"].encode()
-          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="58219339bce8953a8c456239291e9a963356f8c8"
+          assert hashlib.sha1(b"blob "+str(len(source)).encode()+b"\0"+source).hexdigest()=="5a910b72b11603482abf044e9ed08c2433a402eb"
           ast.parse(source)
           PY
           timeout --signal=TERM --kill-after=5s 60s             python3 -u -c "$OBSERVER_SOURCE" 2>&1 | tee "$EVIDENCE/observer.log"
@@ -74,7 +63,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: original-failed-consensus-observer-${{ github.run_id }}-${{ github.run_attempt }}
+          name: original-exact-consensus-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.EVIDENCE }}/
           if-no-files-found: error
           retention-days: 30
