@@ -1,52 +1,46 @@
-name: Qualify browser prefix and authenticated event transport
+name: Observe current Original recording progress
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
 jobs:
-  browser-paths:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
+  observe-fixed-recording:
+    runs-on: [self-hosted, Linux, X64, laplace-refactor]
+    timeout-minutes: 2
     steps:
-      - name: Authenticate exact production browser and tests
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Read only exact current recording receipts
         shell: bash
         run: |
-          python3 - <<'PY'
-          import base64, hashlib, json, os, pathlib, urllib.request
-          root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
-          token = os.environ.pop('GH_TOKEN')
-          leaves = [{"path":"product/web/app.js","sha":"75aaedf6bfc44d2a250acda36618b3d031a18b40"},{"path":"product/web/index.html","sha":"22d457e46142794fb7900184236ebf74ca322621"},{"path":"tests/browser_surface_paths_tests.cjs","sha":"1920ad3b9cb326775252f9a1ce6dae1479b4f7bf"}]
-          for leaf in leaves:
-              request = urllib.request.Request('https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/' + leaf['sha'], headers={'Accept':'application/vnd.github+json','User-Agent':'Laplace-browser-path-controls'})
-              request.add_unredirected_header('Authorization', 'Bearer ' + token)
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  raw = response.read(1000000)
-              blob = json.loads(raw)
-              assert blob['sha'] == leaf['sha'] and blob['encoding'] == 'base64'
-              data = base64.b64decode(blob['content'])
-              assert len(data) == blob['size']
-              assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == leaf['sha']
-              path = root / leaf['path']
-              path.parent.mkdir(parents=True, exist_ok=True)
-              path.write_bytes(data)
-              print(json.dumps({'path':leaf['path'],'blob':leaf['sha'],'bytes':len(data)}))
+          python3 -I - <<'PY'
+          import json, pathlib, re, time
+          root=pathlib.Path('/build/laplace/recovery/canonical-next2000/35223192542-1')
+          names=('receipt.json','recording/receipt.json','recording/measurement/corpus-recording.json','recording/measurement/fresh/recording.json')
+          keys=re.compile(r'(status|phase|step|start|end|complet|committ|readback|sealed|heartbeat|updated|created|finished|games|count|elapsed)',re.I)
+          omitted=re.compile(r'(gps|rate|throughput|token|secret|password|connection|sql|body|path|command)',re.I)
+          def project(value, prefix='', depth=0):
+              if depth>7: return []
+              found=[]
+              if isinstance(value,dict):
+                  for key,item in value.items():
+                      if omitted.search(key): continue
+                      label=prefix+'.'+key if prefix else key
+                      if isinstance(item,(dict,list)): found.extend(project(item,label,depth+1))
+                      elif keys.search(key) and isinstance(item,(str,int,float,bool,type(None))):
+                          found.append({'field':label,'value':item[:300] if isinstance(item,str) else item})
+                      if len(found)>=100: break
+              elif isinstance(value,list):
+                  for index,item in list(enumerate(value))[-8:]:
+                      found.extend(project(item,prefix+'['+str(index)+']',depth+1))
+              return found[:100]
+          for name in names:
+              path=root/name
+              try:
+                  with path.open('rb') as stream: raw=stream.read(8388609)
+                  if len(raw)>8388608: raise ValueError('receipt exceeds 8MiB observation bound')
+                  data=json.loads(raw)
+                  result={'path':str(path),'observed_at_unix':time.time(),'mutable_in_progress':True,'fields':project(data)}
+              except (OSError,ValueError) as error:
+                  result={'path':str(path),'observed_at_unix':time.time(),'mutable_in_progress':True,'unavailable':type(error).__name__}
+              print(json.dumps(result,sort_keys=True),flush=True)
           PY
-      - name: Execute shipped browser in root and prefixed contexts
-        shell: bash
-        run: |
-          node --test tests/browser_surface_paths_tests.cjs | tee browser-path-results.tap
-      - name: Retain exact source and controls
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: browser-prefix-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            product/web/app.js
-            product/web/index.html
-            tests/browser_surface_paths_tests.cjs
-            browser-path-results.tap
-          if-no-files-found: error
-          retention-days: 30
