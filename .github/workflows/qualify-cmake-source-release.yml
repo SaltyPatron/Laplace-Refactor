@@ -1,4 +1,4 @@
-name: Build current source toolchain and publish its PostgreSQL consumer
+name: Prepare fresh source providers without reserving the benchmark host
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
@@ -43,7 +43,7 @@ jobs:
     needs: validate
     if: github.repository == 'SaltyPatron/Laplace-Refactor'
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 600
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -101,7 +101,7 @@ jobs:
           contract=toolchain.read_json(ROOT/"contracts/toolchain-build.json")
           toolchain.validate_contract(contract,ROOT)
           started=time.monotonic()
-          deadline=started+34200
+          deadline=started+1600
           report={"schema":"laplace.cmake-component-operation/v1","status":"running",
                   "source_commit":"b042de4216e1d674effe5bd3e8ecf3ebc7aeddac",
                   "installed_repository_commit":BASE,"installed_package_id":PACKAGE,
@@ -196,11 +196,18 @@ jobs:
                   "prefix":old["package"]["prefix"],"scope":"historical provenance only; inaccessible private provider is not reused",
                   "historical_steps_reexecuted":False}
               pg_contract=postgres.read_json(ROOT/"contracts/postgresql-build.json")
-              runtime=historical["runtime_package"]
-              runtime_path=Path(runtime["receipt_path"])
-              save_copy("historical-runtime-package.json",runtime_path,runtime["receipt_sha256"])
-              require(postgres.verify_runtime_receipt(pg_contract,runtime_path)==runtime,
-                      "original runtime package differs from published PostgreSQL input")
+              runtime_owner=module("fresh_runtime_owner","tools/dependencies/build-runtime-graph.py")
+              runtime_contract=toolchain.read_json(ROOT/"contracts/postgresql-runtime-build.json")
+              runtime_contract["execution"].update({
+                  "build_root":"/build/laplace/build/refactor-postgresql-runtime",
+                  "stage_root":"/build/laplace/build/refactor-postgresql-runtime-stage"})
+              runtime_owner.validate_contract(runtime_contract)
+              activation.save(OUT/"runner-runtime-contract.json",runtime_contract)
+              report["historical_runtime"]={"selection":historical["runtime_package"],
+                  "scope":"inaccessible historical runtime is not reused; fresh source build required"}
+              activation.save(OUT/"runtime-compiler-preflight.json",runtime_owner.verify_compilers(runtime_contract))
+              activation.save(OUT/"postgresql-host-provider-preflight.json",
+                  postgres.verify_host_build_provider(pg_contract,ROOT))
               original_archive=Path(contract["logical_roots"]["archive_root"])
               lock_path=ROOT/contract["release_lock"]
               lock=release.load_lock(lock_path)
@@ -229,7 +236,7 @@ jobs:
               # Authenticate the host bootstrap before spending time rebuilding selected sources.
               activation.save(OUT/"bootstrap-preflight.json",toolchain.verify_bootstrap(contract))
               sources={}
-              for name in [*toolchain.EXPECTED_ORDER,pg_contract["source"]["entry"]]:
+              for name in sorted(lock["archives"]):
                   entry=lock["archives"][name]
                   archive=archive_root/entry["filename"]
                   require(not archive.is_symlink(),"archive path must not be a symlink: "+name)
@@ -269,6 +276,12 @@ jobs:
                   "--repository",str(ROOT),"--contract",str(contract_path)]
               plan=json_command("toolchain-plan",arguments+["plan"],600)
               build=Path(plan["build_directory"])
+              report.update(status="prepared",cmake_build_input_id=plan["build_input_id"],
+                  cmake_build_directory=str(build),full_toolchain_rebuild=True,
+                  next_operation="canonical14component toolchain,7runtimecomponents,PostgreSQL; physical build not started",
+                  selected_source_count=len(sources),runtime_contract_sha256=toolchain.sha256_file(OUT/"runner-runtime-contract.json"))
+              save()
+              raise SystemExit(0)
               action="resume" if build.exists() else "build"
               report.update(cmake_build_input_id=plan["build_input_id"],cmake_build_directory=str(build),
                   cmake_action="full-toolchain-"+action,
@@ -453,12 +466,11 @@ jobs:
           raise SystemExit(0 if report["status"]=="passed" else 1)
           
           PY
-      - name: Build and test the complete fresh toolchain and PostgreSQL consumer
+      - name: Verify prerequisites and acquire isolated source inputs without running builds
         shell: bash
         run: |
           set -euo pipefail
-          bash tools/host/run-exclusive.sh \
-            timeout --signal=TERM --kill-after=20s 34800s \
+          timeout --signal=TERM --kill-after=20s 1800s \
             python3 -B "$CMAKE_EVIDENCE/operate.py" \
             > "$CMAKE_EVIDENCE/operation.stdout" 2> "$CMAKE_EVIDENCE/operation.stderr"
       - name: Retain bounded partial build logs and report exact phase disposition
@@ -512,7 +524,7 @@ jobs:
                               target=out/"retained-postgresql-build"/relative
                               target.parent.mkdir(parents=True,exist_ok=True)
                               shutil.copyfile(source,target)
-          if report.get("status") not in ("passed","failed"):
+          if report.get("status") not in ("passed","failed","prepared"):
               report["interrupted_previous_status"]=report.get("status")
               report["status"]="interrupted"
               report["operator_exit_without_terminal_receipt"]=True
@@ -525,7 +537,7 @@ jobs:
               "upstream_697_qualified","upstream_697_executed_this_run","cmake_test_result",
               "selected_toolchain_receipt","selected_toolchain_receipt_sha256",
               "selected_consumer_plan","consumer_plan_completed","selected_cmake",
-              "retained_provider_roots","unchanged_components_reexecuted","full_toolchain_rebuild","fresh_provider_contract","fresh_toolchain_package_tree",
+              "retained_provider_roots","unchanged_components_reexecuted","full_toolchain_rebuild","fresh_provider_contract","fresh_toolchain_package_tree","historical_runtime","next_operation","selected_source_count","runtime_contract_sha256",
               "product_built","postgresql_build_executed_this_run","postgresql_qualified",
               "postgresql_publication_completed","postgresql_qualification_scope",
               "postgresql_package_receipt","postgresql_package_receipt_sha256",
