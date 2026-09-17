@@ -1762,7 +1762,8 @@ if(LAPLACE_ENABLE_DOTNET_BINDINGS)
             "DOTNET_CLI_TELEMETRY_OPTOUT=1"
             "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1"
             "NUGET_PACKAGES=${LAPLACE_DOTNET_MANAGED_ROOT}/packages"
-            "${LAPLACE_DOTNET_EXECUTABLE}" build "${laplace_dotnet_test_project}"
+            "${Python3_EXECUTABLE}" "${LAPLACE_DOTNET_BUILD_DRIVER}"
+            "${LAPLACE_DOTNET_EXECUTABLE}" "${laplace_dotnet_test_project}"
             --configuration Release
             --nologo
             "-p:GeneratedIsaSource=${LAPLACE_DOTNET_GENERATED_SOURCE}"
@@ -1770,6 +1771,7 @@ if(LAPLACE_ENABLE_DOTNET_BINDINGS)
             "-p:LaplaceManagedBuildRoot=${LAPLACE_DOTNET_MANAGED_ROOT}"
             "-p:RestoreConfigFile=${LAPLACE_DOTNET_NUGET_CONFIG}"
         DEPENDS
+            "${LAPLACE_DOTNET_BUILD_DRIVER}"
             laplace_dotnet_bindings
             "${CMAKE_SOURCE_DIR}/Directory.Build.props"
             "${CMAKE_SOURCE_DIR}/managed/Laplace.Managed/Abi.cs"

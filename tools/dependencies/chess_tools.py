@@ -1030,7 +1030,7 @@ def lichess_readback(online: bool) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["install", "check", "latest", "run", "select-source", "check-source-selection"])
+    parser.add_argument("action", choices=["install", "check", "latest", "run", "activate-profile", "run-profile", "select-source", "check-source-selection"])
     parser.add_argument("--prefix", type=Path, default=Path("/opt/laplace/tools/chess"))
     parser.add_argument("--cache", type=Path, default=Path("/opt/laplace/external/chess-downloads"))
     parser.add_argument("--source-root", type=Path, default=Path(os.environ["LAPLACE_VERIFIED_SOURCE_ROOT"]) if os.environ.get("LAPLACE_VERIFIED_SOURCE_ROOT") else None)
@@ -1053,8 +1053,19 @@ def main() -> int:
     parser.add_argument("--online", action="store_true", help="read latest releases and, if configured, the Lichess account; sends no game or chat actions")
     parser.add_argument("--syzygy-manifest", type=Path)
     parser.add_argument("--tool", choices=["stockfish", "cutechess"])
+    parser.add_argument("--calibration-receipt", type=Path,
+                        help="completed local v2 calibration receipt to activate")
+    parser.add_argument("--calibration-sha256", help="explicit SHA256 of that completed receipt")
+    parser.add_argument("--profile-mode", choices=["analysis", "games", "both"], default="both")
+    parser.add_argument("--profile-max-age", type=int, default=604800,
+                        help="maximum calibration age in seconds, retained in the activated profile")
+    parser.add_argument("--profile-output", type=Path,
+                        help="new directory for actual measured-profile invocation evidence")
+    parser.add_argument("--uci-input", type=Path, help="finite UCI command file for analysis run-profile")
+    parser.add_argument("--profile-timeout", type=float, default=600,
+                        help="finite wall limit for one measured-profile invocation")
     arguments, extra = parser.parse_known_args()
-    if arguments.action != "run" and extra:
+    if arguments.action not in {"run", "run-profile"} and extra:
         parser.error("unrecognized arguments: " + " ".join(extra))
     try:
         selected, artifacts = configuration()
@@ -1080,6 +1091,27 @@ def main() -> int:
             require(observation["disposition"] != "refused", "Stockfish source selection refused; consult retained receipt")
             print(json.dumps(observation, indent=2, sort_keys=True))
             return 0
+        if arguments.action in {"activate-profile", "run-profile"}:
+            # One explicit consumer owns measured profile activation and execution.
+            # Ordinary run remains the unrestricted direct executable route.
+            if __name__ == "__main__":
+                sys.modules.setdefault("chess_tools", sys.modules[__name__])
+            import chess_profiles
+            require(not arguments.cutechess_gui and arguments.tool is None,
+                    "measured profile mode selects the direct engine or CuteChess CLI")
+            if arguments.action == "activate-profile":
+                require(arguments.calibration_receipt is not None and
+                        arguments.calibration_sha256 is not None,
+                        "activate-profile requires --calibration-receipt and --calibration-sha256")
+                result = chess_profiles.activate(arguments.prefix, arguments.calibration_receipt,
+                    arguments.calibration_sha256, arguments.profile_mode, arguments.profile_max_age)
+                print(json.dumps(result, indent=2, sort_keys=True))
+                return 0
+            require(arguments.profile_output is not None,
+                    "run-profile requires --profile-output")
+            extra = extra[1:] if extra[:1] == ["--"] else extra
+            return chess_profiles.run(arguments.prefix, arguments.profile_mode,
+                arguments.profile_output, arguments.uci_input, extra, arguments.profile_timeout)
         if arguments.action == "run":
             require(arguments.tool is not None, "run requires --tool")
             current = json_read(arguments.prefix / "current.json")

@@ -210,6 +210,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Clean isolated installation workspace
         if: always()
+        # Only this runner's named private installation directory is removed.
+        # It does not share state with another repository's physical operation.
+        shell: bash
         run: |
           set -euo pipefail
           python3 tools/delivery/proof_workspace_cleanup.py \

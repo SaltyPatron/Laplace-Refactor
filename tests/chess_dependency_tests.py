@@ -1778,5 +1778,290 @@ class ChessPgnProvider(unittest.TestCase):
             PGN._runtime_files(path, "1.11.2")
 
 
+
+class MeasuredChessProfiles(unittest.TestCase):
+    """Execute profile persistence, override, stale-evidence and UCI controls."""
+
+    def setUp(self):
+        import copy
+        import time
+        import chess_profiles
+        self.copy = copy.deepcopy
+        self.P = chess_profiles
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.prefix = self.root / "chess"
+        self.prefix.mkdir()
+        self.host = {key: None for key in self.P.HOST_FIELDS}
+        self.host.update({
+            "observed_at_unix": time.time() - 10,
+            "kernel": "fixture-kernel", "machine": "x86_64",
+            "cpu_models": ["fixture-cpu"], "cpu_flags": ["sse2 avx2"],
+            "affinity": list(range(8)), "visible_logical_cpus": 8,
+            "visible_physical_cores": 4, "topology": [{"cpu": 0, "core": "0"}],
+            "numa": [{"node": "node0", "affinity_cpus": list(range(8))}],
+            "memory_total_bytes": 32768 * self.P.MIB,
+            "effective_cpu_equivalents": 8.0,
+            "effective_memory_headroom_bytes": 8192 * self.P.MIB,
+            "cgroup_visibility": "fixture-visible", "transparent_hugepage_policy": "[madvise]",
+            "process_identity": {"consistent": True, "runtime_pid": 1, "proc_self_pid": 1},
+            "cgroups": [{"path": "/fixture/runner-a", "cpu.max": "800000 100000",
+                        "cpu.weight": "100", "cpuset.cpus.effective": "0-7",
+                        "cpuset.mems.effective": "0", "memory.max": "max", "memory.high": "max"}]})
+        self.installed = {"tools": {}}
+        for name in ("stockfish", "cutechess"):
+            source = self.root / name
+            (source / "src").mkdir(parents=True)
+            executable = source / "src" / ("stockfish" if name == "stockfish" else "cutechess-cli")
+            executable.write_text(name)
+            self.installed["tools"][name] = {
+                "source": str(source), "revision": name + "-revision",
+                "source_archive_sha256": name + "-archive",
+                "executable": str(executable), "sha256": self.P.tools.digest(executable),
+                "checks": {"network": "nn-fixture.nnue", "network_sha256": "a" * 64}}
+        self.installed["tools"]["cutechess"]["qt_prefix"] = str(self.root / "qt")
+        self.report = {
+            "schema": "laplace.chess-benchmark-receipt/v2", "completion": "completed",
+            "host": self.copy(self.host), "host_after": self.copy(self.host),
+            "tool_identity": self.copy(self.installed), "stability_failures": [],
+            "benchmark_implementation_sha256": self.P.tools.digest(Path(self.P.bench.__file__)),
+            "profile_contract_sha256": self.P.tools.digest(ROOT / "contracts/chess-benchmark.json"),
+            "resource_plan": {"cpu_budget": 8, "memory_mib": 8192,
+                              "resident_engine_overhead_estimate_mib": 64, "memory_margin_mib": 128},
+            "uci_options": {"Threads": {"min": "1", "max": "1024"},
+                            "Hash": {"min": "1", "max": "33554432"}},
+            "profile": {"games": 8},
+            "game_workload": {"mode": "complete-legal-games", "max_moves": None,
+                              "time_control": "60", "search_limit": {"type": "depth", "depth": 8}},
+            "stockfish_samples": [], "cutechess_samples": []}
+        for name in ("stockfish", "cutechess"):
+            configs = ([{"threads": 1, "hash_mib": 16}, {"threads": 3, "hash_mib": 96}]
+                       if name == "stockfish" else
+                       [{"threads": 1, "hash_mib": 16, "concurrency": 1},
+                        {"threads": 2, "hash_mib": 32, "concurrency": 3}])
+            for index, configuration in enumerate(configs):
+                for repetition in range(2):
+                    sample = {"configuration": configuration, "warmup": False,
+                              "completion": "completed", "wall_seconds": 2.0 / (index + 1),
+                              "user_cpu_seconds": 0.5, "system_cpu_seconds": 0.1,
+                              "sampled_peak": {"rss_bytes": 10 * self.P.MIB}}
+                    if name == "stockfish":
+                        sample["wall_nodes_per_second"] = 1000.0 * (index + 1)
+                    else:
+                        sample.update({"normal_completed_games_per_second": 4.0 * (index + 1),
+                                       "games": 8, "normal_completed_games": 8,
+                                       "capped_diagnostic_games": 0, "plies": 400})
+                    self.report[name + "_samples"].append(sample)
+        files = {item["executable"]: item["sha256"] for item in self.installed["tools"].values()}
+        self.report.update({"executable_sha256_before": files, "executable_sha256_after": files})
+        self.report["recommendations"] = self.P.bench.recommendations(
+            self.P.bench.aggregates(self.report["stockfish_samples"],
+                                   "median_wall_nodes_per_second", "wall_nodes_per_second"),
+            self.P.bench.aggregates(self.report["cutechess_samples"],
+                                   "median_normal_completed_games_per_second",
+                                   "normal_completed_games_per_second"),
+            self.report["game_workload"])
+        self.receipt = self.root / "receipt.json"
+        self.receipt.write_bytes(self.P.encoded(self.report))
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def activate(self):
+        with patch.object(self.P, "observed", return_value=(self.installed, self.host)):
+            return self.P.activate(self.prefix, self.receipt, self.P.tools.digest(self.receipt))
+
+    def profile(self, mode):
+        self.activate()
+        with patch.object(self.P, "observed", return_value=(self.installed, self.host)):
+            return self.P.active(self.prefix, mode)[0]
+
+    def test_completed_measurement_persists_and_replays_without_runner_temp(self):
+        result = self.activate()
+        original = self.receipt.read_bytes()
+        self.receipt.unlink()
+        archived = self.prefix / "calibrations" / result["calibration_sha256"] / "receipt.json"
+        self.assertEqual(archived.read_bytes(), original)
+        moved_host = self.copy(self.host)
+        moved_host["observed_at_unix"] += 5
+        moved_host["process_identity"]["runtime_pid"] = 999
+        moved_host["process_identity"]["proc_self_pid"] = 999
+        moved_host["cgroups"][0]["path"] = "/fixture/runner-b"
+        moved_host["cgroups"][0]["memory.current"] = "100"
+        with patch.object(self.P, "observed", return_value=(self.installed, moved_host)):
+            analysis, _, _, _ = self.P.active(self.prefix, "analysis")
+            games, _, _, _ = self.P.active(self.prefix, "games")
+        self.assertEqual(analysis["configuration"], {"threads": 3, "hash_mib": 96})
+        self.assertEqual(games["configuration"], {"threads": 2, "hash_mib": 32, "concurrency": 3})
+        self.assertFalse(analysis["database_recording_capacity_measured"])
+        self.assertFalse(games["playing_strength_inferred"])
+
+    def test_rejected_game_grant_cannot_publish_an_analysis_selection(self):
+        constrained = self.copy(self.host)
+        # Analysis fits (288 MiB), but the selected paired game pool does not.
+        constrained["effective_memory_headroom_bytes"] = 300 * self.P.MIB
+        with patch.object(self.P, "observed", return_value=(self.installed, constrained)):
+            with self.assertRaisesRegex(self.P.tools.ChessToolError, "memory grant"):
+                self.P.activate(self.prefix, self.receipt, self.P.tools.digest(self.receipt))
+        self.assertFalse((self.prefix / "profiles" / "active-analysis.json").exists())
+        self.assertFalse((self.prefix / "profiles" / "active-games.json").exists())
+
+    def test_receipt_digest_completion_samples_and_staleness_are_enforced(self):
+        with self.assertRaisesRegex(self.P.tools.ChessToolError, "SHA256"):
+            self.P.activate(self.prefix, self.receipt, "0" * 64)
+        mutants = [
+            ("completion", "failed"),
+            ("stability_failures", ["changed"]),
+            ("stockfish_override", {"executable": "/unproven"}),
+        ]
+        for key, value in mutants:
+            with self.subTest(key=key):
+                report = self.copy(self.report)
+                report[key] = value
+                with self.assertRaises(self.P.tools.ChessToolError):
+                    self.P.validate(report, self.installed, self.host, 3600)
+        for mutation in ("age", "recommendation", "diagnostic", "missing-sample", "NNUE", "binary", "source"):
+            with self.subTest(mutation=mutation):
+                report = self.copy(self.report)
+                installed = self.copy(self.installed)
+                if mutation == "age":
+                    report["host_after"]["observed_at_unix"] -= 1000000
+                elif mutation == "recommendation":
+                    report["recommendations"]["single_engine_fixed_depth_suite"]["configuration"]["threads"] = 7
+                elif mutation == "diagnostic":
+                    report["game_workload"]["mode"] = "diagnostic"
+                elif mutation == "missing-sample":
+                    report["stockfish_samples"].pop()
+                elif mutation == "NNUE":
+                    installed["tools"]["stockfish"]["checks"]["network_sha256"] = "b" * 64
+                elif mutation == "binary":
+                    installed["tools"]["stockfish"]["sha256"] = "b" * 64
+                else:
+                    installed["tools"]["stockfish"]["revision"] = "new-source"
+                with self.assertRaises(self.P.tools.ChessToolError):
+                    self.P.validate(report, installed, self.host, 3600)
+
+    def test_changed_machine_resource_controls_and_reduced_headroom_are_rejected(self):
+        self.activate()
+        for mutation in ("cpu", "affinity", "kernel", "quota", "memory"):
+            with self.subTest(mutation=mutation):
+                host = self.copy(self.host)
+                if mutation == "cpu":
+                    host["cpu_models"] = ["different-cpu"]
+                elif mutation == "affinity":
+                    host["affinity"] = [0]
+                elif mutation == "kernel":
+                    host["kernel"] = "new-kernel"
+                elif mutation == "quota":
+                    host["cgroups"][0]["cpu.max"] = "100000 100000"
+                else:
+                    host["effective_memory_headroom_bytes"] = 1
+                with patch.object(self.P, "observed", return_value=(self.installed, host)):
+                    with self.assertRaises(self.P.tools.ChessToolError):
+                        self.P.active(self.prefix, "analysis")
+
+    def test_mutated_archived_receipt_and_selected_profile_are_rejected(self):
+        selected = self.activate()["profiles"]["analysis"]
+        path = Path(selected["path"])
+        original = path.read_bytes()
+        path.write_bytes(original + b" ")
+        with self.assertRaisesRegex(self.P.tools.ChessToolError, "SHA256"):
+            self.P.active(self.prefix, "analysis")
+        path.write_bytes(original)
+        profile = json.loads(original)
+        receipt = Path(profile["calibration"]["path"])
+        receipt.write_bytes(receipt.read_bytes() + b" ")
+        with self.assertRaisesRegex(self.P.tools.ChessToolError, "SHA256"):
+            self.P.active(self.prefix, "analysis")
+
+    def test_uci_explicit_overrides_win_and_unbounded_or_changed_network_refuse(self):
+        profile = self.profile("analysis")
+        network = {"network": "nn-fixture.nnue", "path": "/verified/nn-fixture.nnue"}
+        caller = "setoption name Threads value 1\nsetoption name Hash value 16\nposition startpos\ngo depth 3\nquit\n"
+        commands, configuration, _ = self.P.uci_plan(profile, self.report, self.host, caller, network)
+        self.assertEqual(commands[-5:], caller.splitlines())
+        self.assertEqual(configuration["effective_final"], {"threads": 1, "hash_mib": 16})
+        self.assertIn("setoption name Threads value 3", commands)
+        for text in ("setoption name Threads value 99\nquit\n",
+                     "setoption name Hash value 999999\nquit\n",
+                     "setoption name EvalFile value /other/nn-fixture.nnue\nquit\n",
+                     "go infinite\nquit\n", "quit\nposition startpos\n"):
+            with self.subTest(text=text), self.assertRaises(self.P.tools.ChessToolError):
+                self.P.uci_plan(profile, self.report, self.host, text, network)
+
+    def test_cutechess_common_and_per_engine_options_override_defaults_directly(self):
+        profile = self.profile("games")
+        extra = ["-each", "option.Threads=1", "option.Hash=24",
+                 "-engine", "name=First", "option.Hash=48",
+                 "-engine", "name=Second", "-concurrency", "2", "-games", "2"]
+        command, configuration, _ = self.P.cutechess_plan(
+            profile, self.report, self.host, self.installed, extra, self.root)
+        sf = self.installed["tools"]["stockfish"]["executable"]
+        self.assertEqual(command[0], self.installed["tools"]["cutechess"]["executable"])
+        self.assertEqual(command.count("cmd=" + sf), 2)
+        self.assertNotIn("-each", command)
+        self.assertEqual(configuration["concurrency"], 2)
+        self.assertEqual([item["option.Hash"] for item in configuration["engines"]], ["48", "24"])
+        self.assertEqual([item["option.Threads"] for item in configuration["engines"]], ["1", "1"])
+        self.assertEqual(command[command.index("-games") + 1], "2")
+        for bad in (["-concurrency", "99"], ["-each", "option.Threads=99"],
+                    ["-engine", "cmd=/other", "-engine", "name=Second"],
+                    ["-each", "initstr=setoption name Threads value 99"],
+                    ["-each", "ponder=true"]):
+            with self.subTest(bad=bad), self.assertRaises(self.P.tools.ChessToolError):
+                self.P.cutechess_plan(profile, self.report, self.host, self.installed, bad, self.root)
+
+    def test_actual_direct_uci_process_receives_defaults_then_overrides_and_finishes_search(self):
+        profile = self.profile("analysis")
+        program = self.root / "uci-fixture.py"
+        program.write_text(
+            "import sys,time\n"
+            "settings={}\n"
+            "for line in sys.stdin:\n"
+            " line=line.rstrip('\\n'); print('observed:'+line,flush=True)\n"
+            " if line=='uci': print('uciok',flush=True)\n"
+            " elif line=='isready': print('readyok',flush=True)\n"
+            " elif line.startswith('setoption name '):\n"
+            "  key,_,value=line[15:].partition(' value '); settings[key]=value\n"
+            " elif line.startswith('go '):\n"
+            "  assert settings['Threads']=='1' and settings['Hash']=='16'\n"
+            "  time.sleep(0.05); print('bestmove e2e4',flush=True)\n"
+            " elif line=='quit': break\n")
+        caller = "setoption name Threads value 1\nsetoption name Hash value 16\nposition startpos\ngo depth 3\nquit\n"
+        commands, _, grant = self.P.uci_plan(profile, self.report, self.host, caller,
+                                             {"network": "nn-fixture.nnue", "path": "/verified/nn-fixture.nnue"})
+        command = [sys.executable, str(program)]
+        result = self.P.execute_uci(command, commands, self.root / "uci.log", self.host,
+                                    10, grant["memory_mib"] * self.P.MIB, os.environ.copy())
+        self.assertEqual(result["command"], command)
+        self.assertEqual(result["completion"], "completed")
+        transcript = (self.root / "uci.log").read_text()
+        self.assertLess(transcript.index("Threads value 3"), transcript.index("Threads value 1"))
+        self.assertLess(transcript.index("bestmove e2e4"), transcript.index("observed:quit"))
+        # Deliberately remove the caller override: the actual child asserts the
+        # final option value and the protocol owner must report failure.
+        broken = [line for line in commands if line != "setoption name Threads value 1"]
+        with self.assertRaises(self.P.tools.ChessToolError):
+            self.P.execute_uci(command, broken, self.root / "broken.log", self.host,
+                               10, grant["memory_mib"] * self.P.MIB, os.environ.copy())
+
+    def test_canonical_entrypoint_requires_and_forwards_explicit_profile_arguments(self):
+        with patch.object(self.P, "activate", return_value={"profiles": {}}) as activate, \
+             patch.object(TOOLS, "configuration", return_value=({}, {})), \
+             patch.object(sys, "argv", ["chess_tools.py", "activate-profile",
+                 "--prefix", str(self.prefix), "--calibration-receipt", str(self.receipt),
+                 "--calibration-sha256", "a" * 64, "--profile-mode", "analysis"]), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(TOOLS.main(), 0)
+        self.assertEqual(activate.call_args.args[:4],
+                         (self.prefix, self.receipt, "a" * 64, "analysis"))
+        with patch.object(self.P, "run", return_value=7) as run, \
+             patch.object(TOOLS, "configuration", return_value=({}, {})), \
+             patch.object(sys, "argv", ["chess_tools.py", "run-profile",
+                 "--prefix", str(self.prefix), "--profile-mode", "games",
+                 "--profile-output", str(self.root / "run"), "--", "-games", "2"]):
+            self.assertEqual(TOOLS.main(), 7)
+        self.assertEqual(run.call_args.args[4], ["-games", "2"])
+
 if __name__ == "__main__":
     unittest.main()
