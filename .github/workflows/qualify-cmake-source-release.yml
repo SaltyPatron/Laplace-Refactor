@@ -1,40 +1,50 @@
-name: Inspect exact source readback cursor plans
+name: Observe current Original workspace activity
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
 jobs:
-  exact-readback-plans:
+  original-progress:
     runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 3
+    timeout-minutes: 2
     steps:
-      - name: Explain authenticated internal queries without executing them
+      - name: Read fixed source markers and same-user process metadata
         shell: bash
         run: |
           python3 -I - <<'PY'
-          import json,os,subprocess,time
-          QUERIES=json.loads("{\"receipt_sql\":\"SELECT p,r.composition_working_set_receipt,r.witness_fingerprint,r.witness_count,r.version,r.baseline_receipt_id,r.canonical_witness_fingerprint,b.composition_working_set_receipt,b.witness_fingerprint,b.witness_count FROM laplace.source_structural_witness_receipt r JOIN laplace.source_profile p ON p.profile_id=r.source_profile_id JOIN laplace.composition_execution_receipt c ON c.working_set_receipt=r.composition_working_set_receipt LEFT JOIN laplace.source_structural_witness_receipt b ON b.receipt_id=r.baseline_receipt_id AND b.source_profile_id=r.source_profile_id AND b.version=3 WHERE r.source_profile_id=$1 AND r.receipt_id=$2 AND r.version IN(3,4) AND NOT EXISTS(SELECT FROM laplace.source_structural_witness_execution x WHERE x.receipt_id=CASE WHEN r.version=3 THEN r.receipt_id ELSE b.receipt_id END)\",\"rows_sql\":\"SELECT trace_fingerprint,provider_fingerprint,canonical_entity_id,artifact_index,span_index,parent_span_index,byte_start,byte_end,kind,grammar_kind,field_kind,sibling_ordinal,CASE WHEN octet_length(media_type)<=127 THEN media_type ELSE NULL END,depth,flags,syntax_flags,canonical_physicality_id FROM laplace.source_structural_witness WHERE source_profile_id=$1 ORDER BY artifact_index,span_index\",\"execution_rows_sql\":\"SELECT e.trace_fingerprint,e.provider_fingerprint,s.canonical_entity_id,s.artifact_index,s.span_index,s.parent_span_index,s.byte_start,s.byte_end,s.kind,s.grammar_kind,s.field_kind,s.sibling_ordinal,CASE WHEN octet_length(s.media_type)<=127 THEN s.media_type ELSE NULL END,s.depth,s.flags,s.syntax_flags,s.canonical_physicality_id,s.trace_fingerprint,s.provider_fingerprint FROM laplace.source_structural_witness s LEFT JOIN laplace.source_structural_witness_execution e ON e.source_profile_id=s.source_profile_id AND e.artifact_index=s.artifact_index AND e.span_index=s.span_index AND e.receipt_id=$2 WHERE s.source_profile_id=$1 ORDER BY s.artifact_index,s.span_index\"}")
-          CMD=["/opt/laplace/releases/d12af51d6367e03045e12599d2195894868f8408ebe17e5b313db3032f516490/pgsql-18/bin/psql","--host","/opt/laplace/runtime/postgresql/refactor","--port","55433","--username","laplace_admin","--dbname","laplace_refactor","--no-psqlrc","--set","ON_ERROR_STOP=1","--quiet","--tuples-only","--no-align"]
-          env=dict(os.environ);env["PGOPTIONS"]="-c default_transaction_read_only=on -c statement_timeout=5000 -c lock_timeout=1000 -c application_name=refactor_exact_readback_plans"
-          def sql(query):
-              result=subprocess.run(CMD,input="BEGIN READ ONLY;\n"+query+"\nROLLBACK;\n",text=True,capture_output=True,timeout=10,env=env)
-              if result.returncode: raise RuntimeError(result.stderr[-2000:])
-              if len(result.stdout)>1048576: raise RuntimeError("bounded plan output exceeded")
-              return json.loads(result.stdout)
+          import json,os,pathlib,time
+          root=pathlib.Path("/var/lib/agents/laplace-runner/actions-runner/_work/Laplace/Laplace")
+          build=(root/"build").resolve()
           def emit(kind,value): print(kind+" "+json.dumps(value,sort_keys=True),flush=True)
-          emit("PLAN_CONTEXT",sql("SELECT jsonb_build_object('cursor_tuple_fraction',current_setting('cursor_tuple_fraction'),'server_version',current_setting('server_version'),'read_only',current_setting('transaction_read_only'),'abandoned_backend_present',EXISTS(SELECT FROM pg_stat_activity WHERE pid=1932005));"))
-          for label,profile,receipt in [
-              ("successor","c6ec7000cd7d923361f0f2505c35852cc78c21205598af726706e7a3ef25ddab","d1f9cd77cda9b20f220d60644472a513e9e182ff279470e113844c0972667843"),
-              ("historical","2368be2a20fd01a5cdfca1f90a79b923741e521e64718ae996a70af98f4ec651","77b5a4a0b4aa5519dcd4baeb889d93d7ab04867516edbc613b216e0a6dcb89d5")]:
-              for name in ("receipt_sql","execution_rows_sql"):
-                  query=QUERIES[name].replace("$1","decode('"+profile+"','hex')").replace("$2","decode('"+receipt+"','hex')")
-                  variants=[("plain","",query)]
-                  if name=="execution_rows_sql":
-                      variants += [("cursor-default","","DECLARE readback_plan NO SCROLL CURSOR FOR "+query),("cursor-all","SET LOCAL cursor_tuple_fraction=1.0;\n","DECLARE readback_plan NO SCROLL CURSOR FOR "+query)]
-                  for variant,prefix,body in variants:
-                      try: emit("READBACK_PLAN",{"profile_role":label,"query":name,"variant":variant,"plan":sql(prefix+"EXPLAIN (FORMAT JSON,COSTS TRUE) "+body+";")})
-                      except (RuntimeError,subprocess.SubprocessError) as error: emit("PLAN_ERROR",{"profile_role":label,"query":name,"variant":variant,"error":str(error)})
-          emit("PLAN_OBSERVER_COMPLETE",{"unix":time.time(),"analyze_executed":False,"source_mutation":False,"lease_acquired":False})
+          def metadata(path):
+              try:
+                  s=path.stat()
+                  return {"path":str(path),"bytes":s.st_size,"mtime_ns":s.st_mtime_ns,"uid":s.st_uid}
+              except OSError as error:return {"path":str(path),"unavailable":type(error).__name__}
+          head=(root/".git/HEAD")
+          head_text=head.read_text()[:256].strip() if head.is_file() else None
+          if head_text and head_text.startswith("ref: "):
+              ref=head_text[5:]
+              if ref.startswith("refs/") and ".." not in ref.split("/"):
+                  p=root/".git"/ref
+                  head_text=p.read_text()[:256].strip() if p.is_file() else head_text
+          marker=build/".laplace-source-revision"
+          emit("ORIGINAL_WORKSPACE",{"unix":time.time(),"head":head_text,"build":str(build),"build_source":marker.read_text()[:256].strip() if marker.is_file() else None,"test_logs":[metadata(build/"Testing/Temporary"/n) for n in ("LastTest.log","LastTestsFailed.log")]})
+          def sample():
+              out=[]
+              for path in pathlib.Path("/proc").iterdir():
+                  if not path.name.isdecimal():continue
+                  try:
+                      if path.stat().st_uid!=os.getuid():continue
+                      cwd=(path/"cwd").resolve()
+                      if not(cwd==root or cwd==build or root in cwd.parents or build in cwd.parents):continue
+                      raw=(path/"stat").read_text();parts=raw[raw.rindex(")")+2:].split()
+                      out.append({"pid":int(path.name),"ppid":int(parts[1]),"comm":raw[raw.index("(")+1:raw.rindex(")")],"executable":(path/"exe").resolve().name,"start_ticks":int(parts[19]),"cpu_ticks":int(parts[11])+int(parts[12]),"state":parts[0]})
+                  except(OSError,ValueError,IndexError):continue
+              return out[:128]
+          emit("ORIGINAL_PROCESS_SAMPLE_1",{"unix":time.time(),"rows":sample()})
+          time.sleep(1)
+          emit("ORIGINAL_PROCESS_SAMPLE_2",{"unix":time.time(),"rows":sample()})
           
           PY
