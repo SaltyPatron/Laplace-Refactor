@@ -75,7 +75,15 @@ probe_output=$(
 estate="$test_root/unrelated-estate.sql"
 LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     "$native_probe" --unrelated-estate "$estate"
+goal_fixtures="$test_root/goal-fixtures.sql"
+shared_atom_estate="$test_root/shared-atom-estate.sql"
+LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    "$native_probe" --goal-fixtures "$goal_fixtures"
+LD_LIBRARY_PATH="$engine_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    "$native_probe" --shared-atom-estate "$shared_atom_estate"
 psql_arguments=(
+    -v "goal_fixtures=$goal_fixtures"
+    -v "shared_atom_estate=$shared_atom_estate"
     -v "unrelated_estate=$estate"
     -X
     -h "$socket_directory"

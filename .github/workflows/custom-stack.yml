@@ -383,25 +383,13 @@ jobs:
           find "$RUNNER_TEMP" -type f -path '*/laplace-postgres-test.*/postgres.log' \
             -print -exec sed -n '1,240p' {} \;
       - name: Clean disposable custom-stack workspaces
-        # The preparation shell records ownership only after acquiring the host lock.
+        # Preparation establishes this runner's ownership after acquiring the host lock.
         if: always() && steps.prepare_custom_stack.outputs.started == 'true'
-        shell: bash tools/host/run-exclusive.sh bash --noprofile --norc -e -o pipefail {0}
+        # Only explicit private outputs are removed here; shared recovery stays in preparation.
+        shell: bash
         run: |
           set -euo pipefail
-          python3 tools/delivery/runner_orphan_cleanup.py \
-            --minimum-age-seconds 0 \
-            --grace-seconds 5 \
-            --terminate
-          python3 tools/delivery/proof_workspace_cleanup.py \
-            --runner-temp "${TMPDIR:-/build/laplace/work}" \
-            --discover-prefix laplace-postgres-test. \
-            --discover-prefix lp-pg.
-          python3 tools/delivery/proof_workspace_cleanup.py \
-            --runner-temp "$RUNNER_TEMP" \
-            --discover-prefix laplace-postgres-test.
-          python3 tools/delivery/proof_workspace_cleanup.py \
-            --runner-temp /tmp \
-            --discover-prefix lp-pg.
+          printf '%s\n' 'Shared interrupted residue recovery: deferred to the next reserved preparation pass.' >> "$GITHUB_STEP_SUMMARY"
           python3 tools/delivery/proof_workspace_cleanup.py \
             --runner-temp "$RUNNER_TEMP" \
             --name laplace-sources \

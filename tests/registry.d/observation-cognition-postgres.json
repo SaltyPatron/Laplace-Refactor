@@ -2,21 +2,34 @@
   "schema": "laplace.test-registry-fragment/v1",
   "tests": [
     {
-      "ctest_name": "postgres.observation-cognition-native-parity",
-      "profiles": ["postgres", "custom-stack"],
-      "evidence_targets": ["LP-TEST-SEARCH-COGNITION-LOWERING", "LP-TEST-GUIDANCE-COMPLETION"],
       "covered_dimensions": [
         "PostgreSQL typed request transport into canonical native request lowering",
         "PostgreSQL adapter delegates compile provider forward and result lifecycle to the public native observation-request execution owner rather than replaying a private cognition sequence",
         "canonical physicality and packed trajectory transport validation",
         "depth-two predecessor search through shared observation provider",
         "forward-pass completion and exact native receipt parity",
-        "query intent excluded from immutable observation-index identity"
+        "query intent excluded from immutable observation-index identity",
+        "depth-eight single-path direct CONTAINER goal preserves ordinary native path and occurrence-witness selection across two exact physicalities",
+        "4096 legitimate containers sharing one source atom leave direct-goal fetched rows, trajectory bytes, receipts and indexed selection bounded under the live 8 MiB provider workspace",
+        "direct-goal miss preserves a real two-hop container route and accounts for both probe and fallback database operations",
+        "TERMINAL_RESULTS and multipath retain ordinary candidate admission rather than goal-only pruning"
       ],
+      "ctest_name": "postgres.observation-cognition-native-parity",
       "defect_controls": [
         "route-local guidance or search program construction",
         "PostgreSQL adapter manually replaying native compile-provider-forward semantic lifecycle",
-        "transport-specific request identity or completion semantics"
+        "transport-specific request identity or completion semantics",
+        "compiled LAPLACE_TEST_DISABLE_PERSISTED_DIRECT_GOAL mutant has ordinary small-estate parity and reproduces exact shared-atom metadata workspace exhaustion",
+        "discarding direct physicality or occurrence ties before native deterministic path selection",
+        "mistaking an unsuccessful direct-goal probe for multi-hop absence or hiding its database work"
+      ],
+      "evidence_targets": [
+        "LP-TEST-SEARCH-COGNITION-LOWERING",
+        "LP-TEST-GUIDANCE-COMPLETION"
+      ],
+      "profiles": [
+        "postgres",
+        "custom-stack"
       ]
     }
   ]

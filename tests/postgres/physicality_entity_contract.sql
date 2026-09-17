@@ -297,7 +297,7 @@ END $content_binding$;
 
 CREATE FUNCTION physicality_entity_contract.query(
     selected_anchor bytea DEFAULT NULL,selected_goal bytea DEFAULT NULL,
-    maximum_depth integer DEFAULT 1)
+    maximum_depth integer DEFAULT 1,selected_relation_mask integer DEFAULT 2)
 RETURNS laplace.cognition_observation_persisted_result
 LANGUAGE SQL VOLATILE AS $query$
     SELECT laplace.cognition_observation_execute_persisted(context.value,
@@ -312,7 +312,7 @@ LANGUAGE SQL VOLATILE AS $query$
             ROW(4::numeric,8::numeric,8::numeric,128::numeric,4::numeric,
                 1048576::numeric,1024::numeric,256::numeric,128,4)
                 ::laplace.cognition_observation_forward_limits,
-            2,1,9,1)::laplace.cognition_observation_request)
+            selected_relation_mask,1,9,1)::laplace.cognition_observation_request)
     FROM physicality_entity_contract.context context
     CROSS JOIN physicality_entity_contract.first first
     JOIN laplace.physicality_entity_node root
@@ -357,6 +357,105 @@ BEGIN
     THEN RAISE EXCEPTION 'derived-only descriptor candidate did not enter the ordinary persisted provider: %',result;
     END IF;
 END $derived_only$;
+
+
+-- Reverse the existing authentic derived-only relation: the root is present only
+-- as a retained native descriptor, never as a laplace.physicality row. Keep depth
+-- eight so this exercises the direct-goal provider probe, not a one-hop policy.
+DO $derived_direct_container$
+DECLARE result laplace.cognition_observation_persisted_result;
+    replay laplace.cognition_observation_persisted_result;
+    warm_replay laplace.cognition_observation_persisted_result;
+    anchor bytea; goal bytea; unrelated bytea;
+    before jsonb:=physicality_entity_contract.counts();
+BEGIN
+    SELECT node.child_ids[1],node.entity_id INTO STRICT anchor,goal
+    FROM laplace.physicality_entity_node node
+    JOIN physicality_entity_contract.first first
+        ON node.view_id=first.view_id AND node.entity_id=first.root_entity_id;
+    IF EXISTS(SELECT 1 FROM laplace.physicality WHERE entity_id=goal) THEN
+        RAISE EXCEPTION 'derived direct-container control unexpectedly has a stored goal physicality';
+    END IF;
+    result:=physicality_entity_contract.query(anchor,goal,8,1);
+    replay:=physicality_entity_contract.query(anchor,goal,8,1);
+    warm_replay:=physicality_entity_contract.query(anchor,goal,8,1);
+    IF (result.execution).status IS DISTINCT FROM 0
+       OR (result.execution).final_remaining_required_count IS DISTINCT FROM 0::numeric
+       OR cardinality(result.answers) IS DISTINCT FROM 1
+       OR (result.answers[1]).entity_id IS DISTINCT FROM goal
+       OR (result.answers[1]).transition_count IS DISTINCT FROM 1::numeric
+       OR (result.answers[1]).total_cost IS DISTINCT FROM 1::numeric
+       OR (result.answers[1]).relation_family IS DISTINCT FROM 1
+       OR (result.answers[1]).source_layer IS DISTINCT FROM 1
+       OR (result.answers[1]).direction IS DISTINCT FROM 2
+       OR (result.answers[1]).independent_evidence_root_count IS DISTINCT FROM 0::numeric
+       OR result.provider_rows_fetched IS DISTINCT FROM 1::numeric
+       OR result.provider_batch_count IS DISTINCT FROM 1::numeric
+       OR result.provider_trajectory_bytes IS NULL OR result.provider_trajectory_bytes<=0
+       OR physicality_entity_contract.counts() IS DISTINCT FROM before THEN
+        RAISE EXCEPTION 'derived-only direct CONTAINER goal lost its authenticated native edge: %',result
+            USING DETAIL=jsonb_build_object(
+                'anchor',encode(anchor,'hex'),'goal',encode(goal,'hex'),
+                'replay_equal',result IS NOT DISTINCT FROM replay,
+                'goal_equal',(result.answers[1]).entity_id IS NOT DISTINCT FROM goal,
+                'canonical_counts_equal',physicality_entity_contract.counts() IS NOT DISTINCT FROM before,
+                'before_counts',before,'after_counts',physicality_entity_contract.counts(),
+                'result',to_jsonb(result),'replay',to_jsonb(replay))::text;
+    END IF;
+
+    -- The preceding CREATE TABLE invalidates the backend's perfcache control
+    -- snapshot. Its first pin charges the real active-control SELECT; the next
+    -- pin reuses that synchronized state. Keep semantic content/readset identity
+    -- exact across that work difference, and require full receipt equality only
+    -- between the two executions with the same warm physical plan.
+    IF (to_jsonb(result)-'execution') IS DISTINCT FROM (to_jsonb(replay)-'execution')
+       OR ((to_jsonb(result)->'execution')-ARRAY[
+            'database_operations','resolution_receipt_id','forward_receipt_id',
+            'final_state_id','layer_trace_fingerprint','output_fingerprint','result_fingerprint'])
+          IS DISTINCT FROM ((to_jsonb(replay)->'execution')-ARRAY[
+            'database_operations','resolution_receipt_id','forward_receipt_id',
+            'final_state_id','layer_trace_fingerprint','output_fingerprint','result_fingerprint'])
+       OR replay IS DISTINCT FROM warm_replay
+       OR (result.execution).database_operations IS DISTINCT FROM
+          (replay.execution).database_operations+1::numeric
+       OR (replay.execution).database_operations IS NULL
+       OR (replay.execution).database_operations<=0
+       OR (result.execution).database_operations>128::numeric THEN
+        RAISE EXCEPTION 'derived direct CONTAINER cold/warm replay changed semantic identity or actual work accounting'
+            USING DETAIL=jsonb_build_object(
+                'anchor',encode(anchor,'hex'),'goal',encode(goal,'hex'),
+                'answers_equal',result.answers IS NOT DISTINCT FROM replay.answers,
+                'readset_equal',result.provider_readset_id IS NOT DISTINCT FROM replay.provider_readset_id,
+                'warm_replay_equal',replay IS NOT DISTINCT FROM warm_replay,
+                'canonical_counts_equal',physicality_entity_contract.counts() IS NOT DISTINCT FROM before,
+                'before_counts',before,'after_counts',physicality_entity_contract.counts(),
+                'result',to_jsonb(result),'replay',to_jsonb(replay),
+                'warm_replay',to_jsonb(warm_replay))::text;
+    END IF;
+    RAISE NOTICE 'derived direct CONTAINER exact cold/warm answer and readset verified; database operations cold=%, warm=%; full warm replay equal',
+        (result.execution).database_operations,(replay.execution).database_operations;
+
+    -- A view's original source is not automatically a child of its descriptor
+    -- root. Select that exact admitted source and prove the fixture distinction
+    -- before asking a one-hop structural query; owner provenance alone must never
+    -- manufacture a source->descriptor-root edge.
+    SELECT source.entity_id INTO STRICT unrelated
+    FROM physicality_entity_contract.sources source
+    JOIN physicality_entity_contract.first first ON first.record_id=source.record_id;
+    IF EXISTS(SELECT 1 FROM laplace.physicality_entity_node node
+              WHERE node.entity_id=goal AND unrelated=ANY(node.child_ids)) THEN
+        RAISE EXCEPTION 'descriptor source is an immediate root child; irrelevant-form control is invalid';
+    END IF;
+    result:=physicality_entity_contract.query(unrelated,goal,1,1);
+    IF (result.execution).status IS DISTINCT FROM 0
+       OR (result.execution).final_remaining_required_count IS DISTINCT FROM 1::numeric
+       OR cardinality(result.answers) IS DISTINCT FROM 0
+       OR result.provider_rows_fetched IS NULL OR result.provider_rows_fetched<=0
+       OR result.provider_batch_count IS NULL OR result.provider_batch_count<2
+       OR physicality_entity_contract.counts() IS DISTINCT FROM before THEN
+        RAISE EXCEPTION 'descriptor provenance manufactured a direct content-container edge: %',result;
+    END IF;
+END $derived_direct_container$;
 
 -- A complete successful admission is enclosed by a caller-owned rollback.
 DO $rollback$
@@ -1425,6 +1524,8 @@ SELECT 'LAPLACE_QA_RECEIPT physicality_entity_reflection ' ||
     'original_atom_owner_read_verified',true,
     'cross_epoch_source_view_verified',true,
     'structural_frontier_exhaustion_verified',true,
+    'derived_direct_container_depth_eight_verified',true,
+    'descriptor_provenance_not_direct_content_edge_verified',true,
     'original_same_entity_rle_nodes',5,
     'original_same_entity_rle_carriers',4,
     'same_physicality_distinct_observation_replay',true,

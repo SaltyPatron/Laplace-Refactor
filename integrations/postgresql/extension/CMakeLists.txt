@@ -298,6 +298,16 @@ if(BUILD_TESTING)
     endfunction()
 
     laplace_add_postgresql_mutant(
+        laplace_pg_container_goal_mutant LAPLACE_TEST_DISABLE_PERSISTED_DIRECT_GOAL)
+    target_compile_definitions(laplace_pg_container_goal_mutant PRIVATE
+        laplace_pg_cognition_provider_create=laplace_pg_cognition_provider_create_container_goal_mutant
+        laplace_pg_cognition_provider_summary=laplace_pg_cognition_provider_summary_container_goal_mutant
+        laplace_pg_cognition_provider_take_error=laplace_pg_cognition_provider_take_error_container_goal_mutant
+        laplace_pg_cognition_provider_destroy=laplace_pg_cognition_provider_destroy_container_goal_mutant)
+    add_dependencies(laplace_postgres_observation_cognition_probe
+        laplace_pg_container_goal_mutant)
+
+    laplace_add_postgresql_mutant(
         laplace_pg_blind_conflict_mutant LAPLACE_TEST_BLIND_CONFLICT)
     laplace_add_postgresql_mutant(
         laplace_pg_composition_presence_order_mutant
