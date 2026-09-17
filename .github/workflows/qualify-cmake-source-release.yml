@@ -1,67 +1,207 @@
-name: Verify all already committed source files exactly
+name: Qualify real PostgreSQL materialization cancellation
 on:
   push:
     branches: [qualify/cmake-source-443-20260916]
 permissions:
   contents: read
 jobs:
-  syntax:
+  prefetch-cancellation:
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
-    steps:
-      - name: Authenticate bounded diagnostic and parse its Python syntax
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DIAGNOSTIC_SCRIPT: ${{ runner.temp }}/bounded_readback_diagnostic.py
-        shell: bash
-        run: |
-          python3 -I - <<'PY'
-          import ast,base64,hashlib,json,os,pathlib,urllib.request
-          expected="4ef890cf56a189ac82f38bcb6acfeedeafc87c79"
-          request=urllib.request.Request("https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+expected,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"})
-          with urllib.request.urlopen(request,timeout=30) as response:document=json.load(response)
-          data=base64.b64decode(document["content"])
-          if hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()!=expected:raise ValueError("diagnostic source differs")
-          ast.parse(data,filename="bounded_readback_diagnostic.py")
-          target=pathlib.Path(os.environ["DIAGNOSTIC_SCRIPT"])
-          with target.open("xb") as output:output.write(data)
-          print("AUTHENTICATED_DIAGNOSTIC",expected,len(data))
-          
-          PY
-  exact-readback:
-    needs: syntax
-    runs-on: [self-hosted, Linux, X64, laplace-refactor]
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
-      DIAGNOSTIC_SCRIPT: /build/laplace/work/refactor-committed-readback-${{ github.run_id }}.py
+      GIT_TERMINAL_PROMPT: "0"
+      QUAL_ROOT: /build/laplace/work/prefetch-cancel-${{ github.run_id }}-${{ github.run_attempt }}
+      QUAL_BUILD: /build/laplace/build/prefetch-cancel-${{ github.run_id }}-${{ github.run_attempt }}
+      TMPDIR: /build/laplace/work
+      TMP: /build/laplace/work
+      TEMP: /build/laplace/work
     steps:
-      - name: Authenticate exact reviewed diagnostic without checkout
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: df158f21bfecaf4045d065b10c21cd92464ce3ec
+          persist-credentials: false
+      - name: Prepare private hosted build and exact candidate leaves
+        timeout-minutes: 5
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
-          python3 -I - <<'PY'
-          import ast,base64,hashlib,json,os,pathlib,urllib.request
-          expected="4ef890cf56a189ac82f38bcb6acfeedeafc87c79"
-          request=urllib.request.Request("https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+expected,headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],"Accept":"application/vnd.github+json"})
-          with urllib.request.urlopen(request,timeout=30) as response:document=json.load(response)
-          data=base64.b64decode(document["content"])
-          if hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()!=expected:raise ValueError("diagnostic source differs")
-          ast.parse(data,filename="bounded_readback_diagnostic.py")
-          target=pathlib.Path(os.environ["DIAGNOSTIC_SCRIPT"])
-          with target.open("xb") as output:output.write(data)
-          print("AUTHENTICATED_DIAGNOSTIC",expected,len(data))
-          
+          set -euo pipefail
+          sudo install -d -m 0755 -o "$(id -u)" -g "$(id -g)" /build/laplace/work /build/laplace/build
+          test ! -e "$QUAL_ROOT"
+          test ! -e "$QUAL_BUILD"
+          mkdir -p "$QUAL_ROOT/output" "$QUAL_ROOT/archives" "$QUAL_BUILD"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,urllib.request
+          base="df158f21bfecaf4045d065b10c21cd92464ce3ec"
+          leaves=json.loads('''[{"path":"integrations/postgresql/extension/src/materialization_pg.c","sha":"43e6e73e98e7721f076887ecc163ac720ec9fa61","base_blob":"e9af5ca3864460c94a6f560a03a5492f2627ab7e"},{"path":"integrations/postgresql/extension/tests/materialization_prefetch_pg.c","sha":"a47d24a981f462c647e9fc6dc290e92eb1d08ede","base_blob":null},{"path":"integrations/postgresql/extension/CMakeLists.txt","sha":"92442f14563f60c00226dcb099428cbd54195b80","base_blob":"4d29817e48524e84b5245f785168831aa27ba9a9"},{"path":"tests/postgres/materialization_prefetch_contract.sql","sha":"2b4a22e23d18ae2c7a9006a77d7d5a54c7525130","base_blob":null},{"path":"tests/postgres/physicality_entity_contract.sql","sha":"fc6478801a51297147bca8ce31f4d3c77ee424f2","base_blob":"3b5281cd0463be61ce349d6b7c84442242e666e2"},{"path":"tests/registry.d/verified-cpp-source.json","sha":"336e7f24546da3f154afbed520f496d0ea09b0a2","base_blob":"149d00c4ed50303f0bedd5c6668e74e226d73e70"},{"path":"integrations/postgresql/extension/src/target_attention_pg.inc","sha":"9291503e6e115d1e19a0dd7d82fb579796e4612e","base_blob":"bf05492e15f91cbb61e605fcb5e92ef6221a9624"},{"path":"integrations/postgresql/extension/src/cognition_firmware_pg.c","sha":"a0fbca53139968c3be0fc083a1c44397a0db3d00","base_blob":"e076b52c7a7bcaeb7fd00605626729e6651d9af5"},{"path":"integrations/postgresql/extension/src/cognition_conversation_product_pg.c","sha":"429b0a0bc875b4110e1f56ce87257c4597ac617a","base_blob":"3752e7a7967b74d090a7b22b173b22b3a5b5f859"}]''')
+          def git(*args):
+              return subprocess.check_output(["git",*args],text=True).strip()
+          if git("rev-parse","HEAD") != base:
+              raise SystemExit("qualification source base differs")
+          for leaf in leaves:
+              path=pathlib.Path(leaf["path"])
+              if leaf["base_blob"] is None:
+                  if path.exists():raise SystemExit("new candidate path already exists")
+              elif git("hash-object",str(path)) != leaf["base_blob"]:
+                  raise SystemExit("candidate baseline leaf differs: "+str(path))
+              request=urllib.request.Request(
+                  "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/"+leaf["sha"],
+                  headers={"Authorization":"Bearer "+os.environ["GH_TOKEN"],
+                           "Accept":"application/vnd.github+json",
+                           "X-GitHub-Api-Version":"2022-11-28"})
+              with urllib.request.urlopen(request,timeout=30) as response:
+                  document=json.load(response)
+              if document.get("sha") != leaf["sha"] or document.get("encoding") != "base64":
+                  raise SystemExit("GitHub blob response differs")
+              payload=base64.b64decode(document["content"])
+              observed=hashlib.sha1(b"blob "+str(len(payload)).encode()+b"\0"+payload).hexdigest()
+              if observed != leaf["sha"]:raise SystemExit("candidate blob bytes differ")
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_bytes(payload)
+              if git("hash-object",str(path)) != leaf["sha"]:
+                  raise SystemExit("materialized candidate differs")
+          subprocess.run(["git","add","--",*[x["path"] for x in leaves]],check=True)
+          output=pathlib.Path(os.environ["QUAL_ROOT"])/"output"
+          selection={"schema":"laplace.materialization-prefetch-source-selection/v1",
+              "base_commit":base,"candidate_tree":git("write-tree"),"leaves":leaves}
+          (output/"source-selection.json").write_text(json.dumps(selection,indent=2)+"\n")
+          print(json.dumps(selection,sort_keys=True))
           PY
-      - name: Verify the committed119 files through the normal reader under the common reservation
+          sudo apt-get update
+          sudo apt-get install --yes build-essential cmake ninja-build jq bison flex perl curl
+          {
+            uname -a
+            gcc --version
+            g++ --version
+            cmake --version
+            ninja --version
+          } > "$QUAL_ROOT/output/hosted-provider-versions.txt"
+      - name: Acquire native dependencies and verify exact PostgreSQL release
+        timeout-minutes: 6
         shell: bash
         run: |
-          flock --exclusive --close --wait 300 /build/laplace/work/host-resource.lock             python3 -I "${DIAGNOSTIC_SCRIPT}"
-      - name: Retain actual phase outputs and owned-backend cleanup evidence
+          set -euo pipefail
+          ./tools/dependencies/acquire-locked-git.sh \
+            dependencies/lock.json "$QUAL_ROOT/dependencies" \
+            blake3 eigen googletest spectra tree-sitter \
+            2>&1 | tee "$QUAL_ROOT/output/native-acquisition.log"
+          python3 - <<'PY'
+          import json,os,pathlib
+          source=json.loads(pathlib.Path("dependencies/release-lock.json").read_text())
+          entry=source["archives"]["postgresql"]
+          if entry["version"]!="18.6" or entry["sha256"]!="555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f":
+              raise SystemExit("selected PostgreSQL release differs")
+          target=pathlib.Path(os.environ["QUAL_ROOT"])/"output"/"postgresql-release-lock.json"
+          target.write_text(json.dumps({"schema":source["schema"],"archives":{"postgresql":entry}},indent=2)+"\n")
+          PY
+          curl --fail --location --retry 3 --connect-timeout 20 --max-time 180 \
+            --output "$QUAL_ROOT/archives/postgresql-18.6.tar.bz2" \
+            https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2
+          python3 tools/dependencies/release-assets.py import \
+            --lock "$QUAL_ROOT/output/postgresql-release-lock.json" \
+            --archive-root "$QUAL_ROOT/archives" \
+            --destination "$QUAL_ROOT/release-source" \
+            | tee "$QUAL_ROOT/output/postgresql-source-verification.json"
+      - name: Build disposable PostgreSQL 18.6 cancellation provider
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$QUAL_BUILD/postgresql"
+          cd "$QUAL_BUILD/postgresql"
+          "$QUAL_ROOT/release-source/postgresql/configure" \
+            --prefix="$QUAL_ROOT/pgsql-18" \
+            --without-readline --without-zlib --without-icu \
+            2>&1 | tee "$QUAL_ROOT/output/postgresql-configure.log"
+          make --jobs=2 2>&1 | tee "$QUAL_ROOT/output/postgresql-build.log"
+          make install 2>&1 | tee "$QUAL_ROOT/output/postgresql-install.log"
+          "$QUAL_ROOT/pgsql-18/bin/pg_config" --version \
+            | tee "$QUAL_ROOT/output/postgresql-version.txt"
+          test "$("$QUAL_ROOT/pgsql-18/bin/pg_config" --version)" = "PostgreSQL 18.6"
+      - name: Build the actual Laplace extension and test fixture
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --preset linux-dev -B "$QUAL_BUILD/laplace" \
+            -DLAPLACE_BLAKE3_SOURCE="$QUAL_ROOT/dependencies/blake3/c" \
+            -DLAPLACE_GTEST_SOURCE="$QUAL_ROOT/dependencies/googletest" \
+            -DLAPLACE_EIGEN_SOURCE="$QUAL_ROOT/dependencies/eigen" \
+            -DLAPLACE_SPECTRA_SOURCE="$QUAL_ROOT/dependencies/spectra" \
+            -DLAPLACE_TREE_SITTER_SOURCE="$QUAL_ROOT/dependencies/tree-sitter" \
+            -DLAPLACE_PG_CONFIG="$QUAL_ROOT/pgsql-18/bin/pg_config" \
+            -DLAPLACE_ENABLE_DOTNET_BINDINGS=OFF \
+            2>&1 | tee "$QUAL_ROOT/output/laplace-configure.log"
+          cmake --build "$QUAL_BUILD/laplace" --target laplace_pg --parallel 2 -- -k 0 \
+            2>&1 | tee "$QUAL_ROOT/output/laplace-build.log"
+      - name: Execute real SIGINT, optional failure and classification mutant
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf 'CREATE EXTENSION laplace;\n'
+            printf "SET statement_timeout = '15s';\n"
+            cat tests/postgres/materialization_prefetch_contract.sql
+          } > "$QUAL_ROOT/output/standalone.sql"
+          timeout --signal=TERM --kill-after=10s 120s \
+            bash tests/postgres/run_spi_test.sh mutation \
+            "$QUAL_ROOT/pgsql-18/bin" \
+            "$QUAL_BUILD/laplace/integrations/postgresql/extension/share" \
+            "$QUAL_BUILD/laplace/integrations/postgresql/extension" \
+            "$QUAL_BUILD/laplace/engine" "" "" \
+            "$QUAL_ROOT/output/standalone.sql" "" \
+            2>&1 | tee "$QUAL_ROOT/output/postgresql-controls.log"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path(os.environ["QUAL_ROOT"])/"output"
+          marker="LAPLACE_QA_RECEIPT materialization_prefetch_cancellation "
+          lines=(root/"postgresql-controls.log").read_text().splitlines()
+          receipts=[json.loads(line.split(marker,1)[1]) for line in lines if marker in line]
+          if len(receipts)!=1:raise SystemExit("real PostgreSQL receipt is absent or ambiguous")
+          receipt=receipts[0]
+          expected={"schema":"laplace.materialization-prefetch-cancellation/v1",
+              "actual_prefetch_wrapper":True,"actual_provider_callback":True,
+              "ordinary_speculative_fallbacks":2,"backend_sigint_requests":2,
+              "propagated_cancellations":1,"cancellation_sqlstate":"57014",
+              "cancelled_read_receipt_zeroed":True,"cancelled_trajectory_output_untouched":True,
+              "resolving_cache_reset":True,"caller_context_restored":True,
+              "classification_mutants_detected":1,"backend_usable_after_cancel":True}
+          if receipt != expected:raise SystemExit("real PostgreSQL control receipt differs")
+          files={}
+          for name in ("source-selection.json","postgresql-source-verification.json",
+                       "hosted-provider-versions.txt","postgresql-version.txt",
+                       "postgresql-controls.log"):
+              payload=(root/name).read_bytes()
+              files[name]={"bytes":len(payload),"sha256":hashlib.sha256(payload).hexdigest()}
+          qualification={"schema":"laplace.materialization-prefetch-hosted-qualification/v1",
+              "status":"passed","scope":"actual PostgreSQL cancellation/error boundary",
+              "installed_product_qualification":False,"host":"ubuntu-24.04",
+              "provider":"locked PostgreSQL 18.6 source built with hosted GCC",
+              "selected_product_provider_replaced":False,
+              "source":json.loads((root/"source-selection.json").read_text()),
+              "controls":receipt,"evidence":files}
+          (root/"qualification.json").write_text(json.dumps(qualification,indent=2)+"\n")
+          print("LAPLACE_PREFETCH_HOSTED_QUALIFICATION "+json.dumps(qualification,sort_keys=True))
+          PY
+      - name: Retain configure diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$QUAL_ROOT/output"
+          if [[ -f "$QUAL_BUILD/postgresql/config.log" ]]; then
+            cp "$QUAL_BUILD/postgresql/config.log" "$QUAL_ROOT/output/postgresql-config.log"
+          fi
+          if [[ -f "$QUAL_BUILD/laplace/CMakeFiles/CMakeConfigureLog.yaml" ]]; then
+            cp "$QUAL_BUILD/laplace/CMakeFiles/CMakeConfigureLog.yaml" "$QUAL_ROOT/output/laplace-CMakeConfigureLog.yaml"
+          fi
+      - name: Retain source binding and actual PostgreSQL evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: committed-source-readback-${{ github.run_id }}-${{ github.run_attempt }}
-          path: /build/laplace/work/refactor-committed-readback-${{ github.run_id }}/
-          if-no-files-found: warn
+          name: materialization-prefetch-cancellation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.QUAL_ROOT }}/output/
+          if-no-files-found: error
           retention-days: 30
