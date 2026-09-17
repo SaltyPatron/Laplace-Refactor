@@ -145,10 +145,21 @@ jobs:
                   for child_index, (a, b) in enumerate(zip(left["children"], right["children"], strict=True)):
                       compare(a, b, path + [child_index])
               compare(trees["baseline"], trees["candidate"], [])
+              ancestor_paths = []
+              for difference in differences:
+                  observation = {"path": difference["path"], "variants": {}}
+                  for variant in ("baseline", "candidate"):
+                      node = trees[variant]
+                      chain = [projection(node)]
+                      for ordinal in difference["path"]:
+                          node = node["children"][ordinal]
+                          chain.append(projection(node))
+                      observation["variants"][variant] = chain
+                  ancestor_paths.append(observation)
               print("GNU_ALIAS_MAIN_CPP_CST_DIFF " + json.dumps({
                   "path": "src/main.cpp", "source_sha256": source_row["sha256"],
                   "source_bytes": len(source), "retained": retained,
-                  "differences": differences}, sort_keys=True), flush=True)
+                  "differences": differences, "ancestor_paths": ancestor_paths}, sort_keys=True), flush=True)
               if report["status"] != "passed-hosted-gnu-alias-qualification-only":
                   for item in commands:
                       if item.get("returncode") != 0 and item["label"] != "byte-order-deliberate-break":
