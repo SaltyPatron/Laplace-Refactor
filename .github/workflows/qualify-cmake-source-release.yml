@@ -1,4 +1,4 @@
-name: Hosted C++ grammar generation experiment
+name: Read hosted C++ grammar experiment evidence
 on:
   workflow_dispatch:
   push:
@@ -6,64 +6,85 @@ on:
       - ".github/workflows/qualify-cmake-source-release.yml"
 permissions:
   contents: read
-concurrency:
-  group: hosted-cpp-grammar-experiment-${{ github.ref }}
-  cancel-in-progress: false
+  actions: read
 jobs:
-  grammar-generation:
-    name: Exact upstream generator and scratch grammar comparison
+  read-experiment:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 10
     env:
-      QUALIFICATION_ROOT: ${{ github.workspace }}/hosted-cpp-grammar-experiment
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_RUN: "35181390710"
+      EXPECTED_HEAD: "dba90fd7fc9bc735bca712f2c7ecc0fcacb24e6e"
+      EXPECTED_ARTIFACT: "10480207378"
+      EXPECTED_ARCHIVE_SHA256: "043f838112100a2889eb28c29dea0de1f8a3bb619a45f6f79bdd273f9ece2cfb"
+      EXPECTED_ARCHIVE_BYTES: "14413749"
     steps:
-      - name: Retrieve immutable prepared operator
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Authenticate and print actual generator and test evidence
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib, json, os, pathlib, urllib.request
-          root = pathlib.Path(os.environ["QUALIFICATION_ROOT"])
-          target = root / "evidence" / "bootstrap"
-          target.mkdir(parents=True, exist_ok=False)
-          blob = "b2f5d78e2fca62b4d2e7815a6abf4d8b76f6c460"
-          expected = "837f49dfa6cd816bafeddf181c273b27340a3aefd04cab2c68657de34e6fac29"
-          url = "https://api.github.com/repos/SaltyPatron/Laplace-Refactor/git/blobs/" + blob
-          request = urllib.request.Request(url, headers={
-              "Authorization": "Bearer " + os.environ["GH_TOKEN"],
-              "Accept": "application/vnd.github.raw+json",
-              "X-GitHub-Api-Version": "2022-11-28",
-              "User-Agent": "Laplace-hosted-grammar-experiment",
-          })
-          with urllib.request.urlopen(request, timeout=90) as response:
-              data = response.read()
-          observed_blob = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
-          if observed_blob != blob or hashlib.sha256(data).hexdigest() != expected:
-              raise SystemExit("immutable prepared operator identity mismatch")
-          (target / "qualify.py").write_bytes(data)
-          (target / "identity.json").write_text(json.dumps({
-              "git_blob": blob, "sha256": expected, "bytes": len(data),
-              "workflow_sha": os.environ["GITHUB_SHA"],
-              "scope": "hosted scratch syntax experiment; no installed provider qualification",
-          }, indent=2) + "\n")
+          import hashlib, io, json, os, urllib.request, zipfile
+          repo = "SaltyPatron/Laplace-Refactor"
+          api = "https://api.github.com/repos/" + repo
+          headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+          def get(path, raw=False):
+              request = urllib.request.Request(api + path, headers=headers)
+              request.add_unredirected_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
+              with urllib.request.urlopen(request, timeout=120) as reply:
+                  data = reply.read()
+              return data if raw else json.loads(data)
+          run_id = int(os.environ["EXPECTED_RUN"])
+          run = get("/actions/runs/" + str(run_id))
+          assert run["head_sha"] == os.environ["EXPECTED_HEAD"] and run["status"] == "completed", run
+          artifact_id = int(os.environ["EXPECTED_ARTIFACT"])
+          meta = get("/actions/artifacts/" + str(artifact_id))
+          assert not meta["expired"] and meta["workflow_run"]["id"] == run_id, meta
+          assert meta["workflow_run"]["head_sha"] == os.environ["EXPECTED_HEAD"], meta
+          assert meta["digest"] == "sha256:" + os.environ["EXPECTED_ARCHIVE_SHA256"], meta
+          data = get("/actions/artifacts/" + str(artifact_id) + "/zip", True)
+          assert len(data) == int(os.environ["EXPECTED_ARCHIVE_BYTES"])
+          assert hashlib.sha256(data).hexdigest() == os.environ["EXPECTED_ARCHIVE_SHA256"]
+          archive = zipfile.ZipFile(io.BytesIO(data))
+          report = json.loads(archive.read("report.json"))
+          inventory = json.loads(archive.read("evidence-inventory.json"))
+          names = archive.namelist()
+          assert len(names) == len(set(names))
+          lookup = {row["path"]: row for row in inventory}
+          def member(name):
+              value = archive.read(name)
+              row = lookup[name]
+              assert len(value) == row["bytes"] and hashlib.sha256(value).hexdigest() == row["sha256"], name
+              return value
+          assert member("report.json") == archive.read("report.json")
+          print("GRAMMAR_EXPERIMENT_ARTIFACT " + json.dumps({
+              "run_id": run_id, "head": run["head_sha"], "conclusion": run["conclusion"],
+              "artifact_id": artifact_id, "archive_sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
+          }, sort_keys=True))
+          print("GRAMMAR_EXPERIMENT_REPORT " + json.dumps(report, sort_keys=True))
+          for command in report.get("commands", []):
+              label = command["label"]
+              if "generate" in label or command.get("returncode") != 0:
+                  for stream in ("stdout", "stderr"):
+                      name = "logs/" + command[stream].rsplit("/", 1)[-1]
+                      value = member(name)
+                      print("GRAMMAR_COMMAND_OUTPUT " + json.dumps({
+                          "label": label, "stream": stream, "returncode": command.get("returncode"),
+                          "sha256": hashlib.sha256(value).hexdigest(), "bytes": len(value),
+                          "text": value[:131072].decode("utf-8", errors="replace"),
+                          "truncated": len(value) > 131072,
+                      }, sort_keys=True))
+          for name in sorted(names):
+              if name.startswith("corpora/") and name.endswith(".json"):
+                  summary = json.loads(member(name))
+                  print("GRAMMAR_CORPUS_SUMMARY " + json.dumps({
+                      "member": name, "parse_failures": summary.get("parse_failures"),
+                      "parse_stats": summary.get("parse_stats"),
+                  }, sort_keys=True))
+          important = {"for-condition-declaration", "deleted-conversion-operator", "using-pack-expansion",
+                       "pointer-to-member-operator"}
+          for name in sorted(names):
+              if name.startswith("csts/") and name.endswith(".json"):
+                  case_id = name.rsplit("/", 1)[-1][:-5]
+                  if case_id in important or case_id.startswith("pointer-shape-"):
+                      print("GRAMMAR_CST " + json.dumps({"member": name, "observation": json.loads(member(name))}, sort_keys=True))
           PY
-      - name: Validate operator syntax before source acquisition
-        shell: bash
-        run: |
-          python3 -m py_compile "$QUALIFICATION_ROOT/evidence/bootstrap/qualify.py"
-      - name: Generate and inspect actual before and after parsers
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          python3 "$QUALIFICATION_ROOT/evidence/bootstrap/qualify.py"
-      - name: Retain source identities, generation failures, corpus output and CSTs
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: hosted-cpp-grammar-experiment-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ env.QUALIFICATION_ROOT }}/evidence
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 6
